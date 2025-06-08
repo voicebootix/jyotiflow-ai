@@ -1199,6 +1199,8 @@ async def init_db():
     except Exception as e:
         print(f"⚠️ Error initializing DB: {e}")
 
-# Run once during app startup
-asyncio.get_event_loop().run_until_complete(init_db())
+# NEW (better approach):
+@app.on_event("startup")
+async def startup_event():
+    await init_db()
 
