@@ -35,7 +35,7 @@ import secrets
 import re
 
 # தமிழ் - Environment variables மற்றும் configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./test_jyotiflow.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_...")
 STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "whsec_...")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "sk-...")
