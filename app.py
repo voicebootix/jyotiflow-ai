@@ -392,7 +392,7 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
         return {"success": False, "error": "Zoom service temporarily unavailable"}
 
 # தமிழ் - API Routes
-app = FastAPI()
+
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
     """தமிழ் - Homepage with spiritual service offerings"""
