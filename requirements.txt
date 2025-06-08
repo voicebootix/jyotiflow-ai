@@ -16,7 +16,7 @@ bcrypt==4.1.2
 python-multipart==0.0.6
 
 # தமிழ் - Payment processing
-stripe==7.8.0
+stripe==8.0.0
 
 # தமிழ் - AI and spiritual guidance
 openai==0.28.1
