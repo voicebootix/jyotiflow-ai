@@ -502,7 +502,11 @@ async def homepage():
     </body>
     </html>
     """
+    print("✅ homepage() reached successfully")
     return HTMLResponse(content=html_content, status_code=200)
+@app.get("/test")
+async def test_route():
+    return {"status": "working"}    
 
 @app.get("/health")
 async def health_check():
