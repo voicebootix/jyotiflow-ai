@@ -33,6 +33,8 @@ import uvicorn
 from contextlib import asynccontextmanager
 import secrets
 import re
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
 
 
 # தமிழ் - Environment variables மற்றும் configuration
