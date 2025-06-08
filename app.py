@@ -499,7 +499,7 @@ async def homepage():
     </body>
     </html>
     """
-    return HTMLResponse(content=html_content)
+    return HTMLResponse(content=html_content, status_code=200)
 
 @app.get("/health")
 async def health_check():
