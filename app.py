@@ -1175,15 +1175,15 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
 # தமிழ் - Application startup
-if __name__ == "__main__":
-    logger.info("🙏🏼 Starting Swami Jyotirananthan's Digital Ashram...")
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=int(os.getenv("PORT", 8000)),
-        reload=DEBUG,
-        log_level="info" if not DEBUG else "debug"
-    )
+#if __name__ == "__main__":
+    #logger.info("🙏🏼 Starting Swami Jyotirananthan's Digital Ashram...")
+    #uvicorn.run(
+        #"app:app",
+        #host="0.0.0.0",
+        #port=int(os.getenv("PORT", 8000)),
+        #reload=DEBUG,
+        #log_level="info" if not DEBUG else "debug"
+    #)
 
 async def init_db():
     try:
