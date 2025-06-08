@@ -1178,3 +1178,20 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug"
     )
 
+    async def init_db():
+    try:
+        db_url = os.getenv("DATABASE_URL")
+        conn = await asyncpg.connect(dsn=db_url)
+
+        with open("schema.sql", "r", encoding="utf-8") as f:
+            schema_sql = f.read()
+
+        await conn.execute(schema_sql)
+        await conn.close()
+        print("✅ PostgreSQL schema initialized successfully.")
+    except Exception as e:
+        print(f"⚠️ Error initializing DB: {e}")
+
+# Run once during app startup
+asyncio.get_event_loop().run_until_complete(init_db())
+
