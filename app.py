@@ -1178,7 +1178,7 @@ if __name__ == "__main__":
         log_level="info" if not DEBUG else "debug"
     )
 
-    async def init_db():
+async def init_db():
     try:
         db_url = os.getenv("DATABASE_URL")
         conn = await asyncpg.connect(dsn=db_url)
