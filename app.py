@@ -33,6 +33,7 @@ import uvicorn
 from contextlib import asynccontextmanager
 import secrets
 import re
+from fastapi.responses import HTMLResponse
 
 # தமிழ் - Environment variables மற்றும் configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
