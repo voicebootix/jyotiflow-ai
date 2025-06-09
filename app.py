@@ -778,7 +778,7 @@ def clarity_page():
                 resultDiv.style.display = 'block';
                 
                 try {
-                    const response = await fetch('/start_session', {
+                    const response = await fetch('/api/session/start', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1107,7 +1107,7 @@ def astrolove_page():
             resultDiv.style.display = 'block';
             
             try {
-                const response = await fetch('/start_session', {
+                const response = await fetch('/api/session/start', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -1518,7 +1518,7 @@ def r3live_page():
                 resultDiv.style.display = 'block';
                 
                 try {
-                    const response = await fetch('/start_session', {
+                    const response = await fetch('/api/session/start', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -1945,7 +1945,7 @@ def daily_page():
                 resultDiv.style.display = 'block';
                 
                 try {
-                    const response = await fetch('/start_session', {
+                    const response = await fetch('/api/session/start', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -2184,7 +2184,7 @@ def login_page():
                 successDiv.style.display = 'none';
                 
                 try {
-                    const response = await fetch('/login', {
+                    const response = await fetch('/api/auth/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -2503,7 +2503,7 @@ def register_page():
                 }
                 
                 try {
-                    const response = await fetch('/register', {
+                    const response = await fetch('/api/auth/register', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -2915,7 +2915,7 @@ def admin_page():
                 errorDiv.style.display = 'none';
                 
                 try {
-                    const response = await fetch('/admin_login', {
+                    const response = await fetch('/api/auth/admin-login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
