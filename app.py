@@ -498,7 +498,7 @@ def homepage():
     """
     return HTMLResponse(content=html_content)
 
-@app.route('/session/clarity')
+@app.get('/session/clarity')
 def clarity_page():
     CLARITY_TEMPLATE = """
     <!DOCTYPE html>
@@ -809,7 +809,7 @@ def clarity_page():
     """
     return HTMLResponse(content=CLARITY_TEMPLATE)
 
-@app.route('/session/love')
+@app.get('/session/love')
 def astrolove_page():
     ASTROLOVE_TEMPLATE = """
     <!DOCTYPE html>
@@ -1140,7 +1140,7 @@ def astrolove_page():
     """
     return HTMLResponse(content=ASTROLOVE_TEMPLATE)
 
-@app.route('/session/premium')
+@app.get('/session/premium')
 def r3live_page():
     R3_TEMPLATE = """
     <!DOCTYPE html>
@@ -1552,7 +1552,7 @@ def r3live_page():
     """
     return HTMLResponse(content=R3_TEMPLATE)
 
-@app.route('/session/elite')
+@app.get('/session/elite')
 def daily_page():
     DAILY_TEMPLATE = """
     <!DOCTYPE html>
@@ -1979,7 +1979,7 @@ def daily_page():
     """
     return HTMLResponse(content=DAILY_TEMPLATE)
 
-@app.route('/login')
+@app.get('/login')
 def login_page():
     LOGIN_TEMPLATE = """
     <!DOCTYPE html>
@@ -2221,7 +2221,7 @@ def login_page():
     """
     return HTMLResponse(content=LOGIN_TEMPLATE)
 
-@app.route('/register')
+@app.get('/register')
 def register_page():
     REGISTER_TEMPLATE = """
     <!DOCTYPE html>
@@ -2543,7 +2543,7 @@ def register_page():
     """
     return HTMLResponse(content=REGISTER_TEMPLATE)
 
-@app.route('/admin')
+@app.get('/admin')
 def admin_page():
     ADMIN_TEMPLATE = """
     <!DOCTYPE html>
