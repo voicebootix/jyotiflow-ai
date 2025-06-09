@@ -511,7 +511,7 @@ async def homepage():
     return HTMLResponse(content=html_content)
 
 @app.route('/clarity')
-def clarity_page():
+async def login_page():
     CLARITY_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
