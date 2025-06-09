@@ -387,7 +387,7 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 # தமிழ் - API Routes
 
 @app.get("/", response_class=HTMLResponse)
-async def homepage():
+def homepage():
     """தமிழ் - Homepage with spiritual service offerings"""
     html_content = """
     <!DOCTYPE html>
@@ -499,7 +499,7 @@ async def homepage():
     return HTMLResponse(content=html_content)
 
 @app.route('/clarity')
-async def clarity_page():
+def clarity_page():
     CLARITY_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
