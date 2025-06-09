@@ -399,56 +399,11 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
-    """Homepage with spiritual service offerings"""
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>JyotiFlow.ai</title>
-    </head>
-    <body>
-        <h1>Welcome to JyotiFlow.ai</h1>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
-
-
-    pass
-
-@app.route('/clarity')
-def clarity_page():
-    return HTMLResponse(content=CLARITY_TEMPLATE)
-
-@app.route('/astrolove')
-def astrolove_page():
-    return HTMLResponse(content=ASTROLOVE_TEMPLATE)
-
-@app.route('/r3live')
-def r3live_page():
-    return HTMLResponse(content=R3_TEMPLATE)
-
-@app.route('/daily')
-def daily_page():
-    return HTMLResponse(content=DAILY_TEMPLATE)
-
-@app.route('/login')
-def login_page():
-    return HTMLResponse(content=LOGIN_TEMPLATE)
-
-@app.route('/register')
-def register_page():
-    return HTMLResponse(content=REGISTER_TEMPLATE)
-
-@app.route('/admin')
-def admin_page():
-    return HTMLResponse(content=ADMIN_TEMPLATE)
     """தமிழ் - Homepage with spiritual service offerings"""
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
+html_content = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>🙏🏼 JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
@@ -551,8 +506,11 @@ def admin_page():
     </body>
     </html>
     """
+    return HTMLResponse(content=html_content)
 
-    CLARITY_TEMPLATE = """
+@app.route('/clarity')
+def clarity_page():
+CLARITY_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -858,7 +816,10 @@ def admin_page():
 </body>
 </html>
 """
+return HTMLResponse(content=CLARITY_TEMPLATE)
 
+@app.route('/astrolove')
+def astrolove_page():
 ASTROLOVE_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1186,7 +1147,10 @@ ASTROLOVE_TEMPLATE = """
 </body>
 </html>
 """
+return HTMLResponse(content=ASTROLOVE_TEMPLATE)
 
+@app.route('/r3live')
+def r3live_page():
 R3_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1595,7 +1559,10 @@ R3_TEMPLATE = """
 </body>
 </html>
 """
+return HTMLResponse(content=R3_TEMPLATE)
 
+@app.route('/daily')
+def daily_page():
 DAILY_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -2019,7 +1986,10 @@ DAILY_TEMPLATE = """
 </body>
 </html>
 """
+return HTMLResponse(content=DAILY_TEMPLATE)
 
+@app.route('/login')
+def login_page():
 LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -2258,7 +2228,10 @@ LOGIN_TEMPLATE = """
 </body>
 </html>
 """
+return HTMLResponse(content=LOGIN_TEMPLATE)
 
+@app.route('/register')
+def register_page():
 REGISTER_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -2577,7 +2550,10 @@ REGISTER_TEMPLATE = """
 </body>
 </html>
 """
+return HTMLResponse(content=REGISTER_TEMPLATE)
 
+@app.route('/admin')
+def admin_page():
 ADMIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -3140,10 +3116,8 @@ ADMIN_TEMPLATE = """
 </body>
 </html>
 """
+return HTMLResponse(content=ADMIN_TEMPLATE)
 
-
-# print("✅ homepage() reached successfully")
-# return HTMLResponse(content=html_content, status_
 @app.get("/test")
 async def test_route():
     return {"status": "working"} 
