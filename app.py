@@ -405,6 +405,7 @@ async def homepage():
     <!DOCTYPE html>
     <html lang="en">
     <head>
+ 
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>🙏🏼 JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
@@ -515,6 +516,7 @@ def clarity_page():
     <!DOCTYPE html>
     <html lang="en">
     <head>
+
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>🙏🏼 Clarity Plus - JyotiFlow.ai</title>
@@ -819,14 +821,21 @@ def clarity_page():
     """
     return HTMLResponse(content=CLARITY_TEMPLATE)
 
+
 @app.route('/astrolove')
 def astrolove_page():
     ASTROLOVE_TEMPLATE = """
+
+@app.route('/clarity')
+def clarity_page():
+CLARITY_TEMPLATE = """
+
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
         <title>🙏🏼 AstroLove Whisper - JyotiFlow.ai</title>
         <style>
             * {
@@ -858,6 +867,190 @@ def astrolove_page():
                 margin-bottom: 10px;
             }
             
+
+        <title>🙏🏼 Clarity Plus - JyotiFlow.ai</title>
+        <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        
+        .header {
+            margin-bottom: 40px;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            margin-bottom: 10px;
+        }
+        
+        .title {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+        
+        .service-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        
+        .service-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        .service-title {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            color: #FFD700;
+        }
+        
+        .service-price {
+            font-size: 3rem;
+            font-weight: bold;
+            color: #87CEEB;
+            margin-bottom: 20px;
+        }
+        
+        .service-description {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+        
+        .question-form {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #FFD700;
+        }
+        
+        .form-input, .form-textarea {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 1rem;
+        }
+        
+        .form-textarea {
+            height: 120px;
+            resize: vertical;
+        }
+        
+        .btn {
+            background: linear-gradient(45deg, #FFD700, #FFA500);
+            color: #333;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .guidance-result {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 30px 0;
+            text-align: left;
+            display: none;
+        }
+        
+        .guidance-title {
+            color: #FFD700;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        
+        .guidance-text {
+            line-height: 1.8;
+            font-size: 1.1rem;
+        }
+        
+        .nav-links {
+            margin-top: 40px;
+        }
+        
+        .nav-links a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            margin: 0 15px;
+            font-size: 1rem;
+        }
+        
+        .nav-links a:hover {
+            color: #FFD700;
+        }
+        
+        @media (max-width: 768px) {
+
             .title {
                 font-size: 2.5rem;
                 margin-bottom: 10px;
