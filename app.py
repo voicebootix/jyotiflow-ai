@@ -1135,10 +1135,10 @@ def astrolove_page():
             }
         });
     </script>
-</body>
-</html>
-"""
-return HTMLResponse(content=ASTROLOVE_TEMPLATE)
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=ASTROLOVE_TEMPLATE)
 
 @app.route('/r3live')
 def r3live_page():
