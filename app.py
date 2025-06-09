@@ -399,6 +399,7 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
+
 @app.route('/clarity')
 def clarity_page():
     return render_template_string(CLARITY_TEMPLATE)
