@@ -16,7 +16,6 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 import asyncpg
-import aiosqlite
 import asyncio
 import os
 import jwt
@@ -29,7 +28,7 @@ from typing import Optional, Dict
 from pydantic import BaseModel, EmailStr
 from contextlib import asynccontextmanager
 import re
-from fastapi.responses import HTMLResponse
+
 
 # தமிழ் - Environment variables மற்றும் configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
@@ -102,16 +101,9 @@ async def lifespan(app: FastAPI):
     """தமிழ் - Application startup மற்றும் shutdown events"""
     global db_pool, db_backend
     try:
-        if DATABASE_URL.startswith("sqlite"):
-            db_backend = "sqlite"
-            db_path = DATABASE_URL.split("://", 1)[-1]
-            db_pool = await aiosqlite.connect(db_path)
-            db_pool.row_factory = aiosqlite.Row
-            logger.info("🙏🏼 Using SQLite backend")
-        else:
-            db_backend = "postgres"
-            db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=5, max_size=20)
-            logger.info("🙏🏼 Using PostgreSQL backend")
+        db_backend = "postgres"
+        db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=5, max_size=20)
+        logger.info("🙏🏼 Using PostgreSQL backend")
         logger.info("Swami Jyotirananthan's digital ashram is awakening...")
         yield
     except Exception as e:
@@ -177,15 +169,11 @@ async def get_db_connection():
     """தமிழ் - Database connection pool இலிருந்து connection பெறுதல்"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Database pool not initialized")
-    if db_backend == "sqlite":
-        return db_pool
     return await db_pool.acquire()
 
 async def release_db_connection(conn):
     """தமிழ் - Database connection ஐ pool க்கு திரும்ப அனுப்புதல்"""
     if not conn:
-        return
-    if db_backend == "sqlite":
         return
     await db_pool.release(conn)
 
@@ -406,10 +394,10 @@ async def homepage():
     <html lang="en">
     <head>
  
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>🙏🏼 JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
-            <style>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🙏🏼 JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
+        <style>
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { 
                     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -511,7 +499,7 @@ async def homepage():
     return HTMLResponse(content=html_content)
 
 @app.route('/clarity')
-async def login_page():
+async def clarity_page():
     CLARITY_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
@@ -821,54 +809,15 @@ async def login_page():
     """
     return HTMLResponse(content=CLARITY_TEMPLATE)
 
-
 @app.route('/astrolove')
 def astrolove_page():
     ASTROLOVE_TEMPLATE = """
-
-@app.route('/clarity')
-def clarity_page():
-CLARITY_TEMPLATE = """
-
     <!DOCTYPE html>
     <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
         <title>🙏🏼 AstroLove Whisper - JyotiFlow.ai</title>
-        <style>
-            * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-            }
-            
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 50%, #ff9ff3 100%);
-                min-height: 100vh;
-                color: white;
-                padding: 20px;
-            }
-            
-            .container {
-                max-width: 800px;
-                margin: 0 auto;
-                text-align: center;
-            }
-            
-            .header {
-                margin-bottom: 40px;
-            }
-            
-            .logo {
-                font-size: 3rem;
-                margin-bottom: 10px;
-            }
-            
-
-        <title>🙏🏼 Clarity Plus - JyotiFlow.ai</title>
         <style>
         * {
             margin: 0;
@@ -878,7 +827,7 @@ CLARITY_TEMPLATE = """
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 50%, #ff9ff3 100%);
             min-height: 100vh;
             color: white;
             padding: 20px;
@@ -938,7 +887,7 @@ CLARITY_TEMPLATE = """
         .service-price {
             font-size: 3rem;
             font-weight: bold;
-            color: #87CEEB;
+            color: #ff9ff3;
             margin-bottom: 20px;
         }
         
@@ -968,7 +917,7 @@ CLARITY_TEMPLATE = """
             color: #FFD700;
         }
         
-        .form-input, .form-textarea {
+        .form-input, .form-textarea, .form-select {
             width: 100%;
             padding: 12px;
             border: none;
@@ -984,8 +933,8 @@ CLARITY_TEMPLATE = """
         }
         
         .btn {
-            background: linear-gradient(45deg, #FFD700, #FFA500);
-            color: #333;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
             border: none;
             padding: 15px 40px;
             border-radius: 50px;
@@ -1000,7 +949,7 @@ CLARITY_TEMPLATE = """
         
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 25px rgba(255, 215, 0, 0.3);
+            box-shadow: 0 10px 25px rgba(255, 107, 107, 0.3);
         }
         
         .btn-secondary {
@@ -1050,298 +999,146 @@ CLARITY_TEMPLATE = """
         }
         
         @media (max-width: 768px) {
-
             .title {
-                font-size: 2.5rem;
-                margin-bottom: 10px;
-                background: linear-gradient(45deg, #FFD700, #FFA500);
-                -webkit-background-clip: text;
-                -webkit-text-fill-color: transparent;
-                background-clip: text;
-            }
-            
-            .subtitle {
-                font-size: 1.2rem;
-                opacity: 0.9;
-                margin-bottom: 30px;
+                font-size: 2rem;
             }
             
             .service-card {
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(10px);
-                border-radius: 20px;
-                padding: 40px;
-                margin: 20px 0;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            }
-            
-            .service-icon {
-                font-size: 4rem;
-                margin-bottom: 20px;
-            }
-            
-            .service-title {
-                font-size: 2rem;
-                margin-bottom: 15px;
-                color: #FFD700;
+                padding: 30px 20px;
             }
             
             .service-price {
-                font-size: 3rem;
-                font-weight: bold;
-                color: #ff9ff3;
-                margin-bottom: 20px;
+                font-size: 2.5rem;
             }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">🙏🏼</div>
+            <h1 class="title">JyotiFlow.ai</h1>
+            <p class="subtitle">Swami Jyotirananthan's Digital Ashram</p>
+        </div>
+        
+        <div class="service-card">
+            <div class="service-icon">💕</div>
+            <h2 class="service-title">AstroLove Whisper</h2>
+            <div class="service-price">$19</div>
+            <p class="service-description">
+                Deep relationship and love insights. Understand your romantic path and heart's desires.
+                Discover the cosmic influences on your love life and receive guidance for meaningful connections.
+            </p>
             
-            .service-description {
-                font-size: 1.1rem;
-                line-height: 1.6;
-                margin-bottom: 30px;
-                opacity: 0.9;
-            }
-            
-            .question-form {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 15px;
-                padding: 30px;
-                margin: 30px 0;
-            }
-            
-            .form-group {
-                margin-bottom: 20px;
-                text-align: left;
-            }
-            
-            .form-label {
-                display: block;
-                margin-bottom: 8px;
-                font-weight: bold;
-                color: #FFD700;
-            }
-            
-            .form-input, .form-textarea, .form-select {
-                width: 100%;
-                padding: 12px;
-                border: none;
-                border-radius: 8px;
-                background: rgba(255, 255, 255, 0.9);
-                color: #333;
-                font-size: 1rem;
-            }
-            
-            .form-textarea {
-                height: 120px;
-                resize: vertical;
-            }
-            
-            .btn {
-                background: linear-gradient(45deg, #ff6b6b, #ee5a24);
-                color: white;
-                border: none;
-                padding: 15px 40px;
-                border-radius: 50px;
-                font-size: 1.1rem;
-                font-weight: bold;
-                cursor: pointer;
-                transition: all 0.3s ease;
-                text-decoration: none;
-                display: inline-block;
-                margin: 10px;
-            }
-            
-            .btn:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 10px 25px rgba(255, 107, 107, 0.3);
-            }
-            
-            .btn-secondary {
-                background: rgba(255, 255, 255, 0.2);
-                color: white;
-                border: 2px solid rgba(255, 255, 255, 0.3);
-            }
-            
-            .btn-secondary:hover {
-                background: rgba(255, 255, 255, 0.3);
-            }
-            
-            .guidance-result {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 15px;
-                padding: 30px;
-                margin: 30px 0;
-                text-align: left;
-                display: none;
-            }
-            
-            .guidance-title {
-                color: #FFD700;
-                font-size: 1.5rem;
-                margin-bottom: 15px;
-                text-align: center;
-            }
-            
-            .guidance-text {
-                line-height: 1.8;
-                font-size: 1.1rem;
-            }
-            
-            .nav-links {
-                margin-top: 40px;
-            }
-            
-            .nav-links a {
-                color: rgba(255, 255, 255, 0.8);
-                text-decoration: none;
-                margin: 0 15px;
-                font-size: 1rem;
-            }
-            
-            .nav-links a:hover {
-                color: #FFD700;
-            }
-            
-            @media (max-width: 768px) {
-                .title {
-                    font-size: 2rem;
-                }
-                
-                .service-card {
-                    padding: 30px 20px;
-                }
-                
-                .service-price {
-                    font-size: 2.5rem;
-                }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <div class="logo">🙏🏼</div>
-                <h1 class="title">JyotiFlow.ai</h1>
-                <p class="subtitle">Swami Jyotirananthan's Digital Ashram</p>
+            <div class="question-form">
+                <h3 style="color: #FFD700; margin-bottom: 20px; text-align: center;">Love & Relationship Guidance</h3>
+                <form id="astroloveForm">
+                    <div class="form-group">
+                        <label class="form-label">Your Love Question:</label>
+                        <textarea class="form-textarea" id="question" placeholder="What guidance do you seek about love and relationships?" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Relationship Status:</label>
+                        <select class="form-select" id="relationshipStatus">
+                            <option value="">Select your status</option>
+                            <option value="single">Single</option>
+                            <option value="dating">Dating</option>
+                            <option value="committed">In a committed relationship</option>
+                            <option value="married">Married</option>
+                            <option value="complicated">It's complicated</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Your Birth Date:</label>
+                        <input type="date" class="form-input" id="birthDate" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Your Birth Time:</label>
+                        <input type="time" class="form-input" id="birthTime">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Your Birth Place:</label>
+                        <input type="text" class="form-input" id="birthPlace" placeholder="City, Country" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">Partner's Birth Date (Optional):</label>
+                        <input type="date" class="form-input" id="partnerBirthDate">
+                    </div>
+                    
+                    <button type="submit" class="btn">💕 Receive Love Guidance ($19)</button>
+                </form>
             </div>
             
-            <div class="service-card">
-                <div class="service-icon">💕</div>
-                <h2 class="service-title">AstroLove Whisper</h2>
-                <div class="service-price">$19</div>
-                <p class="service-description">
-                    Deep relationship and love insights. Understand your romantic path and heart's desires.
-                    Discover the cosmic influences on your love life and receive guidance for meaningful connections.
-                </p>
-                
-                <div class="question-form">
-                    <h3 style="color: #FFD700; margin-bottom: 20px; text-align: center;">Love & Relationship Guidance</h3>
-                    <form id="astroloveForm">
-                        <div class="form-group">
-                            <label class="form-label">Your Love Question:</label>
-                            <textarea class="form-textarea" id="question" placeholder="What guidance do you seek about love and relationships?" required></textarea>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Relationship Status:</label>
-                            <select class="form-select" id="relationshipStatus">
-                                <option value="">Select your status</option>
-                                <option value="single">Single</option>
-                                <option value="dating">Dating</option>
-                                <option value="committed">In a committed relationship</option>
-                                <option value="married">Married</option>
-                                <option value="complicated">It's complicated</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Your Birth Date:</label>
-                            <input type="date" class="form-input" id="birthDate" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Your Birth Time:</label>
-                            <input type="time" class="form-input" id="birthTime">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Your Birth Place:</label>
-                            <input type="text" class="form-input" id="birthPlace" placeholder="City, Country" required>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Partner's Birth Date (Optional):</label>
-                            <input type="date" class="form-input" id="partnerBirthDate">
-                        </div>
-                        
-                        <button type="submit" class="btn">💕 Receive Love Guidance ($19)</button>
-                    </form>
-                </div>
-                
-                <div id="guidanceResult" class="guidance-result">
-                    <h3 class="guidance-title">💕 Swami Jyotirananthan's Love Wisdom</h3>
-                    <div id="guidanceText" class="guidance-text"></div>
-                </div>
-            </div>
-            
-            <div class="nav-links">
-                <a href="/">🏠 Home</a>
-                <a href="/clarity">✨ Clarity</a>
-                <a href="/r3live">🔮 R3 Live</a>
-                <a href="/daily">🌟 Daily Coach</a>
-                <a href="/login">🔐 Login</a>
+            <div id="guidanceResult" class="guidance-result">
+                <h3 class="guidance-title">💕 Swami Jyotirananthan's Love Wisdom</h3>
+                <div id="guidanceText" class="guidance-text"></div>
             </div>
         </div>
         
-        <script>
-            document.getElementById('astroloveForm').addEventListener('submit', async function(e) {
-                e.preventDefault();
+        <div class="nav-links">
+            <a href="/">🏠 Home</a>
+            <a href="/clarity">✨ Clarity</a>
+            <a href="/r3live">🔮 R3 Live</a>
+            <a href="/daily">🌟 Daily Coach</a>
+            <a href="/login">🔐 Login</a>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('astroloveForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const question = document.getElementById('question').value;
+            const relationshipStatus = document.getElementById('relationshipStatus').value;
+            const birthDate = document.getElementById('birthDate').value;
+            const birthTime = document.getElementById('birthTime').value;
+            const birthPlace = document.getElementById('birthPlace').value;
+            const partnerBirthDate = document.getElementById('partnerBirthDate').value;
+            
+            // Show loading
+            const resultDiv = document.getElementById('guidanceResult');
+            const textDiv = document.getElementById('guidanceText');
+            textDiv.innerHTML = '💕 Swami Jyotirananthan is consulting the cosmic forces of love for you...';
+            resultDiv.style.display = 'block';
+            
+            try {
+                const response = await fetch('/start_session', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        service_type: 'love',
+                        question: question,
+                        relationship_status: relationshipStatus,
+                        birth_date: birthDate,
+                        birth_time: birthTime,
+                        birth_place: birthPlace,
+                        partner_birth_date: partnerBirthDate
+                    })
+                });
                 
-                const question = document.getElementById('question').value;
-                const relationshipStatus = document.getElementById('relationshipStatus').value;
-                const birthDate = document.getElementById('birthDate').value;
-                const birthTime = document.getElementById('birthTime').value;
-                const birthPlace = document.getElementById('birthPlace').value;
-                const partnerBirthDate = document.getElementById('partnerBirthDate').value;
+                const data = await response.json();
                 
-                // Show loading
-                const resultDiv = document.getElementById('guidanceResult');
-                const textDiv = document.getElementById('guidanceText');
-                textDiv.innerHTML = '💕 Swami Jyotirananthan is consulting the cosmic forces of love for you...';
-                resultDiv.style.display = 'block';
-                
-                try {
-                    const response = await fetch('/start_session', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            service_type: 'love',
-                            question: question,
-                            relationship_status: relationshipStatus,
-                            birth_date: birthDate,
-                            birth_time: birthTime,
-                            birth_place: birthPlace,
-                            partner_birth_date: partnerBirthDate
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        textDiv.innerHTML = data.guidance;
-                    } else {
-                        textDiv.innerHTML = '💕 ' + (data.message || 'Please ensure you have sufficient credits and try again.');
-                    }
-                } catch (error) {
-                    textDiv.innerHTML = '💕 The cosmic love energies are temporarily disrupted. Please try again in a moment.';
+                if (data.success) {
+                    textDiv.innerHTML = data.guidance;
+                } else {
+                    textDiv.innerHTML = '💕 ' + (data.message || 'Please ensure you have sufficient credits and try again.');
                 }
-            });
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=ASTROLOVE_TEMPLATE)
+            } catch (error) {
+                textDiv.innerHTML = '💕 The cosmic love energies are temporarily disrupted. Please try again in a moment.';
+            }
+        });
+    </script>
+</body>
+</html>
+"""
+return HTMLResponse(content=ASTROLOVE_TEMPLATE)
 
 @app.route('/r3live')
 def r3live_page():
