@@ -399,6 +399,21 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
+    """Homepage with spiritual service offerings"""
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <title>JyotiFlow.ai</title>
+    </head>
+    <body>
+        <h1>Welcome to JyotiFlow.ai</h1>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
+
 
 @app.route('/clarity')
 def clarity_page():
@@ -3123,8 +3138,6 @@ ADMIN_TEMPLATE = """
 </body>
 </html>
 """
-    print("✅ homepage() reached successfully")
-    return HTMLResponse(content=html_content, status_code=200)
 @app.get("/test")
 async def test_route():
     return {"status": "working"} 
