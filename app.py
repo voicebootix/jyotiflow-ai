@@ -401,10 +401,10 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
     """தமிழ் - Homepage with spiritual service offerings"""
-html_content = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>🙏🏼 JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
@@ -512,13 +512,13 @@ html_content = """
 @app.route('/clarity')
 def clarity_page():
 CLARITY_TEMPLATE = """
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>🙏🏼 Clarity Plus - JyotiFlow.ai</title>
-    <style>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🙏🏼 Clarity Plus - JyotiFlow.ai</title>
+        <style>
         * {
             margin: 0;
             padding: 0;
