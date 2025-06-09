@@ -399,6 +399,33 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
+@app.route('/clarity')
+def clarity_page():
+    return render_template_string(CLARITY_TEMPLATE)
+
+@app.route('/astrolove')  
+def astrolove_page():
+    return render_template_string(ASTROLOVE_TEMPLATE)
+
+@app.route('/r3live')
+def r3live_page():
+    return render_template_string(R3_TEMPLATE)
+
+@app.route('/daily')
+def daily_page():
+    return render_template_string(DAILY_TEMPLATE)
+
+@app.route('/login')
+def login_page():
+    return render_template_string(LOGIN_TEMPLATE)
+
+@app.route('/register')
+def register_page():
+    return render_template_string(REGISTER_TEMPLATE)
+
+@app.route('/admin')
+def admin_page():
+    return render_template_string(ADMIN_TEMPLATE)
     """தமிழ் - Homepage with spiritual service offerings"""
     html_content = """
     <!DOCTYPE html>
@@ -506,13 +533,8 @@ async def homepage():
     </body>
     </html>
     """
-    print("✅ homepage() reached successfully")
-    return HTMLResponse(content=html_content, status_code=200)
-@app.get("/test")
-async def test_route():
-    return {"status": "working"} 
 
-CLARITY_TEMPLATE = """
+    CLARITY_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -818,9 +840,6 @@ CLARITY_TEMPLATE = """
 </body>
 </html>
 """
-@app.route('/clarity')
-def clarity_page():
-    return render_template_string(CLARITY_TEMPLATE)
 
 ASTROLOVE_TEMPLATE = """
 <!DOCTYPE html>
@@ -1150,11 +1169,7 @@ ASTROLOVE_TEMPLATE = """
 </html>
 """
 
-@app.route('/astrolove')  
-def astrolove_page():
-    return render_template_string(ASTROLOVE_TEMPLATE)
-
-    R3_TEMPLATE = """
+R3_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1563,11 +1578,7 @@ def astrolove_page():
 </html>
 """
 
-@app.route('/r3live')
-def r3live_page():
-    return render_template_string(R3_TEMPLATE)
-
-    DAILY_TEMPLATE = """
+DAILY_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1991,11 +2002,7 @@ def r3live_page():
 </html>
 """
 
-@app.route('/daily')
-def daily_page():
-    return render_template_string(DAILY_TEMPLATE)
-
-    LOGIN_TEMPLATE = """
+LOGIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2234,11 +2241,7 @@ def daily_page():
 </html>
 """
 
-@app.route('/login')
-def login_page():
-    return render_template_string(LOGIN_TEMPLATE)
-
-    REGISTER_TEMPLATE = """
+REGISTER_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -2557,11 +2560,7 @@ def login_page():
 </html>
 """
 
-@app.route('/register')
-def register_page():
-    return render_template_string(REGISTER_TEMPLATE)
-
-    ADMIN_TEMPLATE = """
+ADMIN_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3123,11 +3122,12 @@ def register_page():
 </body>
 </html>
 """
-
-@app.route('/admin')
-def admin_page():
-    return render_template_string(ADMIN_TEMPLATE)
-
+    print("✅ homepage() reached successfully")
+    return HTMLResponse(content=html_content, status_code=200)
+@app.get("/test")
+async def test_route():
+    return {"status": "working"} 
+    
 @app.get("/health")
 async def health_check():
     """தமிழ் - Health check endpoint"""
