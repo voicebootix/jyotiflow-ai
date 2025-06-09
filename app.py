@@ -788,7 +788,7 @@ def clarity_page():
                             question: question,
                             birth_date: birthDate,
                             birth_time: birthTime,
-                            birth_place: birthPlace
+                            birth_location: birthPlace
                         })
                     });
                     
@@ -1118,7 +1118,7 @@ def astrolove_page():
                         relationship_status: relationshipStatus,
                         birth_date: birthDate,
                         birth_time: birthTime,
-                        birth_place: birthPlace,
+                        birth_location: birthPlace,
                         partner_birth_date: partnerBirthDate
                     })
                 });
@@ -1528,7 +1528,7 @@ def r3live_page():
                             question: question,
                             birth_date: birthDate,
                             birth_time: birthTime,
-                            birth_place: birthPlace,
+                            birth_location: birthPlace,
                             life_stage: lifeStage,
                             priority_area: priorityArea,
                             context: context
@@ -1955,7 +1955,7 @@ def daily_page():
                             goals: goals,
                             birth_date: birthDate,
                             birth_time: birthTime,
-                            birth_place: birthPlace,
+                            birth_location: birthPlace,
                             life_focus: lifeFocus,
                             guidance_time: guidanceTime,
                             challenges: challenges
@@ -2515,7 +2515,7 @@ def register_page():
                             password: password,
                             birth_date: birthDate,
                             birth_time: birthTime,
-                            birth_place: birthPlace
+                            birth_location: birthPlace
                         })
                     });
                     
