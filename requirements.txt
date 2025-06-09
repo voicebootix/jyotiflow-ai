@@ -41,7 +41,6 @@ structlog==23.2.0
 # தமிழ் - Development and testing dependencies
 pytest==7.4.3
 pytest-asyncio==0.21.1
-httpx==0.25.2
 
 # தமிழ் - Optional: Production deployment
 gunicorn==21.2.0
