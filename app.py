@@ -11,11 +11,10 @@ Version: 3.3 Production
 """
 
 # தமிழ் - முக்கிய imports மற்றும் dependencies
-from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
 import asyncpg
 import aiosqlite
 import asyncio
@@ -24,19 +23,12 @@ import jwt
 import bcrypt
 import stripe
 import openai
-import httpx
-import json
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional, Dict, List, Any
+from datetime import datetime, timedelta
+from typing import Optional, Dict
 from pydantic import BaseModel, EmailStr
-import uvicorn
 from contextlib import asynccontextmanager
-import secrets
 import re
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-
 
 # தமிழ் - Environment variables மற்றும் configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
@@ -290,8 +282,6 @@ async def generate_spiritual_guidance(sku: str, question: str, birth_chart: Dict
     """தமிழ் - Mock spiritual guidance generation for testing"""
     try:
         # தமிழ் - Customize response based on SKU
-        sku_config = SKUS.get(sku, {})
-        service_name = sku_config.get('name', 'Spiritual Guidance')
         
         # தமிழ் - Mock responses for testing
         if sku == 'clarity':
@@ -384,7 +374,7 @@ Swami Jyotirananthan 🕉️"""
         
     except Exception as e:
         logger.error(f"Guidance generation exception: {e}")
-        return f"My dear child, the cosmic energies are shifting at this moment. Please try again in a few moments, and I shall provide the guidance your soul seeks. 🙏🏼"
+        return "My dear child, the cosmic energies are shifting at this moment. Please try again in a few moments, and I shall provide the guidance your soul seeks. 🙏🏼"
 
 async def trigger_salescloser_session(user_email: str, sku: str, session_id: int) -> Dict:
     """தமிழ் - Mock SalesCloser session trigger for testing"""
@@ -693,8 +683,8 @@ async def start_spiritual_session(session_data: SessionStart, current_user: Dict
         # தமிழ் - Validate SKU
         if sku not in SKUS:
             raise HTTPException(status_code=400, detail="Invalid service type")
-        
         sku_config = SKUS[sku]
+        
         credits_required = sku_config['credits']
         
         conn = await get_db_connection()
@@ -803,7 +793,7 @@ async def get_session_history(current_user: Dict = Depends(get_current_user)):
         
         session_list = []
         for session in sessions:
-            sku_config = SKUS.get(session['session_type'], {})
+            sku_config = SKUS.get(session["session_type"], {})
             session_list.append({
                 "id": session['id'],
                 "service_name": sku_config.get('name', session['session_type']),
@@ -1073,7 +1063,7 @@ async def get_platform_analytics(admin_user: Dict = Depends(get_admin_user)):
         
         service_stats = []
         for service in popular_services:
-            sku_config = SKUS.get(service['session_type'], {})
+            sku_config = SKUS.get(service["session_type"], {})
             service_stats.append({
                 "service": sku_config.get('name', service['session_type']),
                 "sessions": service['count']
@@ -1089,7 +1079,7 @@ async def get_platform_analytics(admin_user: Dict = Depends(get_admin_user)):
         
         recent_activity = []
         for session in recent_sessions:
-            sku_config = SKUS.get(session['session_type'], {})
+            sku_config = SKUS.get(session["session_type"], {})
             recent_activity.append({
                 "user": session['user_email'],
                 "service": sku_config.get('name', session['session_type']),
@@ -1135,7 +1125,7 @@ async def get_all_sessions(admin_user: Dict = Depends(get_admin_user)):
         
         session_list = []
         for session in sessions:
-            sku_config = SKUS.get(session['session_type'], {})
+            sku_config = SKUS.get(session["session_type"], {})
             session_list.append({
                 "id": session['id'],
                 "user_email": session['user_email'],
