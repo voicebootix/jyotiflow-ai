@@ -400,33 +400,35 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 @app.get("/", response_class=HTMLResponse)
 async def homepage():
 
+    pass
+
 @app.route('/clarity')
 def clarity_page():
-    return render_template_string(CLARITY_TEMPLATE)
+    return HTMLResponse(content=CLARITY_TEMPLATE)
 
-@app.route('/astrolove')  
+@app.route('/astrolove')
 def astrolove_page():
-    return render_template_string(ASTROLOVE_TEMPLATE)
+    return HTMLResponse(content=ASTROLOVE_TEMPLATE)
 
 @app.route('/r3live')
 def r3live_page():
-    return render_template_string(R3_TEMPLATE)
+    return HTMLResponse(content=R3_TEMPLATE)
 
 @app.route('/daily')
 def daily_page():
-    return render_template_string(DAILY_TEMPLATE)
+    return HTMLResponse(content=DAILY_TEMPLATE)
 
 @app.route('/login')
 def login_page():
-    return render_template_string(LOGIN_TEMPLATE)
+    return HTMLResponse(content=LOGIN_TEMPLATE)
 
 @app.route('/register')
 def register_page():
-    return render_template_string(REGISTER_TEMPLATE)
+    return HTMLResponse(content=REGISTER_TEMPLATE)
 
 @app.route('/admin')
 def admin_page():
-    return render_template_string(ADMIN_TEMPLATE)
+    return HTMLResponse(content=ADMIN_TEMPLATE)
     """தமிழ் - Homepage with spiritual service offerings"""
     html_content = """
     <!DOCTYPE html>
@@ -3123,8 +3125,8 @@ ADMIN_TEMPLATE = """
 </body>
 </html>
 """
-    print("✅ homepage() reached successfully")
-    return HTMLResponse(content=html_content, status_code=200)
+# print("✅ homepage() reached successfully")
+# return HTMLResponse(content=html_content, status_code=200)
 @app.get("/test")
 async def test_route():
     return {"status": "working"} 
