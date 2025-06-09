@@ -16,6 +16,8 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 import asyncpg
+import aiosqlite
+import asyncio
 import os
 import jwt
 import bcrypt
@@ -92,16 +94,24 @@ logger = logging.getLogger(__name__)
 
 # தமிழ் - Database connection pool
 db_pool = None
+db_backend = "postgres"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """தமிழ் - Application startup மற்றும் shutdown events"""
-    global db_pool
+    global db_pool, db_backend
     try:
-        # தமிழ் - Database connection pool உருவாக்குதல்
-        db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=5, max_size=20)
-        logger.info("🙏🏼 Swami Jyotirananthan's digital ashram is awakening...")
-        logger.info("Database connection pool created successfully")
+        if DATABASE_URL.startswith("sqlite"):
+            db_backend = "sqlite"
+            db_path = DATABASE_URL.split("://", 1)[-1]
+            db_pool = await aiosqlite.connect(db_path)
+            db_pool.row_factory = aiosqlite.Row
+            logger.info("🙏🏼 Using SQLite backend")
+        else:
+            db_backend = "postgres"
+            db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=5, max_size=20)
+            logger.info("🙏🏼 Using PostgreSQL backend")
+        logger.info("Swami Jyotirananthan's digital ashram is awakening...")
         yield
     except Exception as e:
         logger.error(f"Failed to create database pool: {e}")
@@ -109,7 +119,7 @@ async def lifespan(app: FastAPI):
     finally:
         if db_pool:
             await db_pool.close()
-            logger.info("Database connection pool closed")
+            logger.info("Database connection closed")
 
 # தமிழ் - FastAPI app initialization
 app = FastAPI(
@@ -166,12 +176,17 @@ async def get_db_connection():
     """தமிழ் - Database connection pool இலிருந்து connection பெறுதல்"""
     if not db_pool:
         raise HTTPException(status_code=500, detail="Database pool not initialized")
+    if db_backend == "sqlite":
+        return db_pool
     return await db_pool.acquire()
 
 async def release_db_connection(conn):
     """தமிழ் - Database connection ஐ pool க்கு திரும்ப அனுப்புதல்"""
-    if conn:
-        await db_pool.release(conn)
+    if not conn:
+        return
+    if db_backend == "sqlite":
+        return
+    await db_pool.release(conn)
 
 # தமிழ் - Authentication helper functions
 def hash_password(password: str) -> str:
@@ -501,13 +516,9 @@ async def test_route():
 async def health_check():
     """தமிழ் - Health check endpoint"""
     try:
-        # தமிழ் - Test database connection (SQLite for testing)
-        if "sqlite" in DATABASE_URL:
-            # தமிழ் - Simple SQLite test
-            import sqlite3
-            conn = sqlite3.connect("./test_jyotiflow.db")
-            conn.execute("SELECT 1")
-            conn.close()
+        # தமிழ் - Test database connection
+        if db_backend == "sqlite":
+            await db_pool.execute("SELECT 1")
         else:
             # தமிழ் - PostgreSQL test
             conn = await get_db_connection()
@@ -1177,16 +1188,32 @@ async def general_exception_handler(request: Request, exc: Exception):
 async def init_db():
     try:
         db_url = os.getenv("DATABASE_URL")
-        conn = await asyncpg.connect(dsn=db_url)
-
-        with open("schema.sql", "r", encoding="utf-8") as f:
-            schema_sql = f.read()
-
-        await conn.execute(schema_sql)
-        await conn.close()
-        print("✅ PostgreSQL schema initialized successfully.")
+        if db_url.startswith("sqlite"):
+            db_path = db_url.split("://", 1)[-1]
+            conn = await aiosqlite.connect(db_path)
+            with open("schema.sql", "r", encoding="utf-8") as f:
+                schema_sql = f.read()
+            schema_sql = schema_sql.replace("SERIAL", "INTEGER")
+            schema_sql = schema_sql.replace("JSONB", "TEXT")
+            schema_sql = schema_sql.replace("TIMESTAMP", "TEXT")
+            statements = [s.strip() for s in schema_sql.split(';') if s.strip()]
+            for stmt in statements:
+                try:
+                    await conn.execute(stmt)
+                except Exception as e:
+                    logger.debug(f"SQLite init skipped statement: {e}")
+            await conn.commit()
+            await conn.close()
+            logger.info("✅ SQLite schema initialized successfully.")
+        else:
+            conn = await asyncpg.connect(dsn=db_url)
+            with open("schema.sql", "r", encoding="utf-8") as f:
+                schema_sql = f.read()
+            await conn.execute(schema_sql)
+            await conn.close()
+            logger.info("✅ PostgreSQL schema initialized successfully.")
     except Exception as e:
-        print(f"⚠️ Error initializing DB: {e}")
+        logger.error(f"⚠️ Error initializing DB: {e}")
 
 # NEW (better approach):
 @app.on_event("startup")
