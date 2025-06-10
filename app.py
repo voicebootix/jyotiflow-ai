@@ -3430,6 +3430,36 @@ def user_dashboard():
                 localStorage.removeItem('jyoti_token');
                 window.location.href = '/';
             }
+
+            async function refreshCredits() {
+                try {
+                    const token = localStorage.getItem('jyoti_token');
+                    if (!token) {
+                        window.location.href = '/login';
+                        return;
+                    }
+        
+                    const response = await fetch('/api/credits/balance', {
+                        headers: {
+                            'Authorization': 'Bearer ' + token
+                        }
+                    });
+        
+                    const data = await response.json();
+        
+                    if (response.ok) {
+                        document.getElementById('userCredits').textContent = data.credits;
+                        console.log("Credits refreshed:", data.credits);
+                        return data.credits;
+                    } else {
+                        console.error("Failed to refresh credits:", data);
+                        return null;
+                    }
+                } catch (error) {
+                    console.error('Error refreshing credits:', error);
+                    return null;
+                }
+            }
         </script>
     </body>
     </html>
@@ -3715,6 +3745,8 @@ async def start_spiritual_session(session_data: SessionStart, current_user: Dict
     try:
         user_email = current_user['email']
         sku = session_data.sku
+        # Add debug logging
+        logger.info(f"Session start request: user={user_email}, sku={sku}")
         
         # தமிழ் - Validate SKU
         if sku not in SKUS:
@@ -3722,11 +3754,14 @@ async def start_spiritual_session(session_data: SessionStart, current_user: Dict
         sku_config = SKUS[sku]
         
         credits_required = sku_config['credits']
+        logger.info(f"Credits required for {sku}: {credits_required}")
         
         conn = await get_db_connection()
         
         # தமிழ் - Check user credits
         user = await conn.fetchrow(
+        # Log user credits
+        logger.info(f"User {user_email} has {user['credits']} credits")
             "SELECT credits FROM users WHERE email = $1", user_email
         )
         
@@ -3734,6 +3769,7 @@ async def start_spiritual_session(session_data: SessionStart, current_user: Dict
             raise HTTPException(status_code=404, detail="User not found")
         
         if user['credits'] < credits_required:
+            logger.warning(f"Insufficient credits: user has {user['credits']}, needs {credits_required}")
             raise HTTPException(
                 status_code=402, 
                 detail=f"Insufficient credits. Need {credits_required}, have {user['credits']}"
@@ -3851,6 +3887,59 @@ async def get_session_history(current_user: Dict = Depends(get_current_user)):
         if conn:
             await release_db_connection(conn)
 
+
+@app.get("/api/debug/fix_credits")
+async def fix_user_credits(current_user: Dict = Depends(get_current_user)):
+    """Debug endpoint to fix user credits"""
+    conn = None
+    try:
+        user_email = current_user['email']
+        conn = await get_db_connection()
+        
+        # Check current credits
+        user = await conn.fetchrow(
+            "SELECT credits FROM users WHERE email = $1", user_email
+        )
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        current_credits = user['credits']
+        
+        # Ensure user has at least 3 credits
+        if current_credits < 3:
+            await conn.execute(
+                "UPDATE users SET credits = 3 WHERE email = $1 AND credits < 3",
+                user_email
+            )
+            
+            # Log the credit adjustment
+            await conn.execute("""
+                INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+                VALUES ($1, $2, $3, $4, $5)
+            """, "system", "credit_fix", user_email, 
+                f"Fixed credits from {current_credits} to 3", datetime.utcnow())
+            
+            return {
+                "success": True,
+                "message": "Credits fixed successfully",
+                "previous_credits": current_credits,
+                "current_credits": 3
+            }
+        else:
+            return {
+                "success": True,
+                "message": "Credits are already sufficient",
+                "current_credits": current_credits
+            }
+        
+    except Exception as e:
+        logger.error(f"Fix credits error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fix credits")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
 @app.get("/admin_stats")
 async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
     """தமிழ் - Get admin dashboard statistics"""
@@ -3953,6 +4042,7 @@ async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
         if conn:
             await release_db_connection(conn)
 
+ADMIN_ADD_CREDITS_ENDPOINT = """
 @app.post("/admin_add_credits")
 async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_user)):
     """Add credits to user account by admin"""
@@ -3978,15 +4068,23 @@ async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_us
         
         conn = await get_db_connection()
         
-        # Get the user's email using the row number (user_id from frontend)
-        # This approach avoids using the non-existent 'id' column
-        users = await conn.fetch("SELECT email FROM users ORDER BY created_at")
+        # IMPORTANT FIX: Get all users and sort them in the SAME order as the frontend
+        # The frontend displays users in created_at DESC order
+        users = await conn.fetch("SELECT email FROM users ORDER BY created_at DESC")
+        
+        # Log the number of users found and the requested user_id
+        logger.info(f"Found {len(users)} users in database, requested user_id: {user_id}")
+        
+        # Debug log to show all user emails in order
+        for i, user in enumerate(users):
+            logger.info(f"User index {i+1}: {user['email']}")
         
         if not users or len(users) < user_id or user_id <= 0:
             logger.error(f"User with index {user_id} not found")
-            return {"success": False, "message": "User not found"}
+            return {"success": False, "message": f"User with ID {user_id} not found"}
             
         # Get the email for the specified row number (adjusting for 0-based indexing)
+        # This ensures we're using the EXACT same ordering as the frontend
         user_email = users[user_id - 1]["email"]
         
         # Log the operation with detailed information
@@ -4010,7 +4108,7 @@ async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_us
         
         return {
             "success": True,
-            "message": f"Added {credits} credits to user account"
+            "message": f"Added {credits} credits to user {user_email}"
         }
         
     except Exception as e:
