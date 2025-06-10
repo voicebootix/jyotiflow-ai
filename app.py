@@ -2947,7 +2947,7 @@ def admin_page():
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            email: username,  // ← Change 'username' to 'email'
+                            email: email,  // ← Change 'username' to 'email'
                             password: password
                         })
                     });
