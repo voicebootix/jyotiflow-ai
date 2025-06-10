@@ -3517,53 +3517,6 @@ async def get_user_profile(current_user: Dict = Depends(get_current_user)):
     finally:
         if conn:
             await release_db_connection(conn)
-    
-    
-@app.get("/admin_stats")
-async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get admin dashboard statistics"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        
-        # Total users
-        total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
-        
-        # Total sessions
-        total_sessions = await conn.fetchval("SELECT COUNT(*) FROM sessions")
-        
-        # Total revenue (from completed sessions)
-        total_revenue = await conn.fetchval("""
-            SELECT COALESCE(SUM(s.credits_used * sk.price), 0) 
-            FROM sessions s 
-            JOIN (VALUES 
-                ('clarity', 9), ('love', 19), ('premium', 39), ('elite', 149)
-            ) AS sk(sku, price) ON s.session_type = sk.sku
-            WHERE s.status = 'completed'
-        """) or 0
-        
-        # Today's sessions
-        today_sessions = await conn.fetchval("""
-            SELECT COUNT(*) FROM sessions 
-            WHERE DATE(session_time) = CURRENT_DATE
-        """)
-        
-        return {
-            "success": True,
-            "stats": {
-                "total_users": total_users,
-                "total_sessions": total_sessions,
-                "total_revenue": float(total_revenue),
-                "today_sessions": today_sessions
-            }
-        }
-        
-    except Exception as e:
-        logger.error(f"Admin stats error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load stats")
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 @app.get("/api/admin/users")
 async def get_admin_users(admin: Dict = Depends(get_admin_user)):
@@ -3598,92 +3551,6 @@ async def get_admin_users(admin: Dict = Depends(get_admin_user)):
     except Exception as e:
         logger.error(f"Admin users error: {e}")
         raise HTTPException(status_code=500, detail="Failed to load users")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-@app.get("/admin_sessions")
-async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get all sessions for admin dashboard"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        
-        sessions = await conn.fetch("""
-            SELECT s.id, s.user_email, s.session_type, s.credits_used, 
-                   s.session_time, s.status, s.result_summary
-            FROM sessions s
-            ORDER BY s.session_time DESC
-            LIMIT 100
-        """)
-        
-        sessions_list = []
-        for session in sessions:
-            sessions_list.append({
-                "id": session['id'],
-                "user_email": session['user_email'],
-                "service_type": session['session_type'],
-                "credits_used": session['credits_used'],
-                "session_time": session['session_time'].isoformat() if session['session_time'] else None,
-                "status": session['status'],
-                "question": session['result_summary'][:100] + "..." if session['result_summary'] else "No question"
-            })
-        
-        return {
-            "success": True,
-            "sessions": sessions_list
-        }
-        
-    except Exception as e:
-        logger.error(f"Admin sessions error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load sessions")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-@app.post("/admin_add_credits")
-async def add_user_credits(request: Request, admin: Dict = Depends(get_admin_user)):
-    """தமிழ் - Add credits to user account"""
-    conn = None
-    try:
-        data = await request.json()
-        user_id = data.get('user_id')
-        credits = data.get('credits')
-        
-        if not user_id or not credits or credits <= 0:
-            raise HTTPException(status_code=400, detail="Invalid user ID or credits amount")
-        
-        conn = await get_db_connection()
-        
-        # Get user info
-        user = await conn.fetchrow("SELECT email, credits FROM users WHERE id = $1", user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # Add credits
-        await conn.execute(
-            "UPDATE users SET credits = credits + $1 WHERE id = $2",
-            credits, user_id
-        )
-        
-        # Log the transaction
-        await conn.execute("""
-            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
-            VALUES ($1, $2, $3, $4, $5)
-        """, admin['email'], "add_credits", user['email'], 
-            f"Added {credits} credits (admin action)", datetime.utcnow())
-        
-        return {
-            "success": True,
-            "message": "Successfully added {credits} credits to {user['email']}",
-            "new_balance": user['credits'] + credits
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Add credits error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to add credits")
     finally:
         if conn:
             await release_db_connection(conn)
@@ -4037,43 +3904,6 @@ async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
     except Exception as e:
         logger.error(f"Admin stats error: {e}")
         raise HTTPException(status_code=500, detail="Failed to load stats")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-@app.get("/admin_users")
-async def get_admin_users(admin: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get all users for admin dashboard"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        
-        users = await conn.fetch("""
-            SELECT id, first_name, last_name, email, credits, created_at, last_login
-            FROM users 
-            ORDER BY created_at DESC
-        """)
-        
-        users_list = []
-        for user in users:
-            users_list.append({
-                "id": user['id'],
-                "first_name": user['first_name'],
-                "last_name": user['last_name'],
-                "email": user['email'],
-                "credits": user['credits'],
-                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
-                "last_login": user['last_login'].isoformat() if user['last_login'] else None
-            })
-        
-        return {
-            "success": True,
-            "users": users_list
-        }
-        
-    except Exception as e:
-        logger.error(f"Admin users error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load users")
     finally:
         if conn:
             await release_db_connection(conn)
