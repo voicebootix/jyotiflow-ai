@@ -3893,16 +3893,26 @@ async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
 
 @app.get("/admin_sessions")
 async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get all sessions for admin dashboard"""
+    """Get all sessions for admin dashboard"""
     conn = None
     try:
+        # Add debug logging
+        logger.info(f"Admin sessions endpoint called by {admin['email']}")
+        
         conn = await get_db_connection()
         
+        # Use a more robust query that handles potential schema variations
         sessions = await conn.fetch("""
-            SELECT s.id, s.user_email, s.session_type, s.credits_used, 
-                   s.session_time, s.status, s.result_summary
-            FROM sessions s
-            ORDER BY s.session_time DESC
+            SELECT 
+                id, 
+                user_email, 
+                session_type, 
+                COALESCE(credits_used, 0) as credits_used,
+                created_at as session_time, 
+                status, 
+                COALESCE(result_summary, '') as result_summary
+            FROM sessions
+            ORDER BY created_at DESC
             LIMIT 100
         """)
         
@@ -3910,12 +3920,11 @@ async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
         for session in sessions:
             sessions_list.append({
                 "id": session['id'],
-                "user_email": session['user_email'],
-                "service_type": session['session_type'],
-                "credits_used": session['credits_used'],
-                "session_time": session['session_time'].isoformat() if session['session_time'] else None,
-                "status": session['status'],
-                "question": session['result_summary'][:100] + "..." if session['result_summary'] else "No question"
+                "user": session['user_email'],
+                "service": session['session_type'],
+                "question": session['result_summary'][:50] + "..." if session['result_summary'] and len(session['result_summary']) > 50 else "",
+                "date": session['session_time'].isoformat() if session['session_time'] else None,
+                "status": session['status']
             })
         
         return {
@@ -3925,54 +3934,61 @@ async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
         
     except Exception as e:
         logger.error(f"Admin sessions error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load sessions")
+        # Return empty list instead of 500 error
+        return {
+            "success": False,
+            "message": f"Failed to load sessions: {str(e)}",
+            "sessions": []
+        }
     finally:
         if conn:
             await release_db_connection(conn)
 
 @app.post("/admin_add_credits")
-async def add_user_credits(request: Request, admin: Dict = Depends(get_admin_user)):
-    """தமிழ் - Add credits to user account"""
+async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_user)):
+    """Add credits to user account by admin"""
     conn = None
     try:
-        data = await request.json()
-        user_id = data.get('user_id')
-        credits = data.get('credits')
+        # Get raw JSON data from request
+        credit_data = await request.json()
         
-        if not user_id or not credits or credits <= 0:
-            raise HTTPException(status_code=400, detail="Invalid user ID or credits amount")
+        # Extract and validate data
+        user_id = credit_data.get("user_id")
+        amount = credit_data.get("amount")
+        
+        if not user_id or not amount:
+            logger.error(f"Invalid credit data: {credit_data}")
+            return {"success": False, "message": "Missing user_id or amount"}
+        
+        # Convert amount to integer if needed
+        try:
+            amount = int(amount)
+        except (ValueError, TypeError):
+            logger.error(f"Invalid amount format: {amount}")
+            return {"success": False, "message": "Amount must be a number"}
+        
+        # Log the received data for debugging
+        logger.info(f"Adding {amount} credits to user {user_id}")
         
         conn = await get_db_connection()
-        
-        # Get user info
-        user = await conn.fetchrow("SELECT email, credits FROM users WHERE id = $1", user_id)
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
         
         # Add credits
         await conn.execute(
             "UPDATE users SET credits = credits + $1 WHERE id = $2",
-            credits, user_id
+            amount, user_id
         )
-        
-        # Log the transaction
-        await conn.execute("""
-            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
-            VALUES ($1, $2, $3, $4, $5)
-        """, admin['email'], "add_credits", user['email'], 
-            f"Added {credits} credits (admin action)", datetime.utcnow())
         
         return {
             "success": True,
-            "message": f"Successfully added {credits} credits to {user['email']}",
-            "new_balance": user['credits'] + credits
+            "message": f"Added {amount} credits to user account"
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Add credits error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to add credits")
+        logger.error(f"Admin add credits error: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to add credits: {str(e)}"
+        }
     finally:
         if conn:
             await release_db_connection(conn)
