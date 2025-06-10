@@ -3843,28 +3843,6 @@ async def login_user(login_data: UserLogin):
         if conn:
             await release_db_connection(conn)
 
-@app.post("/api/auth/admin-login")
-async def admin_login(login_data: AdminLogin):
-    """தமிழ் - Admin login with environment credentials"""
-    try:
-        if login_data.email != ADMIN_EMAIL or login_data.password != ADMIN_PASSWORD:
-            raise HTTPException(status_code=401, detail="Invalid admin credentials")
-        
-        # தமிழ் - Create admin JWT token
-        token = create_jwt_token(login_data.email, is_admin=True)
-        
-        return {
-            "success": True,
-            "message": "🙏🏼 Admin access granted to the digital ashram",
-            "token": token
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Admin login error: {e}")
-        raise HTTPException(status_code=500, detail="Admin login failed")
-
 # தமிழ் - Session Management Routes
 
 @app.post("/api/session/start")
