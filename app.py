@@ -3662,7 +3662,7 @@ async def get_admin_user(request: Request):
             raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
         
         token = auth_header.split(" ")[1]
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
         
         if not payload.get("is_admin"):
             raise HTTPException(status_code=403, detail="Admin access required")
@@ -3828,12 +3828,8 @@ async def admin_login(login_data: AdminLogin):
         return {
             "success": True,
             "message": "🙏🏼 Admin access granted to the digital ashram",
-            "token": jwt.encode({
-                "email": "admin@jyotiflow.ai",
-                "is_admin": True,  # ← CRITICAL
-                "exp": datetime.utcnow() + timedelta(hours=24)
-            }, JWT_SECRET, algorithm=JWT_ALGORITHM)
-        }
+            "token": create_jwt_token(login_data.email, is_admin=True)  # ← USE EXISTING FUNCTION
+            }
         
     except HTTPException:
         raise
@@ -4164,7 +4160,7 @@ async def get_admin_user(request: Request):
             raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
         
         token = auth_header.split(" ")[1]
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
         
         if not payload.get("is_admin"):
             raise HTTPException(status_code=403, detail="Admin access required")
