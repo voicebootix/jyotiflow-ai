@@ -2821,8 +2821,8 @@ def admin_page():
                 
                 <form id="adminLoginForm">
                     <div class="form-group">
-                        <label class="form-label">Admin Username:</label>
-                        <input type="text" class="form-input" id="adminUsername" required>
+                        <label class="form-label">Admin Email:</label>
+                        <input type="email" class="form-input" id="adminUsername" required>
                     </div>
                     
                     <div class="form-group">
@@ -4303,58 +4303,6 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         logger.error(f"Stripe webhook error: {e}")
         raise HTTPException(status_code=400, detail="Webhook processing failed")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-# தமிழ் - Admin Routes
-
-
-
-@app.post("/api/admin/credits/adjust")
-async def adjust_user_credits(credit_data: CreditAdjust, admin_user: Dict = Depends(get_admin_user)):
-    """தமிழ் - Adjust user credits (admin only)"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        
-        # தமிழ் - Check if user exists
-        user = await conn.fetchrow(
-            "SELECT credits FROM users WHERE email = $1", credit_data.user_email
-        )
-        
-        if not user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
-        # தமிழ் - Update credits
-        await conn.execute(
-            "UPDATE users SET credits = credits + $1 WHERE email = $2",
-            credit_data.credits, credit_data.user_email
-        )
-        
-        # தமிழ் - Log admin action
-        await conn.execute("""
-            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
-            VALUES ($1, $2, $3, $4, $5)
-        """, admin_user['email'], "credit_adjustment", credit_data.user_email, 
-            f"Adjusted credits by {credit_data.credits}. Reason: {credit_data.reason}", 
-            datetime.utcnow())
-        
-        new_balance = user['credits'] + credit_data.credits
-        
-        return {
-            "message": f"Credits adjusted for {credit_data.user_email}",
-            "previous_balance": user['credits'],
-            "adjustment": credit_data.credits,
-            "new_balance": new_balance,
-            "reason": credit_data.reason
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Credit adjustment error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to adjust credits")
     finally:
         if conn:
             await release_db_connection(conn)
