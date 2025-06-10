@@ -3523,50 +3523,26 @@ async def get_admin_users(admin: Dict = Depends(get_admin_user)):
     """தமிழ் - Get all users for admin dashboard"""
     conn = None
     try:
-        # Add debug logging
-        logger.info(f"Admin users endpoint called by {admin['email']}")
-        
         conn = await get_db_connection()
-        logger.info("Database connection established")
         
-        # Simplified query first to test connection
-        try:
-            test = await conn.fetchval("SELECT COUNT(*) FROM users")
-            logger.info(f"User count test: {test}")
-        except Exception as e:
-            logger.error(f"Test query failed: {e}")
-            raise
+        users = await conn.fetch("""
+            SELECT email, first_name, last_name, credits, created_at, last_login
+            FROM users 
+            ORDER BY created_at DESC
+        """)
         
-        # Main query with better error handling
-        try:
-            users = await conn.fetch("""
-                SELECT id, first_name, last_name, email, credits, created_at, last_login
-                FROM users 
-                ORDER BY created_at DESC
-            """)
-            logger.info(f"Found {len(users)} users")
-        except Exception as e:
-            logger.error(f"Main query failed: {e}")
-            raise
-        
-        # Process results with careful error handling
         users_list = []
-        for user in users:
-            try:
-                users_list.append({
-                    "id": user['id'],
-                    "first_name": user['first_name'] or "",
-                    "last_name": user['last_name'] or "",
-                    "email": user['email'] or "",
-                    "credits": user['credits'] or 0,
-                    "created_at": user['created_at'].isoformat() if user['created_at'] else None,
-                    "last_login": user['last_login'].isoformat() if user['last_login'] else None
-                })
-            except Exception as e:
-                logger.error(f"Error processing user {user['id']}: {e}")
-                # Continue processing other users
+        for i, user in enumerate(users):
+            users_list.append({
+                "id": i + 1,  # Generate a synthetic ID
+                "first_name": user['first_name'] or "",
+                "last_name": user['last_name'] or "",
+                "email": user['email'] or "",
+                "credits": user['credits'] or 0,
+                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
+                "last_login": user['last_login'].isoformat() if user['last_login'] else None
+            })
         
-        logger.info(f"Returning {len(users_list)} users")
         return {
             "success": True,
             "users": users_list
@@ -3574,10 +3550,9 @@ async def get_admin_users(admin: Dict = Depends(get_admin_user)):
         
     except Exception as e:
         logger.error(f"Admin users error: {e}")
-        # Return empty list instead of 500 error
         return {
             "success": False,
-            "message": "Failed to load users",
+            "message": f"Failed to load users: {str(e)}",
             "users": []
         }
     finally:
