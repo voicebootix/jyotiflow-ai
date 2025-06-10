@@ -3454,7 +3454,7 @@ def user_dashboard():
                 # Log admin login
                 logger.info(f"Admin login successful: {login_data.email}")
             
-                return {
+            return {
                     "success": True,
                     "token": token,
                     "message": "Admin login successful"
