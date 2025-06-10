@@ -3523,26 +3523,50 @@ async def get_admin_users(admin: Dict = Depends(get_admin_user)):
     """தமிழ் - Get all users for admin dashboard"""
     conn = None
     try:
+        # Add debug logging
+        logger.info(f"Admin users endpoint called by {admin['email']}")
+        
         conn = await get_db_connection()
+        logger.info("Database connection established")
         
-        users = await conn.fetch("""
-            SELECT id, first_name, last_name, email, credits, created_at, last_login
-            FROM users 
-            ORDER BY created_at DESC
-        """)
+        # Simplified query first to test connection
+        try:
+            test = await conn.fetchval("SELECT COUNT(*) FROM users")
+            logger.info(f"User count test: {test}")
+        except Exception as e:
+            logger.error(f"Test query failed: {e}")
+            raise
         
+        # Main query with better error handling
+        try:
+            users = await conn.fetch("""
+                SELECT id, first_name, last_name, email, credits, created_at, last_login
+                FROM users 
+                ORDER BY created_at DESC
+            """)
+            logger.info(f"Found {len(users)} users")
+        except Exception as e:
+            logger.error(f"Main query failed: {e}")
+            raise
+        
+        # Process results with careful error handling
         users_list = []
         for user in users:
-            users_list.append({
-                "id": user['id'],
-                "first_name": user['first_name'],
-                "last_name": user['last_name'],
-                "email": user['email'],
-                "credits": user['credits'],
-                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
-                "last_login": user['last_login'].isoformat() if user['last_login'] else None
-            })
+            try:
+                users_list.append({
+                    "id": user['id'],
+                    "first_name": user['first_name'] or "",
+                    "last_name": user['last_name'] or "",
+                    "email": user['email'] or "",
+                    "credits": user['credits'] or 0,
+                    "created_at": user['created_at'].isoformat() if user['created_at'] else None,
+                    "last_login": user['last_login'].isoformat() if user['last_login'] else None
+                })
+            except Exception as e:
+                logger.error(f"Error processing user {user['id']}: {e}")
+                # Continue processing other users
         
+        logger.info(f"Returning {len(users_list)} users")
         return {
             "success": True,
             "users": users_list
@@ -3550,31 +3574,15 @@ async def get_admin_users(admin: Dict = Depends(get_admin_user)):
         
     except Exception as e:
         logger.error(f"Admin users error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load users")
+        # Return empty list instead of 500 error
+        return {
+            "success": False,
+            "message": "Failed to load users",
+            "users": []
+        }
     finally:
         if conn:
             await release_db_connection(conn)
-
-# Helper function for admin authentication
-async def get_admin_user(request: Request):
-    """தமிழ் - Verify admin JWT token"""
-    try:
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-        
-        token = auth_header.split(" ")[1]
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
-        
-        if not payload.get("is_admin"):
-            raise HTTPException(status_code=403, detail="Admin access required")
-        
-        return {"email": payload.get("email"), "is_admin": True}
-        
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
 
 @app.get("/test")
 async def test_route():
