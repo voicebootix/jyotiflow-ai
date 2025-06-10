@@ -3565,7 +3565,7 @@ async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
         if conn:
             await release_db_connection(conn)
 
-@app.get("/admin_users")
+@app.get("/api/admin/users")
 async def get_admin_users(admin: Dict = Depends(get_admin_user)):
     """தமிழ் - Get all users for admin dashboard"""
     conn = None
