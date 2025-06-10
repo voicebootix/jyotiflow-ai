@@ -3438,7 +3438,7 @@ def user_dashboard():
 
     @app.post("/api/admin/login")
     async def admin_login(login_data: AdminLogin):
-    """தமிழ் - Admin login endpoint"""
+        """தமிழ் - Admin login endpoint"""
         try:
             # Debug logging
             logger.info(f"Login attempt with email: {login_data.email}")
