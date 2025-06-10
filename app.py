@@ -3634,33 +3634,6 @@ async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
         if conn:
             await release_db_connection(conn)
 
-app.post("/api/admin/login")
-async def admin_login(login_data: AdminLogin):
-    """தமிழ் - Admin login endpoint"""
-    try:
-        # Check if credentials match admin credentials
-        if login_data.email == ADMIN_EMAIL and login_data.password == ADMIN_PASSWORD:
-            # Create admin token
-            token = create_jwt_token(login_data.email, is_admin=True)
-            
-            # Log admin login
-            logger.info(f"Admin login successful: {login_data.email}")
-            
-            return {
-                "success": True,
-                "token": token,
-                "message": "Admin login successful"
-            }
-        else:
-            # Log failed attempt
-            logger.warning(f"Failed admin login attempt: {login_data.email}")
-            
-            raise HTTPException(status_code=401, detail="Invalid admin credentials")
-            
-    except Exception as e:
-        logger.error(f"Admin login error: {e}")
-        raise HTTPException(status_code=500, detail="Login failed")
-
 @app.post("/admin_add_credits")
 async def add_user_credits(request: Request, admin: Dict = Depends(get_admin_user)):
     """தமிழ் - Add credits to user account"""
@@ -3695,7 +3668,7 @@ async def add_user_credits(request: Request, admin: Dict = Depends(get_admin_use
         
         return {
             "success": True,
-            "message": f"Successfully added {credits} credits to {user['email']}",
+            "message": "Successfully added {credits} credits to {user['email']}",
             "new_balance": user['credits'] + credits
         }
         
