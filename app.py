@@ -3436,6 +3436,34 @@ def user_dashboard():
     """
     return HTMLResponse(content=DASHBOARD_TEMPLATE)
 
+    @app.post("/api/admin/login")
+    async def admin_login(login_data: AdminLogin):
+        """தமிழ் - Admin login endpoint"""
+        try:
+            # Check if credentials match admin credentials
+            if login_data.email == ADMIN_EMAIL and login_data.password == ADMIN_PASSWORD:
+                # Create admin token
+                token = create_jwt_token(login_data.email, is_admin=True)
+            
+                # Log admin login
+                logger.info(f"Admin login successful: {login_data.email}")
+            
+                return {
+                    "success": True,
+                    "token": token,
+                    "message": "Admin login successful"
+                }
+            else:
+                # Log failed attempt
+                logger.warning(f"Failed admin login attempt: {login_data.email}")
+            
+                raise HTTPException(status_code=401, detail="Invalid admin credentials")
+            
+        except Exception as e:
+            logger.error(f"Admin login error: {e}")
+            raise HTTPException(status_code=500, detail="Login failed")
+
+
 # User API endpoints for dashboard
 @app.get("/api/user/profile")
 async def get_user_profile(current_user: Dict = Depends(get_current_user)):
