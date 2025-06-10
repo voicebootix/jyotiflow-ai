@@ -94,5 +94,7 @@ celery==5.3.4
 # தமிழ் - Optional: Monitoring and health checks
 prometheus-client==0.19.0
 
+aiohttp>=3.8.0
+
 # 🙏🏼 All dependencies for Swami Jyotirananthan's digital ashram
 
