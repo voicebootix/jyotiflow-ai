@@ -3954,7 +3954,7 @@ async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_us
         
         # Extract and validate data
         user_id = credit_data.get("user_id")
-        amount = credit_data.get("amount")
+        amount = credit_data.get("credits")
         
         if not user_id or not amount:
             logger.error(f"Invalid credit data: {credit_data}")
