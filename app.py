@@ -2921,7 +2921,7 @@ def admin_page():
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            username: username,
+                            email: username,  // ← Change 'username' to 'email'
                             password: password
                         })
                     });
@@ -3108,6 +3108,167 @@ def admin_page():
     </html>
     """
     return HTMLResponse(content=ADMIN_TEMPLATE)
+    
+@app.get('/dashboard')
+def user_dashboard():
+    USER_DASHBOARD_TEMPLATE = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🙏🏼 Dashboard - JyotiFlow.ai</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                color: white;
+                padding: 20px;
+            }
+            .container { max-width: 1200px; margin: 0 auto; }
+            .header {
+                text-align: center;
+                margin-bottom: 40px;
+                padding: 30px;
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 20px;
+                backdrop-filter: blur(10px);
+            }
+            .dashboard-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 30px;
+                margin-bottom: 40px;
+            }
+            .card {
+                background: rgba(255, 255, 255, 0.1);
+                backdrop-filter: blur(10px);
+                border-radius: 20px;
+                padding: 30px;
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                text-align: center;
+            }
+            .card h3 { color: #FFD700; margin-bottom: 20px; font-size: 1.5rem; }
+            .credits { font-size: 3rem; color: #87CEEB; font-weight: bold; }
+            .btn {
+                background: linear-gradient(45deg, #FFD700, #FFA500);
+                color: #333;
+                padding: 12px 30px;
+                border: none;
+                border-radius: 25px;
+                cursor: pointer;
+                font-size: 1rem;
+                font-weight: bold;
+                text-decoration: none;
+                display: inline-block;
+                margin: 10px;
+                transition: transform 0.3s ease;
+            }
+            .btn:hover { transform: translateY(-2px); }
+            .services-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>🙏🏼 Welcome to Your Spiritual Dashboard</h1>
+                <p>Swami Jyotirananthan's Digital Ashram</p>
+                <p id="userWelcome">Welcome back, dear soul</p>
+            </div>
+            
+            <div class="dashboard-grid">
+                <div class="card">
+                    <h3>💰 Your Credits</h3>
+                    <div class="credits" id="userCredits">0</div>
+                    <p>Available for spiritual guidance sessions</p>
+                    <button class="btn" onclick="buyCredits()">Buy More Credits</button>
+                </div>
+                
+                <div class="card">
+                    <h3>📊 Your Journey</h3>
+                    <p><strong id="totalSessions">0</strong> Sessions Completed</p>
+                    <p><strong id="lastSession">Never</strong> Last Session</p>
+                    <button class="btn" onclick="viewHistory()">View History</button>
+                </div>
+                
+                <div class="card">
+                    <h3>👤 Profile</h3>
+                    <p id="userEmail">Loading...</p>
+                    <p id="memberSince">Member since...</p>
+                    <button class="btn" onclick="editProfile()">Edit Profile</button>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h3>🌟 Spiritual Services</h3>
+                <div class="services-grid">
+                    <a href="/session/clarity" class="btn">✨ Clarity Plus ($9)</a>
+                    <a href="/session/love" class="btn">💕 AstroLove ($19)</a>
+                    <a href="/session/premium" class="btn">🔮 R3 Premium ($39)</a>
+                    <a href="/session/elite" class="btn">🌟 Daily Coach ($149)</a>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 40px;">
+                <button class="btn" onclick="logout()" style="background: #e74c3c;">Logout</button>
+            </div>
+        </div>
+        
+        <script>
+            // Load user data on page load
+            window.onload = function() {
+                loadUserData();
+            };
+            
+            async function loadUserData() {
+                try {
+                    const token = localStorage.getItem('jyoti_token');
+                    if (!token) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    
+                    // Mock data for now - replace with actual API calls
+                    document.getElementById('userWelcome').textContent = 'Welcome back, dear soul';
+                    document.getElementById('userCredits').textContent = '3';
+                    document.getElementById('userEmail').textContent = 'user@example.com';
+                    document.getElementById('totalSessions').textContent = '0';
+                    document.getElementById('lastSession').textContent = 'Never';
+                    document.getElementById('memberSince').textContent = 'Member since today';
+                    
+                } catch (error) {
+                    console.error('Error loading user data:', error);
+                    window.location.href = '/login';
+                }
+            }
+            
+            function buyCredits() {
+                alert('Credit purchase feature coming soon!');
+            }
+            
+            function viewHistory() {
+                alert('Session history feature coming soon!');
+            }
+            
+            function editProfile() {
+                alert('Profile editing feature coming soon!');
+            }
+            
+            function logout() {
+                localStorage.removeItem('jyoti_token');
+                window.location.href = '/';
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=USER_DASHBOARD_TEMPLATE)
 
 @app.get("/test")
 async def test_route():
@@ -3260,6 +3421,7 @@ async def admin_login(login_data: AdminLogin):
         token = create_jwt_token(login_data.email, is_admin=True)
         
         return {
+            "success": True,
             "message": "🙏🏼 Admin access granted to the digital ashram",
             "token": token,
             "admin": True
