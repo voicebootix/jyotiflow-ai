@@ -3828,8 +3828,11 @@ async def admin_login(login_data: AdminLogin):
         return {
             "success": True,
             "message": "🙏🏼 Admin access granted to the digital ashram",
-            "token": token,
-            "admin": True
+            "token": jwt.encode({
+                "email": "admin@jyotiflow.ai",
+                "is_admin": True,  # ← CRITICAL
+                "exp": datetime.utcnow() + timedelta(hours=24)
+            }, JWT_SECRET, algorithm=JWT_ALGORITHM)
         }
         
     except HTTPException:
@@ -4306,40 +4309,7 @@ async def stripe_webhook(request: Request):
 
 # தமிழ் - Admin Routes
 
-@app.get("/api/admin/users")
-async def get_all_users(admin_user: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get all users for admin dashboard"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        
-        users = await conn.fetch("""
-            SELECT email, first_name, last_name, credits, last_login, created_at
-            FROM users 
-            ORDER BY created_at DESC
-        """)
-        
-        user_list = []
-        for user in users:
-            user_list.append({
-                "email": user['email'],
-                "name": f"{user['first_name'] or ''} {user['last_name'] or ''}".strip(),
-                "credits": user['credits'],
-                "last_login": user['last_login'].isoformat() if user['last_login'] else None,
-                "created_at": user['created_at'].isoformat()
-            })
-        
-        return {
-            "users": user_list,
-            "total_users": len(user_list)
-        }
-        
-    except Exception as e:
-        logger.error(f"Admin users error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch users")
-    finally:
-        if conn:
-            await release_db_connection(conn)
+
 
 @app.post("/api/admin/credits/adjust")
 async def adjust_user_credits(credit_data: CreditAdjust, admin_user: Dict = Depends(get_admin_user)):
@@ -4385,122 +4355,6 @@ async def adjust_user_credits(credit_data: CreditAdjust, admin_user: Dict = Depe
     except Exception as e:
         logger.error(f"Credit adjustment error: {e}")
         raise HTTPException(status_code=500, detail="Failed to adjust credits")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-@app.get("/api/admin/analytics")
-async def get_platform_analytics(admin_user: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get platform analytics for admin dashboard"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        
-        # தமிழ் - Get user statistics
-        total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
-        new_users_today = await conn.fetchval("""
-            SELECT COUNT(*) FROM users 
-            WHERE created_at >= CURRENT_DATE
-        """)
-        
-        # தமிழ் - Get session statistics
-        total_sessions = await conn.fetchval("SELECT COUNT(*) FROM sessions")
-        sessions_today = await conn.fetchval("""
-            SELECT COUNT(*) FROM sessions 
-            WHERE session_time >= CURRENT_DATE
-        """)
-        
-        # தமிழ் - Get popular services
-        popular_services = await conn.fetch("""
-            SELECT session_type, COUNT(*) as count
-            FROM sessions 
-            GROUP BY session_type 
-            ORDER BY count DESC
-        """)
-        
-        service_stats = []
-        for service in popular_services:
-            sku_config = SKUS.get(service["session_type"], {})
-            service_stats.append({
-                "service": sku_config.get('name', service['session_type']),
-                "sessions": service['count']
-            })
-        
-        # தமிழ் - Get recent activity
-        recent_sessions = await conn.fetch("""
-            SELECT s.user_email, s.session_type, s.session_time, s.status
-            FROM sessions s
-            ORDER BY s.session_time DESC
-            LIMIT 10
-        """)
-        
-        recent_activity = []
-        for session in recent_sessions:
-            sku_config = SKUS.get(session["session_type"], {})
-            recent_activity.append({
-                "user": session['user_email'],
-                "service": sku_config.get('name', session['session_type']),
-                "time": session['session_time'].isoformat(),
-                "status": session['status']
-            })
-        
-        return {
-            "users": {
-                "total": total_users,
-                "new_today": new_users_today
-            },
-            "sessions": {
-                "total": total_sessions,
-                "today": sessions_today
-            },
-            "popular_services": service_stats,
-            "recent_activity": recent_activity,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Analytics error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch analytics")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-@app.get("/api/admin/sessions")
-async def get_all_sessions(admin_user: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get all sessions for admin review"""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        
-        sessions = await conn.fetch("""
-            SELECT s.id, s.user_email, s.session_type, s.credits_used, 
-                   s.result_summary, s.session_time, s.status
-            FROM sessions s
-            ORDER BY s.session_time DESC
-            LIMIT 100
-        """)
-        
-        session_list = []
-        for session in sessions:
-            sku_config = SKUS.get(session["session_type"], {})
-            session_list.append({
-                "id": session['id'],
-                "user_email": session['user_email'],
-                "service": sku_config.get('name', session['session_type']),
-                "credits_used": session['credits_used'],
-                "guidance_preview": session['result_summary'][:200] + "..." if session['result_summary'] and len(session['result_summary']) > 200 else session['result_summary'],
-                "date": session['session_time'].isoformat(),
-                "status": session['status']
-            })
-        
-        return {
-            "sessions": session_list,
-            "total_sessions": len(session_list)
-        }
-        
-    except Exception as e:
-        logger.error(f"Admin sessions error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch sessions")
     finally:
         if conn:
             await release_db_connection(conn)
