@@ -2941,7 +2941,7 @@ def admin_page():
                 errorDiv.style.display = 'none';
                 
                 try {
-                    const response = await fetch('/api/auth/admin-login', {
+                    const response = await fetch('/api/admin/login', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
@@ -3010,7 +3010,7 @@ def admin_page():
             
             async function loadUsers() {
                 try {
-                    const response = await fetch('/admin_users', {
+                    const response = await fetch('/api/admin/users', {
                         headers: {
                             'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
                         }
