@@ -3135,6 +3135,355 @@ def admin_page():
     """
     return HTMLResponse(content=ADMIN_TEMPLATE)
     
+@app.get('/dashboard')
+def user_dashboard():
+    """தமிழ் - User dashboard page"""
+    DASHBOARD_TEMPLATE = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🙏🏼 My Dashboard - JyotiFlow.ai</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                color: white;
+            }
+            
+            .header {
+                background: rgba(0, 0, 0, 0.3);
+                padding: 20px;
+                text-align: center;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 20px;
+            }
+            
+            .welcome-section {
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 15px;
+                padding: 30px;
+                margin-bottom: 30px;
+                text-align: center;
+                backdrop-filter: blur(10px);
+            }
+            
+            .stats-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+            
+            .stat-card {
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 15px;
+                padding: 25px;
+                text-align: center;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+            }
+            
+            .stat-icon {
+                font-size: 2.5rem;
+                margin-bottom: 10px;
+            }
+            
+            .stat-value {
+                font-size: 2rem;
+                font-weight: bold;
+                color: #FFD700;
+                margin-bottom: 5px;
+            }
+            
+            .services-grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                gap: 20px;
+                margin-bottom: 30px;
+            }
+            
+            .service-card {
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 15px;
+                padding: 25px;
+                text-align: center;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                transition: transform 0.3s ease;
+            }
+            
+            .service-card:hover {
+                transform: translateY(-5px);
+            }
+            
+            .btn {
+                background: linear-gradient(45deg, #FFD700, #FFA500);
+                color: #333;
+                border: none;
+                padding: 12px 25px;
+                border-radius: 25px;
+                font-weight: bold;
+                cursor: pointer;
+                text-decoration: none;
+                display: inline-block;
+                margin: 10px 5px;
+                transition: all 0.3s ease;
+            }
+            
+            .btn:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
+            }
+            
+            .history-section {
+                background: rgba(255, 255, 255, 0.1);
+                border-radius: 15px;
+                padding: 25px;
+                backdrop-filter: blur(10px);
+            }
+            
+            .table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 15px;
+            }
+            
+            .table th, .table td {
+                padding: 12px;
+                text-align: left;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            }
+            
+            .table th {
+                background: rgba(255, 255, 255, 0.1);
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🙏🏼 Welcome to Your Spiritual Dashboard</h1>
+            <button class="btn" onclick="logout()">🚪 Logout</button>
+        </div>
+        
+        <div class="container">
+            <div class="welcome-section">
+                <h2 id="welcomeMessage">🙏🏼 Welcome back, Spiritual Seeker</h2>
+                <p>May your journey be filled with divine wisdom and inner peace</p>
+            </div>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">💰</div>
+                    <div class="stat-value" id="userCredits">0</div>
+                    <div class="stat-label">Available Credits</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">🔮</div>
+                    <div class="stat-value" id="totalSessions">0</div>
+                    <div class="stat-label">Total Sessions</div>
+                </div>
+                
+                <div class="stat-card">
+                    <div class="stat-icon">📅</div>
+                    <div class="stat-value" id="lastSession">Never</div>
+                    <div class="stat-label">Last Session</div>
+                </div>
+            </div>
+            
+            <div class="services-grid">
+                <div class="service-card">
+                    <h3>✨ Clarity Plus</h3>
+                    <p>Quick emotional support and life clarity</p>
+                    <p><strong>Cost:</strong> 1 credit</p>
+                    <a href="/session/clarity" class="btn">Start Session</a>
+                </div>
+                
+                <div class="service-card">
+                    <h3>💕 AstroLove Whisper</h3>
+                    <p>Deep relationship and love insights</p>
+                    <p><strong>Cost:</strong> 3 credits</p>
+                    <a href="/session/love" class="btn">Start Session</a>
+                </div>
+                
+                <div class="service-card">
+                    <h3>🔮 R3 Live Premium</h3>
+                    <p>Comprehensive spiritual life reading</p>
+                    <p><strong>Cost:</strong> 6 credits</p>
+                    <a href="/session/premium" class="btn">Start Session</a>
+                </div>
+                
+                <div class="service-card">
+                    <h3>🌟 Daily AstroCoach</h3>
+                    <p>Monthly spiritual coaching subscription</p>
+                    <p><strong>Cost:</strong> 12 credits</p>
+                    <a href="/session/elite" class="btn">Start Session</a>
+                </div>
+            </div>
+            
+            <div class="history-section">
+                <h3>📜 Your Session History</h3>
+                <table class="table" id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Service</th>
+                            <th>Credits Used</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody">
+                        <tr>
+                            <td colspan="4" style="text-align: center; opacity: 0.7;">Loading your spiritual journey...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <script>
+            // Load user data on page load
+            document.addEventListener('DOMContentLoaded', function() {
+                loadUserData();
+                loadSessionHistory();
+            });
+            
+            async function loadUserData() {
+                try {
+                    const token = localStorage.getItem('jyoti_token');
+                    if (!token) {
+                        window.location.href = '/login';
+                        return;
+                    }
+                    
+                    const response = await fetch('/api/user/profile', {
+                        headers: {
+                            'Authorization': 'Bearer ' + token
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        document.getElementById('welcomeMessage').textContent = 
+                            `🙏🏼 Welcome back, ${data.user.first_name}`;
+                        document.getElementById('userCredits').textContent = data.user.credits;
+                        document.getElementById('totalSessions').textContent = data.stats.total_sessions;
+                        document.getElementById('lastSession').textContent = 
+                            data.stats.last_session || 'Never';
+                    }
+                } catch (error) {
+                    console.error('Error loading user data:', error);
+                }
+            }
+            
+            async function loadSessionHistory() {
+                try {
+                    const token = localStorage.getItem('jyoti_token');
+                    const response = await fetch('/api/session/history', {
+                        headers: {
+                            'Authorization': 'Bearer ' + token
+                        }
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        const tbody = document.getElementById('historyTableBody');
+                        tbody.innerHTML = '';
+                        
+                        if (data.sessions.length === 0) {
+                            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; opacity: 0.7;">No sessions yet. Start your spiritual journey!</td></tr>';
+                        } else {
+                            data.sessions.forEach(session => {
+                                const row = tbody.insertRow();
+                                row.innerHTML = `
+                                    <td>${new Date(session.session_time).toLocaleDateString()}</td>
+                                    <td>${session.service_name}</td>
+                                    <td>${session.credits_used}</td>
+                                    <td>${session.status}</td>
+                                `;
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading session history:', error);
+                }
+            }
+            
+            function logout() {
+                localStorage.removeItem('jyoti_token');
+                window.location.href = '/';
+            }
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=DASHBOARD_TEMPLATE)
+
+# User API endpoints for dashboard
+@app.get("/api/user/profile")
+async def get_user_profile(current_user: Dict = Depends(get_current_user)):
+    """தமிழ் - Get user profile and stats"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Get user info
+        user = await conn.fetchrow(
+            "SELECT first_name, last_name, email, credits, created_at FROM users WHERE email = $1",
+            current_user['email']
+        )
+        
+        # Get user stats
+        total_sessions = await conn.fetchval(
+            "SELECT COUNT(*) FROM sessions WHERE user_email = $1",
+            current_user['email']
+        )
+        
+        last_session = await conn.fetchval(
+            "SELECT MAX(session_time) FROM sessions WHERE user_email = $1",
+            current_user['email']
+        )
+        
+        return {
+            "success": True,
+            "user": {
+                "first_name": user['first_name'],
+                "last_name": user['last_name'],
+                "email": user['email'],
+                "credits": user['credits'],
+                "member_since": user['created_at'].strftime("%B %Y") if user['created_at'] else "Unknown"
+            },
+            "stats": {
+                "total_sessions": total_sessions,
+                "last_session": last_session.strftime("%B %d, %Y") if last_session else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"User profile error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load profile")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+    
+    
 @app.get("/admin_stats")
 async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
     """தமிழ் - Get admin dashboard statistics"""
