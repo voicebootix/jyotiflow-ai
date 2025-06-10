@@ -3436,39 +3436,39 @@ def user_dashboard():
     """
     return HTMLResponse(content=DASHBOARD_TEMPLATE)
 
-    @app.post("/api/admin/login")
-    async def admin_login(login_data: AdminLogin):
-        """தமிழ் - Admin login endpoint"""
-        try:
-            # Debug logging
-            logger.info(f"Login attempt with email: {login_data.email}")
-            logger.info(f"Env variables: ADMIN_EMAIL={ADMIN_EMAIL}")
+@app.post("/api/admin/login")
+async def admin_login(login_data: AdminLogin):
+    """தமிழ் - Admin login endpoint"""
+    try:
+        # Debug logging
+        logger.info(f"Login attempt with email: {login_data.email}")
+        logger.info(f"Env variables: ADMIN_EMAIL={ADMIN_EMAIL}")
         
-            # Hardcoded check as fallback
-            if (login_data.email == ADMIN_EMAIL and login_data.password == ADMIN_PASSWORD) or \
-               (login_data.email == "admin@jyotiflow.ai" and login_data.password == "StrongPass@123"):
+        # Hardcoded check as fallback
+        if (login_data.email == ADMIN_EMAIL and login_data.password == ADMIN_PASSWORD) or \
+           (login_data.email == "admin@jyotiflow.ai" and login_data.password == "StrongPass@123"):
             
-                 # Create admin token
-                token = create_jwt_token(login_data.email, is_admin=True)
+            # Create admin token
+            token = create_jwt_token(login_data.email, is_admin=True)
             
-                # Log admin login
-                logger.info(f"Admin login successful: {login_data.email}")
+            # Log admin login
+            logger.info(f"Admin login successful: {login_data.email}")
             
             return {
-                    "success": True,
-                    "token": token,
-                    "message": "Admin login successful"
-                }
-            else:
-                # Log failed attempt with details
-                logger.warning(f"Failed admin login attempt: {login_data.email}")
-                logger.warning(f"Expected: {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
+                "success": True,
+                "token": token,
+                "message": "Admin login successful"
+            }
+        else:
+            # Log failed attempt with details
+            logger.warning(f"Failed admin login attempt: {login_data.email}")
+            logger.warning(f"Expected: {ADMIN_EMAIL} / {ADMIN_PASSWORD}")
             
-                raise HTTPException(status_code=401, detail="Invalid admin credentials")
+            raise HTTPException(status_code=401, detail="Invalid admin credentials")
             
-        except Exception as e:
-            logger.error(f"Admin login error: {e}")
-            raise HTTPException(status_code=500, detail="Login failed")
+    except Exception as e:
+        logger.error(f"Admin login error: {e}")
+        raise HTTPException(status_code=500, detail="Login failed")
 
 
 # User API endpoints for dashboard
