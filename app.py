@@ -3828,8 +3828,8 @@ async def admin_login(login_data: AdminLogin):
         return {
             "success": True,
             "message": "🙏🏼 Admin access granted to the digital ashram",
-            "token": create_jwt_token(login_data.email, is_admin=True)  # ← USE EXISTING FUNCTION
-            }
+            "token": token
+        }
         
     except HTTPException:
         raise
