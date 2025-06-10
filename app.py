@@ -3391,6 +3391,7 @@ async def login_user(login_data: UserLogin):
         token = create_jwt_token(login_data.email)
         
         return {
+            "success": True,
             "message": "🙏🏼 Welcome back to the ashram",
             "token": token,
             "credits": user['credits'],
