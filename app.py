@@ -3135,166 +3135,195 @@ def admin_page():
     """
     return HTMLResponse(content=ADMIN_TEMPLATE)
     
-@app.get('/dashboard')
-def user_dashboard():
-    USER_DASHBOARD_TEMPLATE = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🙏🏼 Dashboard - JyotiFlow.ai</title>
-        <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                color: white;
-                padding: 20px;
-            }
-            .container { max-width: 1200px; margin: 0 auto; }
-            .header {
-                text-align: center;
-                margin-bottom: 40px;
-                padding: 30px;
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 20px;
-                backdrop-filter: blur(10px);
-            }
-            .dashboard-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                gap: 30px;
-                margin-bottom: 40px;
-            }
-            .card {
-                background: rgba(255, 255, 255, 0.1);
-                backdrop-filter: blur(10px);
-                border-radius: 20px;
-                padding: 30px;
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                text-align: center;
-            }
-            .card h3 { color: #FFD700; margin-bottom: 20px; font-size: 1.5rem; }
-            .credits { font-size: 3rem; color: #87CEEB; font-weight: bold; }
-            .btn {
-                background: linear-gradient(45deg, #FFD700, #FFA500);
-                color: #333;
-                padding: 12px 30px;
-                border: none;
-                border-radius: 25px;
-                cursor: pointer;
-                font-size: 1rem;
-                font-weight: bold;
-                text-decoration: none;
-                display: inline-block;
-                margin: 10px;
-                transition: transform 0.3s ease;
-            }
-            .btn:hover { transform: translateY(-2px); }
-            .services-grid {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 20px;
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>🙏🏼 Welcome to Your Spiritual Dashboard</h1>
-                <p>Swami Jyotirananthan's Digital Ashram</p>
-                <p id="userWelcome">Welcome back, dear soul</p>
-            </div>
-            
-            <div class="dashboard-grid">
-                <div class="card">
-                    <h3>💰 Your Credits</h3>
-                    <div class="credits" id="userCredits">0</div>
-                    <p>Available for spiritual guidance sessions</p>
-                    <button class="btn" onclick="buyCredits()">Buy More Credits</button>
-                </div>
-                
-                <div class="card">
-                    <h3>📊 Your Journey</h3>
-                    <p><strong id="totalSessions">0</strong> Sessions Completed</p>
-                    <p><strong id="lastSession">Never</strong> Last Session</p>
-                    <button class="btn" onclick="viewHistory()">View History</button>
-                </div>
-                
-                <div class="card">
-                    <h3>👤 Profile</h3>
-                    <p id="userEmail">Loading...</p>
-                    <p id="memberSince">Member since...</p>
-                    <button class="btn" onclick="editProfile()">Edit Profile</button>
-                </div>
-            </div>
-            
-            <div class="card">
-                <h3>🌟 Spiritual Services</h3>
-                <div class="services-grid">
-                    <a href="/session/clarity" class="btn">✨ Clarity Plus ($9)</a>
-                    <a href="/session/love" class="btn">💕 AstroLove ($19)</a>
-                    <a href="/session/premium" class="btn">🔮 R3 Premium ($39)</a>
-                    <a href="/session/elite" class="btn">🌟 Daily Coach ($149)</a>
-                </div>
-            </div>
-            
-            <div style="text-align: center; margin-top: 40px;">
-                <button class="btn" onclick="logout()" style="background: #e74c3c;">Logout</button>
-            </div>
-        </div>
+@app.get("/admin_stats")
+async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Get admin dashboard statistics"""
+    conn = None
+    try:
+        conn = await get_db_connection()
         
-        <script>
-            // Load user data on page load
-            window.onload = function() {
-                loadUserData();
-            };
-            
-            async function loadUserData() {
-                try {
-                    const token = localStorage.getItem('jyoti_token');
-                    if (!token) {
-                        window.location.href = '/login';
-                        return;
-                    }
-                    
-                    // Mock data for now - replace with actual API calls
-                    document.getElementById('userWelcome').textContent = 'Welcome back, dear soul';
-                    document.getElementById('userCredits').textContent = '3';
-                    document.getElementById('userEmail').textContent = 'user@example.com';
-                    document.getElementById('totalSessions').textContent = '0';
-                    document.getElementById('lastSession').textContent = 'Never';
-                    document.getElementById('memberSince').textContent = 'Member since today';
-                    
-                } catch (error) {
-                    console.error('Error loading user data:', error);
-                    window.location.href = '/login';
-                }
+        # Total users
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
+        
+        # Total sessions
+        total_sessions = await conn.fetchval("SELECT COUNT(*) FROM sessions")
+        
+        # Total revenue (from completed sessions)
+        total_revenue = await conn.fetchval("""
+            SELECT COALESCE(SUM(s.credits_used * sk.price), 0) 
+            FROM sessions s 
+            JOIN (VALUES 
+                ('clarity', 9), ('love', 19), ('premium', 39), ('elite', 149)
+            ) AS sk(sku, price) ON s.session_type = sk.sku
+            WHERE s.status = 'completed'
+        """) or 0
+        
+        # Today's sessions
+        today_sessions = await conn.fetchval("""
+            SELECT COUNT(*) FROM sessions 
+            WHERE DATE(session_time) = CURRENT_DATE
+        """)
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_users": total_users,
+                "total_sessions": total_sessions,
+                "total_revenue": float(total_revenue),
+                "today_sessions": today_sessions
             }
-            
-            function buyCredits() {
-                alert('Credit purchase feature coming soon!');
-            }
-            
-            function viewHistory() {
-                alert('Session history feature coming soon!');
-            }
-            
-            function editProfile() {
-                alert('Profile editing feature coming soon!');
-            }
-            
-            function logout() {
-                localStorage.removeItem('jyoti_token');
-                window.location.href = '/';
-            }
-        </script>
-    </body>
-    </html>
-    """
-    return HTMLResponse(content=USER_DASHBOARD_TEMPLATE)
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin stats error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load stats")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/admin_users")
+async def get_admin_users(admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Get all users for admin dashboard"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        users = await conn.fetch("""
+            SELECT id, first_name, last_name, email, credits, created_at, last_login
+            FROM users 
+            ORDER BY created_at DESC
+        """)
+        
+        users_list = []
+        for user in users:
+            users_list.append({
+                "id": user['id'],
+                "first_name": user['first_name'],
+                "last_name": user['last_name'],
+                "email": user['email'],
+                "credits": user['credits'],
+                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
+                "last_login": user['last_login'].isoformat() if user['last_login'] else None
+            })
+        
+        return {
+            "success": True,
+            "users": users_list
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin users error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load users")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/admin_sessions")
+async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Get all sessions for admin dashboard"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        sessions = await conn.fetch("""
+            SELECT s.id, s.user_email, s.session_type, s.credits_used, 
+                   s.session_time, s.status, s.result_summary
+            FROM sessions s
+            ORDER BY s.session_time DESC
+            LIMIT 100
+        """)
+        
+        sessions_list = []
+        for session in sessions:
+            sessions_list.append({
+                "id": session['id'],
+                "user_email": session['user_email'],
+                "service_type": session['session_type'],
+                "credits_used": session['credits_used'],
+                "session_time": session['session_time'].isoformat() if session['session_time'] else None,
+                "status": session['status'],
+                "question": session['result_summary'][:100] + "..." if session['result_summary'] else "No question"
+            })
+        
+        return {
+            "success": True,
+            "sessions": sessions_list
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin sessions error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load sessions")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.post("/admin_add_credits")
+async def add_user_credits(request: Request, admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Add credits to user account"""
+    conn = None
+    try:
+        data = await request.json()
+        user_id = data.get('user_id')
+        credits = data.get('credits')
+        
+        if not user_id or not credits or credits <= 0:
+            raise HTTPException(status_code=400, detail="Invalid user ID or credits amount")
+        
+        conn = await get_db_connection()
+        
+        # Get user info
+        user = await conn.fetchrow("SELECT email, credits FROM users WHERE id = $1", user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Add credits
+        await conn.execute(
+            "UPDATE users SET credits = credits + $1 WHERE id = $2",
+            credits, user_id
+        )
+        
+        # Log the transaction
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, $5)
+        """, admin['email'], "add_credits", user['email'], 
+            f"Added {credits} credits (admin action)", datetime.utcnow())
+        
+        return {
+            "success": True,
+            "message": f"Successfully added {credits} credits to {user['email']}",
+            "new_balance": user['credits'] + credits
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Add credits error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add credits")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+# Helper function for admin authentication
+async def get_admin_user(request: Request):
+    """தமிழ் - Verify admin JWT token"""
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        
+        if not payload.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        return {"email": payload.get("email"), "is_admin": True}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 @app.get("/test")
 async def test_route():
@@ -3605,6 +3634,195 @@ async def get_session_history(current_user: Dict = Depends(get_current_user)):
         if conn:
             await release_db_connection(conn)
 
+@app.get("/admin_stats")
+async def get_admin_stats(admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Get admin dashboard statistics"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Total users
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
+        
+        # Total sessions
+        total_sessions = await conn.fetchval("SELECT COUNT(*) FROM sessions")
+        
+        # Total revenue (from completed sessions)
+        total_revenue = await conn.fetchval("""
+            SELECT COALESCE(SUM(s.credits_used * sk.price), 0) 
+            FROM sessions s 
+            JOIN (VALUES 
+                ('clarity', 9), ('love', 19), ('premium', 39), ('elite', 149)
+            ) AS sk(sku, price) ON s.session_type = sk.sku
+            WHERE s.status = 'completed'
+        """) or 0
+        
+        # Today's sessions
+        today_sessions = await conn.fetchval("""
+            SELECT COUNT(*) FROM sessions 
+            WHERE DATE(session_time) = CURRENT_DATE
+        """)
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_users": total_users,
+                "total_sessions": total_sessions,
+                "total_revenue": float(total_revenue),
+                "today_sessions": today_sessions
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin stats error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load stats")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/admin_users")
+async def get_admin_users(admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Get all users for admin dashboard"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        users = await conn.fetch("""
+            SELECT id, first_name, last_name, email, credits, created_at, last_login
+            FROM users 
+            ORDER BY created_at DESC
+        """)
+        
+        users_list = []
+        for user in users:
+            users_list.append({
+                "id": user['id'],
+                "first_name": user['first_name'],
+                "last_name": user['last_name'],
+                "email": user['email'],
+                "credits": user['credits'],
+                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
+                "last_login": user['last_login'].isoformat() if user['last_login'] else None
+            })
+        
+        return {
+            "success": True,
+            "users": users_list
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin users error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load users")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/admin_sessions")
+async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Get all sessions for admin dashboard"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        sessions = await conn.fetch("""
+            SELECT s.id, s.user_email, s.session_type, s.credits_used, 
+                   s.session_time, s.status, s.result_summary
+            FROM sessions s
+            ORDER BY s.session_time DESC
+            LIMIT 100
+        """)
+        
+        sessions_list = []
+        for session in sessions:
+            sessions_list.append({
+                "id": session['id'],
+                "user_email": session['user_email'],
+                "service_type": session['session_type'],
+                "credits_used": session['credits_used'],
+                "session_time": session['session_time'].isoformat() if session['session_time'] else None,
+                "status": session['status'],
+                "question": session['result_summary'][:100] + "..." if session['result_summary'] else "No question"
+            })
+        
+        return {
+            "success": True,
+            "sessions": sessions_list
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin sessions error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to load sessions")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.post("/admin_add_credits")
+async def add_user_credits(request: Request, admin: Dict = Depends(get_admin_user)):
+    """தமிழ் - Add credits to user account"""
+    conn = None
+    try:
+        data = await request.json()
+        user_id = data.get('user_id')
+        credits = data.get('credits')
+        
+        if not user_id or not credits or credits <= 0:
+            raise HTTPException(status_code=400, detail="Invalid user ID or credits amount")
+        
+        conn = await get_db_connection()
+        
+        # Get user info
+        user = await conn.fetchrow("SELECT email, credits FROM users WHERE id = $1", user_id)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Add credits
+        await conn.execute(
+            "UPDATE users SET credits = credits + $1 WHERE id = $2",
+            credits, user_id
+        )
+        
+        # Log the transaction
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, $5)
+        """, admin['email'], "add_credits", user['email'], 
+            f"Added {credits} credits (admin action)", datetime.utcnow())
+        
+        return {
+            "success": True,
+            "message": f"Successfully added {credits} credits to {user['email']}",
+            "new_balance": user['credits'] + credits
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Add credits error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to add credits")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+# Helper function for admin authentication
+async def get_admin_user(request: Request):
+    """தமிழ் - Verify admin JWT token"""
+    try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+        
+        token = auth_header.split(" ")[1]
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        
+        if not payload.get("is_admin"):
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        return {"email": payload.get("email"), "is_admin": True}
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 # தமிழ் - Credit Management Routes
 
 @app.get("/api/credits/balance")
