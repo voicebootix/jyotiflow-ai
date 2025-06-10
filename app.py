@@ -3525,16 +3525,22 @@ async def get_admin_users(admin: Dict = Depends(get_admin_user)):
     try:
         conn = await get_db_connection()
         
+        # Log the request
+        logger.info(f"Admin users endpoint called by {admin['email']}")
+        
         users = await conn.fetch("""
             SELECT email, first_name, last_name, credits, created_at, last_login
             FROM users 
             ORDER BY created_at DESC
         """)
         
+        # Log the number of users found
+        logger.info(f"Found {len(users)} users in database")
+        
         users_list = []
         for i, user in enumerate(users):
             users_list.append({
-                "id": i + 1,  # Generate a synthetic ID
+                "id": i + 1,  # Generate a synthetic ID (row number)
                 "first_name": user['first_name'] or "",
                 "last_name": user['last_name'] or "",
                 "email": user['email'] or "",
@@ -3916,14 +3922,17 @@ async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
             LIMIT 100
         """)
         
+        # Log the number of sessions found
+        logger.info(f"Found {len(sessions)} sessions in database")
+        
         sessions_list = []
         for session in sessions:
             sessions_list.append({
                 "id": session['id'],
-                "user": session['user_email'],
-                "service": session['session_type'],
+                "user_email": session['user_email'],
+                "service_type": session['session_type'],
                 "question": session['result_summary'][:50] + "..." if session['result_summary'] and len(session['result_summary']) > 50 else "",
-                "date": session['session_time'].isoformat() if session['session_time'] else None,
+                "created_at": session['session_time'].isoformat() if session['session_time'] else None,
                 "status": session['status']
             })
         
@@ -3953,34 +3962,55 @@ async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_us
         credit_data = await request.json()
         
         # Extract and validate data
-        user_id = credit_data.get("user_id")
-        amount = credit_data.get("credits")
+        user_id = credit_data.get("user_id")  # This is the row number from frontend
+        credits = credit_data.get("credits")  # Frontend sends 'credits', not 'amount'
         
-        if not user_id or not amount:
+        if not user_id or not credits:
             logger.error(f"Invalid credit data: {credit_data}")
-            return {"success": False, "message": "Missing user_id or amount"}
+            return {"success": False, "message": "Missing user_id or credits"}
         
-        # Convert amount to integer if needed
+        # Convert credits to integer if needed
         try:
-            amount = int(amount)
+            credits = int(credits)
         except (ValueError, TypeError):
-            logger.error(f"Invalid amount format: {amount}")
-            return {"success": False, "message": "Amount must be a number"}
-        
-        # Log the received data for debugging
-        logger.info(f"Adding {amount} credits to user {user_id}")
+            logger.error(f"Invalid credits format: {credits}")
+            return {"success": False, "message": "Credits must be a number"}
         
         conn = await get_db_connection()
         
-        # Add credits
+        # Get the user's email using the row number (user_id from frontend)
+        # This approach avoids using the non-existent 'id' column
+        users = await conn.fetch("SELECT email FROM users ORDER BY created_at")
+        
+        if not users or len(users) < user_id or user_id <= 0:
+            logger.error(f"User with index {user_id} not found")
+            return {"success": False, "message": "User not found"}
+            
+        # Get the email for the specified row number (adjusting for 0-based indexing)
+        user_email = users[user_id - 1]["email"]
+        
+        # Log the operation with detailed information
+        logger.info(f"Adding {credits} credits to user {user_email} (index: {user_id})")
+        
+        # Update credits using email (which is the primary key)
         await conn.execute(
-            "UPDATE users SET credits = credits + $1 WHERE id = $2",
-            amount, user_id
+            "UPDATE users SET credits = credits + $1 WHERE email = $2",
+            credits, user_email
         )
+        
+        # Log the successful update
+        logger.info(f"Successfully added {credits} credits to {user_email}")
+        
+        # Add entry to admin_logs table
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, $5)
+        """, admin["email"], "add_credits", user_email, 
+            f"Added {credits} credits", datetime.utcnow())
         
         return {
             "success": True,
-            "message": f"Added {amount} credits to user account"
+            "message": f"Added {credits} credits to user account"
         }
         
     except Exception as e:
