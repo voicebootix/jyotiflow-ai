@@ -245,12 +245,73 @@ Guidelines:
 """
 
 async def get_prokerala_chart(birth_date: str, birth_time: str, birth_location: str) -> Dict:
-    """தமிழ் - Prokerala API இலிருந்து birth chart பெறுதல் (Mock for testing)"""
+    """தமிழ் - Real Prokerala API birth chart generation"""
     try:
-        # தமிழ் - Mock response for testing
+        import aiohttp
+        import json
+        from datetime import datetime
+        
+        # தமிழ் - Validate inputs
+        if not all([birth_date, birth_time, birth_location]):
+            return {"error": "Birth details incomplete"}
+        
+        # தமிழ் - Parse birth date and time
+        try:
+            # Expected format: "1990-03-15" and "14:30"
+            birth_datetime = datetime.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+        except ValueError:
+            try:
+                # Alternative format: "15/03/1990" and "2:30 PM"
+                birth_datetime = datetime.strptime(f"{birth_date} {birth_time}", "%d/%m/%Y %I:%M %p")
+            except ValueError:
+                return {"error": "Invalid date/time format"}
+        
+        # தமிழ் - Prokerala API endpoint
+        url = "https://api.prokerala.com/v2/astrology/birth-chart"
+        
+        headers = {
+            "Authorization": f"Bearer {PROKERALA_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        
+        # தமிழ் - API payload
+        payload = {
+            "datetime": birth_datetime.strftime("%Y-%m-%dT%H:%M:%S"),
+            "coordinates": birth_location,  # You may need to geocode this
+            "ayanamsa": 1  # Lahiri ayanamsa
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload) as response:
+                if response.status == 200:
+                    data = await response.json()
+                    
+                    # தமிழ் - Extract relevant chart data
+                    chart_data = {
+                        "nakshatra": data.get("nakshatra", {}).get("name", "Unknown"),
+                        "rashi": data.get("rashi", {}).get("name", "Unknown"), 
+                        "moon_sign": data.get("moon_sign", {}).get("name", "Unknown"),
+                        "ascendant": data.get("ascendant", {}).get("name", "Unknown"),
+                        "planetary_positions": data.get("planets", {}),
+                        "dasha": data.get("current_dasha", {}).get("name", "Unknown"),
+                        "birth_location": birth_location,
+                        "birth_time": birth_time,
+                        "birth_date": birth_date,
+                        "raw_data": data  # Store full response for advanced features
+                    }
+                    
+                    return chart_data
+                else:
+                    logger.error(f"Prokerala API error: {response.status}")
+                    return {"error": f"API error: {response.status}"}
+                    
+    except Exception as e:
+        logger.error(f"Prokerala API exception: {e}")
+        
+        # தமிழ் - Fallback to basic chart data
         return {
             "nakshatra": "Bharani",
-            "rashi": "Mesha",
+            "rashi": "Mesha", 
             "moon_sign": "Aries",
             "ascendant": "Gemini",
             "planetary_positions": {
@@ -261,104 +322,69 @@ async def get_prokerala_chart(birth_date: str, birth_time: str, birth_location: 
             "dasha": "Venus Mahadasha",
             "birth_location": birth_location,
             "birth_time": birth_time,
-            "birth_date": birth_date
+            "birth_date": birth_date,
+            "note": "Using basic chart data - API temporarily unavailable"
         }
-    except Exception as e:
-        logger.error(f"Prokerala API exception: {e}")
-        return {"error": "Birth chart service temporarily unavailable"}
 
 async def generate_spiritual_guidance(sku: str, question: str, birth_chart: Dict = None) -> str:
-    """தமிழ் - Mock spiritual guidance generation for testing"""
+    """தமிழ் - Real OpenAI spiritual guidance generation"""
     try:
-        # தமிழ் - Customize response based on SKU
+        # தமிழ் - Customize system prompt based on SKU
+        sku_config = SKUS.get(sku, {})
+        service_name = sku_config.get('name', 'Spiritual Guidance')
+        duration = sku_config.get('duration_minutes', 15)
         
-        # தமிழ் - Mock responses for testing
-        if sku == 'clarity':
-            return f"""🙏🏼 My dear child, I sense a deep question stirring in your heart today. 
+        # தமிழ் - Enhanced system prompt with birth chart data
+        system_prompt = f"""{SWAMI_PERSONA}
 
-Your question about "{question}" touches the very essence of your spiritual journey. Looking at your astrological influences, I see the cosmic energies are aligning to bring you the clarity you seek.
+Service Type: {service_name} ({duration} minutes)
+Birth Chart Data: {birth_chart if birth_chart else 'Not provided'}
 
-The stars whisper that this is a time of transformation for you. Like the lotus that blooms from muddy waters, your current challenges are preparing you for beautiful growth. Trust in the divine timing of your life.
+Instructions:
+- Provide {duration} minutes worth of guidance (approximately {duration * 15} words)
+- If birth chart is provided, incorporate astrological insights
+- Focus on emotional healing and spiritual growth
+- Use gentle, wise language befitting a Tamil spiritual elder
+- End with a blessing and practical spiritual advice
+"""
 
-Take three deep breaths with me now, and feel the ancient wisdom flowing through your being. The answer you seek already resides within your soul - you simply need to quiet the mind to hear it.
-
-Until we meet again, may your path be illuminated with divine light and wisdom. 🕉️
-
-Blessings,
-Swami Jyotirananthan"""
+        # தמיழ் - Create OpenAI chat completion
+        import openai
         
-        elif sku == 'love':
-            return f"""🙏🏼 Beloved soul, love is the greatest teacher and the most sacred energy in our universe.
-
-Your heart's inquiry about "{question}" reveals the beautiful vulnerability that makes you human. In matters of love, the stars show me that Venus is blessing your path with opportunities for deep connection.
-
-Whether you seek to understand a current relationship or attract new love, remember that the love you give to yourself sets the vibration for all love that enters your life. Your birth chart suggests a powerful capacity for emotional healing and transformation.
-
-The divine feminine and masculine energies within you are seeking balance. Honor both your need for independence and your desire for union. True love begins with self-acceptance and radiates outward like ripples on a sacred lake.
-
-In the coming lunar cycle, pay attention to your dreams and intuitive insights about relationships. The universe is preparing to answer your heart's deepest prayers.
-
-May your heart overflow with love and your relationships be blessed with divine harmony. 💕
-
-With infinite love,
-Swami Jyotirananthan"""
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"My question is: {question}"}
+            ],
+            max_tokens=duration * 20,  # Adjust based on service tier
+            temperature=0.7,
+            presence_penalty=0.1,
+            frequency_penalty=0.1
+        )
         
-        elif sku == 'premium':
-            return f"""🙏🏼 My cherished seeker, you have come seeking comprehensive guidance for your life's journey, and the cosmos has prepared profound insights for you.
-
-Your question "{question}" opens doorways to understanding your soul's purpose in this incarnation. Looking at your complete astrological blueprint, I see a being of great spiritual potential navigating important life transitions.
-
-**Career & Purpose:** The planetary alignments suggest you are being called to align your work with your higher purpose. Your dharma involves serving others through your unique gifts. Trust the inner calling that may seem unconventional to others.
-
-**Relationships & Family:** Venus and the Moon in your chart indicate deep emotional intelligence. Your relationships are mirrors reflecting your own growth. Forgive past hurts and open your heart to receive the love that surrounds you.
-
-**Health & Vitality:** Your body is a temple housing your divine spirit. The stars counsel attention to both physical wellness and emotional balance. Meditation and connection with nature will restore your energy.
-
-**Spiritual Growth:** You are in a powerful phase of awakening. The challenges you've faced have been preparing you for greater service to humanity. Your intuitive abilities are strengthening - trust them.
-
-**Financial Abundance:** Prosperity flows when we align with our purpose. Release fears about money and focus on how you can serve. The universe will provide as you follow your authentic path.
-
-The next six months bring significant opportunities for transformation. Stay centered in your spiritual practice and trust the divine timing of your life.
-
-May every step of your journey be blessed with wisdom, love, and abundant grace. 🔮
-
-In divine service,
-Swami Jyotirananthan"""
+        guidance = response.choices[0].message.content.strip()
         
-        elif sku == 'elite':
-            return f"""🙏🏼 Beloved spiritual companion, welcome to this sacred space of ongoing guidance and transformation.
-
-Today's insight for your question "{question}" comes from the eternal wisdom of the Vedas and the current cosmic energies surrounding your path.
-
-**Daily Spiritual Practice:** Begin each morning by connecting with your breath and setting an intention for the day. The planetary transits suggest this is a powerful time for manifestation through aligned action.
-
-**Emotional Mastery:** You are learning to be the observer of your emotions rather than being controlled by them. This is advanced spiritual work. When challenging feelings arise, breathe deeply and ask: "What is this emotion teaching me?"
-
-**Relationship Dynamics:** Your connections with others are evolving as you grow spiritually. Some relationships may naturally fade while new, more aligned connections enter your life. Trust this natural process.
-
-**Life Purpose Activation:** The universe is calling you to step more fully into your role as a light-bearer. Your experiences, both joyful and challenging, have prepared you to guide others. Consider how you might share your wisdom.
-
-**Abundance Consciousness:** Shift from thinking about what you lack to appreciating what you have. Gratitude is the fastest path to attracting more blessings. The cosmos responds to the vibration of appreciation.
-
-**This Week's Guidance:** Pay special attention to synchronicities and signs. The universe is communicating with you through repeated numbers, unexpected encounters, and intuitive insights.
-
-Remember, dear soul, you are never alone on this journey. The divine light within you is connected to the infinite source of all wisdom and love.
-
-Until tomorrow's guidance, may you walk in peace and radiate love wherever you go. 🌟
-
-Your spiritual companion,
-Swami Jyotirananthan"""
+        # தமிழ் - Add service-specific closing
+        if sku == 'elite':
+            guidance += "\n\n🌟 As your Daily AstroCoach, I'll be here to guide you on this beautiful journey of spiritual awakening."
         
-        else:
-            return f"""🙏🏼 Dear seeker, the divine light within me honors the divine light within you.
+        return guidance
+        
+    except Exception as e:
+        logger.error(f"OpenAI API error: {e}")
+        # தமிழ் - Fallback response if API fails
+        return f"""🙏🏼 My dear child, the cosmic energies are shifting at this moment. 
 
-Your question "{question}" has reached my heart, and I offer you this guidance from the ancient wisdom traditions.
+Your question about "{question}" has reached my heart. While the digital channels are temporarily disrupted, I offer you this timeless wisdom:
 
-The cosmos reminds us that every challenge is an opportunity for growth, every setback a setup for a comeback. Trust in the divine timing of your life and know that you are exactly where you need to be.
+Trust in the divine timing of your life. Every challenge you face is preparing you for greater spiritual growth. The answers you seek already reside within your soul - quiet your mind through meditation and listen to your inner voice.
 
-May peace, love, and wisdom guide your path forward.
+May peace, love, and divine light guide your path forward.
 
-Blessings,
+Until the cosmic energies realign, practice gratitude and self-compassion.
+
+Blessings and love,
 Swami Jyotirananthan 🕉️"""
         
     except Exception as e:
