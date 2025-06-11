@@ -3924,66 +3924,6 @@ admin_dashboard_html = """
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
 
-        // Add this to your admin dashboard JavaScript
-        let authToken = localStorage.getItem('adminAuthToken');
-
-        async function loginAdmin() {
-            const email = document.getElementById('adminEmail').value;
-        const password = document.getElementById('adminPassword').value;
-    
-        try {
-            const response = await fetch('/api/admin/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ email, password })
-            });
-        
-            if (response.ok) {
-                const data = await response.json();
-                authToken = data.token;
-                localStorage.setItem('adminAuthToken', authToken);
-                showToast('Login successful', 'success');
-                loadDashboardData();
-        } else {
-            const error = await response.json();
-            showToast(`Login failed: ${error.detail}`, 'danger');
-        }
-    } catch (error) {
-        showToast(`Error: ${error.message}`, 'danger');
-    }
-}
-
-// Make sure all API calls include the token
-async function fetchWithAuth(url, options = {}) {
-    const headers = {
-        'Authorization': `Bearer ${authToken}`,
-        'Content-Type': 'application/json',
-        ...(options.headers || {})
-    };
-    
-    return fetch(url, {
-        ...options,
-        headers
-    });
-}
-
-// Example of using fetchWithAuth
-async function loadUsers() {
-    try {
-        const response = await fetchWithAuth('/api/admin/users');
-        if (response.ok) {
-            const users = await response.json();
-            // Process users data
-        } else {
-            const error = await response.json();
-            showToast(`Error loading users: ${error.detail}`, 'danger');
-        }
-    } catch (error) {
-        showToast(`Error: ${error.message}`, 'danger');
-    }
-}
         // Global variables
         let authToken = localStorage.getItem('jyotiflow_admin_token' );
         const apiBaseUrl = window.location.origin;
