@@ -371,7 +371,7 @@ Instructions:
         
         return guidance
         
-    except Exception as e:
+    except openai.APIError as e:
         logger.error(f"OpenAI API error: {e}")
         # தமிழ் - Fallback response if API fails
         return f"""🙏🏼 My dear child, the cosmic energies are shifting at this moment. 
@@ -3761,10 +3761,9 @@ async def start_spiritual_session(session_data: SessionStart, current_user: Dict
         # தமிழ் - Check user credits
         user = await conn.fetchrow(
         # Log user credits
-        logger.info(f"User {user_email} has {user['credits']} credits")
             "SELECT credits FROM users WHERE email = $1", user_email
         )
-        
+        logger.info(f"User {user_email} has {user['credits']} credits")
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
@@ -4042,7 +4041,7 @@ async def get_admin_sessions(admin: Dict = Depends(get_admin_user)):
         if conn:
             await release_db_connection(conn)
 
-ADMIN_ADD_CREDITS_ENDPOINT = """
+ADMIN_ADD_CREDITS_ENDPOINT = "/admin_add_credits"
 @app.post("/admin_add_credits")
 async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_user)):
     """Add credits to user account by admin"""
