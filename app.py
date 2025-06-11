@@ -1509,7 +1509,7 @@ def clarity_page():
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            service_type: 'clarity',
+                            sku: 'clarity',
                             question: question,
                             birth_date: birthDate,
                             birth_time: birthTime,
@@ -1838,7 +1838,7 @@ def astrolove_page():
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        service_type: 'love',
+                        sku: 'love',
                         question: question,
                         relationship_status: relationshipStatus,
                         birth_date: birthDate,
@@ -2249,7 +2249,7 @@ def r3live_page():
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            service_type: 'premium',
+                            sku: 'premium',
                             question: question,
                             birth_date: birthDate,
                             birth_time: birthTime,
@@ -2676,7 +2676,7 @@ def daily_page():
                             'Content-Type': 'application/json',
                         },
                         body: JSON.stringify({
-                            service_type: 'elite',
+                            sku: 'elite',
                             goals: goals,
                             birth_date: birthDate,
                             birth_time: birthTime,
