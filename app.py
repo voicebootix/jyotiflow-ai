@@ -36,6 +36,7 @@ import json
 import uuid # For generating unique IDs where needed
 
 
+
 # தமிழ் - Environment variables மற்றும் configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
 STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "sk_test_...")
@@ -317,6 +318,111 @@ async def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(sec
     if not payload.get('is_admin'):
         raise HTTPException(status_code=403, detail="Admin access required")
     return payload
+
+async def get_product_by_sku(sku_code: str) -> Optional[Dict]:
+    """
+    தமிழ் - SKU code மூலம் தயாரிப்பு பெறுதல்
+    English - Get product by SKU code
+    """
+    conn = None
+    try:
+        conn = await get_db_connection()
+        record = await conn.fetchrow("SELECT * FROM products WHERE sku_code = $1", sku_code)
+        
+        if not record:
+            return None
+        
+        return dict(record)
+    except Exception as e:
+        logger.error(f"Error getting product by SKU {sku_code}: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def get_uco_for_user(user_email: str) -> Optional[UCO]:
+    """
+    தமிழ் - பயனருக்கான UCO பெறுதல்
+    English - Get UCO for a user
+    """
+    conn = None
+    try:
+        conn = await get_db_connection()
+        record = await conn.fetchrow("SELECT unified_context_object FROM users WHERE email = $1", user_email)
+        
+        if not record or not record['unified_context_object']:
+            return None
+        
+        uco_data = record['unified_context_object']
+        return UCO(**uco_data)
+    except Exception as e:
+        logger.error(f"Error getting UCO for {user_email}: {e}", exc_info=True)
+        return None
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def update_uco_for_user(user_email: str, uco_data: Dict) -> bool:
+    """
+    தமிழ் - பயனருக்கான UCO புதுப்பித்தல்
+    English - Update UCO for a user
+    """
+    conn = None
+    try:
+        conn = await get_db_connection()
+        await conn.execute(
+            "UPDATE users SET unified_context_object = $1 WHERE email = $2",
+            json.dumps(uco_data), user_email
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error updating UCO for {user_email}: {e}", exc_info=True)
+        return False
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def log_interaction(interaction: InteractionLog) -> int:
+    """
+    தமிழ் - உரையாடல் பதிவு செய்தல்
+    English - Log an interaction
+    """
+    conn = None
+    try:
+        conn = await get_db_connection()
+        result = await conn.fetchrow(
+            """
+            INSERT INTO interaction_history 
+            (user_email, session_id, timestamp, channel, sku_code, user_query, 
+             swami_response_summary, emotional_state_detected, key_insights_derived, 
+             follow_up_actions, external_transcript_id, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING id
+            """,
+            interaction.user_email, interaction.session_id, interaction.timestamp,
+            interaction.channel, interaction.sku_code, interaction.user_query,
+            interaction.swami_response_summary, interaction.emotional_state_detected,
+            json.dumps(interaction.key_insights_derived), json.dumps(interaction.follow_up_actions),
+            interaction.external_transcript_id, json.dumps(interaction.metadata)
+        )
+        
+        # Update UCO with this interaction ID
+        if result and result['id']:
+            uco = await get_uco_for_user(interaction.user_email)
+            if uco:
+                if not uco.interaction_history_ids:
+                    uco.interaction_history_ids = []
+                uco.interaction_history_ids.append(result['id'])
+                await update_uco_for_user(interaction.user_email, uco.dict())
+            
+            return result['id']
+        return 0
+    except Exception as e:
+        logger.error(f"Error logging interaction for {interaction.user_email}: {e}", exc_info=True)
+        return 0
+    finally:
+        if conn:
+            await release_db_connection(conn)
 
 # தமிழ் - Swami Jyotirananthan persona and AI integration
 SWAMI_PERSONA = """
@@ -3860,6 +3966,67 @@ admin_dashboard_html = """
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+
+        // Add this to your admin dashboard JavaScript
+        let authToken = localStorage.getItem('adminAuthToken');
+
+        async function loginAdmin() {
+            const email = document.getElementById('adminEmail').value;
+        const password = document.getElementById('adminPassword').value;
+    
+        try {
+            const response = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+        
+            if (response.ok) {
+                const data = await response.json();
+                authToken = data.token;
+                localStorage.setItem('adminAuthToken', authToken);
+                showToast('Login successful', 'success');
+                loadDashboardData();
+        } else {
+            const error = await response.json();
+            showToast(`Login failed: ${error.detail}`, 'danger');
+        }
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'danger');
+    }
+}
+
+// Make sure all API calls include the token
+async function fetchWithAuth(url, options = {}) {
+    const headers = {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+        ...(options.headers || {})
+    };
+    
+    return fetch(url, {
+        ...options,
+        headers
+    });
+}
+
+// Example of using fetchWithAuth
+async function loadUsers() {
+    try {
+        const response = await fetchWithAuth('/api/admin/users');
+        if (response.ok) {
+            const users = await response.json();
+            // Process users data
+        } else {
+            const error = await response.json();
+            showToast(`Error loading users: ${error.detail}`, 'danger');
+        }
+    } catch (error) {
+        showToast(`Error: ${error.message}`, 'danger');
+    }
+}
         // Global variables
         let authToken = localStorage.getItem('jyotiflow_admin_token' );
         const apiBaseUrl = window.location.origin;
@@ -6134,28 +6301,6 @@ async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_us
     finally:
         if conn:
             await release_db_connection(conn)
-
-# Helper function for admin authentication
-async def get_admin_user(request: Request):
-    """தமிழ் - Verify admin JWT token"""
-    try:
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-        
-        token = auth_header.split(" ")[1]
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=['HS256'])
-        
-        if not payload.get("is_admin"):
-            raise HTTPException(status_code=403, detail="Admin access required")
-        
-        return {"email": payload.get("email"), "is_admin": True}
-        
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
-# தமிழ் - Credit Management Routes
 
 @app.get("/api/credits/balance")
 async def get_credit_balance(current_user: Dict = Depends(get_current_user)):
