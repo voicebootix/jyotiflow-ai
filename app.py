@@ -5316,7 +5316,15 @@ async def auth_middleware(request: Request, call_next):
     English - Authentication middleware for token verification
     """
     # Skip auth for login routes and public endpoints
-    if request.url.path in ["/api/login", "/api/register", "/api/admin/login", "/", "/admin"]:
+    if request.url.path in [
+        "/api/login",
+        "/api/register",
+        "/api/auth/login",
+        "/api/auth/register",
+        "/api/admin/login",
+        "/",
+        "/admin",
+    ]:
         return await call_next(request)
     
     # Skip auth for static files
