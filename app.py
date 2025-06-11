@@ -5185,6 +5185,156 @@ async def admin_get_users(skip: int = 0, limit: int = 100, admin_user: Dict = De
         if conn:
             await release_db_connection(conn)
 
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    """
+    தமிழ் - Authentication middleware - token verification
+    English - Authentication middleware for token verification
+    """
+    # Skip auth for login routes and public endpoints
+    if request.url.path in ["/api/login", "/api/register", "/api/admin/login", "/", "/admin"]:
+        return await call_next(request)
+    
+    # Skip auth for static files
+    if request.url.path.startswith(("/static/", "/favicon.ico")):
+        return await call_next(request)
+    
+    # Check for Authorization header
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+        return await call_next(request)
+    
+    # Extract and verify token
+    token = auth_header.split(" ")[1]
+    try:
+        payload = verify_jwt_token(token)
+        # Add user info to request state
+        request.state.user = payload
+        return await call_next(request)
+    except Exception as e:
+        if request.url.path.startswith("/api/"):
+            return JSONResponse(status_code=401, content={"detail": str(e)})
+        return await call_next(request)
+
+async def generate_swami_guidance_with_memory(user_email: str, sku_code: str, question: str, uco: Optional[UCO] = None) -> str:
+    """
+    தமிழ் - UCO memory உடன் ஸ்வாமி வழிகாட்டுதல் உருவாக்குதல்
+    English - Generate Swami guidance using the user's memory context
+    """
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Get product details
+        product = await get_product_by_sku(sku_code)
+        if not product:
+            return "I'm sorry, this service is not available at the moment."
+        
+        # If no UCO provided, try to get it
+        if not uco:
+            uco = await get_uco_for_user(user_email)
+        
+        # Prepare context from UCO
+        memory_context = {}
+        if uco:
+            # Extract relevant parts of UCO for this guidance
+            memory_context = {
+                "user_profile": uco.user_profile,
+                "emotional_journey": uco.emotional_journey_summary,
+                "astrological_profile": uco.astrological_profile_summary,
+                "preferences": uco.preferences
+            }
+            
+            # Get last 3 interactions if available
+            if uco.interaction_history_ids:
+                recent_ids = uco.interaction_history_ids[-3:] if len(uco.interaction_history_ids) > 3 else uco.interaction_history_ids
+                recent_interactions = await conn.fetch(
+                    "SELECT user_query, swami_response_summary, timestamp FROM interaction_history WHERE id = ANY($1) ORDER BY timestamp DESC",
+                    recent_ids
+                )
+                
+                if recent_interactions:
+                    memory_context["recent_interactions"] = [dict(interaction) for interaction in recent_interactions]
+        
+        # Prepare the prompt with memory context
+        system_prompt = f"""You are Swami, a spiritual guide with deep knowledge of Vedic astrology.
+        Service: {product.get('name', 'Spiritual Guidance')}
+        Description: {product.get('description', '')}
+        
+        User Memory Context:
+        {json.dumps(memory_context, indent=2)}
+        
+        Based on the user's question and their memory context, provide personalized guidance.
+        Maintain a warm, spiritual tone with occasional Tamil phrases for authenticity.
+        Reference their past interactions and astrological profile when relevant.
+        """
+        
+        # Call OpenAI API
+        response = await openai.ChatCompletion.acreate(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": question}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        guidance = response.choices[0].message.content
+        
+        # Extract insights and emotional state (simplified - in a real app, you'd use more sophisticated NLP)
+        insights = []
+        emotional_state = "neutral"
+        
+        # Simple keyword-based emotion detection
+        positive_emotions = ["happy", "grateful", "hopeful", "excited", "peaceful"]
+        negative_emotions = ["anxious", "sad", "frustrated", "angry", "confused"]
+        
+        for emotion in positive_emotions:
+            if emotion in question.lower():
+                emotional_state = emotion
+                break
+                
+        for emotion in negative_emotions:
+            if emotion in question.lower():
+                emotional_state = emotion
+                break
+        
+        # Simple insight extraction (in a real app, you'd use more sophisticated NLP)
+        if "career" in question.lower():
+            insights.append("User is focused on career matters")
+        if "relationship" in question.lower() or "love" in question.lower():
+            insights.append("User is seeking relationship guidance")
+        if "health" in question.lower():
+            insights.append("User has health concerns")
+        
+        # Update UCO with this interaction
+        if uco:
+            if not uco.last_interaction_summary:
+                uco.last_interaction_summary = {}
+            
+            uco.last_interaction_summary = {
+                "timestamp": datetime.now().isoformat(),
+                "sku_code": sku_code,
+                "question": question,
+                "response_summary": guidance[:100] + "..." if len(guidance) > 100 else guidance,
+                "emotional_state": emotional_state,
+                "insights": insights
+            }
+            
+            await update_uco_for_user(user_email, uco.dict())
+        
+        return guidance
+    except Exception as e:
+        logger.error(f"Error generating guidance with memory for {user_email}: {e}", exc_info=True)
+        return "I'm sorry, I'm having trouble connecting with my wisdom at the moment. Please try again shortly."
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+
 @app.post("/api/admin/users")
 async def admin_create_user(user_data: dict, admin_user: Dict = Depends(get_admin_user)):
     """Create a new user from admin dashboard."""
