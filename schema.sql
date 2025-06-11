@@ -262,22 +262,33 @@ CREATE TABLE IF NOT EXISTS user_subscriptions (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Create credit transactions table
+CREATE TABLE IF NOT EXISTS credit_transactions (
+    id SERIAL PRIMARY KEY,
+    user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
+    amount INTEGER NOT NULL,
+    transaction_type VARCHAR(20) NOT NULL,
+    reference_id VARCHAR(100),
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Create interaction history table for memory system
 CREATE TABLE IF NOT EXISTS interaction_history (
     id SERIAL PRIMARY KEY,
     user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
     session_id VARCHAR(100),
     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    channel VARCHAR(50) NOT NULL,
+    channel VARCHAR(20) NOT NULL,
     sku_code VARCHAR(50),
     user_query TEXT,
     swami_response_summary TEXT,
-    emotional_state_detected VARCHAR(100),
-    key_insights_derived JSONB,
-    follow_up_actions JSONB,
+    emotional_state_detected VARCHAR(50),
+    key_insights_derived JSONB DEFAULT '[]',
+    follow_up_actions JSONB DEFAULT '[]',
     external_transcript_id VARCHAR(100),
-    metadata JSONB,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    metadata JSONB DEFAULT '{}'
 );
+
 
 
