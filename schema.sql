@@ -197,3 +197,87 @@ $$ LANGUAGE plpgsql;
 -- தமிழ் - Database setup complete
 -- 🙏🏼 May Swami Jyotirananthan's digital ashram serve seekers with wisdom and compassion
 
+-- Add Stripe customer ID to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255);
+-- Add unified context object to users table
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unified_context_object JSONB DEFAULT NULL;
+
+-- Create products table for SKU management
+CREATE TABLE IF NOT EXISTS products (
+    id SERIAL PRIMARY KEY,
+    sku_code VARCHAR(50) UNIQUE NOT NULL,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    service_type VARCHAR(50) NOT NULL,
+    status VARCHAR(20) DEFAULT 'active',
+    features JSONB DEFAULT '[]',
+    default_image_url TEXT,
+    stripe_product_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create subscription plans table
+CREATE TABLE IF NOT EXISTS subscription_plans (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    billing_interval VARCHAR(20) NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    credits_granted INTEGER DEFAULT 0,
+    channel_access JSONB DEFAULT '["web", "zoom"]',
+    memory_retention_days INTEGER DEFAULT 30,
+    status VARCHAR(20) DEFAULT 'active',
+    stripe_price_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create credit packages table
+CREATE TABLE IF NOT EXISTS credit_packages (
+    id SERIAL PRIMARY KEY,
+    product_id INTEGER REFERENCES products(id) ON DELETE CASCADE,
+    name VARCHAR(100) NOT NULL,
+    credits_amount INTEGER NOT NULL,
+    price DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(3) DEFAULT 'USD',
+    status VARCHAR(20) DEFAULT 'active',
+    stripe_price_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create user subscriptions table
+CREATE TABLE IF NOT EXISTS user_subscriptions (
+    id SERIAL PRIMARY KEY,
+    user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
+    subscription_plan_id INTEGER REFERENCES subscription_plans(id),
+    stripe_subscription_id VARCHAR(100) UNIQUE,
+    status VARCHAR(20) NOT NULL,
+    current_period_start TIMESTAMP,
+    current_period_end TIMESTAMP,
+    cancel_at_period_end BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create interaction history table for memory system
+CREATE TABLE IF NOT EXISTS interaction_history (
+    id SERIAL PRIMARY KEY,
+    user_email VARCHAR(255) REFERENCES users(email) ON DELETE CASCADE,
+    session_id VARCHAR(100),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    channel VARCHAR(50) NOT NULL,
+    sku_code VARCHAR(50),
+    user_query TEXT,
+    swami_response_summary TEXT,
+    emotional_state_detected VARCHAR(100),
+    key_insights_derived JSONB,
+    follow_up_actions JSONB,
+    external_transcript_id VARCHAR(100),
+    metadata JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+
