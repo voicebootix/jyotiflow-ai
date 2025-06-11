@@ -3205,15 +3205,15 @@ def register_page():
     """
     return HTMLResponse(content=REGISTER_TEMPLATE)
 
-# --- @app.get('/admin')
-def admin_page():
+@app.get('/admin')
+#def admin_page():
     ADMIN_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
-        <meta charset="UTF-8">
+       <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🙏🏼 Admin Dashboard - JyotiFlow.ai</title>
+      <title>🙏🏼 Admin Dashboard - JyotiFlow.ai</title>
         <style>
             * {
                 margin: 0;
