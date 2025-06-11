@@ -4020,7 +4020,7 @@ async function loadUsers() {
                 }
 
                 const data = await response.json();
-                authToken = data.access_token;
+                authToken = data.token;
                 localStorage.setItem('jyotiflow_admin_token', authToken);
                 showToast('Login successful', 'success');
                 checkAuth();
