@@ -1501,6 +1501,12 @@ def clarity_page():
                 const birthDate = document.getElementById('birthDate').value;
                 const birthTime = document.getElementById('birthTime').value;
                 const birthPlace = document.getElementById('birthPlace').value;
+
+                const token = localStorage.getItem('jyoti_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
                 
                 // Show loading
                 const resultDiv = document.getElementById('guidanceResult');
@@ -1837,6 +1843,12 @@ def astrolove_page():
             const birthTime = document.getElementById('birthTime').value;
             const birthPlace = document.getElementById('birthPlace').value;
             const partnerBirthDate = document.getElementById('partnerBirthDate').value;
+
+            const token = localStorage.getItem('jyoti_token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
             
             // Show loading
             const resultDiv = document.getElementById('guidanceResult');
@@ -2255,6 +2267,12 @@ def r3live_page():
                 const lifeStage = document.getElementById('lifeStage').value;
                 const priorityArea = document.getElementById('priorityArea').value;
                 const context = document.getElementById('context').value;
+
+                const token = localStorage.getItem('jyoti_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
                 
                 // Show loading
                 const resultDiv = document.getElementById('guidanceResult');
@@ -2689,6 +2707,12 @@ def daily_page():
                 const lifeFocus = document.getElementById('lifeFocus').value;
                 const guidanceTime = document.getElementById('guidanceTime').value;
                 const challenges = document.getElementById('challenges').value;
+
+                const token = localStorage.getItem('jyoti_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
                 
                 // Show loading
                 const resultDiv = document.getElementById('guidanceResult');
