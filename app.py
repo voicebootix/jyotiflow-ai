@@ -119,6 +119,17 @@ async def lifespan(app: FastAPI):
     finally:
         if db_pool:
             await db_pool.close()
+    # Add this inside your lifespan function, right after creating the db_pool
+    conn = await db_pool.acquire()
+    try:
+        # Add missing columns
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)")
+        await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS unified_context_object JSONB DEFAULT NULL")
+        logger.info("Added missing columns to users table")
+    except Exception as e:
+        logger.error(f"Error adding columns: {e}")
+    finally:
+        await db_pool.release(conn)
             logger.info("Database connection closed")
 
 # தமிழ் - FastAPI app initialization
