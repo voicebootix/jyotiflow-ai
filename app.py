@@ -130,7 +130,7 @@ async def lifespan(app: FastAPI):
         logger.error(f"Error adding columns: {e}")
     finally:
         await db_pool.release(conn)
-            logger.info("Database connection closed")
+        logger.info("Database connection closed")
 
 # தமிழ் - FastAPI app initialization
 app = FastAPI(
