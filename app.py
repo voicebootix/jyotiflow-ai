@@ -1531,7 +1531,7 @@ def clarity_page():
                     });
                     
                     const data = await response.json();
-                    
+
                     if (data.success) {
                         textDiv.innerHTML = data.guidance;
                     } else {
