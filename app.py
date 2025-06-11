@@ -28,6 +28,12 @@ from typing import Optional, Dict
 from pydantic import BaseModel, EmailStr
 from contextlib import asynccontextmanager
 import re
+from typing import Optional, Dict, List, Any, Union
+from pydantic import BaseModel, EmailStr, Field, validator
+from datetime import datetime, timedelta, timezone
+import aiohttp
+import json
+import uuid # For generating unique IDs where needed
 
 
 # தமிழ் - Environment variables மற்றும் configuration
@@ -163,6 +169,100 @@ class CreditAdjust(BaseModel):
 class AdminLogin(BaseModel):
     email: str
     password: str
+
+# SKU Management Models
+class ProductBase(BaseModel ):
+    sku_code: str = Field(..., description="Unique SKU code, e.g., CLARITY_15MIN")
+    name: str
+    description: Optional[str] = None
+    service_type: str = Field(..., description="session, subscription, credit_pack")
+    status: str = 'active' # active, inactive, testing
+    features: Optional[List[str]] = Field(default_factory=list)
+    default_image_url: Optional[str] = None
+
+class ProductCreate(ProductBase):
+    pass
+
+class Product(ProductBase):
+    id: int
+    stripe_product_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class SubscriptionPlanBase(BaseModel):
+    product_id: int
+    name: str
+    billing_interval: str # month, year
+    price: float
+    currency: str = 'USD'
+    credits_granted: int = 0
+    channel_access: List[str] = Field(default_factory=lambda: ["web", "zoom"])
+    memory_retention_days: int = 30 # 0 for unlimited
+    status: str = 'active'
+
+class SubscriptionPlanCreate(SubscriptionPlanBase):
+    pass
+
+class SubscriptionPlan(SubscriptionPlanBase):
+    id: int
+    stripe_price_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class CreditPackageBase(BaseModel):
+    product_id: int
+    name: str
+    credits_amount: int
+    price: float
+    currency: str = 'USD'
+    status: str = 'active'
+
+class CreditPackageCreate(CreditPackageBase):
+    pass
+
+class CreditPackage(CreditPackageBase):
+    id: int
+    stripe_price_id: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+# Unified Context Object (UCO) Structure
+class UCO(BaseModel):
+    user_profile: Optional[Dict[str, Any]] = None
+    interaction_history_ids: List[int] = Field(default_factory=list)
+    current_subscription_id: Optional[int] = None
+    active_prompts: List[str] = Field(default_factory=list)
+    emotional_journey_summary: Optional[str] = None
+    astrological_profile_summary: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    preferences: Dict[str, Any] = Field(default_factory=dict)
+    last_interaction_summary: Optional[Dict[str, Any]] = None
+    version: str = "1.0"
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+# Interaction Log Model
+class InteractionLog(BaseModel):
+    user_email: EmailStr
+    session_id: Optional[str] = None
+    timestamp: datetime = Field(default_factory=datetime.now)
+    channel: str # web, zoom, whatsapp, email, sms, salescloser_call
+    sku_code: Optional[str] = None
+    user_query: Optional[str] = None
+    swami_response_summary: Optional[str] = None
+    emotional_state_detected: Optional[str] = None
+    key_insights_derived: Optional[List[str]] = Field(default_factory=list)
+    follow_up_actions: Optional[List[str]] = Field(default_factory=list)
+    external_transcript_id: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+
 
 # தமிழ் - Database helper functions
 async def get_db_connection():
@@ -409,6 +509,542 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
     except Exception as e:
         logger.error(f"SalesCloser webhook exception: {e}")
         return {"success": False, "error": "Zoom service temporarily unavailable"}
+
+
+ # --- UCO (Unified Context Object) Management --- #
+# தமிழ் - ஒருங்கிணைந்த சூழல் பொருள் மேலாண்மை
+# English - Unified Context Object Management
+
+async def get_uco_for_user(email: str) -> Optional[UCO]:
+    """Get the Unified Context Object for a user."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        user_record = await conn.fetchrow("SELECT unified_context_object FROM users WHERE email = $1", email)
+        if user_record and user_record['unified_context_object']:
+            try:
+                return UCO.parse_obj(user_record['unified_context_object'])
+            except Exception as e:
+                logger.error(f"Error parsing UCO for user {email}: {e}")
+                # Create a basic UCO
+                return UCO(user_profile={"email": email})
+        # If no UCO, create a basic one
+        user_profile_db = await conn.fetchrow("SELECT email, first_name, last_name, birth_date, birth_time, birth_location, preferred_language FROM users WHERE email = $1", email)
+        if user_profile_db:
+            return UCO(user_profile=dict(user_profile_db))
+        return None
+    except Exception as e:
+        logger.error(f"Error getting UCO for user {email}: {e}")
+        return None
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def update_uco_for_user(email: str, updates: Dict[str, Any]):
+    """Update the Unified Context Object for a user."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        current_uco = await get_uco_for_user(email)
+        if not current_uco:
+            # Create a basic UCO if none exists
+            user_profile_db = await conn.fetchrow("SELECT email, first_name, last_name, birth_date, birth_time, birth_location, preferred_language FROM users WHERE email = $1", email)
+            if user_profile_db:
+                current_uco = UCO(user_profile=dict(user_profile_db))
+            else:
+                current_uco = UCO(user_profile={"email": email})
+        
+        # Update UCO fields
+        for key, value in updates.items():
+            if hasattr(current_uco, key):
+                setattr(current_uco, key, value)
+        
+        current_uco.updated_at = datetime.now(timezone.utc)
+        uco_json = current_uco.json()
+        await conn.execute("UPDATE users SET unified_context_object = $1, updated_at = NOW() WHERE email = $2", uco_json, email)
+        logger.info(f"UCO updated for user {email}")
+    except Exception as e:
+        logger.error(f"Error updating UCO for user {email}: {e}")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def add_interaction_to_history(interaction: InteractionLog) -> int:
+    """Log an interaction and return its ID."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        query = """
+            INSERT INTO interaction_history (user_email, session_id, timestamp, channel, sku_code, 
+                                           user_query, swami_response_summary, emotional_state_detected, 
+                                           key_insights_derived, follow_up_actions, external_transcript_id, metadata)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            RETURNING id
+        """
+        record = await conn.fetchrow(query, interaction.user_email, interaction.session_id, interaction.timestamp,
+                                    interaction.channel, interaction.sku_code, interaction.user_query,
+                                    interaction.swami_response_summary, interaction.emotional_state_detected,
+                                    json.dumps(interaction.key_insights_derived) if interaction.key_insights_derived else None,
+                                    json.dumps(interaction.follow_up_actions) if interaction.follow_up_actions else None,
+                                    interaction.external_transcript_id, 
+                                    json.dumps(interaction.metadata) if interaction.metadata else None)
+        if record and record['id']:
+            interaction_id = record['id']
+            # Update UCO with this new interaction ID
+            uco = await get_uco_for_user(interaction.user_email)
+            if uco:
+                if interaction_id not in uco.interaction_history_ids:
+                     uco.interaction_history_ids.append(interaction_id)
+                uco.last_interaction_summary = interaction.dict()
+                await update_uco_for_user(interaction.user_email, uco.dict(exclude_unset=True))
+            return interaction_id
+        return 0
+    except Exception as e:
+        logger.error(f"Error adding interaction to history for user {interaction.user_email}: {e}")
+        return 0
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+# --- SKU, Product, Plan, Package Management --- #
+# தமிழ் - SKU, தயாரிப்பு, திட்டம், தொகுப்பு மேலாண்மை
+# English - SKU, Product, Plan, Package Management
+
+# --- Stripe Integration Functions --- #
+# தமிழ் - ஸ்ட்ரைப் ஒருங்கிணைப்பு செயல்பாடுகள்
+# English - Stripe Integration Functions
+
+async def create_stripe_checkout_session(user_email: str, price_id: str, quantity: int = 1, mode: str = "payment") -> str:
+    """Creates a Stripe Checkout session and returns the redirect URL."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        user = await conn.fetchrow("SELECT stripe_customer_id FROM users WHERE email = $1", user_email)
+        
+        if not user or not user['stripe_customer_id']:
+            # Create Stripe customer if not exists
+            try:
+                user_details = await conn.fetchrow("SELECT first_name, last_name FROM users WHERE email = $1", user_email)
+                customer_name = f"{user_details['first_name'] if user_details else ''} {user_details['last_name'] if user_details else ''}".strip()
+                
+                new_customer = stripe.Customer.create(
+                    email=user_email,
+                    name=customer_name if customer_name else None
+                )
+                stripe_customer_id = new_customer.id
+                await conn.execute("UPDATE users SET stripe_customer_id = $1 WHERE email = $2", stripe_customer_id, user_email)
+            except Exception as e:
+                logger.error(f"Failed to create Stripe customer for {user_email}: {e}")
+                raise HTTPException(status_code=500, detail="Payment processing error (customer setup).")
+        else:
+            stripe_customer_id = user['stripe_customer_id']
+
+        # Get host URL from request or environment
+        host_url = os.getenv("HOST_URL", "http://localhost:8000" )
+        success_url = f"{host_url}/payment/success?session_id={{CHECKOUT_SESSION_ID}}" 
+        cancel_url = f"{host_url}/payment/cancel"
+
+        try:
+            checkout_session_params = {
+                'customer': stripe_customer_id,
+                'payment_method_types': ['card'],
+                'line_items': [{'price': price_id, 'quantity': quantity}],
+                'mode': mode, # 'payment' for one-time, 'subscription' for recurring
+                'success_url': success_url,
+                'cancel_url': cancel_url,
+                'metadata': {
+                    'user_email': user_email,
+                    'jyotiflow_price_id': price_id
+                }
+            }
+            
+            if mode == 'subscription':
+                checkout_session_params['subscription_data'] = {
+                    'trial_from_plan': True # Or configure trial days
+                }
+
+            session = stripe.checkout.Session.create(**checkout_session_params)
+            return session.url
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe Checkout session creation failed for {user_email}, price {price_id}: {e}")
+            raise HTTPException(status_code=500, detail=f"Payment processing error: {str(e)}")
+    except Exception as e:
+        logger.error(f"Unexpected error creating Stripe Checkout session: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected payment error occurred.")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def handle_stripe_webhook_event(event_data: Dict[str, Any], signature: str):
+    """Handles verified Stripe webhook events."""
+    conn = None
+    try:
+        # Verify webhook signature
+        event = stripe.Webhook.construct_event(
+            payload=json.dumps(event_data).encode('utf-8'), 
+            sig_header=signature, 
+            secret=STRIPE_WEBHOOK_SECRET
+        )
+
+        event_type = event['type']
+        data_object = event['data']['object']
+        
+        # Try to get user email from various sources
+        user_email = data_object.get('customer_email')
+        if not user_email and data_object.get('customer_details'):
+            user_email = data_object['customer_details'].get('email')
+        
+        # For subscription events, we might need to look up the user by customer ID
+        if not user_email and event_type.startswith("customer.subscription"):
+            customer_id = data_object.get('customer')
+            if customer_id:
+                conn = await get_db_connection()
+                user_rec = await conn.fetchrow("SELECT email FROM users WHERE stripe_customer_id = $1", customer_id)
+                if user_rec: 
+                    user_email = user_rec['email']
+
+        logger.info(f"Received Stripe webhook: {event_type} for user {user_email if user_email else 'N/A'}")
+
+        if event_type == 'checkout.session.completed':
+            session = data_object
+            metadata = session.get('metadata', {})
+            user_email = metadata.get('user_email') or user_email
+            
+            if user_email:
+                # Payment successful, update credits or subscription status
+                mode = session.get('mode')
+                if mode == 'payment': # One-time purchase (e.g., credit pack)
+                    # Get line items to find the price ID
+                    line_items = stripe.checkout.Session.list_line_items(session.id, limit=1)
+                    if line_items and line_items.data:
+                        price_id = line_items.data[0].price.id
+                        
+                        # Find credit package by stripe_price_id
+                        conn = await get_db_connection()
+                        package = await conn.fetchrow(
+                            "SELECT credits_amount FROM credit_packages WHERE stripe_price_id = $1", 
+                            price_id
+                        )
+                        
+                        if package:
+                            # Add credits to user account
+                            await conn.execute(
+                                "UPDATE users SET credits = credits + $1, updated_at = NOW() WHERE email = $2",
+                                package['credits_amount'], user_email
+                            )
+                            
+                            # Log transaction
+                            await conn.execute("""
+                                INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+                                VALUES ($1, $2, $3, $4, NOW())
+                            """, "stripe", "credit_purchase", user_email, 
+                                f"Added {package['credits_amount']} credits via Stripe checkout")
+                                
+                            logger.info(f"Credits added: {package['credits_amount']} for user {user_email}")
+                        else:
+                            logger.error(f"Credit package not found for Stripe price_id {price_id} from session {session.id}")
+                elif mode == 'subscription':
+                    # Subscription created via checkout, handled by customer.subscription.created/updated
+                    logger.info(f"Subscription checkout session completed for {user_email}. Stripe subscription ID: {session.get('subscription')}")
+                    # Ensure user_subscriptions table is updated
+                    await handle_subscription_event(session.get('subscription'), user_email, 'created', session)
+            else:
+                logger.error(f"User email not found in checkout.session.completed metadata: {session.id}")
+
+        elif event_type in ['customer.subscription.created', 'customer.subscription.updated', 'customer.subscription.deleted']:
+            subscription = data_object
+            stripe_subscription_id = subscription.id
+            status_action = event_type.split('.')[-1] # created, updated, deleted
+            await handle_subscription_event(stripe_subscription_id, user_email, status_action, subscription)
+
+        elif event_type == 'invoice.paid':
+            invoice = data_object
+            user_email = invoice.get('customer_email')
+            stripe_subscription_id = invoice.get('subscription')
+            if user_email and stripe_subscription_id:
+                logger.info(f"Invoice paid for subscription {stripe_subscription_id} by {user_email}")
+                # Grant credits based on plan if it's a renewal
+                await handle_subscription_event(
+                    stripe_subscription_id, 
+                    user_email, 
+                    'updated', 
+                    stripe.Subscription.retrieve(stripe_subscription_id)
+                )
+
+        elif event_type == 'invoice.payment_failed':
+            invoice = data_object
+            user_email = invoice.get('customer_email')
+            stripe_subscription_id = invoice.get('subscription')
+            if user_email and stripe_subscription_id:
+                logger.warning(f"Invoice payment failed for subscription {stripe_subscription_id} by {user_email}")
+                # Update subscription status to past_due or handle dunning
+                await handle_subscription_event(
+                    stripe_subscription_id, 
+                    user_email, 
+                    'updated', 
+                    stripe.Subscription.retrieve(stripe_subscription_id), 
+                    is_failure=True
+                )
+        else:
+            logger.info(f"Unhandled Stripe event type: {event_type}")
+        
+        return {"status": "success", "message": "Webhook processed"}
+    except stripe.error.SignatureVerificationError:
+        logger.error("Invalid Stripe webhook signature")
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    except Exception as e:
+        logger.error(f"Error processing Stripe webhook: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Webhook processing error: {str(e)}")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def handle_subscription_event(stripe_subscription_id: str, user_email: Optional[str], action: str, stripe_sub_object: Dict[str, Any], is_failure: bool = False):
+    """Helper to manage user_subscriptions table based on Stripe subscription events."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        if not user_email:
+            # Try to find user_email from stripe_customer_id
+            customer_id = stripe_sub_object.get('customer')
+            if customer_id:
+                user_rec = await conn.fetchrow("SELECT email FROM users WHERE stripe_customer_id = $1", customer_id)
+                if user_rec: 
+                    user_email = user_rec['email']
+            
+            if not user_email:
+                logger.error(f"Cannot handle subscription event for {stripe_subscription_id}: user_email not found.")
+                return
+
+        # Get the plan details from the subscription
+        plan_stripe_price_id = stripe_sub_object['items']['data'][0]['price']['id']
+        plan_record = await conn.fetchrow(
+            "SELECT id, credits_granted FROM subscription_plans WHERE stripe_price_id = $1", 
+            plan_stripe_price_id
+        )
+        
+        if not plan_record:
+            logger.error(f"Subscription plan with Stripe Price ID {plan_stripe_price_id} not found in DB.")
+            return
+        
+        jyotiflow_plan_id = plan_record['id']
+        credits_to_grant = plan_record['credits_granted']
+        
+        # Get subscription status
+        status = stripe_sub_object['status'] # active, past_due, canceled, trialing, etc.
+        if is_failure and status != 'past_due': 
+            status = 'past_due' # Mark as past_due on payment failure
+
+        # Get period dates
+        current_period_start = datetime.fromtimestamp(stripe_sub_object['current_period_start'])
+        current_period_end = datetime.fromtimestamp(stripe_sub_object['current_period_end'])
+        cancel_at_period_end = stripe_sub_object['cancel_at_period_end']
+
+        if action == 'created' or action == 'updated':
+            # Insert or update subscription record
+            query = """
+                INSERT INTO user_subscriptions (user_email, subscription_plan_id, stripe_subscription_id, status, 
+                                              current_period_start, current_period_end, cancel_at_period_end, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
+                ON CONFLICT (stripe_subscription_id) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    subscription_plan_id = EXCLUDED.subscription_plan_id, 
+                    current_period_start = EXCLUDED.current_period_start,
+                    current_period_end = EXCLUDED.current_period_end,
+                    cancel_at_period_end = EXCLUDED.cancel_at_period_end,
+                    updated_at = NOW()
+                RETURNING id
+            """
+            await conn.execute(
+                query, 
+                user_email, jyotiflow_plan_id, stripe_subscription_id, status, 
+                current_period_start, current_period_end, cancel_at_period_end
+            )
+            
+            logger.info(f"User subscription {stripe_subscription_id} for {user_email} {action} in DB. Status: {status}")
+            
+            # Grant credits if subscription is active and it's a creation or a renewal
+            if status == 'active' and credits_to_grant > 0:
+                await conn.execute(
+                    "UPDATE users SET credits = credits + $1, updated_at = NOW() WHERE email = $2",
+                    credits_to_grant, user_email
+                )
+                
+                # Log credit grant
+                await conn.execute("""
+                    INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+                    VALUES ($1, $2, $3, $4, NOW())
+                """, "system", "subscription_credits", user_email, 
+                    f"Granted {credits_to_grant} credits for subscription {stripe_subscription_id}")
+                    
+                logger.info(f"Granted {credits_to_grant} credits to {user_email} for subscription {stripe_subscription_id}")
+
+        elif action == 'deleted': # Subscription canceled
+            # Update status to 'canceled' or remove the record
+            await conn.execute(
+                "UPDATE user_subscriptions SET status = 'canceled', updated_at = NOW() WHERE stripe_subscription_id = $1", 
+                stripe_subscription_id
+            )
+            logger.info(f"User subscription {stripe_subscription_id} for {user_email} marked as canceled in DB.")
+        
+        # Update UCO with subscription status if UCO exists
+        try:
+            uco_record = await conn.fetchrow("SELECT unified_context_object FROM users WHERE email = $1", user_email)
+            if uco_record and uco_record['unified_context_object']:
+                uco = json.loads(uco_record['unified_context_object'])
+                uco['current_subscription_id'] = jyotiflow_plan_id if status == 'active' else None
+                uco['subscription_status'] = status
+                uco['updated_at'] = datetime.now().isoformat()
+                await conn.execute(
+                    "UPDATE users SET unified_context_object = $1, updated_at = NOW() WHERE email = $2",
+                    json.dumps(uco), user_email
+                )
+        except Exception as e:
+            logger.error(f"Error updating UCO with subscription info for {user_email}: {e}")
+    
+    except Exception as e:
+        logger.error(f"Error handling subscription event for {stripe_subscription_id}: {e}", exc_info=True)
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+
+# Product Functions
+async def create_product_in_db(product_data: ProductCreate) -> Product:
+    """Create a product in the database and Stripe."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        # Create in Stripe first
+        stripe_product = None
+        try:
+            stripe_product = stripe.Product.create(
+                name=product_data.name,
+                description=product_data.description,
+                metadata={'sku_code': product_data.sku_code, 'service_type': product_data.service_type}
+            )
+        except Exception as e:
+            logger.error(f"Failed to create Stripe product for {product_data.sku_code}: {e}")
+
+        query = """
+            INSERT INTO products (sku_code, name, description, service_type, status, features, default_image_url, stripe_product_id)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING id, sku_code, name, description, service_type, status, features, default_image_url, stripe_product_id, created_at, updated_at
+        """
+        record = await conn.fetchrow(query, product_data.sku_code, product_data.name, product_data.description,
+                                   product_data.service_type, product_data.status, json.dumps(product_data.features),
+                                   product_data.default_image_url, stripe_product.id if stripe_product else None)
+        if not record: raise HTTPException(500, "Failed to create product in DB")
+        return Product(**dict(record))
+    except Exception as e:
+        logger.error(f"Error creating product {product_data.sku_code}: {e}")
+        raise HTTPException(500, f"Failed to create product: {str(e)}")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def get_product_by_id(product_id: int) -> Optional[Product]:
+    """Get a product by ID."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        record = await conn.fetchrow("SELECT * FROM products WHERE id = $1", product_id)
+        return Product(**dict(record)) if record else None
+    except Exception as e:
+        logger.error(f"Error getting product {product_id}: {e}")
+        return None
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+async def get_product_by_sku(sku_code: str) -> Optional[Product]:
+    """Get a product by SKU code."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        record = await conn.fetchrow("SELECT * FROM products WHERE sku_code = $1", sku_code)
+        return Product(**dict(record)) if record else None
+    except Exception as e:
+        logger.error(f"Error getting product by SKU {sku_code}: {e}")
+        return None
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+
+
+# --- SalesCloser & Multi-channel Messaging --- #
+# தமிழ் - சேல்ஸ்க்ளோசர் மற்றும் பல-சேனல் செய்தியிடல்
+# English - SalesCloser & Multi-channel Messaging
+
+async def trigger_salescloser_flow(user_email: str, flow_id: str, context_data: Dict[str, Any]):
+    """Trigger a SalesCloser flow with given context."""
+    try:
+        headers = {"Authorization": f"Bearer {SALESCLOSER_API_KEY}", "Content-Type": "application/json"}
+        payload = {
+            "flow_id": flow_id,
+            "contact_identifier": user_email,
+            "context": context_data
+        }
+        salescloser_trigger_url = SALESCLOSER_WEBHOOK_URL 
+
+        async with aiohttp.ClientSession( ) as http_session:
+            async with http_session.post(salescloser_trigger_url, headers=headers, json=payload ) as response:
+                if 200 <= response.status < 300:
+                    logger.info(f"Successfully triggered SalesCloser flow {flow_id} for user {user_email}")
+                    return {"success": True, "message": "SalesCloser flow triggered."}
+                else:
+                    response_text = await response.text()
+                    logger.error(f"Failed to trigger SalesCloser flow {flow_id} for {user_email}. Status: {response.status}, Response: {response_text}")
+                    return {"success": False, "error": f"SalesCloser API error ({response.status})", "details": response_text}
+    except Exception as e:
+        logger.error(f"Exception triggering SalesCloser flow for {user_email}: {e}")
+        return {"success": False, "error": "Failed to connect to SalesCloser service."}
+
+async def send_follow_up_message(user_email: str, channel: str, message_content: str, context: Optional[Dict[str, Any]] = None):
+    """Send a follow-up message via the specified channel (through Make.com)."""
+    try:
+        target_webhook_url = None
+        if channel == "whatsapp": 
+            target_webhook_url = os.getenv("MAKE_COM_WEBHOOK_URL_WHATSAPP", "your_make_com_whatsapp_webhook")
+        elif channel == "email": 
+            target_webhook_url = os.getenv("MAKE_COM_WEBHOOK_URL_EMAIL", "your_make_com_email_webhook")
+        elif channel == "sms": 
+            target_webhook_url = os.getenv("MAKE_COM_WEBHOOK_URL_SMS", "your_make_com_sms_webhook")
+        else: 
+            logger.warning(f"Unsupported follow-up channel: {channel} for user {user_email}")
+            return {"success": False, "error": "Unsupported channel"}
+
+        if not target_webhook_url or target_webhook_url == "your_make_com_..._webhook":
+            logger.error(f"Make.com webhook URL for channel {channel} is not configured.")
+            return {"success": False, "error": f"Webhook for {channel} not configured."}
+
+        payload = {
+            "user_email": user_email,
+            "message": message_content,
+            "jyotiflow_context": context or {}
+        }
+        
+        async with aiohttp.ClientSession( ) as http_session:
+            async with http_session.post(target_webhook_url, json=payload ) as response:
+                if 200 <= response.status < 300:
+                    logger.info(f"Successfully sent {channel} follow-up to {user_email} via Make.com")
+                    # Log this interaction
+                    await add_interaction_to_history(InteractionLog(
+                        user_email=user_email,
+                        channel=f"follow_up_{channel}",
+                        swami_response_summary=message_content[:200] # Summary
+                    ))
+                    return {"success": True}
+                else:
+                    response_text = await response.text()
+                    logger.error(f"Failed to send {channel} follow-up to {user_email} via Make.com. Status: {response.status}, Response: {response_text}")
+                    return {"success": False, "error": f"Make.com webhook error ({response.status})", "details": response_text}
+    except Exception as e:
+        logger.error(f"Exception sending {channel} follow-up for {user_email}: {e}")
+        return {"success": False, "error": "Failed to connect to messaging service."}
+
 
 # தமிழ் - API Routes
 
@@ -2569,7 +3205,7 @@ def register_page():
     """
     return HTMLResponse(content=REGISTER_TEMPLATE)
 
-@app.get('/admin')
+# --- @app.get('/admin')
 def admin_page():
     ADMIN_TEMPLATE = """
     <!DOCTYPE html>
@@ -3083,7 +3719,7 @@ def admin_page():
                                 'Authorization': 'Bearer ' + localStorage.getItem('admin_token')
                             },
                             body: JSON.stringify({
-                                user_id: userId,
+                                user_email: userId,
                                 credits: parseInt(credits)
                             })
                         });
@@ -3133,7 +3769,1349 @@ def admin_page():
     </body>
     </html>
     """
-    return HTMLResponse(content=ADMIN_TEMPLATE)
+    return HTMLResponse(content=ADMIN_TEMPLATE) --- #
+
+# --- Admin Dashboard HTML Route --- #
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_dashboard(request: Request):
+    """
+    தமிழ் - நிர்வாக டாஷ்போர்டு பக்கம்
+    English - Admin dashboard page
+    """
+    try:
+        # You can add authentication check here if needed
+        return admin_dashboard_html
+    except Exception as e:
+        logger.error(f"Admin dashboard error: {e}")
+        raise HTTPException(status_code=500, detail="Error loading admin dashboard")
+
+# Admin Dashboard HTML (add this at the top of your file with other constants)
+admin_dashboard_html = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JyotiFlow.ai - Admin Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #7b2cbf;
+            --secondary-color: #9d4edd;
+            --accent-color: #e0aaff;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+        }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f5f5f5;
+        }
+        .sidebar {
+            background: linear-gradient(180deg, var(--primary-color ) 0%, var(--secondary-color) 100%);
+            color: white;
+            height: 100vh;
+            position: fixed;
+            padding-top: 20px;
+        }
+        .sidebar .nav-link {
+            color: rgba(255,255,255,.8);
+            margin-bottom: 5px;
+            border-radius: 5px;
+            padding: 10px 15px;
+        }
+        .sidebar .nav-link:hover, .sidebar .nav-link.active {
+            background-color: rgba(255,255,255,.1);
+            color: white;
+        }
+        .sidebar .nav-link i {
+            margin-right: 10px;
+        }
+        .content {
+            margin-left: 240px;
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,.1);
+            margin-bottom: 20px;
+            transition: transform 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        .card-header {
+            background-color: white;
+            border-bottom: 1px solid rgba(0,0,0,.125);
+            font-weight: 600;
+        }
+        .stats-card {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        .stats-card .card-body {
+            padding: 20px;
+        }
+        .stats-icon {
+            font-size: 40px;
+            opacity: 0.8;
+        }
+        .stats-number {
+            font-size: 30px;
+            font-weight: 700;
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        .table th {
+            font-weight: 600;
+        }
+        .badge-active {
+            background-color: #28a745;
+        }
+        .badge-inactive {
+            background-color: #dc3545;
+        }
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        #loginForm {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,.1);
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo img {
+            max-width: 150px;
+        }
+        .hidden {
+            display: none;
+        }
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
+    </style>
+</head>
+<body>
+    <!-- Login Form -->
+    <div id="loginSection" class="container login-container">
+        <div class="logo">
+            <h2>🙏🏼 JyotiFlow.ai</h2>
+            <p>Admin Dashboard</p>
+        </div>
+        <form id="loginForm">
+            <div class="mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" class="form-control" id="email" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Login</button>
+        </form>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div id="dashboardSection" class="hidden">
+        <div class="container-fluid">
+            <div class="row">
+                <!-- Sidebar -->
+                <div class="col-md-2 sidebar">
+                    <h4 class="text-center mb-4">JyotiFlow.ai</h4>
+                    <div class="nav flex-column">
+                        <a class="nav-link active" href="#" data-section="overview"><i class="bi bi-speedometer2"></i> Overview</a>
+                        <a class="nav-link" href="#" data-section="users"><i class="bi bi-people"></i> Users</a>
+                        <a class="nav-link" href="#" data-section="products"><i class="bi bi-box"></i> SKU Management</a>
+                        <a class="nav-link" href="#" data-section="subscriptions"><i class="bi bi-calendar-check"></i> Subscriptions</a>
+                        <a class="nav-link" href="#" data-section="credits"><i class="bi bi-coin"></i> Credits</a>
+                        <a class="nav-link" href="#" data-section="analytics"><i class="bi bi-graph-up"></i> Analytics</a>
+                        <a class="nav-link" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Logout</a>
+                    </div>
+                </div>
+
+                <!-- Content Area -->
+                <div class="col-md-10 content">
+                    <!-- Overview Section -->
+                    <div id="overview" class="dashboard-section">
+                        <h2 class="mb-4">Dashboard Overview</h2>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card stats-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h6 class="card-title">Total Users</h6>
+                                                <div class="stats-number" id="totalUsers">0</div>
+                                            </div>
+                                            <div class="stats-icon">
+                                                <i class="bi bi-people"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stats-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h6 class="card-title">Active Subscriptions</h6>
+                                                <div class="stats-number" id="activeSubscriptions">0</div>
+                                            </div>
+                                            <div class="stats-icon">
+                                                <i class="bi bi-calendar-check"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stats-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h6 class="card-title">Sessions Today</h6>
+                                                <div class="stats-number" id="sessionsToday">0</div>
+                                            </div>
+                                            <div class="stats-icon">
+                                                <i class="bi bi-chat-dots"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card stats-card">
+                                    <div class="card-body">
+                                        <div class="d-flex justify-content-between">
+                                            <div>
+                                                <h6 class="card-title">Revenue (Monthly)</h6>
+                                                <div class="stats-number" id="monthlyRevenue">$0</div>
+                                            </div>
+                                            <div class="stats-icon">
+                                                <i class="bi bi-currency-dollar"></i>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Recent Users
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover" id="recentUsersTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Email</th>
+                                                        <th>Credits</th>
+                                                        <th>Joined</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Recent Sessions
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover" id="recentSessionsTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>User</th>
+                                                        <th>SKU</th>
+                                                        <th>Channel</th>
+                                                        <th>Time</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Users Section -->
+                    <div id="users" class="dashboard-section hidden">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2>User Management</h2>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                                <i class="bi bi-plus"></i> Add User
+                            </button>
+                        </div>
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="usersTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Email</th>
+                                                <th>Credits</th>
+                                                <th>Birth Details</th>
+                                                <th>Last Login</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- SKU Management Section -->
+                    <div id="products" class="dashboard-section hidden">
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <h2>SKU Management</h2>
+                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addProductModal">
+                                <i class="bi bi-plus"></i> Add Product
+                            </button>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Products
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover" id="productsTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>SKU Code</th>
+                                                        <th>Name</th>
+                                                        <th>Type</th>
+                                                        <th>Status</th>
+                                                        <th>Stripe ID</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Subscription Plans
+                                        <button class="btn btn-sm btn-primary float-end" data-bs-toggle="modal" data-bs-target="#addPlanModal">
+                                            <i class="bi bi-plus"></i> Add Plan
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover" id="plansTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Price</th>
+                                                        <th>Interval</th>
+                                                        <th>Credits</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Credit Packages
+                                        <button class="btn btn-sm btn-primary float-end" data-bs-toggle="modal" data-bs-target="#addPackageModal">
+                                            <i class="bi bi-plus"></i> Add Package
+                                        </button>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover" id="packagesTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Name</th>
+                                                        <th>Credits</th>
+                                                        <th>Price</th>
+                                                        <th>Status</th>
+                                                        <th>Actions</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Subscriptions Section -->
+                    <div id="subscriptions" class="dashboard-section hidden">
+                        <h2 class="mb-4">Subscription Management</h2>
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="subscriptionsTable">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Plan</th>
+                                                <th>Status</th>
+                                                <th>Start Date</th>
+                                                <th>End Date</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Data will be loaded here -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Credits Section -->
+                    <div id="credits" class="dashboard-section hidden">
+                        <h2 class="mb-4">Credit Management</h2>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Adjust User Credits
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="adjustCreditsForm">
+                                            <div class="mb-3">
+                                                <label for="creditUserEmail" class="form-label">User Email</label>
+                                                <input type="email" class="form-control" id="creditUserEmail" required>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="creditAmount" class="form-label">Credits to Add/Remove</label>
+                                                <input type="number" class="form-control" id="creditAmount" required>
+                                                <small class="text-muted">Use positive values to add credits, negative to remove</small>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label for="creditReason" class="form-label">Reason</label>
+                                                <input type="text" class="form-control" id="creditReason" required>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary">Adjust Credits</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Recent Credit Transactions
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="table-responsive">
+                                            <table class="table table-hover" id="creditTransactionsTable">
+                                                <thead>
+                                                    <tr>
+                                                        <th>User</th>
+                                                        <th>Amount</th>
+                                                        <th>Reason</th>
+                                                        <th>Date</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <!-- Data will be loaded here -->
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Section -->
+                    <div id="analytics" class="dashboard-section hidden">
+                        <h2 class="mb-4">Analytics</h2>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        User Growth
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="userGrowthChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Revenue
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="revenueChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-4">
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Session Distribution by SKU
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="skuDistributionChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        Channel Distribution
+                                    </div>
+                                    <div class="card-body">
+                                        <canvas id="channelDistributionChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add User Modal -->
+    <div class="modal fade" id="addUserModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New User</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addUserForm">
+                        <div class="mb-3">
+                            <label for="newUserEmail" class="form-label">Email</label>
+                            <input type="email" class="form-control" id="newUserEmail" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newUserPassword" class="form-label">Password</label>
+                            <input type="password" class="form-control" id="newUserPassword" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newUserFirstName" class="form-label">First Name</label>
+                            <input type="text" class="form-control" id="newUserFirstName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newUserLastName" class="form-label">Last Name</label>
+                            <input type="text" class="form-control" id="newUserLastName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="newUserCredits" class="form-label">Initial Credits</label>
+                            <input type="number" class="form-control" id="newUserCredits" value="0">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveNewUserBtn">Save User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div class="modal fade" id="addProductModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Product</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addProductForm">
+                        <div class="mb-3">
+                            <label for="productSkuCode" class="form-label">SKU Code</label>
+                            <input type="text" class="form-control" id="productSkuCode" required>
+                            <small class="text-muted">e.g., CLARITY_15MIN</small>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productName" class="form-label">Name</label>
+                            <input type="text" class="form-control" id="productName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productDescription" class="form-label">Description</label>
+                            <textarea class="form-control" id="productDescription" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productType" class="form-label">Service Type</label>
+                            <select class="form-control" id="productType" required>
+                                <option value="session">Session</option>
+                                <option value="subscription">Subscription</option>
+                                <option value="credit_pack">Credit Package</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productStatus" class="form-label">Status</label>
+                            <select class="form-control" id="productStatus">
+                                <option value="active">Active</option>
+                                <option value="inactive">Inactive</option>
+                                <option value="testing">Testing</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="productImageUrl" class="form-label">Image URL</label>
+                            <input type="url" class="form-control" id="productImageUrl">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveProductBtn">Save Product</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Global variables
+        let authToken = localStorage.getItem('jyotiflow_admin_token' );
+        const apiBaseUrl = window.location.origin;
+
+        // Check if user is logged in
+        function checkAuth() {
+            if (authToken) {
+                document.getElementById('loginSection').classList.add('hidden');
+                document.getElementById('dashboardSection').classList.remove('hidden');
+                loadDashboardData();
+            } else {
+                document.getElementById('loginSection').classList.remove('hidden');
+                document.getElementById('dashboardSection').classList.add('hidden');
+            }
+        }
+
+        // Login form submission
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Login failed');
+                }
+
+                const data = await response.json();
+                authToken = data.access_token;
+                localStorage.setItem('jyotiflow_admin_token', authToken);
+                showToast('Login successful', 'success');
+                checkAuth();
+            } catch (error) {
+                showToast('Login failed: ' + error.message, 'danger');
+            }
+        });
+
+        // Logout button
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            localStorage.removeItem('jyotiflow_admin_token');
+            authToken = null;
+            checkAuth();
+            showToast('Logged out successfully', 'success');
+        });
+
+        // Navigation
+        document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetSection = this.getAttribute('data-section');
+                
+                // Hide all sections
+                document.querySelectorAll('.dashboard-section').forEach(section => {
+                    section.classList.add('hidden');
+                });
+                
+                // Show target section
+                document.getElementById(targetSection).classList.remove('hidden');
+                
+                // Update active link
+                document.querySelectorAll('.nav-link').forEach(navLink => {
+                    navLink.classList.remove('active');
+                });
+                this.classList.add('active');
+                
+                // Load section data if needed
+                if (targetSection === 'users') loadUsers();
+                if (targetSection === 'products') loadProducts();
+                if (targetSection === 'subscriptions') loadSubscriptions();
+                if (targetSection === 'credits') loadCreditTransactions();
+                if (targetSection === 'analytics') loadAnalytics();
+            });
+        });
+
+        // Load dashboard data
+        async function loadDashboardData() {
+            try {
+                // Load overview stats
+                const statsResponse = await fetch(`${apiBaseUrl}/api/admin/stats`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (statsResponse.ok) {
+                    const stats = await statsResponse.json();
+                    document.getElementById('totalUsers').textContent = stats.total_users || 0;
+                    document.getElementById('activeSubscriptions').textContent = stats.active_subscriptions || 0;
+                    document.getElementById('sessionsToday').textContent = stats.sessions_today || 0;
+                    document.getElementById('monthlyRevenue').textContent = `$${stats.monthly_revenue || 0}`;
+                }
+                
+                // Load recent users
+                const usersResponse = await fetch(`${apiBaseUrl}/api/admin/users?limit=5`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (usersResponse.ok) {
+                    const users = await usersResponse.json();
+                    const tbody = document.querySelector('#recentUsersTable tbody');
+                    tbody.innerHTML = '';
+                    
+                    users.forEach(user => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${user.first_name || ''} ${user.last_name || ''}</td>
+                            <td>${user.email}</td>
+                            <td>${user.credits}</td>
+                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                }
+                
+                // Load recent sessions
+                // Similar code for sessions...
+                
+            } catch (error) {
+                showToast('Error loading dashboard data: ' + error.message, 'danger');
+            }
+        }
+
+        // Load users
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch users');
+                
+                const users = await response.json();
+                const tbody = document.querySelector('#usersTable tbody');
+                tbody.innerHTML = '';
+                
+                users.forEach(user => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${user.first_name || ''} ${user.last_name || ''}</td>
+                        <td>${user.email}</td>
+                        <td>${user.credits}</td>
+                        <td>${user.birth_date ? `${user.birth_date} ${user.birth_time || ''} ${user.birth_location || ''}` : 'Not provided'}</td>
+                        <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary edit-user-btn" data-email="${user.email}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-info view-memory-btn" data-email="${user.email}">
+                                <i class="bi bi-brain"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Add event listeners for edit buttons
+                document.querySelectorAll('.edit-user-btn').forEach(btn => {
+                    btn.addEventListener('click', function() {
+                        const email = this.getAttribute('data-email');
+                        // Open edit user modal with data
+                        // ...
+                    });
+                });
+                
+                document.querySelectorAll('.view-memory-btn').forEach(btn => {
+                    btn.addEventListener('click', async function() {
+                        const email = this.getAttribute('data-email');
+                        try {
+                            const response = await fetch(`${apiBaseUrl}/api/admin/users/${email}/memory`, {
+                                headers: { 'Authorization': `Bearer ${authToken}` }
+                            });
+                            
+                            if (!response.ok) throw new Error('Failed to fetch memory data');
+                            
+                            const memory = await response.json();
+                            // Display memory data in a modal
+                            // ...
+                            
+                        } catch (error) {
+                            showToast('Error loading memory data: ' + error.message, 'danger');
+                        }
+                    });
+                });
+                
+            } catch (error) {
+                showToast('Error loading users: ' + error.message, 'danger');
+            }
+        }
+
+        // Load products
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/products`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch products');
+                
+                const products = await response.json();
+                const tbody = document.querySelector('#productsTable tbody');
+                tbody.innerHTML = '';
+                
+                products.forEach(product => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${product.sku_code}</td>
+                        <td>${product.name}</td>
+                        <td>${product.service_type}</td>
+                        <td><span class="badge ${product.status === 'active' ? 'bg-success' : 'bg-secondary'}">${product.status}</span></td>
+                        <td>${product.stripe_product_id || 'Not synced'}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary edit-product-btn" data-id="${product.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger delete-product-btn" data-id="${product.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Also load subscription plans and credit packages
+                loadSubscriptionPlans();
+                loadCreditPackages();
+                
+            } catch (error) {
+                showToast('Error loading products: ' + error.message, 'danger');
+            }
+        }
+
+        // Load subscription plans
+        async function loadSubscriptionPlans() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/subscription-plans`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch subscription plans');
+                
+                const plans = await response.json();
+                const tbody = document.querySelector('#plansTable tbody');
+                tbody.innerHTML = '';
+                
+                plans.forEach(plan => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${plan.name}</td>
+                        <td>${plan.currency} ${plan.price}</td>
+                        <td>${plan.billing_interval}</td>
+                        <td>${plan.credits_granted}</td>
+                        <td>
+                            <button class="btn btn-sm btn-primary edit-plan-btn" data-id="${plan.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger delete-plan-btn" data-id="${plan.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+            } catch (error) {
+                showToast('Error loading subscription plans: ' + error.message, 'danger');
+            }
+        }
+
+        // Load credit packages
+        async function loadCreditPackages() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/credit-packages`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch credit packages');
+                
+                const packages = await response.json();
+                const tbody = document.querySelector('#packagesTable tbody');
+                tbody.innerHTML = '';
+                
+                packages.forEach(pkg => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${pkg.name}</td>
+                        <td>${pkg.credits_amount}</td>
+                        <td>${pkg.currency} ${pkg.price}</td>
+                        <td><span class="badge ${pkg.status === 'active' ? 'bg-success' : 'bg-secondary'}">${pkg.status}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-primary edit-package-btn" data-id="${pkg.id}">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-danger delete-package-btn" data-id="${pkg.id}">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+            } catch (error) {
+                showToast('Error loading credit packages: ' + error.message, 'danger');
+            }
+        }
+
+        // Load subscriptions
+        async function loadSubscriptions() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/subscriptions`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch subscriptions');
+                
+                const subscriptions = await response.json();
+                const tbody = document.querySelector('#subscriptionsTable tbody');
+                tbody.innerHTML = '';
+                
+                subscriptions.forEach(sub => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${sub.user_email}</td>
+                        <td>${sub.plan_name}</td>
+                        <td><span class="badge ${sub.status === 'active' ? 'bg-success' : sub.status === 'past_due' ? 'bg-warning' : 'bg-secondary'}">${sub.status}</span></td>
+                        <td>${new Date(sub.current_period_start).toLocaleDateString()}</td>
+                        <td>${new Date(sub.current_period_end).toLocaleDateString()}</td>
+                        <td>
+                            <button class="btn btn-sm btn-info view-sub-btn" data-id="${sub.id}">
+                                <i class="bi bi-eye"></i>
+                            </button>
+                            ${sub.status === 'active' ? `
+                                <button class="btn btn-sm btn-warning cancel-sub-btn" data-id="${sub.id}">
+                                    <i class="bi bi-x-circle"></i>
+                                </button>
+                            ` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+            } catch (error) {
+                showToast('Error loading subscriptions: ' + error.message, 'danger');
+            }
+        }
+
+        // Load credit transactions
+        async function loadCreditTransactions() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/credit-transactions`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch credit transactions');
+                
+                const transactions = await response.json();
+                const tbody = document.querySelector('#creditTransactionsTable tbody');
+                tbody.innerHTML = '';
+                
+                transactions.forEach(tx => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${tx.user_email}</td>
+                        <td>${tx.amount > 0 ? '+' : ''}${tx.amount}</td>
+                        <td>${tx.reason}</td>
+                        <td>${new Date(tx.timestamp).toLocaleString()}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                // Set up credit adjustment form
+                document.getElementById('adjustCreditsForm').addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    
+                    const userEmail = document.getElementById('creditUserEmail').value;
+                    const amount = parseInt(document.getElementById('creditAmount').value);
+                    const reason = document.getElementById('creditReason').value;
+                    
+                    try {
+                        const response = await fetch(`${apiBaseUrl}/api/admin/credits/adjust`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${authToken}`
+                            },
+                            body: JSON.stringify({ user_email: userEmail, credits: amount, reason })
+                        });
+                        
+                        if (!response.ok) throw new Error('Failed to adjust credits');
+                        
+                        const result = await response.json();
+                        showToast(`Credits adjusted successfully. New balance: ${result.new_balance}`, 'success');
+                        
+                        // Reset form and reload data
+                        this.reset();
+                        loadCreditTransactions();
+                        
+                    } catch (error) {
+                        showToast('Error adjusting credits: ' + error.message, 'danger');
+                    }
+                });
+                
+            } catch (error) {
+                showToast('Error loading credit transactions: ' + error.message, 'danger');
+            }
+        }
+
+        // Load analytics
+        async function loadAnalytics() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/analytics`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to fetch analytics data');
+                
+                const data = await response.json();
+                
+                // User growth chart
+                const userCtx = document.getElementById('userGrowthChart').getContext('2d');
+                new Chart(userCtx, {
+                    type: 'line',
+                    data: {
+                        labels: data.user_growth.labels,
+                        datasets: [{
+                            label: 'New Users',
+                            data: data.user_growth.data,
+                            borderColor: '#7b2cbf',
+                            backgroundColor: 'rgba(123, 44, 191, 0.1)',
+                            tension: 0.3,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            title: {
+                                display: true,
+                                text: 'User Growth Over Time'
+                            }
+                        }
+                    }
+                });
+                
+                // Revenue chart
+                const revenueCtx = document.getElementById('revenueChart').getContext('2d');
+                new Chart(revenueCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.revenue.labels,
+                        datasets: [{
+                            label: 'Revenue (USD)',
+                            data: data.revenue.data,
+                            backgroundColor: '#9d4edd'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Monthly Revenue'
+                            }
+                        }
+                    }
+                });
+                
+                // SKU distribution chart
+                const skuCtx = document.getElementById('skuDistributionChart').getContext('2d');
+                new Chart(skuCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.sku_distribution.labels,
+                        datasets: [{
+                            data: data.sku_distribution.data,
+                            backgroundColor: [
+                                '#7b2cbf',
+                                '#9d4edd',
+                                '#c77dff',
+                                '#e0aaff'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Sessions by SKU'
+                            }
+                        }
+                    }
+                });
+                
+                // Channel distribution chart
+                const channelCtx = document.getElementById('channelDistributionChart').getContext('2d');
+                new Chart(channelCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.channel_distribution.labels,
+                        datasets: [{
+                            data: data.channel_distribution.data,
+                            backgroundColor: [
+                                '#7b2cbf',
+                                '#9d4edd',
+                                '#c77dff',
+                                '#e0aaff',
+                                '#5a189a'
+                            ]
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                            },
+                            title: {
+                                display: true,
+                                text: 'Interactions by Channel'
+                            }
+                        }
+                    }
+                });
+                
+            } catch (error) {
+                showToast('Error loading analytics: ' + error.message, 'danger');
+            }
+        }
+
+        // Add product form handler
+        document.getElementById('saveProductBtn').addEventListener('click', async function() {
+            const skuCode = document.getElementById('productSkuCode').value;
+            const name = document.getElementById('productName').value;
+            const description = document.getElementById('productDescription').value;
+            const serviceType = document.getElementById('productType').value;
+            const status = document.getElementById('productStatus').value;
+            const imageUrl = document.getElementById('productImageUrl').value;
+            
+            if (!skuCode || !name || !serviceType) {
+                showToast('Please fill all required fields', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/products`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        sku_code: skuCode,
+                        name: name,
+                        description: description,
+                        service_type: serviceType,
+                        status: status,
+                        default_image_url: imageUrl,
+                        features: []
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to create product');
+                
+                const result = await response.json();
+                showToast(`Product ${result.name} created successfully`, 'success');
+                
+                // Close modal and reset form
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addProductModal'));
+                modal.hide();
+                document.getElementById('addProductForm').reset();
+                
+                // Reload products
+                loadProducts();
+                
+            } catch (error) {
+                showToast('Error creating product: ' + error.message, 'danger');
+            }
+        });
+
+        // Add user form handler
+        document.getElementById('saveNewUserBtn').addEventListener('click', async function() {
+            const email = document.getElementById('newUserEmail').value;
+            const password = document.getElementById('newUserPassword').value;
+            const firstName = document.getElementById('newUserFirstName').value;
+            const lastName = document.getElementById('newUserLastName').value;
+            const credits = parseInt(document.getElementById('newUserCredits').value) || 0;
+            
+            if (!email || !password || !firstName) {
+                showToast('Please fill all required fields', 'warning');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        email: email,
+                        password: password,
+                        first_name: firstName,
+                        last_name: lastName,
+                        credits: credits
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to create user');
+                
+                const result = await response.json();
+                showToast(`User ${result.email} created successfully`, 'success');
+                
+                // Close modal and reset form
+                const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
+                modal.hide();
+                document.getElementById('addUserForm').reset();
+                
+                // Reload users
+                loadUsers();
+                
+            } catch (error) {
+                showToast('Error creating user: ' + error.message, 'danger');
+            }
+        });
+
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toastId = 'toast-' + Date.now();
+            
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            toast.setAttribute('id', toastId);
+            
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            const bsToast = new bootstrap.Toast(toast, {
+                autohide: true,
+                delay: 5000
+            });
+            
+            bsToast.show();
+            
+            // Remove from DOM after hidden
+            toast.addEventListener('hidden.bs.toast', function() {
+                toast.remove();
+            });
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkAuth();
+        });
+    </script>
+</body>
+</html>
+"""
+
     
 @app.get('/dashboard')
 def user_dashboard():
@@ -3548,52 +5526,409 @@ async def get_user_profile(current_user: Dict = Depends(get_current_user)):
         if conn:
             await release_db_connection(conn)
 
-@app.get("/api/admin/users")
-async def get_admin_users(admin: Dict = Depends(get_admin_user)):
-    """தமிழ் - Get all users for admin dashboard"""
+# --- Analytics Routes --- #
+@app.get("/api/admin/stats")
+async def get_admin_stats(admin_user: Dict = Depends(get_admin_user)):
+    """Get dashboard overview statistics."""
     conn = None
     try:
         conn = await get_db_connection()
         
-        # Log the request
-        logger.info(f"Admin users endpoint called by {admin['email']}")
+        # Get total users
+        total_users = await conn.fetchval("SELECT COUNT(*) FROM users WHERE email != $1", ADMIN_EMAIL)
         
-        users = await conn.fetch("""
-            SELECT email, first_name, last_name, credits, created_at, last_login
-            FROM users 
-            ORDER BY created_at DESC
-        """)
+        # Get active subscriptions
+        active_subs = await conn.fetchval("SELECT COUNT(*) FROM user_subscriptions WHERE status = 'active'")
         
-        # Log the number of users found
-        logger.info(f"Found {len(users)} users in database")
+        # Get sessions today
+        today = datetime.now().date()
+        today_start = datetime.combine(today, datetime.min.time())
+        sessions_today = await conn.fetchval(
+            "SELECT COUNT(*) FROM interaction_history WHERE timestamp >= $1 AND channel LIKE 'web_session%'", 
+            today_start
+        )
         
-        users_list = []
-        for i, user in enumerate(users):
-            users_list.append({
-                "id": i + 1,  # Generate a synthetic ID (row number)
-                "first_name": user['first_name'] or "",
-                "last_name": user['last_name'] or "",
-                "email": user['email'] or "",
-                "credits": user['credits'] or 0,
-                "created_at": user['created_at'].isoformat() if user['created_at'] else None,
-                "last_login": user['last_login'].isoformat() if user['last_login'] else None
-            })
+        # Get monthly revenue (simplified - in a real app, you'd calculate this from Stripe data)
+        # This is just a placeholder calculation
+        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        monthly_revenue = await conn.fetchval("""
+            SELECT COALESCE(SUM(p.price), 0)
+            FROM user_subscriptions us
+            JOIN subscription_plans sp ON us.subscription_plan_id = sp.id
+            JOIN products p ON sp.product_id = p.id
+            WHERE us.status = 'active' AND us.created_at >= $1
+        """, month_start) or 0
         
         return {
-            "success": True,
-            "users": users_list
+            "total_users": total_users,
+            "active_subscriptions": active_subs,
+            "sessions_today": sessions_today,
+            "monthly_revenue": float(monthly_revenue)
         }
-        
     except Exception as e:
-        logger.error(f"Admin users error: {e}")
-        return {
-            "success": False,
-            "message": f"Failed to load users: {str(e)}",
-            "users": []
-        }
+        logger.error(f"Error getting admin stats: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch admin statistics")
     finally:
         if conn:
             await release_db_connection(conn)
+
+@app.get("/api/admin/analytics")
+async def get_admin_analytics(admin_user: Dict = Depends(get_admin_user)):
+    """Get detailed analytics data for charts."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # User growth - last 6 months
+        now = datetime.now()
+        months = []
+        user_counts = []
+        
+        for i in range(5, -1, -1):
+            month_date = (now - timedelta(days=30*i)).replace(day=1)
+            month_name = month_date.strftime("%b %Y")
+            months.append(month_name)
+            
+            next_month = month_date.replace(month=month_date.month+1) if month_date.month < 12 else month_date.replace(year=month_date.year+1, month=1)
+            
+            count = await conn.fetchval(
+                "SELECT COUNT(*) FROM users WHERE created_at >= $1 AND created_at < $2 AND email != $3",
+                month_date, next_month, ADMIN_EMAIL
+            )
+            user_counts.append(count)
+        
+        # Revenue - last 6 months
+        revenue_data = []
+        for i in range(5, -1, -1):
+            month_date = (now - timedelta(days=30*i)).replace(day=1)
+            next_month = month_date.replace(month=month_date.month+1) if month_date.month < 12 else month_date.replace(year=month_date.year+1, month=1)
+            
+            # Simplified revenue calculation
+            revenue = await conn.fetchval("""
+                SELECT COALESCE(SUM(p.price), 0)
+                FROM user_subscriptions us
+                JOIN subscription_plans sp ON us.subscription_plan_id = sp.id
+                JOIN products p ON sp.product_id = p.id
+                WHERE us.created_at >= $1 AND us.created_at < $2
+            """, month_date, next_month) or 0
+            
+            revenue_data.append(float(revenue))
+        
+        # SKU distribution
+        sku_labels = []
+        sku_data = []
+        
+        sku_counts = await conn.fetch("""
+            SELECT p.name, COUNT(*) as count
+            FROM interaction_history ih
+            JOIN products p ON ih.sku_code = p.sku_code
+            WHERE ih.channel LIKE 'web_session%'
+            GROUP BY p.name
+            ORDER BY count DESC
+            LIMIT 5
+        """)
+        
+        for record in sku_counts:
+            sku_labels.append(record['name'])
+            sku_data.append(record['count'])
+        
+        # Channel distribution
+        channel_labels = []
+        channel_data = []
+        
+        channel_counts = await conn.fetch("""
+            SELECT 
+                CASE 
+                    WHEN channel LIKE 'web_session%' THEN 'Web'
+                    WHEN channel LIKE 'zoom%' THEN 'Zoom'
+                    WHEN channel LIKE '%whatsapp%' THEN 'WhatsApp'
+                    WHEN channel LIKE '%email%' THEN 'Email'
+                    WHEN channel LIKE '%sms%' THEN 'SMS'
+                    ELSE channel
+                END as channel_group,
+                COUNT(*) as count
+            FROM interaction_history
+            GROUP BY channel_group
+            ORDER BY count DESC
+        """)
+        
+        for record in channel_counts:
+            channel_labels.append(record['channel_group'])
+            channel_data.append(record['count'])
+        
+        return {
+            "user_growth": {
+                "labels": months,
+                "data": user_counts
+            },
+            "revenue": {
+                "labels": months,
+                "data": revenue_data
+            },
+            "sku_distribution": {
+                "labels": sku_labels,
+                "data": sku_data
+            },
+            "channel_distribution": {
+                "labels": channel_labels,
+                "data": channel_data
+            }
+        }
+    except Exception as e:
+        logger.error(f"Error getting analytics data: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch analytics data")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/credit-transactions")
+async def get_credit_transactions(skip: int = 0, limit: int = 50, admin_user: Dict = Depends(get_admin_user)):
+    """Get credit transaction history."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # In a real app, you'd have a dedicated credit_transactions table
+        # This is a simplified version using admin_logs
+        records = await conn.fetch("""
+            SELECT admin_email, action, target_user as user_email, details, timestamp
+            FROM admin_logs
+            WHERE action IN ('credit_purchase', 'subscription_credits', 'credit_adjustment')
+            ORDER BY timestamp DESC
+            OFFSET $1 LIMIT $2
+        """, skip, limit)
+        
+        result = []
+        for record in records:
+            # Parse amount from details
+            details = record['details']
+            amount = 0
+            if "Added" in details or "Granted" in details:
+                # Extract number between "Added/Granted" and "credits"
+                match = re.search(r'(?:Added|Granted) (\d+) credits', details)
+                if match:
+                    amount = int(match.group(1))
+            elif "Removed" in details:
+                match = re.search(r'Removed (\d+) credits', details)
+                if match:
+                    amount = -int(match.group(1))
+            
+            result.append({
+                "user_email": record['user_email'],
+                "amount": amount,
+                "reason": record['action'].replace('_', ' ').title(),
+                "timestamp": record['timestamp'].isoformat()
+            })
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error getting credit transactions: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch credit transactions")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/users")
+async def admin_get_users(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
+    """Get all users for admin dashboard."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        records = await conn.fetch("""
+            SELECT email, first_name, last_name, birth_date, birth_time, birth_location, 
+                   credits, last_login, created_at, updated_at, stripe_customer_id
+            FROM users 
+            WHERE email != $1
+            ORDER BY created_at DESC
+            OFFSET $2 LIMIT $3
+        """, ADMIN_EMAIL, skip, limit)
+        
+        return [dict(record) for record in records]
+    except Exception as e:
+        logger.error(f"Error getting users for admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch users")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.post("/api/admin/users")
+async def admin_create_user(user_data: dict, admin_user: Dict = Depends(get_admin_user)):
+    """Create a new user from admin dashboard."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Check if user already exists
+        existing = await conn.fetchval("SELECT 1 FROM users WHERE email = $1", user_data['email'])
+        if existing:
+            raise HTTPException(status_code=400, detail="User with this email already exists")
+        
+        # Hash password
+        password_hash = bcrypt.hashpw(user_data['password'].encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        
+        # Create user
+        user = await conn.fetchrow("""
+            INSERT INTO users (
+                email, password_hash, first_name, last_name, credits, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+            RETURNING email, first_name, last_name, credits, created_at, updated_at
+        """, user_data['email'], password_hash, user_data['first_name'], 
+            user_data.get('last_name', ''), user_data.get('credits', 0))
+        
+        # Log action
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, NOW())
+        """, admin_user['email'], "user_created", user_data['email'], 
+            f"Admin created user with {user_data.get('credits', 0)} initial credits")
+        
+        return dict(user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating user from admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to create user")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.post("/api/admin/credits/adjust")
+async def admin_adjust_credits(request_data: dict, admin_user: Dict = Depends(get_admin_user)):
+    """Adjust user credits from admin dashboard."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        user_email = request_data.get('user_email')
+        credits = int(request_data.get('credits', 0))
+        reason = request_data.get('reason', 'Admin adjustment')
+        
+        if not user_email:
+            raise HTTPException(status_code=400, detail="User email is required")
+        
+        # Check if user exists
+        user = await conn.fetchrow("SELECT credits FROM users WHERE email = $1", user_email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Update credits
+        new_balance = user['credits'] + credits
+        await conn.execute(
+            "UPDATE users SET credits = $1, updated_at = NOW() WHERE email = $2",
+            new_balance, user_email
+        )
+        
+        # Log action
+        action_detail = f"{'Added' if credits > 0 else 'Removed'} {abs(credits)} credits: {reason}"
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, NOW())
+        """, admin_user['email'], "credit_adjustment", user_email, action_detail)
+        
+        return {
+            "success": True,
+            "user_email": user_email,
+            "credits_adjusted": credits,
+            "new_balance": new_balance,
+            "reason": reason
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adjusting credits from admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to adjust credits")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/subscriptions")
+async def admin_get_subscriptions(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
+    """Get all subscriptions for admin dashboard."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        records = await conn.fetch("""
+            SELECT us.id, us.user_email, sp.name as plan_name, us.status,
+                   us.current_period_start, us.current_period_end, us.cancel_at_period_end,
+                   us.stripe_subscription_id, us.created_at, us.updated_at
+            FROM user_subscriptions us
+            JOIN subscription_plans sp ON us.subscription_plan_id = sp.id
+            ORDER BY us.created_at DESC
+            OFFSET $1 LIMIT $2
+        """, skip, limit)
+        
+        return [dict(record) for record in records]
+    except Exception as e:
+        logger.error(f"Error getting subscriptions for admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch subscriptions")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/subscription-plans")
+async def admin_get_subscription_plans(admin_user: Dict = Depends(get_admin_user)):
+    """Get all subscription plans for admin dashboard."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        records = await conn.fetch("""
+            SELECT sp.id, sp.product_id, sp.name, sp.billing_interval, sp.price, sp.currency,
+                   sp.credits_granted, sp.channel_access, sp.memory_retention_days, sp.status,
+                   sp.stripe_price_id, p.name as product_name
+            FROM subscription_plans sp
+            JOIN products p ON sp.product_id = p.id
+            ORDER BY sp.price DESC
+        """)
+        
+        return [dict(record) for record in records]
+    except Exception as e:
+        logger.error(f"Error getting subscription plans for admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch subscription plans")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/credit-packages")
+async def admin_get_credit_packages(admin_user: Dict = Depends(get_admin_user)):
+    """Get all credit packages for admin dashboard."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        records = await conn.fetch("""
+            SELECT cp.id, cp.product_id, cp.name, cp.credits_amount, cp.price, cp.currency,
+                   cp.status, cp.stripe_price_id, p.name as product_name
+            FROM credit_packages cp
+            JOIN products p ON cp.product_id = p.id
+            ORDER BY cp.price ASC
+        """)
+        
+        return [dict(record) for record in records]
+    except Exception as e:
+        logger.error(f"Error getting credit packages for admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch credit packages")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/users/{user_email}/memory")
+async def admin_get_user_memory(user_email: str, admin_user: Dict = Depends(get_admin_user)):
+    """Get a user's memory/context object for admin dashboard."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        record = await conn.fetchrow("SELECT unified_context_object FROM users WHERE email = $1", user_email)
+        
+        if not record or not record['unified_context_object']:
+            return {"message": "No memory data found for this user"}
+        
+        return json.loads(record['unified_context_object'])
+    except Exception as e:
+        logger.error(f"Error getting user memory for admin: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch user memory")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
 
 @app.get("/test")
 async def test_route():
@@ -3621,6 +5956,102 @@ async def health_check():
     except Exception as e:
         logger.error(f"Health check failed: {e}")
         raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+
+
+
+# --- SKU Management Routes --- #
+@app.post("/api/admin/products", response_model=Product)
+async def create_product(product_data: ProductCreate, admin_user: Dict = Depends(get_admin_user)):
+    """Create a new product/SKU."""
+    return await create_product_in_db(product_data)
+
+@app.get("/api/admin/products", response_model=List[Product])
+async def get_all_products(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
+    """Get all products/SKUs."""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        records = await conn.fetch("SELECT * FROM products ORDER BY name OFFSET $1 LIMIT $2", skip, limit)
+        return [Product(**dict(record)) for record in records]
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/products/{product_id}", response_model=Product)
+async def get_product(product_id: int, admin_user: Dict = Depends(get_admin_user)):
+    """Get a product/SKU by ID."""
+    product = await get_product_by_id(product_id)
+    if not product:
+        raise HTTPException(404, "Product not found")
+    return product
+
+# --- Memory System Routes --- #
+@app.get("/api/user/memory")
+async def get_user_memory(current_user: Dict = Depends(get_current_user)):
+    """Get the user's memory/context object."""
+    uco = await get_uco_for_user(current_user['email'])
+    if not uco:
+        raise HTTPException(404, "Memory not found for this user")
+    return uco
+
+@app.post("/api/session/with-memory")
+async def start_session_with_memory(request_data: Dict, current_user: Dict = Depends(get_current_user)):
+    """Start a session with memory context."""
+    # Get user's UCO
+    uco = await get_uco_for_user(current_user['email'])
+    
+    # Extract question and SKU from request
+    question = request_data.get('question', '')
+    sku_code = request_data.get('sku_code', '')
+    
+    # Check if user has enough credits
+    # [Your existing credit check logic]
+    
+    # Generate guidance using UCO context
+    guidance = await generate_swami_guidance_with_memory(
+        current_user['email'], 
+        sku_code, 
+        question, 
+        uco
+    )
+    
+    # Log this interaction
+    session_id = str(uuid.uuid4())
+    await add_interaction_to_history(InteractionLog(
+        user_email=current_user['email'],
+        session_id=session_id,
+        channel="web_session_with_memory",
+        sku_code=sku_code,
+        user_query=question,
+        swami_response_summary=guidance[:200]  # Summary
+    ))
+    
+    return {
+        "session_id": session_id,
+        "guidance": guidance,
+        "memory_used": True
+    }
+
+# --- Multi-channel Follow-up Routes --- #
+@app.post("/api/follow-up/send")
+async def send_follow_up(request_data: Dict, admin_user: Dict = Depends(get_admin_user)):
+    """Send a follow-up message to a user via specified channel."""
+    user_email = request_data.get('user_email')
+    channel = request_data.get('channel')
+    message = request_data.get('message')
+    
+    if not all([user_email, channel, message]):
+        raise HTTPException(400, "Missing required fields: user_email, channel, message")
+    
+    # Get user's UCO for context
+    uco = await get_uco_for_user(user_email)
+    context = uco.dict() if uco else {}
+    
+    result = await send_follow_up_message(user_email, channel, message, context)
+    if not result.get('success'):
+        raise HTTPException(500, result.get('error', "Failed to send follow-up message"))
+    
+    return {"success": True, "message": f"Follow-up sent via {channel}"}
 
 # தமிழ் - Authentication Routes
 
@@ -4051,12 +6482,12 @@ async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_us
         credit_data = await request.json()
         
         # Extract and validate data
-        user_id = credit_data.get("user_id")  # This is the row number from frontend
+        user_email = credit_data.get("user_email")  # This is the row number from frontend
         credits = credit_data.get("credits")  # Frontend sends 'credits', not 'amount'
         
-        if not user_id or not credits:
+        if not user_email or not credits:
             logger.error(f"Invalid credit data: {credit_data}")
-            return {"success": False, "message": "Missing user_id or credits"}
+            return {"success": False, "message": "Missing user_email or credits"}
         
         # Convert credits to integer if needed
         try:
@@ -4071,23 +6502,23 @@ async def admin_add_credits(request: Request, admin: Dict = Depends(get_admin_us
         # The frontend displays users in created_at DESC order
         users = await conn.fetch("SELECT email FROM users ORDER BY created_at DESC")
         
-        # Log the number of users found and the requested user_id
-        logger.info(f"Found {len(users)} users in database, requested user_id: {user_id}")
+        # Log the number of users found and the requested user_email
+        logger.info(f"Found {len(users)} users in database, requested user_email: {user_email}")
         
         # Debug log to show all user emails in order
         for i, user in enumerate(users):
             logger.info(f"User index {i+1}: {user['email']}")
         
-        if not users or len(users) < user_id or user_id <= 0:
-            logger.error(f"User with index {user_id} not found")
-            return {"success": False, "message": f"User with ID {user_id} not found"}
+        if not users or len(users) < user_email or user_email <= 0:
+            logger.error(f"User with index {user_email} not found")
+            return {"success": False, "message": f"User with ID {user_email} not found"}
             
         # Get the email for the specified row number (adjusting for 0-based indexing)
         # This ensures we're using the EXACT same ordering as the frontend
-        user_email = users[user_id - 1]["email"]
+        user_email = users[user_email - 1]["email"]
         
         # Log the operation with detailed information
-        logger.info(f"Adding {credits} credits to user {user_email} (index: {user_id})")
+        logger.info(f"Adding {credits} credits to user {user_email} (index: {user_email})")
         
         # Update credits using email (which is the primary key)
         await conn.execute(
