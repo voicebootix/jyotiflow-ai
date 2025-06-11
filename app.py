@@ -1490,6 +1490,12 @@ def clarity_page():
         <script>
             document.getElementById('clarityForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
+
+                const token = localStorage.getItem('jyoti_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
                 
                 const question = document.getElementById('question').value;
                 const birthDate = document.getElementById('birthDate').value;
@@ -1507,6 +1513,7 @@ def clarity_page():
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
                         },
                         body: JSON.stringify({
                             sku: 'clarity',
@@ -1817,6 +1824,12 @@ def astrolove_page():
     <script>
         document.getElementById('astroloveForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+
+            const token = localStorage.getItem('jyoti_token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
             
             const question = document.getElementById('question').value;
             const relationshipStatus = document.getElementById('relationshipStatus').value;
@@ -1836,6 +1849,7 @@ def astrolove_page():
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
                     },
                     body: JSON.stringify({
                         sku: 'love',
@@ -2227,6 +2241,12 @@ def r3live_page():
         <script>
             document.getElementById('r3Form').addEventListener('submit', async function(e) {
                 e.preventDefault();
+
+                const token = localStorage.getItem('jyoti_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
                 
                 const question = document.getElementById('question').value;
                 const birthDate = document.getElementById('birthDate').value;
@@ -2247,6 +2267,7 @@ def r3live_page():
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
                         },
                         body: JSON.stringify({
                             sku: 'premium',
@@ -2654,6 +2675,12 @@ def daily_page():
         <script>
             document.getElementById('dailyForm').addEventListener('submit', async function(e) {
                 e.preventDefault();
+
+                const token = localStorage.getItem('jyoti_token');
+                if (!token) {
+                    window.location.href = '/login';
+                    return;
+                }
                 
                 const goals = document.getElementById('goals').value;
                 const birthDate = document.getElementById('birthDate').value;
@@ -2674,6 +2701,7 @@ def daily_page():
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Authorization': 'Bearer ' + token
                         },
                         body: JSON.stringify({
                             sku: 'elite',
