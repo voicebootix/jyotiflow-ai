@@ -1522,7 +1522,7 @@ def clarity_page():
                     if (data.success) {
                         textDiv.innerHTML = data.guidance;
                     } else {
-                        textDiv.innerHTML = '🙏🏼 ' + (data.message || 'Please ensure you have sufficient credits and try again.');
+                        textDiv.innerHTML = '🙏🏼 ' + (data.error || data.message || 'An error occurred.');
                     }
                 } catch (error) {
                     textDiv.innerHTML = '🙏🏼 The cosmic energies are temporarily disrupted. Please try again in a moment.';
@@ -1853,7 +1853,7 @@ def astrolove_page():
                 if (data.success) {
                     textDiv.innerHTML = data.guidance;
                 } else {
-                    textDiv.innerHTML = '💕 ' + (data.message || 'Please ensure you have sufficient credits and try again.');
+                    textDiv.innerHTML = '💕 ' + (data.error || data.message || 'An error occurred.');
                 }
             } catch (error) {
                 textDiv.innerHTML = '💕 The cosmic love energies are temporarily disrupted. Please try again in a moment.';
@@ -2265,7 +2265,7 @@ def r3live_page():
                     if (data.success) {
                         textDiv.innerHTML = data.guidance;
                     } else {
-                        textDiv.innerHTML = '🔮 ' + (data.message || 'Please ensure you have sufficient credits and try again.');
+                        textDiv.innerHTML = '🔮 ' + (data.error || data.message || 'An error occurred.');
                     }
                 } catch (error) {
                     textDiv.innerHTML = '🔮 The cosmic energies are temporarily disrupted. Please try again in a moment.';
@@ -2692,7 +2692,7 @@ def daily_page():
                     if (data.success) {
                         textDiv.innerHTML = data.guidance;
                     } else {
-                        textDiv.innerHTML = '🌟 ' + (data.message || 'Please ensure you have sufficient credits and try again.');
+                        textDiv.innerHTML = '🌟 ' + (data.error || data.message || 'An error occurred.');
                     }
                 } catch (error) {
                     textDiv.innerHTML = '🌟 The cosmic energies are temporarily disrupted. Please try again in a moment.';
