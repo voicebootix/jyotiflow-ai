@@ -632,60 +632,6 @@ async def trigger_salescloser_session(user_email: str, sku: str, session_id: int
 # தமிழ் - ஒருங்கிணைந்த சூழல் பொருள் மேலாண்மை
 # English - Unified Context Object Management
 
-async def get_uco_for_user(email: str) -> Optional[UCO]:
-    """Get the Unified Context Object for a user."""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        user_record = await conn.fetchrow("SELECT unified_context_object FROM users WHERE email = $1", email)
-        if user_record and user_record['unified_context_object']:
-            try:
-                return UCO.parse_obj(user_record['unified_context_object'])
-            except Exception as e:
-                logger.error(f"Error parsing UCO for user {email}: {e}")
-                # Create a basic UCO
-                return UCO(user_profile={"email": email})
-        # If no UCO, create a basic one
-        user_profile_db = await conn.fetchrow("SELECT email, first_name, last_name, birth_date, birth_time, birth_location, preferred_language FROM users WHERE email = $1", email)
-        if user_profile_db:
-            return UCO(user_profile=dict(user_profile_db))
-        return None
-    except Exception as e:
-        logger.error(f"Error getting UCO for user {email}: {e}")
-        return None
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
-async def update_uco_for_user(email: str, updates: Dict[str, Any]):
-    """Update the Unified Context Object for a user."""
-    conn = None
-    try:
-        conn = await get_db_connection()
-        current_uco = await get_uco_for_user(email)
-        if not current_uco:
-            # Create a basic UCO if none exists
-            user_profile_db = await conn.fetchrow("SELECT email, first_name, last_name, birth_date, birth_time, birth_location, preferred_language FROM users WHERE email = $1", email)
-            if user_profile_db:
-                current_uco = UCO(user_profile=dict(user_profile_db))
-            else:
-                current_uco = UCO(user_profile={"email": email})
-        
-        # Update UCO fields
-        for key, value in updates.items():
-            if hasattr(current_uco, key):
-                setattr(current_uco, key, value)
-        
-        current_uco.updated_at = datetime.now(timezone.utc)
-        uco_json = current_uco.json()
-        await conn.execute("UPDATE users SET unified_context_object = $1, updated_at = NOW() WHERE email = $2", uco_json, email)
-        logger.info(f"UCO updated for user {email}")
-    except Exception as e:
-        logger.error(f"Error updating UCO for user {email}: {e}")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
 async def add_interaction_to_history(interaction: InteractionLog) -> int:
     """Log an interaction and return its ID."""
     conn = None
