@@ -5705,40 +5705,86 @@ async def get_user_memory(current_user: Dict = Depends(get_current_user)):
 @app.post("/api/session/with-memory")
 async def start_session_with_memory(request_data: Dict, current_user: Dict = Depends(get_current_user)):
     """Start a session with memory context."""
-    # Get user's UCO
-    uco = await get_uco_for_user(current_user['email'])
-    
-    # Extract question and SKU from request
-    question = request_data.get('question', '')
-    sku_code = request_data.get('sku_code', '')
-    
-    # Check if user has enough credits
-    # [Your existing credit check logic]
-    
-    # Generate guidance using UCO context
-    guidance = await generate_swami_guidance_with_memory(
-        current_user['email'], 
-        sku_code, 
-        question, 
-        uco
-    )
-    
-    # Log this interaction
-    session_id = str(uuid.uuid4())
-    await add_interaction_to_history(InteractionLog(
-        user_email=current_user['email'],
-        session_id=session_id,
-        channel="web_session_with_memory",
-        sku_code=sku_code,
-        user_query=question,
-        swami_response_summary=guidance[:200]  # Summary
-    ))
-    
-    return {
-        "session_id": session_id,
-        "guidance": guidance,
-        "memory_used": True
-    }
+    conn = None
+    try:
+        # Get user's UCO
+        uco = await get_uco_for_user(current_user['email'])
+
+        # Extract question and SKU from request
+        question = request_data.get('question', '')
+        sku_code = request_data.get('sku_code', '')
+
+        # Validate SKU and determine credits required
+        if sku_code not in SKUS:
+            raise HTTPException(status_code=400, detail="Invalid service type")
+        sku_config = SKUS[sku_code]
+        credits_required = sku_config['credits']
+
+        user_email = current_user['email']
+        conn = await get_db_connection()
+
+        # Check user credits
+        user = await conn.fetchrow(
+            "SELECT credits FROM users WHERE email = $1", user_email
+        )
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if user['credits'] < credits_required:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Insufficient credits. Need {credits_required}, have {user['credits']}"
+            )
+
+        # Deduct credits
+        await conn.execute(
+            "UPDATE users SET credits = credits - $1 WHERE email = $2",
+            credits_required, user_email
+        )
+
+        # Generate guidance using UCO context
+        guidance = await generate_swami_guidance_with_memory(
+            current_user['email'],
+            sku_code,
+            question,
+            uco
+        )
+
+        # Log this interaction
+        session_id = str(uuid.uuid4())
+        await add_interaction_to_history(InteractionLog(
+            user_email=current_user['email'],
+            session_id=session_id,
+            channel="web_session_with_memory",
+            sku_code=sku_code,
+            user_query=question,
+            swami_response_summary=guidance[:200]  # Summary
+        ))
+
+        return {
+            "session_id": session_id,
+            "guidance": guidance,
+            "memory_used": True,
+            "credits_used": credits_required,
+            "remaining_credits": user['credits'] - credits_required
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Session with memory error: {e}")
+        if conn and 'credits_required' in locals():
+            try:
+                await conn.execute(
+                    "UPDATE users SET credits = credits + $1 WHERE email = $2",
+                    credits_required, user_email
+                )
+            except:
+                pass
+        raise HTTPException(status_code=500, detail="Session failed to start")
+    finally:
+        if conn:
+            await release_db_connection(conn)
 
 # --- Multi-channel Follow-up Routes --- #
 @app.post("/api/follow-up/send")
