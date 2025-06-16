@@ -7769,3 +7769,260 @@ async def fixed_register_user(user_data: UserRegister):
     finally:
         if conn:
             await release_db_connection(conn)
+
+
+@app.get("/api/admin/users")
+async def admin_get_users(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
+    """தமிழ் - Get all users for admin dashboard with proper response format"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Get users with session counts
+        records = await conn.fetch("""
+            SELECT u.email, u.first_name, u.last_name, u.birth_date, u.birth_time, 
+                   u.birth_location, u.credits, u.last_login, u.created_at, u.updated_at, 
+                   u.stripe_customer_id, COUNT(s.id) as session_count
+            FROM users u
+            LEFT JOIN sessions s ON u.email = s.user_email
+            WHERE u.email != $1
+            GROUP BY u.email, u.first_name, u.last_name, u.birth_date, u.birth_time, 
+                     u.birth_location, u.credits, u.last_login, u.created_at, u.updated_at, 
+                     u.stripe_customer_id
+            ORDER BY u.created_at DESC
+            OFFSET $2 LIMIT $3
+        """, ADMIN_EMAIL, skip, limit)
+        
+        users_list = []
+        for record in records:
+            # Format birth details
+            birth_details = "Not provided"
+            if record['birth_date']:
+                birth_details = f"{record['birth_date']}"
+                if record['birth_time']:
+                    birth_details += f" at {record['birth_time']}"
+                if record['birth_location']:
+                    birth_details += f", {record['birth_location']}"
+            
+            users_list.append({
+                "email": record['email'],
+                "first_name": record['first_name'] or '',
+                "last_name": record['last_name'] or '',
+                "full_name": f"{record['first_name'] or ''} {record['last_name'] or ''}".strip() or "Unknown",
+                "credits": record['credits'] or 0,
+                "birth_details": birth_details,
+                "last_login": record['last_login'].isoformat() if record['last_login'] else None,
+                "created_at": record['created_at'].isoformat() if record['created_at'] else None,
+                "session_count": record['session_count'] or 0,
+                "has_stripe": bool(record['stripe_customer_id'])
+            })
+        
+        return {
+            "success": True,
+            "users": users_list,
+            "total_count": len(users_list)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting users for admin: {e}", exc_info=True)
+        return {
+            "success": False,
+            "message": f"Failed to fetch users: {str(e)}",
+            "users": []
+        }
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/stats")
+async def get_real_admin_stats(admin_user: Dict = Depends(get_admin_user)):
+    """তমিল - Get real admin dashboard statistics"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Get total users (excluding admin)
+        total_users = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE email != $1", ADMIN_EMAIL
+        ) or 0
+        
+        # Get active subscriptions
+        active_subscriptions = await conn.fetchval(
+            "SELECT COUNT(*) FROM user_subscriptions WHERE status = 'active'"
+        ) or 0
+        
+        # Get today's sessions
+        sessions_today = await conn.fetchval("""
+            SELECT COUNT(*) FROM sessions 
+            WHERE DATE(session_time) = CURRENT_DATE
+        """) or 0
+        
+        # Calculate monthly revenue (simplified)
+        monthly_revenue = await conn.fetchval("""
+            SELECT COALESCE(SUM(
+                CASE 
+                    WHEN s.session_type = 'clarity' THEN 9
+                    WHEN s.session_type = 'love' THEN 19
+                    WHEN s.session_type = 'premium' THEN 39
+                    WHEN s.session_type = 'elite' THEN 149
+                    ELSE 0
+                END
+            ), 0)
+            FROM sessions s 
+            WHERE s.session_time >= DATE_TRUNC('month', CURRENT_DATE)
+            AND s.status = 'completed'
+        """) or 0
+        
+        return {
+            "success": True,
+            "total_users": total_users,
+            "active_subscriptions": active_subscriptions,
+            "sessions_today": sessions_today,
+            "monthly_revenue": float(monthly_revenue)
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin stats error: {e}")
+        return {
+            "success": False,
+            "total_users": 0,
+            "active_subscriptions": 0,
+            "sessions_today": 0,
+            "monthly_revenue": 0.0
+        }
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/sessions")
+async def get_real_admin_sessions(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
+    """তমিল - Get all sessions for admin dashboard"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        sessions = await conn.fetch("""
+            SELECT s.id, s.user_email, s.session_type, s.credits_used, s.session_time, 
+                   s.status, s.result_summary, s.question,
+                   u.first_name, u.last_name
+            FROM sessions s
+            JOIN users u ON s.user_email = u.email
+            ORDER BY s.session_time DESC
+            OFFSET $1 LIMIT $2
+        """, skip, limit)
+        
+        sessions_list = []
+        for session in sessions:
+            sku_config = SKUS.get(session["session_type"], {})
+            
+            sessions_list.append({
+                "id": session['id'],
+                "user_email": session['user_email'],
+                "user_name": f"{session['first_name'] or ''} {session['last_name'] or ''}".strip() or "Unknown",
+                "session_type": session['session_type'],
+                "service_name": sku_config.get('name', session['session_type']),
+                "service_price": sku_config.get('price', 0),
+                "credits_used": session['credits_used'],
+                "session_time": session['session_time'].isoformat() if session['session_time'] else None,
+                "session_time_friendly": session['session_time'].strftime("%b %d, %Y at %I:%M %p") if session['session_time'] else "Unknown",
+                "status": session['status'],
+                "question": session['question'][:50] + "..." if session['question'] and len(session['question']) > 50 else session['question'] or "",
+                "guidance_preview": session['result_summary'][:100] + "..." if session['result_summary'] and len(session['result_summary']) > 100 else session['result_summary'] or ""
+            })
+        
+        # Calculate summary
+        total_revenue = await conn.fetchval("""
+            SELECT COALESCE(SUM(
+                CASE 
+                    WHEN s.session_type = 'clarity' THEN 9
+                    WHEN s.session_type = 'love' THEN 19
+                    WHEN s.session_type = 'premium' THEN 39
+                    WHEN s.session_type = 'elite' THEN 149
+                    ELSE 0
+                END
+            ), 0)
+            FROM sessions s WHERE s.status = 'completed'
+        """) or 0
+        
+        total_credits_used = await conn.fetchval(
+            "SELECT COALESCE(SUM(credits_used), 0) FROM sessions WHERE status = 'completed'"
+        ) or 0
+        
+        return {
+            "success": True,
+            "sessions": sessions_list,
+            "total_count": len(sessions_list),
+            "summary": {
+                "total_revenue": float(total_revenue),
+                "total_credits_used": total_credits_used
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Admin sessions error: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to load sessions: {str(e)}",
+            "sessions": []
+        }
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/user/profile")
+async def get_user_profile(current_user: Dict = Depends(get_current_user)):
+    """தமிழ் - Get real user profile with statistics"""
+    conn = None
+    try:
+        user_email = current_user['email']
+        conn = await get_db_connection()
+        
+        # Get complete user profile
+        user = await conn.fetchrow("""
+            SELECT email, first_name, last_name, credits, birth_date, birth_time, 
+                   birth_location, last_login, created_at, updated_at, stripe_customer_id
+            FROM users WHERE email = $1
+        """, user_email)
+        
+        if not user:
+            raise HTTPException(404, "User not found")
+        
+        # Get user statistics
+        stats = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total_sessions,
+                COALESCE(SUM(credits_used), 0) as total_credits_spent,
+                MAX(session_time) as last_session_time
+            FROM sessions WHERE user_email = $1 AND status = 'completed'
+        """, user_email)
+        
+        return {
+            "success": True,
+            "user": {
+                "email": user['email'],
+                "first_name": user['first_name'],
+                "last_name": user['last_name'],
+                "full_name": f"{user['first_name'] or ''} {user['last_name'] or ''}".strip(),
+                "credits": user['credits'] or 0,
+                "birth_date": user['birth_date'],
+                "birth_time": user['birth_time'],
+                "birth_location": user['birth_location'],
+                "member_since": user['created_at'].strftime("%B %Y") if user['created_at'] else "Unknown",
+                "last_login": user['last_login'].isoformat() if user['last_login'] else None,
+                "has_stripe": bool(user['stripe_customer_id'])
+            },
+            "stats": {
+                "total_sessions": stats['total_sessions'] or 0,
+                "total_credits_spent": stats['total_credits_spent'] or 0,
+                "last_session": stats['last_session_time'].strftime("%B %d, %Y") if stats['last_session_time'] else None
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"User profile error: {e}")
+        raise HTTPException(500, "Failed to load user profile")
+    finally:
+        if conn:
+            await release_db_connection(conn)
