@@ -3976,687 +3976,531 @@ admin_dashboard_html = """
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
 
-        // Global variables
-        let authToken = localStorage.getItem('jyotiflow_admin_token' );
-        const apiBaseUrl = window.location.origin;
+        // === ADMIN DASHBOARD JAVASCRIPT ===
+// Replace the JavaScript in your admin dashboard HTML with this
 
-        // Check if user is logged in
-        function checkAuth() {
-            if (authToken) {
-                document.getElementById('loginSection').classList.add('hidden');
-                document.getElementById('dashboardSection').classList.remove('hidden');
-                loadDashboardData();
-            } else {
-                document.getElementById('loginSection').classList.remove('hidden');
-                document.getElementById('dashboardSection').classList.add('hidden');
-            }
-        }
+let authToken = localStorage.getItem('jyotiflow_admin_token');
+const apiBaseUrl = window.location.origin;
 
-        // Login form submission
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
+// Real authentication check
+function checkAuth() {
+    if (authToken) {
+        document.getElementById('loginSection').classList.add('hidden');
+        document.getElementById('dashboardSection').classList.remove('hidden');
+        loadDashboardData();
+    } else {
+        document.getElementById('loginSection').classList.remove('hidden');
+        document.getElementById('dashboardSection').classList.add('hidden');
+    }
+}
 
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/login`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ email, password })
-                });
-
-                if (!response.ok) {
-                    throw new Error('Login failed');
-                }
-
-                const data = await response.json();
-                authToken = data.token;
-                localStorage.setItem('jyotiflow_admin_token', authToken);
-                showToast('Login successful', 'success');
-                checkAuth();
-            } catch (error) {
-                showToast('Login failed: ' + error.message, 'danger');
-            }
+// Real admin login
+document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+   
+    const email = document.getElementById('email').value;
+    const password = document.getElementById('password').value;
+   
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/admin/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
         });
-
-        // Logout button
-        document.getElementById('logoutBtn').addEventListener('click', function() {
-            localStorage.removeItem('jyotiflow_admin_token');
-            authToken = null;
+       
+        if (!response.ok) {
+            throw new Error(`Login failed: ${response.status}`);
+        }
+       
+        const data = await response.json();
+       
+        if (data.success) {
+            authToken = data.token;
+            localStorage.setItem('jyotiflow_admin_token', authToken);
+            showToast('Admin login successful! 🙏🏼', 'success');
             checkAuth();
-            showToast('Logged out successfully', 'success');
-        });
+        } else {
+            throw new Error(data.message || 'Invalid credentials');
+        }
+    } catch (error) {
+        showToast('Login failed: ' + error.message, 'danger');
+    }
+});
 
-        // Navigation
-        document.querySelectorAll('.nav-link[data-section]').forEach(link => {
-            link.addEventListener('click', function(e) {
-                e.preventDefault();
-                const targetSection = this.getAttribute('data-section');
-                
-                // Hide all sections
-                document.querySelectorAll('.dashboard-section').forEach(section => {
-                    section.classList.add('hidden');
-                });
-                
-                // Show target section
-                document.getElementById(targetSection).classList.remove('hidden');
-                
-                // Update active link
-                document.querySelectorAll('.nav-link').forEach(navLink => {
-                    navLink.classList.remove('active');
-                });
-                this.classList.add('active');
-                
-                // Load section data if needed
-                if (targetSection === 'users') loadUsers();
-                if (targetSection === 'products') loadProducts();
-                if (targetSection === 'subscriptions') loadSubscriptions();
-                if (targetSection === 'credits') loadCreditTransactions();
-                if (targetSection === 'analytics') loadAnalytics();
-            });
+// Real dashboard data loading
+async function loadDashboardData() {
+    try {
+        // Load real statistics
+        const statsResponse = await fetch(`${apiBaseUrl}/api/admin/stats`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
         });
-
-        // Load dashboard data
-        async function loadDashboardData() {
-            try {
-                // Load overview stats
-                const statsResponse = await fetch(`${apiBaseUrl}/api/admin/stats`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (statsResponse.ok) {
-                    const stats = await statsResponse.json();
-                    document.getElementById('totalUsers').textContent = stats.total_users || 0;
-                    document.getElementById('activeSubscriptions').textContent = stats.active_subscriptions || 0;
-                    document.getElementById('sessionsToday').textContent = stats.sessions_today || 0;
-                    document.getElementById('monthlyRevenue').textContent = `$${stats.monthly_revenue || 0}`;
-                }
-                
-                // Load recent users
-                const usersResponse = await fetch(`${apiBaseUrl}/api/admin/users?limit=5`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (usersResponse.ok) {
-                    const users = await usersResponse.json();
-                    const tbody = document.querySelector('#recentUsersTable tbody');
-                    tbody.innerHTML = '';
-                    
-                    users.forEach(user => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td>${user.first_name || ''} ${user.last_name || ''}</td>
-                            <td>${user.email}</td>
-                            <td>${user.credits}</td>
-                            <td>${new Date(user.created_at).toLocaleDateString()}</td>
-                        `;
-                        tbody.appendChild(row);
-                    });
-                }
-                
-                // Load recent sessions
-                // Similar code for sessions...
-                
-            } catch (error) {
-                showToast('Error loading dashboard data: ' + error.message, 'danger');
+       
+        if (statsResponse.ok) {
+            const stats = await statsResponse.json();
+            if (stats.success) {
+                document.getElementById('totalUsers').textContent = stats.total_users;
+                document.getElementById('activeSubscriptions').textContent = stats.active_subscriptions;
+                document.getElementById('sessionsToday').textContent = stats.sessions_today;
+                document.getElementById('monthlyRevenue').textContent = `$${stats.monthly_revenue}`;
             }
         }
+       
+        // Load real recent users
+        await loadRecentUsers();
+       
+        // Load real recent sessions
+        await loadRecentSessions();
+       
+    } catch (error) {
+        showToast('Error loading dashboard: ' + error.message, 'danger');
+    }
+}
 
-        // Load users
-        async function loadUsers() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error('Failed to fetch users');
-                
-                const users = await response.json();
-                const tbody = document.querySelector('#usersTable tbody');
-                tbody.innerHTML = '';
-                
-                users.forEach(user => {
+// Real recent users loader
+async function loadRecentUsers() {
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/admin/users?limit=5`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+       
+        if (response.ok) {
+            const data = await response.json();
+            const tbody = document.querySelector('#recentUsersTable tbody');
+            tbody.innerHTML = '';
+           
+            if (data.success && data.users.length > 0) {
+                data.users.forEach(user => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${user.first_name || ''} ${user.last_name || ''}</td>
+                        <td>${user.full_name || 'Unknown'}</td>
                         <td>${user.email}</td>
-                        <td>${user.credits}</td>
-                        <td>${user.birth_date ? `${user.birth_date} ${user.birth_time || ''} ${user.birth_location || ''}` : 'Not provided'}</td>
-                        <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
-                        <td>
-                            <button class="btn btn-sm btn-primary edit-user-btn" data-email="${user.email}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-info view-memory-btn" data-email="${user.email}">
-                                <i class="bi bi-brain"></i>
-                            </button>
-                        </td>
+                        <td><span class="badge bg-primary">${user.credits}</span></td>
+                        <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</td>
                     `;
                     tbody.appendChild(row);
                 });
-                
-                // Add event listeners for edit buttons
-                document.querySelectorAll('.edit-user-btn').forEach(btn => {
-                    btn.addEventListener('click', function() {
-                        const email = this.getAttribute('data-email');
-                        // Open edit user modal with data
-                        // ...
-                    });
-                });
-                
-                document.querySelectorAll('.view-memory-btn').forEach(btn => {
-                    btn.addEventListener('click', async function() {
-                        const email = this.getAttribute('data-email');
-                        try {
-                            const response = await fetch(`${apiBaseUrl}/api/admin/users/${email}/memory`, {
-                                headers: { 'Authorization': `Bearer ${authToken}` }
-                            });
-                            
-                            if (!response.ok) throw new Error('Failed to fetch memory data');
-                            
-                            const memory = await response.json();
-                            // Display memory data in a modal
-                            // ...
-                            
-                        } catch (error) {
-                            showToast('Error loading memory data: ' + error.message, 'danger');
-                        }
-                    });
-                });
-                
-            } catch (error) {
-                showToast('Error loading users: ' + error.message, 'danger');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No users found</td></tr>';
             }
         }
+    } catch (error) {
+        console.error('Error loading recent users:', error);
+    }
+}
 
-        // Load products
-        async function loadProducts() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/products`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error('Failed to fetch products');
-                
-                const products = await response.json();
-                const tbody = document.querySelector('#productsTable tbody');
-                tbody.innerHTML = '';
-                
-                products.forEach(product => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${product.sku_code}</td>
-                        <td>${product.name}</td>
-                        <td>${product.service_type}</td>
-                        <td><span class="badge ${product.status === 'active' ? 'bg-success' : 'bg-secondary'}">${product.status}</span></td>
-                        <td>${product.stripe_product_id || 'Not synced'}</td>
-                        <td>
-                            <button class="btn btn-sm btn-primary edit-product-btn" data-id="${product.id}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-product-btn" data-id="${product.id}">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-                // Also load subscription plans and credit packages
-                loadSubscriptionPlans();
-                loadCreditPackages();
-                
-            } catch (error) {
-                showToast('Error loading products: ' + error.message, 'danger');
-            }
-        }
-
-        // Load subscription plans
-        async function loadSubscriptionPlans() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/subscription-plans`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error('Failed to fetch subscription plans');
-                
-                const plans = await response.json();
-                const tbody = document.querySelector('#plansTable tbody');
-                tbody.innerHTML = '';
-                
-                plans.forEach(plan => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${plan.name}</td>
-                        <td>${plan.currency} ${plan.price}</td>
-                        <td>${plan.billing_interval}</td>
-                        <td>${plan.credits_granted}</td>
-                        <td>
-                            <button class="btn btn-sm btn-primary edit-plan-btn" data-id="${plan.id}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-plan-btn" data-id="${plan.id}">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-            } catch (error) {
-                showToast('Error loading subscription plans: ' + error.message, 'danger');
-            }
-        }
-
-        // Load credit packages
-        async function loadCreditPackages() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/credit-packages`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error('Failed to fetch credit packages');
-                
-                const packages = await response.json();
-                const tbody = document.querySelector('#packagesTable tbody');
-                tbody.innerHTML = '';
-                
-                packages.forEach(pkg => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${pkg.name}</td>
-                        <td>${pkg.credits_amount}</td>
-                        <td>${pkg.currency} ${pkg.price}</td>
-                        <td><span class="badge ${pkg.status === 'active' ? 'bg-success' : 'bg-secondary'}">${pkg.status}</span></td>
-                        <td>
-                            <button class="btn btn-sm btn-primary edit-package-btn" data-id="${pkg.id}">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-sm btn-danger delete-package-btn" data-id="${pkg.id}">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-            } catch (error) {
-                showToast('Error loading credit packages: ' + error.message, 'danger');
-            }
-        }
-
-        // Load subscriptions
-        async function loadSubscriptions() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/subscriptions`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error('Failed to fetch subscriptions');
-                
-                const subscriptions = await response.json();
-                const tbody = document.querySelector('#subscriptionsTable tbody');
-                tbody.innerHTML = '';
-                
-                subscriptions.forEach(sub => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${sub.user_email}</td>
-                        <td>${sub.plan_name}</td>
-                        <td><span class="badge ${sub.status === 'active' ? 'bg-success' : sub.status === 'past_due' ? 'bg-warning' : 'bg-secondary'}">${sub.status}</span></td>
-                        <td>${new Date(sub.current_period_start).toLocaleDateString()}</td>
-                        <td>${new Date(sub.current_period_end).toLocaleDateString()}</td>
-                        <td>
-                            <button class="btn btn-sm btn-info view-sub-btn" data-id="${sub.id}">
-                                <i class="bi bi-eye"></i>
-                            </button>
-                            ${sub.status === 'active' ? `
-                                <button class="btn btn-sm btn-warning cancel-sub-btn" data-id="${sub.id}">
-                                    <i class="bi bi-x-circle"></i>
-                                </button>
-                            ` : ''}
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-            } catch (error) {
-                showToast('Error loading subscriptions: ' + error.message, 'danger');
-            }
-        }
-
-        // Load credit transactions
-        async function loadCreditTransactions() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/credit-transactions`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error('Failed to fetch credit transactions');
-                
-                const transactions = await response.json();
-                const tbody = document.querySelector('#creditTransactionsTable tbody');
-                tbody.innerHTML = '';
-                
-                transactions.forEach(tx => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${tx.user_email}</td>
-                        <td>${tx.amount > 0 ? '+' : ''}${tx.amount}</td>
-                        <td>${tx.reason}</td>
-                        <td>${new Date(tx.timestamp).toLocaleString()}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-                
-                // Set up credit adjustment form
-                document.getElementById('adjustCreditsForm').addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    
-                    const userEmail = document.getElementById('creditUserEmail').value;
-                    const amount = parseInt(document.getElementById('creditAmount').value);
-                    const reason = document.getElementById('creditReason').value;
-                    
-                    try {
-                        const response = await fetch(`${apiBaseUrl}/api/admin/credits/adjust`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Authorization': `Bearer ${authToken}`
-                            },
-                            body: JSON.stringify({ user_email: userEmail, credits: amount, reason })
-                        });
-                        
-                        if (!response.ok) throw new Error('Failed to adjust credits');
-                        
-                        const result = await response.json();
-                        showToast(`Credits adjusted successfully. New balance: ${result.new_balance}`, 'success');
-                        
-                        // Reset form and reload data
-                        this.reset();
-                        loadCreditTransactions();
-                        
-                    } catch (error) {
-                        showToast('Error adjusting credits: ' + error.message, 'danger');
-                    }
-                });
-                
-            } catch (error) {
-                showToast('Error loading credit transactions: ' + error.message, 'danger');
-            }
-        }
-
-        // Load analytics
-        async function loadAnalytics() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/analytics`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error('Failed to fetch analytics data');
-                
-                const data = await response.json();
-                
-                // User growth chart
-                const userCtx = document.getElementById('userGrowthChart').getContext('2d');
-                new Chart(userCtx, {
-                    type: 'line',
-                    data: {
-                        labels: data.user_growth.labels,
-                        datasets: [{
-                            label: 'New Users',
-                            data: data.user_growth.data,
-                            borderColor: '#7b2cbf',
-                            backgroundColor: 'rgba(123, 44, 191, 0.1)',
-                            tension: 0.3,
-                            fill: true
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                            },
-                            title: {
-                                display: true,
-                                text: 'User Growth Over Time'
-                            }
-                        }
-                    }
-                });
-                
-                // Revenue chart
-                const revenueCtx = document.getElementById('revenueChart').getContext('2d');
-                new Chart(revenueCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: data.revenue.labels,
-                        datasets: [{
-                            label: 'Revenue (USD)',
-                            data: data.revenue.data,
-                            backgroundColor: '#9d4edd'
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                            },
-                            title: {
-                                display: true,
-                                text: 'Monthly Revenue'
-                            }
-                        }
-                    }
-                });
-                
-                // SKU distribution chart
-                const skuCtx = document.getElementById('skuDistributionChart').getContext('2d');
-                new Chart(skuCtx, {
-                    type: 'pie',
-                    data: {
-                        labels: data.sku_distribution.labels,
-                        datasets: [{
-                            data: data.sku_distribution.data,
-                            backgroundColor: [
-                                '#7b2cbf',
-                                '#9d4edd',
-                                '#c77dff',
-                                '#e0aaff'
-                            ]
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                            },
-                            title: {
-                                display: true,
-                                text: 'Sessions by SKU'
-                            }
-                        }
-                    }
-                });
-                
-                // Channel distribution chart
-                const channelCtx = document.getElementById('channelDistributionChart').getContext('2d');
-                new Chart(channelCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: data.channel_distribution.labels,
-                        datasets: [{
-                            data: data.channel_distribution.data,
-                            backgroundColor: [
-                                '#7b2cbf',
-                                '#9d4edd',
-                                '#c77dff',
-                                '#e0aaff',
-                                '#5a189a'
-                            ]
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: 'right',
-                            },
-                            title: {
-                                display: true,
-                                text: 'Interactions by Channel'
-                            }
-                        }
-                    }
-                });
-                
-            } catch (error) {
-                showToast('Error loading analytics: ' + error.message, 'danger');
-            }
-        }
-
-        // Add product form handler
-        document.getElementById('saveProductBtn').addEventListener('click', async function() {
-            const skuCode = document.getElementById('productSkuCode').value;
-            const name = document.getElementById('productName').value;
-            const description = document.getElementById('productDescription').value;
-            const serviceType = document.getElementById('productType').value;
-            const status = document.getElementById('productStatus').value;
-            const imageUrl = document.getElementById('productImageUrl').value;
-            
-            if (!skuCode || !name || !serviceType) {
-                showToast('Please fill all required fields', 'warning');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/products`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        sku_code: skuCode,
-                        name: name,
-                        description: description,
-                        service_type: serviceType,
-                        status: status,
-                        default_image_url: imageUrl,
-                        features: []
-                    })
-                });
-                
-                if (!response.ok) throw new Error('Failed to create product');
-                
-                const result = await response.json();
-                showToast(`Product ${result.name} created successfully`, 'success');
-                
-                // Close modal and reset form
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addProductModal'));
-                modal.hide();
-                document.getElementById('addProductForm').reset();
-                
-                // Reload products
-                loadProducts();
-                
-            } catch (error) {
-                showToast('Error creating product: ' + error.message, 'danger');
-            }
+// Real recent sessions loader
+async function loadRecentSessions() {
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/admin/sessions?limit=5`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
         });
-
-        // Add user form handler
-        document.getElementById('saveNewUserBtn').addEventListener('click', async function() {
-            const email = document.getElementById('newUserEmail').value;
-            const password = document.getElementById('newUserPassword').value;
-            const firstName = document.getElementById('newUserFirstName').value;
-            const lastName = document.getElementById('newUserLastName').value;
-            const credits = parseInt(document.getElementById('newUserCredits').value) || 0;
-            
-            if (!email || !password || !firstName) {
-                showToast('Please fill all required fields', 'warning');
-                return;
-            }
-            
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`
-                    },
-                    body: JSON.stringify({
-                        email: email,
-                        password: password,
-                        first_name: firstName,
-                        last_name: lastName,
-                        credits: credits
-                    })
+       
+        if (response.ok) {
+            const data = await response.json();
+            const tbody = document.querySelector('#recentSessionsTable tbody');
+            tbody.innerHTML = '';
+           
+            if (data.success && data.sessions.length > 0) {
+                data.sessions.forEach(session => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${session.user_name}</td>
+                        <td><span class="badge bg-info">${session.service_name}</span></td>
+                        <td>Web</td>
+                        <td>${session.session_time_friendly || 'Unknown'}</td>
+                    `;
+                    tbody.appendChild(row);
                 });
-                
-                if (!response.ok) throw new Error('Failed to create user');
-                
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No sessions found</td></tr>';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading recent sessions:', error);
+    }
+}
+
+// Real full users list loader
+async function loadUsers() {
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+       
+        if (!response.ok) {
+            throw new Error(`Failed to load users: ${response.status}`);
+        }
+       
+        const data = await response.json();
+        const tbody = document.querySelector('#usersTable tbody');
+        tbody.innerHTML = '';
+       
+        if (data.success && data.users.length > 0) {
+            data.users.forEach(user => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${user.full_name}</td>
+                    <td>${user.email}</td>
+                    <td><span class="badge bg-success">${user.credits}</span></td>
+                    <td>${user.birth_details}</td>
+                    <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="showUserDetails('${user.email}')">
+                            <i class="bi bi-eye"></i>
+                        </button>
+                        <span class="badge bg-info">${user.session_count} sessions</span>
+                        <button class="btn btn-sm btn-warning" onclick="adjustCredits('${user.email}', '${user.full_name}')">
+                            <i class="bi bi-coin"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No users found</td></tr>';
+        }
+    } catch (error) {
+        showToast('Error loading users: ' + error.message, 'danger');
+    }
+}
+
+// Real full sessions list loader
+async function loadSessions() {
+    try {
+        const response = await fetch(`${apiBaseUrl}/api/admin/sessions`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+       
+        if (!response.ok) {
+            throw new Error(`Failed to load sessions: ${response.status}`);
+        }
+       
+        const data = await response.json();
+        const tbody = document.querySelector('#sessionsTable tbody');
+        tbody.innerHTML = '';
+       
+        if (data.success && data.sessions.length > 0) {
+            data.sessions.forEach(session => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${session.user_name}</td>
+                    <td><span class="badge bg-info">${session.service_name}</span></td>
+                    <td><span class="badge bg-success">$${session.service_price}</span></td>
+                    <td>${session.credits_used}</td>
+                    <td>${session.session_time_friendly}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="viewSessionDetails(${session.id})">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+           
+            // Update summary
+            if (data.summary) {
+                document.getElementById('totalRevenue').textContent = `$${data.summary.total_revenue}`;
+                document.getElementById('totalCreditsUsed').textContent = data.summary.total_credits_used;
+            }
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No sessions found</td></tr>';
+        }
+    } catch (error) {
+        showToast('Error loading sessions: ' + error.message, 'danger');
+    }
+}
+
+// Real credit adjustment
+async function adjustCredits(userEmail, userName) {
+    const credits = prompt(`Adjust credits for ${userName}:\n\nEnter positive number to add credits\nEnter negative number to remove credits`);
+    const reason = prompt('Reason for adjustment:');
+   
+    if (credits && reason) {
+        try {
+            const response = await fetch(`${apiBaseUrl}/api/admin/credits/adjust`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify({
+                    user_email: userEmail,
+                    credits: parseInt(credits),
+                    reason: reason
+                })
+            });
+           
+            if (response.ok) {
                 const result = await response.json();
-                showToast(`User ${result.email} created successfully`, 'success');
-                
-                // Close modal and reset form
-                const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
-                modal.hide();
-                document.getElementById('addUserForm').reset();
-                
-                // Reload users
+                if (result.success) {
+                    showToast(`Credits adjusted! ${userName} now has ${result.new_balance} credits`, 'success');
+                    loadUsers(); // Refresh the table
+                } else {
+                    throw new Error(result.message || 'Failed to adjust credits');
+                }
+            } else {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        } catch (error) {
+            showToast('Error adjusting credits: ' + error.message, 'danger');
+        }
+    }
+}
+
+// Navigation handling
+document.querySelectorAll('.nav-link[data-section]').forEach(link => {
+    link.addEventListener('click', function(e) {
+        e.preventDefault();
+        const targetSection = this.getAttribute('data-section');
+       
+        // Hide all sections
+        document.querySelectorAll('.dashboard-section').forEach(section => {
+            section.classList.add('hidden');
+        });
+       
+        // Show target section
+        document.getElementById(targetSection).classList.remove('hidden');
+       
+        // Update active link
+        document.querySelectorAll('.nav-link').forEach(navLink => {
+            navLink.classList.remove('active');
+        });
+        this.classList.add('active');
+       
+        // Load section data
+        switch(targetSection) {
+            case 'users':
                 loadUsers();
-                
-            } catch (error) {
-                showToast('Error creating user: ' + error.message, 'danger');
-            }
-        });
-
-        // Toast notification function
-        function showToast(message, type = 'info') {
-            const toastContainer = document.getElementById('toast-container');
-            const toastId = 'toast-' + Date.now();
-            
-            const toast = document.createElement('div');
-            toast.className = `toast align-items-center text-white bg-${type} border-0`;
-            toast.setAttribute('role', 'alert');
-            toast.setAttribute('aria-live', 'assertive');
-            toast.setAttribute('aria-atomic', 'true');
-            toast.setAttribute('id', toastId);
-            
-            toast.innerHTML = `
-                <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-                </div>
-            `;
-            
-            toastContainer.appendChild(toast);
-            
-            const bsToast = new bootstrap.Toast(toast, {
-                autohide: true,
-                delay: 5000
-            });
-            
-            bsToast.show();
-            
-            // Remove from DOM after hidden
-            toast.addEventListener('hidden.bs.toast', function() {
-                toast.remove();
-            });
+                break;
+            case 'sessions':
+                loadSessions();
+                break;
+            case 'overview':
+                loadDashboardData();
+                break;
         }
+    });
+});
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            checkAuth();
+// Real toast notifications
+function showToast(message, type = 'info') {
+    const toastContainer = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+   
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+   
+    toastContainer.appendChild(toast);
+   
+    const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 5000 });
+    bsToast.show();
+   
+    toast.addEventListener('hidden.bs.toast', function() {
+        toast.remove();
+    });
+}
+
+// Logout
+document.getElementById('logoutBtn').addEventListener('click', function() {
+    localStorage.removeItem('jyotiflow_admin_token');
+    authToken = null;
+    checkAuth();
+    showToast('Logged out successfully', 'success');
+});
+
+// Initialize
+document.addEventListener('DOMContentLoaded', checkAuth);
+
+// === USER DASHBOARD JAVASCRIPT ===
+// Add this to your user dashboard HTML
+
+// Real user dashboard functions
+async function loadUserDashboard() {
+    const token = localStorage.getItem('jyoti_token');
+    if (!token) {
+        window.location.href = '/login';
+        return;
+    }
+   
+    try {
+        // Load real user profile
+        const profileResponse = await fetch('/api/user/profile', {
+            headers: { 'Authorization': `Bearer ${token}` }
         });
+       
+        if (profileResponse.ok) {
+            const data = await profileResponse.json();
+            if (data.success) {
+                // Update welcome message
+                document.getElementById('welcomeMessage').textContent =
+                    `🙏🏼 Welcome back, ${data.user.first_name}`;
+               
+                // Update stats
+                document.getElementById('userCredits').textContent = data.user.credits;
+                document.getElementById('totalSessions').textContent = data.stats.total_sessions;
+                document.getElementById('lastSession').textContent = data.stats.last_session || 'Never';
+               
+                // Update insights
+                if (data.stats.favorite_service) {
+                    const insightElement = document.getElementById('favoriteService');
+                    if (insightElement) {
+                        insightElement.textContent = data.stats.favorite_service;
+                    }
+                }
+            }
+        }
+       
+        // Load real session history
+        await loadRealSessionHistory(token);
+       
+    } catch (error) {
+        console.error('Error loading user dashboard:', error);
+        showUserToast('Error loading dashboard data', 'danger');
+    }
+}
+
+// Real session history loader
+async function loadRealSessionHistory(token) {
+    try {
+        const response = await fetch('/api/session/history', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+       
+        if (response.ok) {
+            const data = await response.json();
+            const tbody = document.getElementById('historyTableBody');
+            tbody.innerHTML = '';
+           
+            if (data.success && data.sessions.length > 0) {
+                data.sessions.slice(0, 10).forEach(session => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td>${session.date_friendly}</td>
+                        <td><span class="badge bg-info">${session.service_name}</span></td>
+                        <td>${session.credits_used}</td>
+                        <td><span class="badge bg-success">${session.status}</span></td>
+                    `;
+                   
+                    // Add click handler to view full guidance
+                    row.style.cursor = 'pointer';
+                    row.addEventListener('click', () => {
+                        showSessionDetails(session);
+                    });
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center">No sessions yet. Start your spiritual journey!</td></tr>';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading session history:', error);
+    }
+}
+
+// Show session details modal
+function showSessionDetails(session) {
+    const modal = document.createElement('div');
+    modal.className = 'modal fade';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">${session.service_name} - ${session.date_friendly}</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <h6>Your Question:</h6>
+                    <p class="text-muted">${session.question || 'General guidance requested'}</p>
+                    <h6>Spiritual Guidance:</h6>
+                    <div class="border p-3 rounded" style="background-color: #f8f9fa;">
+                        ${session.full_guidance || session.guidance_preview}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    `;
+   
+    document.body.appendChild(modal);
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+   
+    modal.addEventListener('hidden.bs.modal', () => {
+        modal.remove();
+    });
+}
+
+// Real credit refresh
+async function refreshCredits() {
+    const token = localStorage.getItem('jyoti_token');
+    if (!token) return;
+   
+    try {
+        const response = await fetch('/api/credits/balance', {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+       
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('userCredits').textContent = data.current_credits;
+                return data.current_credits;
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing credits:', error);
+    }
+    return null;
+}
+
+// User toast notifications
+function showUserToast(message, type = 'info') {
+    // Create toast container if it doesn't exist
+    let container = document.getElementById('user-toast-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'user-toast-container';
+        container.style.position = 'fixed';
+        container.style.top = '20px';
+        container.style.right = '20px';
+        container.style.zIndex = '9999';
+        document.body.appendChild(container);
+    }
+   
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} alert-dismissible fade show`;
+    toast.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+   
+    container.appendChild(toast);
+   
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
+}
+
+// User logout
+function logout() {
+    localStorage.removeItem('jyoti_token');
+    window.location.href = '/';
+}
+
+// Initialize user dashboard
+if (window.location.pathname === '/dashboard') {
+    document.addEventListener('DOMContentLoaded', loadUserDashboard);
+}
     </script>
 </body>
 </html>
@@ -5030,48 +4874,434 @@ async def admin_login(login_data: AdminLogin):
 
 
 # User API endpoints for dashboard
-@app.get("/api/user/profile")
-async def get_user_profile(current_user: Dict = Depends(get_current_user)):
-    """தமிழ் - Get user profile and stats"""
+
+async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
+    """தமிழ் - Real user profile with actual statistics"""
     conn = None
     try:
+        user_email = current_user['email']
         conn = await get_db_connection()
         
-        # Get user info
-        user = await conn.fetchrow(
-            "SELECT first_name, last_name, email, credits, created_at FROM users WHERE email = $1",
-            current_user['email']
-        )
+        # Get complete user profile
+        user = await conn.fetchrow("""
+            SELECT email, first_name, last_name, credits, birth_date, birth_time, 
+                   birth_location, last_login, created_at, updated_at, stripe_customer_id
+            FROM users WHERE email = $1
+        """, user_email)
         
-        # Get user stats
-        total_sessions = await conn.fetchval(
-            "SELECT COUNT(*) FROM sessions WHERE user_email = $1",
-            current_user['email']
-        )
+        if not user:
+            raise HTTPException(404, "User not found")
         
-        last_session = await conn.fetchval(
-            "SELECT MAX(session_time) FROM sessions WHERE user_email = $1",
-            current_user['email']
-        )
+        # Get real user statistics
+        stats = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total_sessions,
+                COALESCE(SUM(credits_used), 0) as total_credits_spent,
+                MAX(session_time) as last_session_time,
+                COUNT(CASE WHEN DATE(session_time) = CURRENT_DATE THEN 1 END) as sessions_today,
+                COUNT(CASE WHEN session_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as sessions_this_week,
+                COUNT(CASE WHEN session_time >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as sessions_this_month
+            FROM sessions WHERE user_email = $1
+        """, user_email)
+        
+        # Get favorite service type
+        favorite_service = await conn.fetchrow("""
+            SELECT session_type, COUNT(*) as count
+            FROM sessions WHERE user_email = $1
+            GROUP BY session_type
+            ORDER BY count DESC
+            LIMIT 1
+        """, user_email)
+        
+        # Calculate member tenure
+        member_since = user['created_at']
+        days_as_member = (datetime.now() - member_since).days if member_since else 0
+        
+        # Build birth profile
+        birth_profile = None
+        if user['birth_date']:
+            birth_profile = {
+                "date": user['birth_date'],
+                "time": user['birth_time'],
+                "location": user['birth_location'],
+                "complete": bool(user['birth_date'] and user['birth_time'] and user['birth_location'])
+            }
         
         return {
             "success": True,
             "user": {
+                "email": user['email'],
                 "first_name": user['first_name'],
                 "last_name": user['last_name'],
-                "email": user['email'],
+                "full_name": f"{user['first_name'] or ''} {user['last_name'] or ''}".strip(),
                 "credits": user['credits'],
-                "member_since": user['created_at'].strftime("%B %Y") if user['created_at'] else "Unknown"
+                "birth_profile": birth_profile,
+                "member_since": member_since.strftime("%B %Y") if member_since else "Unknown",
+                "days_as_member": days_as_member,
+                "last_login": user['last_login'].isoformat() if user['last_login'] else None,
+                "has_stripe": bool(user['stripe_customer_id'])
             },
             "stats": {
-                "total_sessions": total_sessions,
-                "last_session": last_session.strftime("%B %d, %Y") if last_session else None
+                "total_sessions": stats['total_sessions'] or 0,
+                "total_credits_spent": stats['total_credits_spent'] or 0,
+                "sessions_today": stats['sessions_today'] or 0,
+                "sessions_this_week": stats['sessions_this_week'] or 0,
+                "sessions_this_month": stats['sessions_this_month'] or 0,
+                "last_session": stats['last_session_time'].strftime("%B %d, %Y") if stats['last_session_time'] else None,
+                "favorite_service": SKUS.get(favorite_service['session_type'], {}).get('name') if favorite_service else None,
+                "credits_per_session": round(stats['total_credits_spent'] / max(stats['total_sessions'], 1), 1)
+            },
+            "insights": {
+                "engagement_level": "High" if stats['sessions_this_month'] >= 5 else "Medium" if stats['sessions_this_month'] >= 2 else "New",
+                "spiritual_journey_stage": "Advanced Seeker" if stats['total_sessions'] >= 10 else "Growing Seeker" if stats['total_sessions'] >= 3 else "New Seeker"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"User profile error: {e}")
+        raise HTTPException(500, "Failed to load user profile")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/session/history")
+async def get_real_session_history(current_user: Dict = Depends(get_current_user)):
+    """তমিল - Real session history with complete data"""
+    conn = None
+    try:
+        user_email = current_user['email']
+        conn = await get_db_connection()
+        
+        # Get complete session history
+        sessions = await conn.fetch("""
+            SELECT id, session_type, credits_used, result_summary, session_time, 
+                   status, question, birth_chart_data
+            FROM sessions 
+            WHERE user_email = $1 
+            ORDER BY session_time DESC
+            LIMIT 50
+        """, user_email)
+        
+        result = []
+        for session in sessions:
+            sku_config = SKUS.get(session["session_type"], {})
+            
+            # Create guidance preview
+            guidance_preview = ""
+            if session['result_summary']:
+                guidance_preview = (session['result_summary'][:200] + "...") if len(session['result_summary']) > 200 else session['result_summary']
+            
+            result.append({
+                "id": session['id'],
+                "service_type": session['session_type'],
+                "service_name": sku_config.get('name', session['session_type']),
+                "service_price": sku_config.get('price', 0),
+                "credits_used": session['credits_used'],
+                "question": session['question'] or '',
+                "guidance_preview": guidance_preview,
+                "full_guidance": session['result_summary'],
+                "session_time": session['session_time'].isoformat() if session['session_time'] else None,
+                "date_friendly": session['session_time'].strftime("%B %d, %Y") if session['session_time'] else "Unknown",
+                "time_friendly": session['session_time'].strftime("%I:%M %p") if session['session_time'] else "Unknown",
+                "status": session['status'],
+                "had_birth_chart": bool(session['birth_chart_data']),
+                "days_ago": (datetime.now() - session['session_time']).days if session['session_time'] else None
+            })
+        
+        # Group sessions by month for better organization
+        monthly_groups = {}
+        for session in result:
+            if session['session_time']:
+                month_key = datetime.fromisoformat(session['session_time']).strftime("%Y-%m")
+                month_name = datetime.fromisoformat(session['session_time']).strftime("%B %Y")
+                if month_key not in monthly_groups:
+                    monthly_groups[month_key] = {
+                        "month_name": month_name,
+                        "sessions": [],
+                        "total_credits": 0,
+                        "total_sessions": 0
+                    }
+                monthly_groups[month_key]["sessions"].append(session)
+                monthly_groups[month_key]["total_credits"] += session['credits_used']
+                monthly_groups[month_key]["total_sessions"] += 1
+        
+        return {
+            "success": True,
+            "sessions": result,
+            "total_sessions": len(result),
+            "monthly_groups": dict(sorted(monthly_groups.items(), reverse=True)),
+            "summary": {
+                "total_credits_spent": sum(s['credits_used'] for s in result),
+                "most_recent": result[0]["date_friendly"] if result else None,
+                "favorite_service": max(set(s['service_name'] for s in result), key=lambda x: sum(1 for s in result if s['service_name'] == x)) if result else None
             }
         }
         
     except Exception as e:
-        logger.error(f"User profile error: {e}")
-        raise HTTPException(status_code=500, detail="Failed to load profile")
+        logger.error(f"Session history error: {e}")
+        raise HTTPException(500, "Failed to load session history")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/credits/balance")
+async def get_real_credit_balance(current_user: Dict = Depends(get_current_user)):
+    """তমিল - Real credit balance with transaction history"""
+    conn = None
+    try:
+        user_email = current_user['email']
+        conn = await get_db_connection()
+        
+        # Get current balance
+        user = await conn.fetchrow("SELECT credits, first_name FROM users WHERE email = $1", user_email)
+        if not user:
+            raise HTTPException(404, "User not found")
+        
+        # Get credit usage breakdown
+        credit_breakdown = await conn.fetch("""
+            SELECT session_type, COUNT(*) as session_count, SUM(credits_used) as credits_spent
+            FROM sessions 
+            WHERE user_email = $1 AND status = 'completed'
+            GROUP BY session_type
+            ORDER BY credits_spent DESC
+        """, user_email)
+        
+        # Get recent transactions from admin logs
+        recent_transactions = await conn.fetch("""
+            SELECT action, details, timestamp
+            FROM admin_logs
+            WHERE target_user = $1 AND action IN ('credit_adjustment', 'credit_purchase', 'welcome_credits')
+            ORDER BY timestamp DESC
+            LIMIT 10
+        """, user_email)
+        
+        breakdown_result = []
+        for breakdown in credit_breakdown:
+            sku_config = SKUS.get(breakdown['session_type'], {})
+            breakdown_result.append({
+                "service_name": sku_config.get('name', breakdown['session_type']),
+                "service_type": breakdown['session_type'],
+                "session_count": breakdown['session_count'],
+                "credits_spent": breakdown['credits_spent'],
+                "average_per_session": round(breakdown['credits_spent'] / breakdown['session_count'], 1)
+            })
+        
+        transaction_result = []
+        for trans in recent_transactions:
+            transaction_result.append({
+                "type": trans['action'],
+                "description": trans['details'],
+                "date": trans['timestamp'].strftime("%B %d, %Y") if trans['timestamp'] else "Unknown",
+                "time": trans['timestamp'].strftime("%I:%M %p") if trans['timestamp'] else "Unknown"
+            })
+        
+        return {
+            "success": True,
+            "current_credits": user['credits'],
+            "user_name": user['first_name'],
+            "credit_breakdown": breakdown_result,
+            "recent_transactions": transaction_result,
+            "total_spent": sum(b['credits_spent'] for b in breakdown_result),
+            "total_sessions": sum(b['session_count'] for b in breakdown_result),
+            "recommendations": {
+                "suggested_package": "Popular Pack (12 credits)" if user['credits'] < 3 else None,
+                "next_purchase_discount": 10 if sum(b['credits_spent'] for b in breakdown_result) >= 20 else None
+            },
+            "message": f"🙏🏼 {user['first_name']}, you have {user['credits']} sacred credits for spiritual guidance"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Credit balance error: {e}")
+        raise HTTPException(500, "Failed to load credit balance")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.put("/api/user/profile")
+async def update_real_user_profile(request_data: dict, current_user: Dict = Depends(get_current_user)):
+    """তমিল - Update real user profile"""
+    conn = None
+    try:
+        user_email = current_user['email']
+        conn = await get_db_connection()
+        
+        # Get updatable fields
+        first_name = request_data.get('first_name')
+        last_name = request_data.get('last_name')
+        birth_date = request_data.get('birth_date')
+        birth_time = request_data.get('birth_time')
+        birth_location = request_data.get('birth_location')
+        
+        # Build update query dynamically
+        update_fields = []
+        values = []
+        param_count = 1
+        
+        if first_name is not None:
+            update_fields.append(f"first_name = ${param_count}")
+            values.append(first_name)
+            param_count += 1
+            
+        if last_name is not None:
+            update_fields.append(f"last_name = ${param_count}")
+            values.append(last_name)
+            param_count += 1
+            
+        if birth_date is not None:
+            update_fields.append(f"birth_date = ${param_count}")
+            values.append(birth_date)
+            param_count += 1
+            
+        if birth_time is not None:
+            update_fields.append(f"birth_time = ${param_count}")
+            values.append(birth_time)
+            param_count += 1
+            
+        if birth_location is not None:
+            update_fields.append(f"birth_location = ${param_count}")
+            values.append(birth_location)
+            param_count += 1
+        
+        if not update_fields:
+            raise HTTPException(400, "No valid fields to update")
+        
+        # Add updated_at and email
+        update_fields.append("updated_at = NOW()")
+        values.append(user_email)
+        
+        query = f"UPDATE users SET {', '.join(update_fields)} WHERE email = ${param_count}"
+        
+        await conn.execute(query, *values)
+        
+        # Log the update
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, NOW())
+        """, "user_self", "profile_updated", user_email, 
+            f"Updated profile: {', '.join(k for k in request_data.keys())}")
+        
+        return {
+            "success": True,
+            "message": "Profile updated successfully",
+            "updated_fields": list(request_data.keys())
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Profile update error: {e}")
+        raise HTTPException(500, "Failed to update profile")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/user/insights")
+async def get_real_user_insights(current_user: Dict = Depends(get_current_user)):
+    """তমিল - Real spiritual insights and recommendations"""
+    conn = None
+    try:
+        user_email = current_user['email']
+        conn = await get_db_connection()
+        
+        # Get user activity patterns
+        patterns = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total_sessions,
+                AVG(EXTRACT(HOUR FROM session_time)) as avg_session_hour,
+                COUNT(CASE WHEN EXTRACT(DOW FROM session_time) IN (0, 6) THEN 1 END) as weekend_sessions,
+                COUNT(CASE WHEN session_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as recent_sessions,
+                COUNT(DISTINCT session_type) as service_variety
+            FROM sessions WHERE user_email = $1
+        """, user_email)
+        
+        # Get spiritual journey progression
+        journey_data = await conn.fetch("""
+            SELECT session_type, session_time, question
+            FROM sessions 
+            WHERE user_email = $1 
+            ORDER BY session_time DESC
+            LIMIT 10
+        """, user_email)
+        
+        # Generate insights based on data
+        insights = []
+        
+        if patterns['total_sessions'] >= 5:
+            insights.append({
+                "type": "journey_progress",
+                "title": "Spiritual Growth Detected",
+                "message": f"Your {patterns['total_sessions']} sessions show consistent spiritual seeking. You're evolving beautifully!",
+                "icon": "🌱"
+            })
+        
+        if patterns['avg_session_hour'] and 6 <= patterns['avg_session_hour'] <= 10:
+            insights.append({
+                "type": "timing_wisdom",
+                "title": "Morning Seeker",
+                "message": "You prefer morning guidance sessions - excellent for spiritual clarity and fresh energy!",
+                "icon": "🌅"
+            })
+        
+        if patterns['service_variety'] >= 3:
+            insights.append({
+                "type": "exploration",
+                "title": "Spiritual Explorer",
+                "message": f"You've explored {patterns['service_variety']} different types of guidance. Your curiosity fuels growth!",
+                "icon": "🔍"
+            })
+        
+        if patterns['recent_sessions'] >= 2:
+            insights.append({
+                "type": "consistency",
+                "title": "Consistent Practice",
+                "message": "Your regular session practice shows dedication to spiritual development. Keep flowing!",
+                "icon": "🔥"
+            })
+        
+        # Recommendations based on patterns
+        recommendations = []
+        
+        if patterns['total_sessions'] >= 3 and patterns['recent_sessions'] == 0:
+            recommendations.append({
+                "type": "re_engagement",
+                "title": "Reconnect with Your Practice",
+                "message": "It's been a while since your last session. Consider a Clarity Plus session to reconnect.",
+                "action": "Book Clarity Session",
+                "icon": "🙏🏼"
+            })
+        
+        if patterns['service_variety'] == 1:
+            recommendations.append({
+                "type": "exploration",
+                "title": "Expand Your Spiritual Horizons",
+                "message": "Try our AstroLove service for relationship insights or Premium for comprehensive guidance.",
+                "action": "Explore Services",
+                "icon": "✨"
+            })
+        
+        return {
+            "success": True,
+            "insights": insights,
+            "recommendations": recommendations,
+            "spiritual_stats": {
+                "total_sessions": patterns['total_sessions'],
+                "preferred_time": "Morning" if patterns['avg_session_hour'] and patterns['avg_session_hour'] < 12 else "Afternoon/Evening",
+                "session_consistency": "High" if patterns['recent_sessions'] >= 2 else "Medium" if patterns['recent_sessions'] == 1 else "Low",
+                "spiritual_diversity": patterns['service_variety']
+            },
+            "next_steps": {
+                "suggested_service": "premium" if patterns['total_sessions'] >= 5 else "love" if patterns['total_sessions'] >= 2 else "clarity",
+                "optimal_timing": "morning" if patterns['avg_session_hour'] and patterns['avg_session_hour'] < 12 else "evening"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"User insights error: {e}")
+        raise HTTPException(500, "Failed to generate insights")
     finally:
         if conn:
             await release_db_connection(conn)
@@ -5396,7 +5626,7 @@ async def generate_swami_guidance_with_memory(user_email: str, sku_code: str, qu
         """
         
         # Call OpenAI API
-        response = await openai.ChatCompletion.acreate(
+        response = await openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -7186,6 +7416,331 @@ async def real_ai_session_start(request: Request, current_user: Dict = Depends(g
             except:
                 pass
         raise HTTPException(500, "AI session failed - credits refunded")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+
+    # 🙏🏼 Dashboard Data Initialization - Add to your app.py
+# தமিழ் - Create real sample data for dashboard testing
+
+async def initialize_dashboard_data():
+    """তমিল - Initialize real sample data for dashboard functionality testing"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Create admin user if not exists
+        admin_exists = await conn.fetchval("SELECT 1 FROM users WHERE email = $1", ADMIN_EMAIL)
+        if not admin_exists:
+            admin_hash = hash_password(ADMIN_PASSWORD)
+            await conn.execute("""
+                INSERT INTO users (email, password_hash, first_name, last_name, credits, created_at, updated_at)
+                VALUES ($1, $2, 'Admin', 'Swami', 1000, NOW(), NOW())
+            """, ADMIN_EMAIL, admin_hash)
+            logger.info("🙏🏼 Admin user created for dashboard testing")
+        
+        # Create realistic test users with spiritual profiles
+        test_users = [
+            {
+                "email": "arjuna@spiritual.com",
+                "password": "Divine123!",
+                "first_name": "Arjuna",
+                "last_name": "Seeker",
+                "credits": 12,
+                "birth_date": "1990-03-15",
+                "birth_time": "14:30",
+                "birth_location": "Chennai, Tamil Nadu, India"
+            },
+            {
+                "email": "priya@wisdom.com",
+                "password": "Wisdom123!",
+                "first_name": "Priya",
+                "last_name": "Devi",
+                "credits": 8,
+                "birth_date": "1985-07-22",
+                "birth_time": "06:45",
+                "birth_location": "Mumbai, Maharashtra, India"
+            },
+            {
+                "email": "raj@mystic.com",
+                "password": "Mystic123!",
+                "first_name": "Raj",
+                "last_name": "Kumar",
+                "credits": 5,
+                "birth_date": "1995-11-08",
+                "birth_time": "20:15",
+                "birth_location": "Bangalore, Karnataka, India"
+            },
+            {
+                "email": "maya@cosmic.com",
+                "password": "Cosmic123!",
+                "first_name": "Maya",
+                "last_name": "Sharma",
+                "credits": 15,
+                "birth_date": "1988-01-30",
+                "birth_time": "12:00",
+                "birth_location": "Delhi, India"
+            },
+            {
+                "email": "kiran@divine.com",
+                "password": "Divine123!",
+                "first_name": "Kiran",
+                "last_name": "Patel",
+                "credits": 3,
+                "birth_date": "1992-09-12",
+                "birth_time": "18:30",
+                "birth_location": "Pune, Maharashtra, India"
+            }
+        ]
+        
+        # Sample spiritual questions for realistic sessions
+        spiritual_questions = [
+            "How can I find inner peace during challenging times?",
+            "What is my life purpose and dharmic path?",
+            "When will I meet my soulmate?",
+            "How can I improve my relationship with my family?",
+            "What career path aligns with my spiritual growth?",
+            "How can I overcome anxiety and fear?",
+            "What does my birth chart say about my future?",
+            "How can I develop my intuitive abilities?",
+            "What spiritual practices are best for me?",
+            "How can I heal from past emotional wounds?"
+        ]
+        
+        # Realistic spiritual guidance responses
+        sample_guidance = {
+            'clarity': [
+                """🙏🏼 Beloved soul, your question about finding inner peace resonates deeply with the cosmic vibrations.
+
+In our Tamil tradition, we say "அமைதி உள்ளத்தில் இருக்கும்" - Peace resides within the heart. The challenges you face are opportunities for spiritual growth.
+
+I recommend these daily practices:
+- 10 minutes morning meditation focusing on breath
+- Chant "Om Shanti Shanti Shanti" before sleep
+- Practice gratitude for three things each day
+
+Remember, dear child, peace is not the absence of storms, but finding calm within them.
+
+May divine tranquility fill your being. 🕉️""",
+                
+                """🙏🏼 Divine seeker, your quest for clarity shows beautiful spiritual maturity.
+
+The cosmic energies reveal you are entering a period of profound awakening. Tamil wisdom teaches us that "வெளிச்சம் உள்ளிருந்து வரும்" - Light comes from within.
+
+Your soul is ready for transformation. Trust your intuition, practice mindful awareness, and let go of what no longer serves your highest good.
+
+The path ahead brightens with each conscious choice you make.
+
+Blessings and light upon your journey. 🌟"""
+            ],
+            'love': [
+                """💕 Dear heart seeking love's wisdom, your question touches the divine realm of Venus.
+
+Looking at your spiritual essence, I sense your heart chakra is beautifully opening. In Tamil wisdom: "அன்பே சிவம்" - Love itself is divine.
+
+The cosmic timing suggests:
+- Focus on self-love practices daily
+- Your soulmate connection strengthens through inner work
+- Practice loving-kindness meditation for all beings
+
+Love flows to those who embody love. Trust this sacred process.
+
+May divine love surround and fill you. 🌹""",
+                
+                """💕 Beloved soul, your relationship question carries the essence of deep connection seeking.
+
+Venus blesses your path with opportunities for meaningful love. The stars whisper that emotional healing from past experiences opens doorways to profound partnership.
+
+Practice heart-opening meditation, express gratitude for love in all forms, and trust that divine timing orchestrates perfect meetings.
+
+Your capacity for love grows stronger each day.
+
+Love and blessings flow to you. 💖"""
+            ],
+            'premium': [
+                """🔮 Sacred soul, your comprehensive question opens doorways to profound spiritual exploration.
+
+I perceive you at a magnificent threshold spanning multiple life dimensions. Your karmic journey reveals:
+
+**Career & Purpose**: Align with dharmic calling in service-oriented work
+**Relationships**: Practice unconditional love and healthy boundaries  
+**Health**: Balance physical wellness with spiritual practices
+**Spiritual Growth**: Deepen meditation and self-inquiry daily
+
+The next 6-9 months bring significant opportunities for soul evolution across all areas.
+
+Walk forward with courage, knowing the universe supports your highest manifestation.
+
+Divine blessings upon your complete life transformation. 🌟"""
+            ],
+            'elite': [
+                """🌟 Beloved spiritual student, welcome to your sacred daily coaching journey.
+
+As your dedicated AstroCoach, I offer today's comprehensive guidance:
+
+**Morning Practice** (6-8 AM):
+- 20 minutes meditation with sunrise energy
+- Set intentions aligned with your soul mission
+- Gratitude practice for spiritual abundance
+
+**Daily Spiritual Integration**:
+- Mindful awareness in all activities
+- Evening reflection and self-inquiry
+- Mantra: "Om Gam Ganapataye Namaha" (108 times)
+
+**Weekly Focus**: Developing intuitive abilities through consistent practice.
+
+Your spiritual evolution accelerates through dedicated daily practice.
+
+Until tomorrow's guidance, may divine grace illuminate your path. 🕉️"""
+            ]
+        }
+        
+        # Create users and their sessions
+        for user_data in test_users:
+            exists = await conn.fetchval("SELECT 1 FROM users WHERE email = $1", user_data["email"])
+            if not exists:
+                password_hash = hash_password(user_data["password"])
+                await conn.execute("""
+                    INSERT INTO users (email, password_hash, first_name, last_name, credits, 
+                                     birth_date, birth_time, birth_location, created_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW() - INTERVAL '%s days', NOW())
+                """ % (30 - len(test_users) * 3),  # Stagger creation dates
+                    user_data["email"], password_hash, user_data["first_name"], 
+                    user_data["last_name"], user_data["credits"], user_data["birth_date"],
+                    user_data["birth_time"], user_data["birth_location"])
+                
+                # Create realistic session history for each user
+                session_scenarios = [
+                    {"type": "clarity", "days_ago": 1, "question_idx": 0},
+                    {"type": "love", "days_ago": 5, "question_idx": 2},
+                    {"type": "clarity", "days_ago": 12, "question_idx": 5},
+                    {"type": "premium", "days_ago": 20, "question_idx": 1}
+                ]
+                
+                # Create different numbers of sessions for variety
+                user_session_count = min(len(session_scenarios), 
+                                       4 if "maya" in user_data["email"] else 
+                                       3 if "arjuna" in user_data["email"] else
+                                       2 if "priya" in user_data["email"] else 1)
+                
+                for i in range(user_session_count):
+                    scenario = session_scenarios[i]
+                    question = spiritual_questions[scenario["question_idx"]]
+                    guidance = sample_guidance[scenario["type"]][i % len(sample_guidance[scenario["type"]])]
+                    
+                    await conn.execute("""
+                        INSERT INTO sessions (user_email, session_type, credits_used, session_time, 
+                                            status, result_summary, question, birth_chart_data)
+                        VALUES ($1, $2, $3, NOW() - INTERVAL '%s days', 'completed', $4, $5, $6)
+                    """ % scenario["days_ago"], 
+                        user_data["email"], scenario["type"], 
+                        SKUS[scenario["type"]]["credits"], guidance, question, 
+                        '{"nakshatra": "Bharani", "rashi": "Mesha", "moon_sign": "Aries"}')
+                
+                logger.info(f"Created user with session history: {user_data['email']}")
+        
+        # Create admin log entries for realistic activity
+        admin_activities = [
+            {"action": "user_created", "target": "arjuna@spiritual.com", "details": "New user registered with welcome credits", "hours_ago": 2},
+            {"action": "credit_adjustment", "target": "maya@cosmic.com", "details": "Added 5 credits: Customer satisfaction bonus", "hours_ago": 6},
+            {"action": "session_completed", "target": "priya@wisdom.com", "details": "Premium session completed successfully", "hours_ago": 12},
+            {"action": "system_health", "target": "system", "details": "Daily backup completed successfully", "hours_ago": 24},
+            {"action": "payment_processed", "target": "raj@mystic.com", "details": "Credit package purchase: Popular Pack", "hours_ago": 48}
+        ]
+        
+        for activity in admin_activities:
+            await conn.execute("""
+                INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+                VALUES ($1, $2, $3, $4, NOW() - INTERVAL '%s hours')
+            """ % activity["hours_ago"], 
+                "system", activity["action"], activity["target"], activity["details"])
+        
+        logger.info("✅ Dashboard sample data created successfully")
+        
+        # Log summary for admin
+        user_count = await conn.fetchval("SELECT COUNT(*) FROM users WHERE email != $1", ADMIN_EMAIL)
+        session_count = await conn.fetchval("SELECT COUNT(*) FROM sessions")
+        
+        logger.info(f"📊 Dashboard ready: {user_count} users, {session_count} sessions")
+        
+    except Exception as e:
+        logger.error(f"Failed to create dashboard sample data: {e}")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+# தমিল - Update your lifespan function to initialize dashboard data
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global db_pool
+    try:
+        db_pool = await asyncpg.create_pool(DATABASE_URL, min_size=5, max_size=20)
+        logger.info("🙏🏼 Database connected for dashboard functionality")
+        
+        # Add missing columns if they don't exist
+        conn = await db_pool.acquire()
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(255)")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS unified_context_object JSONB DEFAULT NULL")
+            logger.info("Database schema updated")
+        except Exception as e:
+            logger.error(f"Schema update error: {e}")
+        finally:
+            await db_pool.release(conn)
+        
+        # Initialize dashboard data
+        await initialize_dashboard_data()
+        
+        yield
+    finally:
+        if db_pool:
+            await db_pool.close()
+
+# তমিল - Add a test endpoint to verify dashboard functionality
+@app.get("/api/test/dashboard")
+async def test_dashboard_data(admin_user: Dict = Depends(get_admin_user)):
+    """তমিল - Test endpoint to verify dashboard data is working"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        user_count = await conn.fetchval("SELECT COUNT(*) FROM users WHERE email != $1", ADMIN_EMAIL)
+        session_count = await conn.fetchval("SELECT COUNT(*) FROM sessions")
+        admin_log_count = await conn.fetchval("SELECT COUNT(*) FROM admin_logs")
+        
+        # Get latest session for verification
+        latest_session = await conn.fetchrow("""
+            SELECT s.user_email, s.session_type, u.first_name, u.last_name
+            FROM sessions s
+            JOIN users u ON s.user_email = u.email
+            ORDER BY s.session_time DESC
+            LIMIT 1
+        """)
+        
+        return {
+            "success": True,
+            "dashboard_ready": True,
+            "data_summary": {
+                "users": user_count,
+                "sessions": session_count,
+                "admin_logs": admin_log_count
+            },
+            "latest_session": {
+                "user": f"{latest_session['first_name']} {latest_session['last_name']}" if latest_session else None,
+                "service": latest_session['session_type'] if latest_session else None
+            } if latest_session else None,
+            "message": "🙏🏼 Dashboard data is fully operational and ready for testing!"
+        }
+        
+    except Exception as e:
+        logger.error(f"Dashboard test error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "❌ Dashboard data verification failed"
+        }
     finally:
         if conn:
             await release_db_connection(conn)
