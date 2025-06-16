@@ -3472,6 +3472,7 @@ admin_dashboard_html = """
                 <input type="password" class="form-control" id="password" required>
             </div>
             <button type="submit" class="btn btn-primary w-100">Login</button>
+            <div id="loginError" class="text-danger text-center mt-2" style="display:none;"></div>
         </form>
     </div>
 
@@ -3977,10 +3978,59 @@ admin_dashboard_html = """
     <script>
 
         // === ADMIN DASHBOARD JAVASCRIPT ===
-// Replace the JavaScript in your admin dashboard HTML with this
+        // Replace the JavaScript in your admin dashboard HTML with this
+
+        let authToken = null;
+
+        function checkAuth() {
+            authToken = localStorage.getItem('jyotiflow_admin_token');
+            const loginSection = document.getElementById('loginSection');
+            const dashboardSection = document.getElementById('dashboardSection');
+            if (authToken) {
+                loginSection.classList.add('hidden');
+                dashboardSection.classList.remove('hidden');
+            } else {
+                loginSection.classList.remove('hidden');
+                dashboardSection.classList.add('hidden');
+            }
+        }
+
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const errorDiv = document.getElementById('loginError');
+            if (errorDiv) {
+                errorDiv.textContent = '';
+                errorDiv.style.display = 'none';
+            }
+            try {
+                const response = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await response.json();
+                if (response.ok && data.token) {
+                    localStorage.setItem('jyotiflow_admin_token', data.token);
+                    checkAuth();
+                } else {
+                    if (errorDiv) {
+                        errorDiv.textContent = data.message || 'Invalid credentials';
+                        errorDiv.style.display = 'block';
+                    }
+                }
+            } catch (err) {
+                if (errorDiv) {
+                    errorDiv.textContent = 'Login failed. Please try again.';
+                    errorDiv.style.display = 'block';
+                }
+            }
+        });
 
 
-       
         // Hide all sections
         document.querySelectorAll('.dashboard-section').forEach(section => {
             section.classList.add('hidden');
