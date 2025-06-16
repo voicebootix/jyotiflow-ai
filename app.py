@@ -3979,279 +3979,7 @@ admin_dashboard_html = """
         // === ADMIN DASHBOARD JAVASCRIPT ===
 // Replace the JavaScript in your admin dashboard HTML with this
 
-let authToken = localStorage.getItem('jyotiflow_admin_token');
-const apiBaseUrl = window.location.origin;
 
-// Real authentication check
-function checkAuth() {
-    if (authToken) {
-        document.getElementById('loginSection').classList.add('hidden');
-        document.getElementById('dashboardSection').classList.remove('hidden');
-        loadDashboardData();
-    } else {
-        document.getElementById('loginSection').classList.remove('hidden');
-        document.getElementById('dashboardSection').classList.add('hidden');
-    }
-}
-
-// Real admin login
-document.getElementById('loginForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-   
-    const email = document.getElementById('email').value;
-    const password = document.getElementById('password').value;
-   
-    try {
-        const response = await fetch(`${apiBaseUrl}/api/admin/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email, password })
-        });
-       
-        if (!response.ok) {
-            throw new Error(`Login failed: ${response.status}`);
-        }
-       
-        const data = await response.json();
-       
-        if (data.success) {
-            authToken = data.token;
-            localStorage.setItem('jyotiflow_admin_token', authToken);
-            showToast('Admin login successful! 🙏🏼', 'success');
-            checkAuth();
-        } else {
-            throw new Error(data.message || 'Invalid credentials');
-        }
-    } catch (error) {
-        showToast('Login failed: ' + error.message, 'danger');
-    }
-});
-
-// Real dashboard data loading
-async function loadDashboardData() {
-    try {
-        // Load real statistics
-        const statsResponse = await fetch(`${apiBaseUrl}/api/admin/stats`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-       
-        if (statsResponse.ok) {
-            const stats = await statsResponse.json();
-            if (stats.success) {
-                document.getElementById('totalUsers').textContent = stats.total_users;
-                document.getElementById('activeSubscriptions').textContent = stats.active_subscriptions;
-                document.getElementById('sessionsToday').textContent = stats.sessions_today;
-                document.getElementById('monthlyRevenue').textContent = `$${stats.monthly_revenue}`;
-            }
-        }
-       
-        // Load real recent users
-        await loadRecentUsers();
-       
-        // Load real recent sessions
-        await loadRecentSessions();
-       
-    } catch (error) {
-        showToast('Error loading dashboard: ' + error.message, 'danger');
-    }
-}
-
-// Real recent users loader
-async function loadRecentUsers() {
-    try {
-        const response = await fetch(`${apiBaseUrl}/api/admin/users?limit=5`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-       
-        if (response.ok) {
-            const data = await response.json();
-            const tbody = document.querySelector('#recentUsersTable tbody');
-            tbody.innerHTML = '';
-           
-            if (data.success && data.users.length > 0) {
-                data.users.forEach(user => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${user.full_name || 'Unknown'}</td>
-                        <td>${user.email}</td>
-                        <td><span class="badge bg-primary">${user.credits}</span></td>
-                        <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } else {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No users found</td></tr>';
-            }
-        }
-    } catch (error) {
-        console.error('Error loading recent users:', error);
-    }
-}
-
-// Real recent sessions loader
-async function loadRecentSessions() {
-    try {
-        const response = await fetch(`${apiBaseUrl}/api/admin/sessions?limit=5`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-       
-        if (response.ok) {
-            const data = await response.json();
-            const tbody = document.querySelector('#recentSessionsTable tbody');
-            tbody.innerHTML = '';
-           
-            if (data.success && data.sessions.length > 0) {
-                data.sessions.forEach(session => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${session.user_name}</td>
-                        <td><span class="badge bg-info">${session.service_name}</span></td>
-                        <td>Web</td>
-                        <td>${session.session_time_friendly || 'Unknown'}</td>
-                    `;
-                    tbody.appendChild(row);
-                });
-            } else {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No sessions found</td></tr>';
-            }
-        }
-    } catch (error) {
-        console.error('Error loading recent sessions:', error);
-    }
-}
-
-// Real full users list loader
-async function loadUsers() {
-    try {
-        const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-       
-        if (!response.ok) {
-            throw new Error(`Failed to load users: ${response.status}`);
-        }
-       
-        const data = await response.json();
-        const tbody = document.querySelector('#usersTable tbody');
-        tbody.innerHTML = '';
-       
-        if (data.success && data.users.length > 0) {
-            data.users.forEach(user => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${user.full_name}</td>
-                    <td>${user.email}</td>
-                    <td><span class="badge bg-success">${user.credits}</span></td>
-                    <td>${user.birth_details}</td>
-                    <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
-                    <td>
-                        <button class="btn btn-sm btn-primary" onclick="showUserDetails('${user.email}')">
-                            <i class="bi bi-eye"></i>
-                        </button>
-                        <span class="badge bg-info">${user.session_count} sessions</span>
-                        <button class="btn btn-sm btn-warning" onclick="adjustCredits('${user.email}', '${user.full_name}')">
-                            <i class="bi bi-coin"></i>
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-        } else {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No users found</td></tr>';
-        }
-    } catch (error) {
-        showToast('Error loading users: ' + error.message, 'danger');
-    }
-}
-
-// Real full sessions list loader
-async function loadSessions() {
-    try {
-        const response = await fetch(`${apiBaseUrl}/api/admin/sessions`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-       
-        if (!response.ok) {
-            throw new Error(`Failed to load sessions: ${response.status}`);
-        }
-       
-        const data = await response.json();
-        const tbody = document.querySelector('#sessionsTable tbody');
-        tbody.innerHTML = '';
-       
-        if (data.success && data.sessions.length > 0) {
-            data.sessions.forEach(session => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td>${session.user_name}</td>
-                    <td><span class="badge bg-info">${session.service_name}</span></td>
-                    <td><span class="badge bg-success">$${session.service_price}</span></td>
-                    <td>${session.credits_used}</td>
-                    <td>${session.session_time_friendly}</td>
-                    <td>
-                        <button class="btn btn-sm btn-primary" onclick="viewSessionDetails(${session.id})">
-                            <i class="bi bi-eye"></i> View
-                        </button>
-                    </td>
-                `;
-                tbody.appendChild(row);
-            });
-           
-            // Update summary
-            if (data.summary) {
-                document.getElementById('totalRevenue').textContent = `$${data.summary.total_revenue}`;
-                document.getElementById('totalCreditsUsed').textContent = data.summary.total_credits_used;
-            }
-        } else {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No sessions found</td></tr>';
-        }
-    } catch (error) {
-        showToast('Error loading sessions: ' + error.message, 'danger');
-    }
-}
-
-// Real credit adjustment
-async function adjustCredits(userEmail, userName) {
-    const credits = prompt(`Adjust credits for ${userName}:\n\nEnter positive number to add credits\nEnter negative number to remove credits`);
-    const reason = prompt('Reason for adjustment:');
-   
-    if (credits && reason) {
-        try {
-            const response = await fetch(`${apiBaseUrl}/api/admin/credits/adjust`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authToken}`
-                },
-                body: JSON.stringify({
-                    user_email: userEmail,
-                    credits: parseInt(credits),
-                    reason: reason
-                })
-            });
-           
-            if (response.ok) {
-                const result = await response.json();
-                if (result.success) {
-                    showToast(`Credits adjusted! ${userName} now has ${result.new_balance} credits`, 'success');
-                    loadUsers(); // Refresh the table
-                } else {
-                    throw new Error(result.message || 'Failed to adjust credits');
-                }
-            } else {
-                throw new Error(`Server error: ${response.status}`);
-            }
-        } catch (error) {
-            showToast('Error adjusting credits: ' + error.message, 'danger');
-        }
-    }
-}
-
-// Navigation handling
-document.querySelectorAll('.nav-link[data-section]').forEach(link => {
-    link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const targetSection = this.getAttribute('data-section');
        
         // Hide all sections
         document.querySelectorAll('.dashboard-section').forEach(section => {
@@ -4282,11 +4010,11 @@ document.querySelectorAll('.nav-link[data-section]').forEach(link => {
     });
 });
 
-// Real toast notifications
+// Enhanced toast notifications
 function showToast(message, type = 'info') {
     const toastContainer = document.getElementById('toast-container');
     const toast = document.createElement('div');
-    toast.className = `toast align-items-center text-white bg-${type} border-0`;
+    toast.className = `toast align-items-center text-white bg-${type} border-0 show`;
     toast.setAttribute('role', 'alert');
    
     toast.innerHTML = `
@@ -4298,15 +4026,22 @@ function showToast(message, type = 'info') {
    
     toastContainer.appendChild(toast);
    
-    const bsToast = new bootstrap.Toast(toast, { autohide: true, delay: 5000 });
-    bsToast.show();
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (toast.parentNode) {
+            toast.remove();
+        }
+    }, 5000);
    
+    // Remove on click
     toast.addEventListener('hidden.bs.toast', function() {
-        toast.remove();
+        if (toast.parentNode) {
+            toast.remove();
+        }
     });
 }
 
-// Logout
+// Logout functionality
 document.getElementById('logoutBtn').addEventListener('click', function() {
     localStorage.removeItem('jyotiflow_admin_token');
     authToken = null;
@@ -4314,193 +4049,49 @@ document.getElementById('logoutBtn').addEventListener('click', function() {
     showToast('Logged out successfully', 'success');
 });
 
-// Initialize
-document.addEventListener('DOMContentLoaded', checkAuth);
-
-// === USER DASHBOARD JAVASCRIPT ===
-// Add this to your user dashboard HTML
-
-// Real user dashboard functions
-async function loadUserDashboard() {
-    const token = localStorage.getItem('jyoti_token');
-    if (!token) {
-        window.location.href = '/login';
-        return;
-    }
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkAuth();
    
-    try {
-        // Load real user profile
-        const profileResponse = await fetch('/api/user/profile', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-       
-        if (profileResponse.ok) {
-            const data = await profileResponse.json();
-            if (data.success) {
-                // Update welcome message
-                document.getElementById('welcomeMessage').textContent =
-                    `🙏🏼 Welcome back, ${data.user.first_name}`;
-               
-                // Update stats
-                document.getElementById('userCredits').textContent = data.user.credits;
-                document.getElementById('totalSessions').textContent = data.stats.total_sessions;
-                document.getElementById('lastSession').textContent = data.stats.last_session || 'Never';
-               
-                // Update insights
-                if (data.stats.favorite_service) {
-                    const insightElement = document.getElementById('favoriteService');
-                    if (insightElement) {
-                        insightElement.textContent = data.stats.favorite_service;
-                    }
-                }
+    // Add retry buttons for failed loads
+    document.addEventListener('click', function(e) {
+        if (e.target.matches('.retry-btn')) {
+            const action = e.target.dataset.action;
+            switch(action) {
+                case 'loadUsers':
+                    loadUsers();
+                    break;
+                case 'loadSessions':
+                    loadSessions();
+                    break;
+                case 'loadDashboard':
+                    loadDashboardData();
+                    break;
             }
         }
-       
-        // Load real session history
-        await loadRealSessionHistory(token);
-       
-    } catch (error) {
-        console.error('Error loading user dashboard:', error);
-        showUserToast('Error loading dashboard data', 'danger');
-    }
-}
-
-// Real session history loader
-async function loadRealSessionHistory(token) {
-    try {
-        const response = await fetch('/api/session/history', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-       
-        if (response.ok) {
-            const data = await response.json();
-            const tbody = document.getElementById('historyTableBody');
-            tbody.innerHTML = '';
-           
-            if (data.success && data.sessions.length > 0) {
-                data.sessions.slice(0, 10).forEach(session => {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td>${session.date_friendly}</td>
-                        <td><span class="badge bg-info">${session.service_name}</span></td>
-                        <td>${session.credits_used}</td>
-                        <td><span class="badge bg-success">${session.status}</span></td>
-                    `;
-                   
-                    // Add click handler to view full guidance
-                    row.style.cursor = 'pointer';
-                    row.addEventListener('click', () => {
-                        showSessionDetails(session);
-                    });
-                });
-            } else {
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center">No sessions yet. Start your spiritual journey!</td></tr>';
-            }
-        }
-    } catch (error) {
-        console.error('Error loading session history:', error);
-    }
-}
-
-// Show session details modal
-function showSessionDetails(session) {
-    const modal = document.createElement('div');
-    modal.className = 'modal fade';
-    modal.innerHTML = `
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">${session.service_name} - ${session.date_friendly}</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <h6>Your Question:</h6>
-                    <p class="text-muted">${session.question || 'General guidance requested'}</p>
-                    <h6>Spiritual Guidance:</h6>
-                    <div class="border p-3 rounded" style="background-color: #f8f9fa;">
-                        ${session.full_guidance || session.guidance_preview}
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                </div>
-            </div>
-        </div>
-    `;
-   
-    document.body.appendChild(modal);
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-   
-    modal.addEventListener('hidden.bs.modal', () => {
-        modal.remove();
     });
-}
+});
 
-// Real credit refresh
-async function refreshCredits() {
-    const token = localStorage.getItem('jyoti_token');
-    if (!token) return;
-   
+// Add connection test function
+async function testConnection() {
     try {
-        const response = await fetch('/api/credits/balance', {
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
+        const response = await fetch(`${apiBaseUrl}/health`);
+        const data = await response.json();
        
         if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                document.getElementById('userCredits').textContent = data.current_credits;
-                return data.current_credits;
-            }
+            showToast('✅ Backend connection successful', 'success');
+            console.log('Health check:', data);
+        } else {
+            showToast('⚠️ Backend responded with error', 'warning');
         }
     } catch (error) {
-        console.error('Error refreshing credits:', error);
+        showToast('❌ Cannot connect to backend', 'danger');
+        console.error('Connection test failed:', error);
     }
-    return null;
 }
 
-// User toast notifications
-function showUserToast(message, type = 'info') {
-    // Create toast container if it doesn't exist
-    let container = document.getElementById('user-toast-container');
-    if (!container) {
-        container = document.createElement('div');
-        container.id = 'user-toast-container';
-        container.style.position = 'fixed';
-        container.style.top = '20px';
-        container.style.right = '20px';
-        container.style.zIndex = '9999';
-        document.body.appendChild(container);
-    }
-   
-    const toast = document.createElement('div');
-    toast.className = `alert alert-${type} alert-dismissible fade show`;
-    toast.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-   
-    container.appendChild(toast);
-   
-    // Auto dismiss after 5 seconds
-    setTimeout(() => {
-        if (toast.parentNode) {
-            toast.remove();
-        }
-    }, 5000);
-}
-
-// User logout
-function logout() {
-    localStorage.removeItem('jyoti_token');
-    window.location.href = '/';
-}
-
-// Initialize user dashboard
-if (window.location.pathname === '/dashboard') {
-    document.addEventListener('DOMContentLoaded', loadUserDashboard);
-}
+// Test connection on load
+testConnection();
     </script>
 </body>
 </html>
