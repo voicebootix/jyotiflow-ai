@@ -5308,19 +5308,6 @@ async def get_real_user_insights(current_user: Dict = Depends(get_current_user))
 
 # --- Analytics Routes --- #
 
-            "reason": reason,
-            "adjusted_by": admin_user['email'],
-            "timestamp": datetime.now().isoformat()
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Credit adjustment error: {e}")
-        raise HTTPException(500, "Failed to adjust credits")
-    finally:
-        if conn:
-            await release_db_connection(conn)
 
 @app.get("/api/admin/logs")
 async def get_real_admin_logs(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
