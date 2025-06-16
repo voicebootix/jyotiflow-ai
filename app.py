@@ -5307,47 +5307,110 @@ async def get_real_user_insights(current_user: Dict = Depends(get_current_user))
             await release_db_connection(conn)
 
 # --- Analytics Routes --- #
-@app.get("/api/admin/stats")
-async def get_admin_stats(admin_user: Dict = Depends(get_admin_user)):
-    """Get dashboard overview statistics."""
+
+            "reason": reason,
+            "adjusted_by": admin_user['email'],
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Credit adjustment error: {e}")
+        raise HTTPException(500, "Failed to adjust credits")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.get("/api/admin/logs")
+async def get_real_admin_logs(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
+    """தমিল - Real admin activity logs"""
     conn = None
     try:
         conn = await get_db_connection()
         
-        # Get total users
-        total_users = await conn.fetchval("SELECT COUNT(*) FROM users WHERE email != $1", ADMIN_EMAIL)
+        logs = await conn.fetch("""
+            SELECT admin_email, action, target_user, details, timestamp
+            FROM admin_logs
+            ORDER BY timestamp DESC
+            OFFSET $1 LIMIT $2
+        """, skip, limit)
         
-        # Get active subscriptions
-        active_subs = await conn.fetchval("SELECT COUNT(*) FROM user_subscriptions WHERE status = 'active'")
-        
-        # Get sessions today
-        today = datetime.now().date()
-        today_start = datetime.combine(today, datetime.min.time())
-        sessions_today = await conn.fetchval(
-            "SELECT COUNT(*) FROM interaction_history WHERE timestamp >= $1 AND channel LIKE 'web_session%'", 
-            today_start
-        )
-        
-        # Get monthly revenue (simplified - in a real app, you'd calculate this from Stripe data)
-        # This is just a placeholder calculation
-        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        monthly_revenue = await conn.fetchval("""
-            SELECT COALESCE(SUM(p.price), 0)
-            FROM user_subscriptions us
-            JOIN subscription_plans sp ON us.subscription_plan_id = sp.id
-            JOIN products p ON sp.product_id = p.id
-            WHERE us.status = 'active' AND us.created_at >= $1
-        """, month_start) or 0
+        result = []
+        for log in logs:
+            result.append({
+                "admin_email": log['admin_email'],
+                "action": log['action'],
+                "target_user": log['target_user'],
+                "details": log['details'],
+                "timestamp": log['timestamp'].isoformat() if log['timestamp'] else None,
+                "time_friendly": log['timestamp'].strftime("%b %d, %Y at %I:%M %p") if log['timestamp'] else None
+            })
         
         return {
-            "total_users": total_users,
-            "active_subscriptions": active_subs,
-            "sessions_today": sessions_today,
-            "monthly_revenue": float(monthly_revenue)
+            "success": True,
+            "logs": result,
+            "total_count": len(result)
         }
+        
     except Exception as e:
-        logger.error(f"Error getting admin stats: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to fetch admin statistics")
+        logger.error(f"Admin logs error: {e}")
+        raise HTTPException(500, "Failed to load admin logs")
+    finally:
+        if conn:
+            await release_db_connection(conn)
+
+@app.post("/api/admin/users")
+async def create_real_user(user_data: dict, admin_user: Dict = Depends(get_admin_user)):
+    """তমিল - Create real user account"""
+    conn = None
+    try:
+        email = user_data.get('email')
+        password = user_data.get('password')
+        first_name = user_data.get('first_name')
+        last_name = user_data.get('last_name', '')
+        credits = int(user_data.get('credits', 0))
+        
+        if not email or not password or not first_name:
+            raise HTTPException(400, "Missing required fields")
+        
+        conn = await get_db_connection()
+        
+        # Check if user exists
+        existing = await conn.fetchval("SELECT 1 FROM users WHERE email = $1", email)
+        if existing:
+            raise HTTPException(400, "User already exists")
+        
+        # Create user
+        password_hash = hash_password(password)
+        await conn.execute("""
+            INSERT INTO users (email, password_hash, first_name, last_name, credits, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+        """, email, password_hash, first_name, last_name, credits)
+        
+        # Log creation
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, NOW())
+        """, admin_user['email'], "user_created", email, 
+            f"Created user {first_name} {last_name} with {credits} credits")
+        
+        return {
+            "success": True,
+            "user": {
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "credits": credits
+            },
+            "message": f"User {first_name} created successfully"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"User creation error: {e}")
+        raise HTTPException(500, "Failed to create user")
     finally:
         if conn:
             await release_db_connection(conn)
