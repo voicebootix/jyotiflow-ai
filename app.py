@@ -3995,70 +3995,7 @@ admin_dashboard_html = """
             }
         }
 
-        document.getElementById('loginForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const errorDiv = document.getElementById('loginError');
-            if (errorDiv) {
-                errorDiv.textContent = '';
-                errorDiv.style.display = 'none';
-            }
-            try {
-                const response = await fetch('/api/admin/login', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ email, password })
-                });
-                const data = await response.json();
-                if (response.ok && data.token) {
-                    localStorage.setItem('jyotiflow_admin_token', data.token);
-                    checkAuth();
-                } else {
-                    if (errorDiv) {
-                        errorDiv.textContent = data.message || 'Invalid credentials';
-                        errorDiv.style.display = 'block';
-                    }
-                }
-            } catch (err) {
-                if (errorDiv) {
-                    errorDiv.textContent = 'Login failed. Please try again.';
-                    errorDiv.style.display = 'block';
-                }
-            }
-        });
-
-
-        // Hide all sections
-        document.querySelectorAll('.dashboard-section').forEach(section => {
-            section.classList.add('hidden');
-        });
-       
-        // Show target section
-        document.getElementById(targetSection).classList.remove('hidden');
-       
-        // Update active link
-        document.querySelectorAll('.nav-link').forEach(navLink => {
-            navLink.classList.remove('active');
-        });
-        this.classList.add('active');
-       
-        // Load section data
-        switch(targetSection) {
-            case 'users':
-                loadUsers();
-                break;
-            case 'sessions':
-                loadSessions();
-                break;
-            case 'overview':
-                loadDashboardData();
-                break;
-        }
-    });
-});
+        
 
 // Enhanced toast notifications
 function showToast(message, type = 'info') {
@@ -4091,18 +4028,81 @@ function showToast(message, type = 'info') {
     });
 }
 
-// Logout functionality
-document.getElementById('logoutBtn').addEventListener('click', function() {
-    localStorage.removeItem('jyotiflow_admin_token');
-    authToken = null;
-    checkAuth();
-    showToast('Logged out successfully', 'success');
-});
-
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     checkAuth();
-   
+
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const errorDiv = document.getElementById('loginError');
+        if (errorDiv) {
+            errorDiv.textContent = '';
+            errorDiv.style.display = 'none';
+        }
+        try {
+            const response = await fetch('/api/admin/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email, password })
+            });
+            const data = await response.json();
+            if (response.ok && data.token) {
+                localStorage.setItem('jyotiflow_admin_token', data.token);
+                checkAuth();
+            } else {
+                if (errorDiv) {
+                    errorDiv.textContent = data.message || 'Invalid credentials';
+                    errorDiv.style.display = 'block';
+                }
+            }
+        } catch (err) {
+            if (errorDiv) {
+                errorDiv.textContent = 'Login failed. Please try again.';
+                errorDiv.style.display = 'block';
+            }
+        }
+    });
+
+    document.querySelectorAll('.nav-link[data-section]').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            const targetSection = this.dataset.section;
+            document.querySelectorAll('.dashboard-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            const selected = document.getElementById(targetSection);
+            if (selected) {
+                selected.classList.remove('hidden');
+            }
+            document.querySelectorAll('.nav-link[data-section]').forEach(nav => {
+                nav.classList.remove('active');
+            });
+            this.classList.add('active');
+            switch(targetSection) {
+                case 'users':
+                    loadUsers();
+                    break;
+                case 'sessions':
+                    loadSessions();
+                    break;
+                case 'overview':
+                    loadDashboardData();
+                    break;
+            }
+        });
+    });
+
+    document.getElementById('logoutBtn').addEventListener('click', function() {
+        localStorage.removeItem('jyotiflow_admin_token');
+        authToken = null;
+        checkAuth();
+        showToast('Logged out successfully', 'success');
+    });
+
     // Add retry buttons for failed loads
     document.addEventListener('click', function(e) {
         if (e.target.matches('.retry-btn')) {
