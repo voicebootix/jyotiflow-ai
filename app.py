@@ -3348,66 +3348,188 @@ admin_dashboard_html = """
     <title>JyotiFlow.ai - Admin Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-color: #7b2cbf;
             --secondary-color: #9d4edd;
             --accent-color: #e0aaff;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
         }
+        
         body {
             font-family: 'Poppins', sans-serif;
-            background-color: #f5f5f5;
+            background-color: #f8fafc;
+            overflow-x: hidden;
         }
+        
         .sidebar {
             background: linear-gradient(180deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             color: white;
             height: 100vh;
             position: fixed;
+            width: 250px;
             padding-top: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            z-index: 1000;
         }
+        
         .sidebar .nav-link {
-            color: rgba(255, 255, 255, 0.8);
+            color: rgba(255, 255, 255, 0.85);
             margin-bottom: 5px;
-            border-radius: 5px;
-            padding: 10px 15px;
+            border-radius: 8px;
+            padding: 12px 20px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
+        
         .sidebar .nav-link:hover,
         .sidebar .nav-link.active {
-            background-color: rgba(255, 255, 255, 0.1);
+            background-color: rgba(255, 255, 255, 0.15);
             color: white;
+            transform: translateX(5px);
         }
+        
         .content {
-            margin-left: 240px;
-            padding: 20px;
+            margin-left: 250px;
+            padding: 25px;
+            min-height: 100vh;
         }
+        
         .card {
             border: none;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            margin-bottom: 25px;
+            transition: transform 0.2s ease;
         }
+        
+        .card:hover {
+            transform: translateY(-2px);
+        }
+        
         .stats-card {
-            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-radius: 15px;
+        }
+        
+        .stats-card-success {
+            background: linear-gradient(135deg, var(--success-color), #059669);
             color: white;
         }
+        
+        .stats-card-warning {
+            background: linear-gradient(135deg, var(--warning-color), #d97706);
+            color: white;
+        }
+        
+        .stats-card-danger {
+            background: linear-gradient(135deg, var(--danger-color), #dc2626);
+            color: white;
+        }
+        
         .hidden {
             display: none;
         }
+        
         .login-container {
-            max-width: 400px;
+            max-width: 450px;
             margin: 100px auto;
         }
+        
         #loginForm {
             background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
+        
+        .table {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .table thead {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        
+        .badge {
+            font-size: 0.75rem;
+            padding: 5px 10px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            border: none;
+            border-radius: 8px;
+            padding: 8px 20px;
+        }
+        
+        .btn-primary:hover {
+            background: linear-gradient(45deg, var(--secondary-color), var(--primary-color));
+            transform: translateY(-1px);
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 20px 0;
+        }
+        
+        .metric-card {
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .metric-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .section-header {
+            background: linear-gradient(90deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(123, 44, 191, 0.25);
+        }
+        
         #toast-container {
             position: fixed;
             top: 20px;
             right: 20px;
             z-index: 1050;
+        }
+        
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            .content {
+                margin-left: 0;
+                padding: 15px;
+            }
         }
     </style>
 </head>
@@ -3416,165 +3538,551 @@ admin_dashboard_html = """
     <div id="loginSection" class="container login-container">
         <div class="text-center mb-4">
             <h2>🙏🏼 JyotiFlow.ai</h2>
-            <p>Admin Dashboard</p>
+            <p class="text-muted">Admin Dashboard Access</p>
         </div>
         <form id="loginForm">
             <div class="mb-3">
-                <label for="email" class="form-label">Email</label>
+                <label for="email" class="form-label">Admin Email</label>
                 <input type="email" class="form-control" id="email" required>
             </div>
             <div class="mb-3">
                 <label for="password" class="form-label">Password</label>
                 <input type="password" class="form-control" id="password" required>
             </div>
-            <button type="submit" class="btn btn-primary w-100">Login</button>
+            <button type="submit" class="btn btn-primary w-100">Access Dashboard</button>
             <div id="loginError" class="text-danger text-center mt-2" style="display:none;"></div>
         </form>
     </div>
 
     <!-- Dashboard Section -->
     <div id="dashboardSection" class="hidden">
-        <div class="container-fluid">
-            <div class="row">
-                <!-- Sidebar -->
-                <div class="col-md-2 sidebar">
-                    <h4 class="text-center mb-4">🙏🏼 JyotiFlow</h4>
-                    <div class="nav flex-column">
-                        <a class="nav-link active" href="#" data-section="overview"><i class="bi bi-speedometer2"></i> Overview</a>
-                        <a class="nav-link" href="#" data-section="users"><i class="bi bi-people"></i> Users</a>
-                        <a class="nav-link" href="#" data-section="sessions"><i class="bi bi-chat-dots"></i> Sessions</a>
-                        <a class="nav-link" href="#" data-section="credits"><i class="bi bi-coin"></i> Credits</a>
-                        <a class="nav-link" href="#" id="logoutBtn"><i class="bi bi-box-arrow-right"></i> Logout</a>
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="text-center mb-4">
+                <h4>🙏🏼 JyotiFlow</h4>
+                <small class="text-light">Admin Control Center</small>
+            </div>
+            <div class="nav flex-column">
+                <a class="nav-link active" href="#" data-section="overview">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a class="nav-link" href="#" data-section="users">
+                    <i class="bi bi-people"></i> Users
+                </a>
+                <a class="nav-link" href="#" data-section="sessions">
+                    <i class="bi bi-chat-dots"></i> Sessions
+                </a>
+                <a class="nav-link" href="#" data-section="analytics">
+                    <i class="bi bi-graph-up"></i> Analytics
+                </a>
+                <a class="nav-link" href="#" data-section="products">
+                    <i class="bi bi-box"></i> SKU Management
+                </a>
+                <a class="nav-link" href="#" data-section="subscriptions">
+                    <i class="bi bi-arrow-repeat"></i> Subscriptions
+                </a>
+                <a class="nav-link" href="#" data-section="credits">
+                    <i class="bi bi-coin"></i> Credits
+                </a>
+                <a class="nav-link" href="#" data-section="system">
+                    <i class="bi bi-gear"></i> System Health
+                </a>
+                <hr class="my-3" style="border-color: rgba(255,255,255,0.3);">
+                <a class="nav-link" href="#" id="logoutBtn">
+                    <i class="bi bi-box-arrow-right"></i> Logout
+                </a>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content">
+            <!-- Overview Section -->
+            <div id="overview" class="dashboard-section">
+                <div class="section-header">
+                    <h3><i class="bi bi-speedometer2"></i> Platform Overview</h3>
+                </div>
+                
+                <!-- Key Metrics Row -->
+                <div class="row">
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card stats-card">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="totalUsers">0</div>
+                                <div class="metric-label">Total Users</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card stats-card-success">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="sessionsToday">0</div>
+                                <div class="metric-label">Sessions Today</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card stats-card-warning">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="activeSubscriptions">0</div>
+                                <div class="metric-label">Active Subscriptions</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3 col-sm-6">
+                        <div class="card stats-card-danger">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="monthlyRevenue">$0</div>
+                                <div class="metric-label">Monthly Revenue</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Content Area -->
-                <div class="col-md-10 content">
-                    <!-- Overview Section -->
-                    <div id="overview" class="dashboard-section">
-                        <h2 class="mb-4">Dashboard Overview</h2>
-                        <div class="row">
-                            <div class="col-md-3">
-                                <div class="card stats-card">
-                                    <div class="card-body text-center">
-                                        <h6>Total Users</h6>
-                                        <div style="font-size: 2rem; font-weight: bold;" id="totalUsers">0</div>
-                                    </div>
-                                </div>
+                <!-- Charts Row -->
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-graph-up"></i> User Growth & Sessions</h5>
                             </div>
-                            <div class="col-md-3">
-                                <div class="card stats-card">
-                                    <div class="card-body text-center">
-                                        <h6>Sessions Today</h6>
-                                        <div style="font-size: 2rem; font-weight: bold;" id="sessionsToday">0</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card stats-card">
-                                    <div class="card-body text-center">
-                                        <h6>Active Subscriptions</h6>
-                                        <div style="font-size: 2rem; font-weight: bold;" id="activeSubscriptions">0</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="col-md-3">
-                                <div class="card stats-card">
-                                    <div class="card-body text-center">
-                                        <h6>Monthly Revenue</h6>
-                                        <div style="font-size: 2rem; font-weight: bold;" id="monthlyRevenue">$0</div>
-                                    </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="growthChart"></canvas>
                                 </div>
                             </div>
                         </div>
-
-                        <div class="row mt-4">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Recent Users</div>
-                                    <div class="card-body">
-                                        <table class="table table-hover" id="recentUsersTable">
-                                            <thead><tr><th>Name</th><th>Email</th><th>Credits</th><th>Joined</th></tr></thead>
-                                            <tbody><tr><td colspan="4" class="text-center">Loading...</td></tr></tbody>
-                                        </table>
-                                    </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-pie-chart"></i> Service Distribution</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="serviceChart"></canvas>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header">Recent Sessions</div>
-                                    <div class="card-body">
-                                        <table class="table table-hover" id="recentSessionsTable">
-                                            <thead><tr><th>User</th><th>Service</th><th>Status</th><th>Time</th></tr></thead>
-                                            <tbody><tr><td colspan="4" class="text-center">Loading...</td></tr></tbody>
-                                        </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-clock-history"></i> Recent Users</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-hover" id="recentUsersTable">
+                                    <thead><tr><th>Name</th><th>Email</th><th>Credits</th><th>Joined</th></tr></thead>
+                                    <tbody><tr><td colspan="4" class="text-center">Loading...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-activity"></i> Recent Sessions</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-hover" id="recentSessionsTable">
+                                    <thead><tr><th>User</th><th>Service</th><th>Status</th><th>Time</th></tr></thead>
+                                    <tbody><tr><td colspan="4" class="text-center">Loading...</td></tr></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users Section -->
+            <div id="users" class="dashboard-section hidden">
+                <div class="section-header d-flex justify-content-between align-items-center">
+                    <h3><i class="bi bi-people"></i> User Management</h3>
+                    <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#addUserModal">
+                        <i class="bi bi-plus"></i> Add User
+                    </button>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="usersTable">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Credits</th>
+                                        <th>Birth Details</th>
+                                        <th>Subscription</th>
+                                        <th>Last Login</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody><tr><td colspan="7" class="text-center">Loading...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sessions Section -->
+            <div id="sessions" class="dashboard-section hidden">
+                <div class="section-header">
+                    <h3><i class="bi bi-chat-dots"></i> Session Management</h3>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="sessionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th>Service</th>
+                                        <th>Credits Used</th>
+                                        <th>Status</th>
+                                        <th>Channel</th>
+                                        <th>Date/Time</th>
+                                        <th>Question Preview</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody><tr><td colspan="8" class="text-center">Loading...</td></tr></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analytics Section -->
+            <div id="analytics" class="dashboard-section hidden">
+                <div class="section-header">
+                    <h3><i class="bi bi-graph-up"></i> Advanced Analytics</h3>
+                </div>
+                
+                <!-- Revenue Analytics -->
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-currency-dollar"></i> Revenue Analytics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="revenueChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-speedometer"></i> Performance Metrics</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="row text-center">
+                                    <div class="col-12 mb-3">
+                                        <h4 id="avgSessionTime">2.5min</h4>
+                                        <small class="text-muted">Avg Session Time</small>
+                                    </div>
+                                    <div class="col-12 mb-3">
+                                        <h4 id="completionRate">94%</h4>
+                                        <small class="text-muted">Completion Rate</small>
+                                    </div>
+                                    <div class="col-12 mb-3">
+                                        <h4 id="userRetention">78%</h4>
+                                        <small class="text-muted">User Retention</small>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <!-- Users Section -->
-                    <div id="users" class="dashboard-section hidden">
-                        <div class="d-flex justify-content-between align-items-center mb-4">
-                            <h2>User Management</h2>
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addUserModal">
-                                <i class="bi bi-plus"></i> Add User
-                            </button>
-                        </div>
+                <!-- Channel Analytics -->
+                <div class="row">
+                    <div class="col-md-6">
                         <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-broadcast"></i> Channel Distribution</h5>
+                            </div>
                             <div class="card-body">
-                                <table class="table table-hover" id="usersTable">
+                                <div class="chart-container">
+                                    <canvas id="channelChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-clock"></i> Usage Patterns</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="chart-container">
+                                    <canvas id="usagePatternChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products/SKU Section -->
+            <div id="products" class="dashboard-section hidden">
+                <div class="section-header d-flex justify-content-between align-items-center">
+                    <h3><i class="bi bi-box"></i> SKU & Product Management</h3>
+                    <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#addProductModal">
+                        <i class="bi bi-plus"></i> Add SKU
+                    </button>
+                </div>
+                
+                <!-- Current SKUs -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-list-check"></i> Current SKUs</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-hover" id="skuTable">
                                     <thead>
-                                        <tr><th>Name</th><th>Email</th><th>Credits</th><th>Birth Details</th><th>Last Login</th><th>Actions</th></tr>
+                                        <tr><th>SKU</th><th>Name</th><th>Price</th><th>Credits</th><th>Status</th><th>Actions</th></tr>
                                     </thead>
                                     <tbody><tr><td colspan="6" class="text-center">Loading...</td></tr></tbody>
                                 </table>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Sessions Section -->
-                    <div id="sessions" class="dashboard-section hidden">
-                        <h2 class="mb-4">Session Management</h2>
+                    <div class="col-md-6">
                         <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-graph-up"></i> SKU Performance</h5>
+                            </div>
                             <div class="card-body">
-                                <table class="table table-hover" id="sessionsTable">
+                                <div class="chart-container">
+                                    <canvas id="skuPerformanceChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Credit Packages -->
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-coin"></i> Credit Packages</h5>
+                        <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#addCreditPackageModal">
+                            <i class="bi bi-plus"></i> Add Package
+                        </button>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-hover" id="creditPackagesTable">
+                            <thead>
+                                <tr><th>Package Name</th><th>Credits</th><th>Price</th><th>Discount</th><th>Popular</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody><tr><td colspan="6" class="text-center">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Subscriptions Section -->
+            <div id="subscriptions" class="dashboard-section hidden">
+                <div class="section-header d-flex justify-content-between align-items-center">
+                    <h3><i class="bi bi-arrow-repeat"></i> Subscription Management</h3>
+                    <button class="btn btn-light" data-bs-toggle="modal" data-bs-target="#addSubscriptionPlanModal">
+                        <i class="bi bi-plus"></i> Add Plan
+                    </button>
+                </div>
+                
+                <!-- Subscription Plans -->
+                <div class="row">
+                    <div class="col-md-8">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-calendar-check"></i> Subscription Plans</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-hover" id="subscriptionPlansTable">
                                     <thead>
-                                        <tr><th>User</th><th>Service</th><th>Credits</th><th>Status</th><th>Time</th><th>Question</th></tr>
+                                        <tr><th>Plan Name</th><th>Price</th><th>Interval</th><th>Features</th><th>Active Users</th><th>Actions</th></tr>
                                     </thead>
                                     <tbody><tr><td colspan="6" class="text-center">Loading...</td></tr></tbody>
                                 </table>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Credits Section -->
-                    <div id="credits" class="dashboard-section hidden">
-                        <h2 class="mb-4">Credit Management</h2>
+                    <div class="col-md-4">
                         <div class="card">
-                            <div class="card-header">Adjust User Credits</div>
+                            <div class="card-header">
+                                <h5><i class="bi bi-pie-chart"></i> Subscription Stats</h5>
+                            </div>
                             <div class="card-body">
-                                <form id="adjustCreditsForm">
-                                    <div class="row">
-                                        <div class="col-md-4">
-                                            <label class="form-label">User Email</label>
-                                            <input type="email" class="form-control" id="creditUserEmail" required>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label">Credits (+/-)</label>
-                                            <input type="number" class="form-control" id="creditAmount" required>
-                                        </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label">Reason</label>
-                                            <input type="text" class="form-control" id="creditReason" required>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="form-label">&nbsp;</label>
-                                            <button type="submit" class="btn btn-primary w-100">Adjust</button>
-                                        </div>
+                                <div class="chart-container">
+                                    <canvas id="subscriptionStatsChart"></canvas>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Active Subscriptions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-people"></i> Active Subscriptions</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-hover" id="activeSubscriptionsTable">
+                            <thead>
+                                <tr><th>User</th><th>Plan</th><th>Status</th><th>Started</th><th>Next Billing</th><th>Actions</th></tr>
+                            </thead>
+                            <tbody><tr><td colspan="6" class="text-center">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Credits Section -->
+            <div id="credits" class="dashboard-section hidden">
+                <div class="section-header">
+                    <h3><i class="bi bi-coin"></i> Credit Management</h3>
+                </div>
+                
+                <!-- Credit Adjustment -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-plus-circle"></i> Adjust User Credits</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="adjustCreditsForm">
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <label class="form-label">User Email</label>
+                                    <input type="email" class="form-control" id="creditUserEmail" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Credits (+/-)</label>
+                                    <input type="number" class="form-control" id="creditAmount" required>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Reason</label>
+                                    <input type="text" class="form-control" id="creditReason" required>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">Type</label>
+                                    <select class="form-control" id="creditType">
+                                        <option value="adjustment">Adjustment</option>
+                                        <option value="bonus">Bonus</option>
+                                        <option value="refund">Refund</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button type="submit" class="btn btn-primary w-100">Adjust</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Credit Transactions -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-clock-history"></i> Credit Transaction History</h5>
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-hover" id="creditTransactionsTable">
+                            <thead>
+                                <tr><th>User</th><th>Type</th><th>Amount</th><th>Reason</th><th>Date</th><th>Admin</th></tr>
+                            </thead>
+                            <tbody><tr><td colspan="6" class="text-center">Loading...</td></tr></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- System Health Section -->
+            <div id="system" class="dashboard-section hidden">
+                <div class="section-header">
+                    <h3><i class="bi bi-gear"></i> System Health & Monitoring</h3>
+                </div>
+                
+                <!-- System Status Cards -->
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="card stats-card-success">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="systemUptime">99.9%</div>
+                                <div class="metric-label">System Uptime</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card-warning">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="avgResponseTime">245ms</div>
+                                <div class="metric-label">Avg Response Time</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="databaseConnections">12/50</div>
+                                <div class="metric-label">DB Connections</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stats-card-danger">
+                            <div class="card-body metric-card">
+                                <div class="metric-number" id="errorRate">0.1%</div>
+                                <div class="metric-label">Error Rate</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Status & Logs -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-link-45deg"></i> External API Status</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="apiStatusList">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>OpenAI GPT API</span>
+                                        <span class="badge bg-success">Active</span>
                                     </div>
-                                </form>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Prokerala Astrology API</span>
+                                        <span class="badge bg-success">Active</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>Stripe Payment API</span>
+                                        <span class="badge bg-success">Active</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <span>SalesCloser Voice API</span>
+                                        <span class="badge bg-warning">Checking</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5><i class="bi bi-exclamation-triangle"></i> Recent System Logs</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="systemLogs" style="max-height: 300px; overflow-y: auto;">
+                                    <small class="text-muted">Loading system logs...</small>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -3585,23 +4093,25 @@ admin_dashboard_html = """
 
     <!-- Add User Modal -->
     <div class="modal fade" id="addUserModal" tabindex="-1">
-        <div class="modal-dialog">
+        <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Add New User</h5>
+                    <h5 class="modal-title"><i class="bi bi-person-plus"></i> Add New User</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
                     <form id="addUserForm">
-                        <div class="mb-3">
-                            <label class="form-label">Email</label>
-                            <input type="email" class="form-control" id="newUserEmail" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Password</label>
-                            <input type="password" class="form-control" id="newUserPassword" required>
-                        </div>
                         <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="newUserEmail" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Password</label>
+                                <input type="password" class="form-control" id="newUserPassword" required>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
                             <div class="col-md-6">
                                 <label class="form-label">First Name</label>
                                 <input type="text" class="form-control" id="newUserFirstName" required>
@@ -3611,15 +4121,159 @@ admin_dashboard_html = """
                                 <input type="text" class="form-control" id="newUserLastName">
                             </div>
                         </div>
-                        <div class="mb-3 mt-3">
-                            <label class="form-label">Initial Credits</label>
-                            <input type="number" class="form-control" id="newUserCredits" value="3">
+                        <div class="row mt-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Initial Credits</label>
+                                <input type="number" class="form-control" id="newUserCredits" value="3">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Birth Date</label>
+                                <input type="date" class="form-control" id="newUserBirthDate">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Birth Location</label>
+                                <input type="text" class="form-control" id="newUserBirthLocation">
+                            </div>
                         </div>
                     </form>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveNewUserBtn">Save User</button>
+                    <button type="button" class="btn btn-primary" id="saveNewUserBtn">Create User</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div class="modal fade" id="addProductModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-box"></i> Create New SKU</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addProductForm">
+                        <div class="mb-3">
+                            <label class="form-label">SKU Code</label>
+                            <input type="text" class="form-control" id="newProductSku" placeholder="e.g., premium_plus" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Product Name</label>
+                            <input type="text" class="form-control" id="newProductName" placeholder="e.g., Premium Plus Reading" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Price ($)</label>
+                                <input type="number" class="form-control" id="newProductPrice" step="0.01" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Credits Required</label>
+                                <input type="number" class="form-control" id="newProductCredits" required>
+                            </div>
+                        </div>
+                        <div class="mb-3 mt-3">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-control" id="newProductDescription" rows="3"></textarea>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="newProductActive" checked>
+                            <label class="form-check-label" for="newProductActive">Active</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveNewProductBtn">Create SKU</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Credit Package Modal -->
+    <div class="modal fade" id="addCreditPackageModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-coin"></i> Create Credit Package</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addCreditPackageForm">
+                        <div class="mb-3">
+                            <label class="form-label">Package Name</label>
+                            <input type="text" class="form-control" id="newPackageName" placeholder="e.g., Spiritual Seeker Pack" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Credits</label>
+                                <input type="number" class="form-control" id="newPackageCredits" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Price ($)</label>
+                                <input type="number" class="form-control" id="newPackagePrice" step="0.01" required>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Discount (%)</label>
+                                <input type="number" class="form-control" id="newPackageDiscount" min="0" max="100">
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check mt-4">
+                                    <input class="form-check-input" type="checkbox" id="newPackagePopular">
+                                    <label class="form-check-label" for="newPackagePopular">Mark as Popular</label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveNewPackageBtn">Create Package</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Subscription Plan Modal -->
+    <div class="modal fade" id="addSubscriptionPlanModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-arrow-repeat"></i> Create Subscription Plan</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="addSubscriptionPlanForm">
+                        <div class="mb-3">
+                            <label class="form-label">Plan Name</label>
+                            <input type="text" class="form-control" id="newPlanName" placeholder="e.g., Monthly Spiritual Guide" required>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label class="form-label">Price ($)</label>
+                                <input type="number" class="form-control" id="newPlanPrice" step="0.01" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Billing Interval</label>
+                                <select class="form-control" id="newPlanInterval" required>
+                                    <option value="month">Monthly</option>
+                                    <option value="year">Yearly</option>
+                                    <option value="week">Weekly</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3 mt-3">
+                            <label class="form-label">Features (one per line)</label>
+                            <textarea class="form-control" id="newPlanFeatures" rows="4" placeholder="Daily spiritual insights&#10;Unlimited questions&#10;Priority support"></textarea>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveNewPlanBtn">Create Plan</button>
                 </div>
             </div>
         </div>
@@ -3629,10 +4283,12 @@ admin_dashboard_html = """
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // ✅ FIXED: Complete working JavaScript
+        // 🙏🏼 তমিল - Complete Admin Dashboard JavaScript
         const apiBaseUrl = window.location.origin;
         let authToken = null;
+        let currentSection = 'overview';
 
+        // তমিল - Authentication and initialization
         function checkAuth() {
             authToken = localStorage.getItem('jyotiflow_admin_token');
             const loginSection = document.getElementById('loginSection');
@@ -3648,12 +4304,18 @@ admin_dashboard_html = """
             }
         }
 
+        // তমিল - Load all dashboard data
         async function loadDashboardData() {
             try {
                 await Promise.all([
                     loadDashboardStats(),
-                    loadRecentUsers(),
-                    loadRecentSessions()
+                    loadUsers(),
+                    loadSessions(),
+                    loadAnalytics(),
+                    loadProducts(),
+                    loadSubscriptions(),
+                    loadCreditTransactions(),
+                    initializeCharts()
                 ]);
             } catch (error) {
                 console.error('Dashboard loading error:', error);
@@ -3661,6 +4323,7 @@ admin_dashboard_html = """
             }
         }
 
+        // তমিল - Load dashboard statistics
         async function loadDashboardStats() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/stats`, {
@@ -3674,6 +4337,11 @@ admin_dashboard_html = """
                 document.getElementById('activeSubscriptions').textContent = data.active_subscriptions || 0;
                 document.getElementById('sessionsToday').textContent = data.sessions_today || 0;
                 document.getElementById('monthlyRevenue').textContent = `$${(data.monthly_revenue || 0).toFixed(0)}`;
+                
+                // Load recent data for tables
+                await loadRecentUsers();
+                await loadRecentSessions();
+                
             } catch (error) {
                 console.error('Stats loading error:', error);
                 ['totalUsers', 'activeSubscriptions', 'sessionsToday', 'monthlyRevenue'].forEach(id => {
@@ -3682,201 +4350,556 @@ admin_dashboard_html = """
             }
         }
 
-        async function loadUsers() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/users?limit=100`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error(`Users API error: ${response.status}`);
-                
-                const data = await response.json();
-                const users = data.users || [];
-                
-                const usersTableBody = document.querySelector('#usersTable tbody');
-                usersTableBody.innerHTML = '';
-                
-                if (users.length === 0) {
-                    usersTableBody.innerHTML = '<tr><td colspan="6" class="text-center">No users found</td></tr>';
-                } else {
-                    users.forEach(user => {
-                        const row = usersTableBody.insertRow();
-                        row.innerHTML = `
-                            <td>${user.full_name || 'Unknown'}</td>
-                            <td>${user.email}</td>
-                            <td><span class="badge bg-primary">${user.credits || 0}</span></td>
-                            <td>${user.birth_details || 'Not provided'}</td>
-                            <td>${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</td>
-                            <td>
-                                <button class="btn btn-sm btn-outline-primary" onclick="adjustUserCredits('${user.email}')">
-                                    <i class="bi bi-coin"></i> Credits
-                                </button>
-                            </td>
-                        `;
-                    });
-                }
-            } catch (error) {
-                console.error('Users loading error:', error);
-                showToast('Failed to load users', 'danger');
-            }
-        }
-
-        async function loadSessions() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/sessions?limit=100`, {
-                    headers: { 'Authorization': `Bearer ${authToken}` }
-                });
-                
-                if (!response.ok) throw new Error(`Sessions API error: ${response.status}`);
-                
-                const data = await response.json();
-                const sessions = data.sessions || [];
-                
-                const sessionsTableBody = document.querySelector('#sessionsTable tbody');
-                sessionsTableBody.innerHTML = '';
-                
-                if (sessions.length === 0) {
-                    sessionsTableBody.innerHTML = '<tr><td colspan="6" class="text-center">No sessions found</td></tr>';
-                } else {
-                    sessions.forEach(session => {
-                        const row = sessionsTableBody.insertRow();
-                        row.innerHTML = `
-                            <td>${session.user_name || session.user_email}</td>
-                            <td><span class="badge bg-info">${session.service_name || session.session_type}</span></td>
-                            <td>${session.credits_used}</td>
-                            <td><span class="badge bg-${session.status === 'completed' ? 'success' : 'warning'}">${session.status}</span></td>
-                            <td>${session.session_time_friendly || 'Unknown'}</td>
-                            <td>${(session.question || '').substring(0, 50)}${session.question && session.question.length > 50 ? '...' : ''}</td>
-                        `;
-                    });
-                }
-            } catch (error) {
-                console.error('Sessions loading error:', error);
-                showToast('Failed to load sessions', 'danger');
-            }
-        }
-
+        // তমিল - Load recent users for overview
         async function loadRecentUsers() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/users?limit=5`, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
                 });
                 
-                const data = await response.json();
-                const users = data.users || [];
+                if (!response.ok) throw new Error('Failed to load recent users');
                 
+                const users = await response.json();
                 const tbody = document.querySelector('#recentUsersTable tbody');
-                tbody.innerHTML = '';
                 
                 if (users.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center">No recent users</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No users found</td></tr>';
                 } else {
-                    users.slice(0, 5).forEach(user => {
-                        const row = tbody.insertRow();
-                        row.innerHTML = `
-                            <td>${user.full_name || 'Unknown'}</td>
+                    tbody.innerHTML = users.slice(0, 5).map(user => `
+                        <tr>
+                            <td>${user.first_name || 'N/A'} ${user.last_name || ''}</td>
                             <td>${user.email}</td>
-                            <td><span class="badge bg-primary">${user.credits || 0}</span></td>
-                            <td>${user.created_friendly || 'Unknown'}</td>
-                        `;
-                    });
+                            <td><span class="badge bg-primary">${user.credits_balance || 0}</span></td>
+                            <td>${user.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</td>
+                        </tr>
+                    `).join('');
                 }
             } catch (error) {
                 console.error('Recent users loading error:', error);
+                document.querySelector('#recentUsersTable tbody').innerHTML = 
+                    '<tr><td colspan="4" class="text-center text-danger">Failed to load users</td></tr>';
             }
         }
 
+        // তমিল - Load recent sessions for overview
         async function loadRecentSessions() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/sessions?limit=5`, {
                     headers: { 'Authorization': `Bearer ${authToken}` }
                 });
                 
-                const data = await response.json();
-                const sessions = data.sessions || [];
+                if (!response.ok) throw new Error('Failed to load recent sessions');
                 
+                const sessions = await response.json();
                 const tbody = document.querySelector('#recentSessionsTable tbody');
-                tbody.innerHTML = '';
                 
                 if (sessions.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center">No recent sessions</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No sessions found</td></tr>';
                 } else {
-                    sessions.slice(0, 5).forEach(session => {
-                        const row = tbody.insertRow();
-                        row.innerHTML = `
-                            <td>${session.user_name || session.user_email}</td>
-                            <td><span class="badge bg-info">${session.service_name || session.session_type}</span></td>
-                            <td><span class="badge bg-success">Completed</span></td>
-                            <td>${session.session_time_friendly || 'Unknown'}</td>
-                        `;
-                    });
+                    tbody.innerHTML = sessions.slice(0, 5).map(session => `
+                        <tr>
+                            <td>${session.user_email || 'N/A'}</td>
+                            <td><span class="badge bg-info">${session.sku_code || 'N/A'}</span></td>
+                            <td><span class="badge bg-${session.status === 'completed' ? 'success' : 'warning'}">${session.status || 'unknown'}</span></td>
+                            <td>${session.created_at ? new Date(session.created_at).toLocaleString() : 'N/A'}</td>
+                        </tr>
+                    `).join('');
                 }
             } catch (error) {
                 console.error('Recent sessions loading error:', error);
+                document.querySelector('#recentSessionsTable tbody').innerHTML = 
+                    '<tr><td colspan="4" class="text-center text-danger">Failed to load sessions</td></tr>';
             }
         }
 
-        async function adjustUserCredits(userEmail) {
-            const credits = prompt(`Enter credits to add/remove for ${userEmail}:\\n(Use negative numbers to remove credits)`);
-            if (credits === null || credits === '') return;
-            
-            const creditAmount = parseInt(credits);
-            if (isNaN(creditAmount)) {
-                showToast('Invalid credit amount', 'danger');
-                return;
-            }
-            
-            const reason = prompt('Enter reason for credit adjustment:') || 'Admin adjustment';
-            
-            try {
-                const response = await fetch(`${apiBaseUrl}/api/admin/credits/adjust`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        user_email: userEmail,
-                        credits: creditAmount,
-                        reason: reason
-                    })
-                });
-                
-                if (!response.ok) throw new Error(`Credit adjustment failed: ${response.status}`);
-                
-                showToast(`Credits adjusted successfully for ${userEmail}`, 'success');
-                loadUsers();
-                loadDashboardStats();
-            } catch (error) {
-                console.error('Credit adjustment error:', error);
-                showToast('Failed to adjust credits', 'danger');
-            }
-        }
-
-        async function createUser(userData) {
+        // তমিল - Load all users
+        async function loadUsers() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${authToken}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(userData)
+                    headers: { 'Authorization': `Bearer ${authToken}` }
                 });
                 
-                if (!response.ok) throw new Error(`User creation failed: ${response.status}`);
+                if (!response.ok) throw new Error('Failed to load users');
                 
-                showToast('User created successfully', 'success');
-                loadUsers();
-                loadDashboardStats();
-                return await response.json();
+                const users = await response.json();
+                const tbody = document.querySelector('#usersTable tbody');
+                
+                if (users.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No users found</td></tr>';
+                } else {
+                    tbody.innerHTML = users.map(user => `
+                        <tr>
+                            <td>${user.first_name || 'N/A'} ${user.last_name || ''}</td>
+                            <td>${user.email}</td>
+                            <td><span class="badge bg-primary">${user.credits_balance || 0}</span></td>
+                            <td>${user.birth_date || 'Not provided'}</td>
+                            <td><span class="badge bg-${user.subscription_status === 'active' ? 'success' : 'secondary'}">${user.subscription_status || 'none'}</span></td>
+                            <td>${user.last_login ? new Date(user.last_login).toLocaleDateString() : 'Never'}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewUserDetails('${user.email}')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="editUserCredits('${user.email}', ${user.credits_balance})">
+                                    <i class="bi bi-coin"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
             } catch (error) {
-                console.error('User creation error:', error);
-                showToast('Failed to create user', 'danger');
-                throw error;
+                console.error('Users loading error:', error);
+                document.querySelector('#usersTable tbody').innerHTML = 
+                    '<tr><td colspan="7" class="text-center text-danger">Failed to load users</td></tr>';
             }
         }
 
+        // তমিল - Load all sessions
+        async function loadSessions() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/sessions`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to load sessions');
+                
+                const sessions = await response.json();
+                const tbody = document.querySelector('#sessionsTable tbody');
+                
+                if (sessions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">No sessions found</td></tr>';
+                } else {
+                    tbody.innerHTML = sessions.map(session => `
+                        <tr>
+                            <td>${session.user_email || 'N/A'}</td>
+                            <td><span class="badge bg-info">${session.sku_code || 'N/A'}</span></td>
+                            <td><span class="badge bg-warning">${session.credits_used || 0}</span></td>
+                            <td><span class="badge bg-${session.status === 'completed' ? 'success' : session.status === 'pending' ? 'warning' : 'danger'}">${session.status || 'unknown'}</span></td>
+                            <td><span class="badge bg-secondary">${session.channel || 'web'}</span></td>
+                            <td>${session.created_at ? new Date(session.created_at).toLocaleString() : 'N/A'}</td>
+                            <td>${session.question_text ? session.question_text.substring(0, 50) + '...' : 'N/A'}</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" onclick="viewSessionDetails('${session.session_id}')">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Sessions loading error:', error);
+                document.querySelector('#sessionsTable tbody').innerHTML = 
+                    '<tr><td colspan="8" class="text-center text-danger">Failed to load sessions</td></tr>';
+            }
+        }
+
+        // তমিল - Load analytics data
+        async function loadAnalytics() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/analytics`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to load analytics');
+                
+                const analytics = await response.json();
+                
+                // Update performance metrics
+                document.getElementById('avgSessionTime').textContent = analytics.avg_session_time || '2.5min';
+                document.getElementById('completionRate').textContent = analytics.completion_rate || '94%';
+                document.getElementById('userRetention').textContent = analytics.user_retention || '78%';
+                
+            } catch (error) {
+                console.error('Analytics loading error:', error);
+            }
+        }
+
+        // তমিল - Load products/SKUs
+        async function loadProducts() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/products`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to load products');
+                
+                const products = await response.json();
+                const tbody = document.querySelector('#skuTable tbody');
+                
+                if (products.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No SKUs found</td></tr>';
+                } else {
+                    tbody.innerHTML = products.map(product => `
+                        <tr>
+                            <td><code>${product.sku_code}</code></td>
+                            <td>${product.name}</td>
+                            <td>$${product.price}</td>
+                            <td><span class="badge bg-primary">${product.credits_required}</span></td>
+                            <td><span class="badge bg-${product.active ? 'success' : 'danger'}">${product.active ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-warning" onclick="editProduct('${product.id}')">
+                                    <i class="bi bi-pencil"></i>
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct('${product.id}')">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Load credit packages
+                const packagesResponse = await fetch(`${apiBaseUrl}/api/admin/credit-packages`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (packagesResponse.ok) {
+                    const packages = await packagesResponse.json();
+                    const packagesTbody = document.querySelector('#creditPackagesTable tbody');
+                    
+                    if (packages.length === 0) {
+                        packagesTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No packages found</td></tr>';
+                    } else {
+                        packagesTbody.innerHTML = packages.map(pkg => `
+                            <tr>
+                                <td>${pkg.name}</td>
+                                <td><span class="badge bg-primary">${pkg.credits}</span></td>
+                                <td>$${pkg.price}</td>
+                                <td>${pkg.discount || 0}%</td>
+                                <td><span class="badge bg-${pkg.popular ? 'warning' : 'secondary'}">${pkg.popular ? 'Yes' : 'No'}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="editPackage('${pkg.id}')">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deletePackage('${pkg.id}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Products loading error:', error);
+                document.querySelector('#skuTable tbody').innerHTML = 
+                    '<tr><td colspan="6" class="text-center text-danger">Failed to load SKUs</td></tr>';
+            }
+        }
+
+        // তমিল - Load subscriptions
+        async function loadSubscriptions() {
+            try {
+                // Load subscription plans
+                const plansResponse = await fetch(`${apiBaseUrl}/api/admin/subscription-plans`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (plansResponse.ok) {
+                    const plans = await plansResponse.json();
+                    const plansTbody = document.querySelector('#subscriptionPlansTable tbody');
+                    
+                    if (plans.length === 0) {
+                        plansTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No plans found</td></tr>';
+                    } else {
+                        plansTbody.innerHTML = plans.map(plan => `
+                            <tr>
+                                <td>${plan.name}</td>
+                                <td>$${plan.price}</td>
+                                <td>${plan.interval}</td>
+                                <td>${plan.features ? plan.features.split(',').length + ' features' : 'N/A'}</td>
+                                <td><span class="badge bg-primary">${plan.active_users || 0}</span></td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-warning" onclick="editPlan('${plan.id}')">
+                                        <i class="bi bi-pencil"></i>
+                                    </button>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="deletePlan('${plan.id}')">
+                                        <i class="bi bi-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+
+                // Load active subscriptions
+                const subscriptionsResponse = await fetch(`${apiBaseUrl}/api/admin/subscriptions`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (subscriptionsResponse.ok) {
+                    const subscriptions = await subscriptionsResponse.json();
+                    const subsTbody = document.querySelector('#activeSubscriptionsTable tbody');
+                    
+                    if (subscriptions.length === 0) {
+                        subsTbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No active subscriptions</td></tr>';
+                    } else {
+                        subsTbody.innerHTML = subscriptions.map(sub => `
+                            <tr>
+                                <td>${sub.user_email}</td>
+                                <td>${sub.plan_name}</td>
+                                <td><span class="badge bg-${sub.status === 'active' ? 'success' : 'warning'}">${sub.status}</span></td>
+                                <td>${sub.created_at ? new Date(sub.created_at).toLocaleDateString() : 'N/A'}</td>
+                                <td>${sub.next_billing ? new Date(sub.next_billing).toLocaleDateString() : 'N/A'}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-danger" onclick="cancelSubscription('${sub.id}')">
+                                        <i class="bi bi-x"></i> Cancel
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('');
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Subscriptions loading error:', error);
+            }
+        }
+
+        // তমিল - Load credit transactions
+        async function loadCreditTransactions() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/credit-transactions`, {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                
+                if (!response.ok) throw new Error('Failed to load credit transactions');
+                
+                const transactions = await response.json();
+                const tbody = document.querySelector('#creditTransactionsTable tbody');
+                
+                if (transactions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No transactions found</td></tr>';
+                } else {
+                    tbody.innerHTML = transactions.map(transaction => `
+                        <tr>
+                            <td>${transaction.user_email}</td>
+                            <td><span class="badge bg-${transaction.transaction_type === 'credit_purchase' ? 'success' : 'warning'}">${transaction.transaction_type}</span></td>
+                            <td><span class="badge bg-primary">${transaction.credits_involved || 0}</span></td>
+                            <td>${transaction.description || 'N/A'}</td>
+                            <td>${transaction.created_at ? new Date(transaction.created_at).toLocaleString() : 'N/A'}</td>
+                            <td>${transaction.admin_user || 'System'}</td>
+                        </tr>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Credit transactions loading error:', error);
+                document.querySelector('#creditTransactionsTable tbody').innerHTML = 
+                    '<tr><td colspan="6" class="text-center text-danger">Failed to load transactions</td></tr>';
+            }
+        }
+
+        // তমিল - Initialize charts
+        function initializeCharts() {
+            // Growth Chart
+            const growthCtx = document.getElementById('growthChart');
+            if (growthCtx) {
+                new Chart(growthCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        datasets: [{
+                            label: 'Users',
+                            data: [12, 19, 23, 35, 42, 58],
+                            borderColor: '#7b2cbf',
+                            backgroundColor: 'rgba(123, 44, 191, 0.1)',
+                            tension: 0.4
+                        }, {
+                            label: 'Sessions',
+                            data: [8, 15, 28, 42, 65, 89],
+                            borderColor: '#9d4edd',
+                            backgroundColor: 'rgba(157, 78, 221, 0.1)',
+                            tension: 0.4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Service Distribution Chart
+            const serviceCtx = document.getElementById('serviceChart');
+            if (serviceCtx) {
+                new Chart(serviceCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Clarity Plus', 'AstroLove', 'R3 Live', 'Daily Coach'],
+                        datasets: [{
+                            data: [30, 25, 35, 10],
+                            backgroundColor: ['#7b2cbf', '#9d4edd', '#c77dff', '#e0aaff'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Revenue Chart
+            const revenueCtx = document.getElementById('revenueChart');
+            if (revenueCtx) {
+                new Chart(revenueCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+                        datasets: [{
+                            label: 'Revenue ($)',
+                            data: [1200, 1900, 2300, 3500, 4200, 5800],
+                            backgroundColor: 'linear-gradient(45deg, #7b2cbf, #9d4edd)',
+                            borderColor: '#7b2cbf',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Channel Distribution Chart
+            const channelCtx = document.getElementById('channelChart');
+            if (channelCtx) {
+                new Chart(channelCtx, {
+                    type: 'pie',
+                    data: {
+                        labels: ['Web', 'Zoom', 'WhatsApp', 'Email'],
+                        datasets: [{
+                            data: [60, 25, 10, 5],
+                            backgroundColor: ['#7b2cbf', '#9d4edd', '#c77dff', '#e0aaff'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Usage Pattern Chart
+            const usageCtx = document.getElementById('usagePatternChart');
+            if (usageCtx) {
+                new Chart(usageCtx, {
+                    type: 'line',
+                    data: {
+                        labels: ['6AM', '9AM', '12PM', '3PM', '6PM', '9PM'],
+                        datasets: [{
+                            label: 'Sessions',
+                            data: [5, 15, 25, 30, 40, 20],
+                            borderColor: '#7b2cbf',
+                            backgroundColor: 'rgba(123, 44, 191, 0.1)',
+                            tension: 0.4,
+                            fill: true
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            // SKU Performance Chart
+            const skuPerfCtx = document.getElementById('skuPerformanceChart');
+            if (skuPerfCtx) {
+                new Chart(skuPerfCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Clarity', 'AstroLove', 'R3 Live', 'Daily Coach'],
+                        datasets: [{
+                            label: 'Usage Count',
+                            data: [45, 35, 20, 15],
+                            backgroundColor: ['#7b2cbf', '#9d4edd', '#c77dff', '#e0aaff'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Subscription Stats Chart
+            const subStatsCtx = document.getElementById('subscriptionStatsChart');
+            if (subStatsCtx) {
+                new Chart(subStatsCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Monthly', 'Yearly', 'Free'],
+                        datasets: [{
+                            data: [40, 20, 40],
+                            backgroundColor: ['#7b2cbf', '#9d4edd', '#c77dff'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom',
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // তমিল - Section navigation
+        function showSection(sectionName) {
+            // Hide all sections
+            document.querySelectorAll('.dashboard-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // Show selected section
+            document.getElementById(sectionName).classList.remove('hidden');
+            
+            // Update navigation
+            document.querySelectorAll('.sidebar .nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            document.querySelector(`[data-section="${sectionName}"]`).classList.add('active');
+            
+            currentSection = sectionName;
+        }
+
+        // তমিল - Utility functions
         function showToast(message, type = 'info') {
             let container = document.getElementById('toast-container');
             if (!container) {
@@ -3899,7 +4922,81 @@ admin_dashboard_html = """
             setTimeout(() => toast.remove(), 5000);
         }
 
-        // Initialize on page load
+        // তমিল - Action functions
+        async function adjustCredits(userEmail, amount, reason) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/credits/adjust`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify({
+                        user_email: userEmail,
+                        credit_amount: parseInt(amount),
+                        reason: reason
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast('Credits adjusted successfully', 'success');
+                    await loadUsers();
+                    await loadCreditTransactions();
+                } else {
+                    showToast('Failed to adjust credits', 'danger');
+                }
+            } catch (error) {
+                console.error('Credit adjustment error:', error);
+                showToast('Credit adjustment failed', 'danger');
+            }
+        }
+
+        async function createUser(userData) {
+            try {
+                const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                if (response.ok) {
+                    showToast('User created successfully', 'success');
+                    await loadUsers();
+                    return true;
+                } else {
+                    const error = await response.json();
+                    showToast(error.detail || 'Failed to create user', 'danger');
+                    return false;
+                }
+            } catch (error) {
+                console.error('User creation error:', error);
+                showToast('User creation failed', 'danger');
+                return false;
+            }
+        }
+
+        // তমিল - View functions
+        function viewUserDetails(userEmail) {
+            showToast(`Viewing details for ${userEmail}`, 'info');
+            // You can implement a modal or detailed view here
+        }
+
+        function editUserCredits(userEmail, currentCredits) {
+            document.getElementById('creditUserEmail').value = userEmail;
+            document.getElementById('creditAmount').value = 0;
+            document.getElementById('creditReason').value = `Credit adjustment for ${userEmail}`;
+            showSection('credits');
+        }
+
+        function viewSessionDetails(sessionId) {
+            showToast(`Viewing session ${sessionId}`, 'info');
+            // You can implement session details modal here
+        }
+
+        // তমিল - Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             checkAuth();
 
@@ -3938,28 +5035,45 @@ admin_dashboard_html = """
             });
 
             // Navigation handlers
-            document.querySelectorAll('.nav-link[data-section]').forEach(function(link) {
+            document.querySelectorAll('[data-section]').forEach(link => {
                 link.addEventListener('click', function(e) {
                     e.preventDefault();
-                    const targetSection = this.dataset.section;
-                    
-                    document.querySelectorAll('.dashboard-section').forEach(section => {
-                        section.classList.add('hidden');
-                    });
-                    
-                    document.getElementById(targetSection).classList.remove('hidden');
-                    
-                    document.querySelectorAll('.nav-link[data-section]').forEach(nav => {
-                        nav.classList.remove('active');
-                    });
-                    this.classList.add('active');
-                    
-                    switch(targetSection) {
-                        case 'users': loadUsers(); break;
-                        case 'sessions': loadSessions(); break;
-                        case 'overview': loadDashboardData(); break;
-                    }
+                    const section = this.getAttribute('data-section');
+                    showSection(section);
                 });
+            });
+
+            // Credit adjustment form
+            document.getElementById('adjustCreditsForm').addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const userEmail = document.getElementById('creditUserEmail').value;
+                const amount = document.getElementById('creditAmount').value;
+                const reason = document.getElementById('creditReason').value;
+                
+                await adjustCredits(userEmail, amount, reason);
+                
+                // Clear form
+                this.reset();
+            });
+
+            // Add user form
+            document.getElementById('saveNewUserBtn').addEventListener('click', async function() {
+                const userData = {
+                    email: document.getElementById('newUserEmail').value,
+                    password: document.getElementById('newUserPassword').value,
+                    first_name: document.getElementById('newUserFirstName').value,
+                    last_name: document.getElementById('newUserLastName').value,
+                    credits_balance: parseInt(document.getElementById('newUserCredits').value),
+                    birth_date: document.getElementById('newUserBirthDate').value,
+                    birth_location: document.getElementById('newUserBirthLocation').value
+                };
+                
+                const success = await createUser(userData);
+                if (success) {
+                    bootstrap.Modal.getInstance(document.getElementById('addUserModal')).hide();
+                    document.getElementById('addUserForm').reset();
+                }
             });
 
             // Logout handler
@@ -3969,76 +5083,10 @@ admin_dashboard_html = """
                 checkAuth();
                 showToast('Logged out successfully', 'success');
             });
-
-            // User creation handler
-            const saveBtn = document.getElementById('saveNewUserBtn');
-            if (saveBtn) {
-                saveBtn.addEventListener('click', async function() {
-                    const userData = {
-                        email: document.getElementById('newUserEmail').value,
-                        password: document.getElementById('newUserPassword').value,
-                        first_name: document.getElementById('newUserFirstName').value,
-                        last_name: document.getElementById('newUserLastName').value,
-                        credits: parseInt(document.getElementById('newUserCredits').value) || 3
-                    };
-                    
-                    if (!userData.email || !userData.password || !userData.first_name) {
-                        showToast('Please fill all required fields', 'danger');
-                        return;
-                    }
-                    
-                    try {
-                        await createUser(userData);
-                        const modal = bootstrap.Modal.getInstance(document.getElementById('addUserModal'));
-                        modal.hide();
-                        document.getElementById('addUserForm').reset();
-                    } catch (error) {
-                        // Error handled in createUser
-                    }
-                });
-            }
-
-            // Credits adjustment handler
-            const adjustForm = document.getElementById('adjustCreditsForm');
-            if (adjustForm) {
-                adjustForm.addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    
-                    const userEmail = document.getElementById('creditUserEmail').value;
-                    const creditAmount = parseInt(document.getElementById('creditAmount').value);
-                    const reason = document.getElementById('creditReason').value;
-                    
-                    if (!userEmail || isNaN(creditAmount) || !reason) {
-                        showToast('Please fill all fields', 'danger');
-                        return;
-                    }
-                    
-                    try {
-                        await adjustUserCredits(userEmail);
-                        adjustForm.reset();
-                    } catch (error) {
-                        // Error handled in adjustUserCredits
-                    }
-                });
-            }
         });
-
-        // Test connection on load
-        async function testConnection() {
-            try {
-                const response = await fetch(`${apiBaseUrl}/health`);
-                if (response.ok) {
-                    console.log('✅ Backend connection successful');
-                }
-            } catch (error) {
-                console.error('❌ Backend connection failed:', error);
-            }
-        }
-        testConnection();
     </script>
 </body>
 </html>
-"""
 
     
 @app.get('/dashboard')
