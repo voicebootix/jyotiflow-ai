@@ -5091,8 +5091,6 @@ admin_dashboard_html = """
     
 @app.get('/dashboard')
 def user_dashboard():
-    """தமிழ் - User dashboard page"""
-    DASHBOARD_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
