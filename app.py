@@ -5452,8 +5452,9 @@ async def admin_login(login_data: AdminLogin):
 
 
 # ✅ FIXED - Add the missing route decorator:
-@app.get("/api/user/profile/real")
+@app.get("/api/user/profile/real")  # Add this line
 async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
+    """তমিল - Get real user profile with comprehensive data"""
     conn = None
     try:
         user_email = current_user['email']
@@ -5514,8 +5515,7 @@ async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
                 "birth_profile": birth_profile,
                 "member_since": member_since.strftime("%B %Y") if member_since else "Unknown",
                 "days_as_member": days_as_member,
-                "last_login": user['last_login'].isoformat() if user['last_login'] else None,
-                "has_stripe": bool(user['stripe_customer_id'])
+                "last_login": user['last_login'].isoformat() if user['last_login'] else None
             },
             "stats": {
                 "total_sessions": stats['total_sessions'] or 0,
@@ -5526,18 +5526,14 @@ async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
                 "last_session": stats['last_session_time'].strftime("%B %d, %Y") if stats['last_session_time'] else None,
                 "favorite_service": SKUS.get(favorite_service['session_type'], {}).get('name') if favorite_service else None,
                 "credits_per_session": round(stats['total_credits_spent'] / max(stats['total_sessions'], 1), 1)
-            },
-            "insights": {
-                "engagement_level": "High" if stats['sessions_this_month'] >= 5 else "Medium" if stats['sessions_this_month'] >= 2 else "New",
-                "spiritual_journey_stage": "Advanced Seeker" if stats['total_sessions'] >= 10 else "Growing Seeker" if stats['total_sessions'] >= 3 else "New Seeker"
             }
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"User profile error: {e}")
-        raise HTTPException(500, "Failed to load user profile")
+        logger.error(f"Real user profile error: {e}")
+        raise HTTPException(500, "Failed to load profile")
     finally:
         if conn:
             await release_db_connection(conn)
