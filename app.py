@@ -6267,7 +6267,7 @@ async def get_standardized_admin_users(skip: int = 0, limit: int = 100, admin_us
     try:
         conn = await get_db_connection()
         
-        # Get users with session counts and last session info
+        # ✅ FIXED: Proper SQL query indentation
         records = await conn.fetch("""
             SELECT u.email, u.first_name, u.last_name, u.birth_date, u.birth_time, 
                    u.birth_location, u.credits, u.last_login, u.created_at, u.updated_at, 
@@ -6335,12 +6335,7 @@ async def get_standardized_admin_users(skip: int = 0, limit: int = 100, admin_us
         
     except Exception as e:
         logger.error(f"Admin users error: {e}", exc_info=True)
-        return {
-            "success": False,
-            "message": f"Failed to fetch users: {str(e)}",
-            "users": [],
-            "total_count": 0
-        }
+        raise HTTPException(status_code=500, detail="Failed to fetch users")
     finally:
         if conn:
             await release_db_connection(conn)
