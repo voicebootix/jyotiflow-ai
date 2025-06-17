@@ -5419,7 +5419,6 @@ def user_dashboard():
 
 @app.post("/api/admin/login")
 async def admin_login(login_data: AdminLogin):
-    """தமிழ் - Admin login endpoint"""
     try:
         # Debug logging
         logger.info(f"Login attempt with email: {login_data.email}")
@@ -5455,7 +5454,6 @@ async def admin_login(login_data: AdminLogin):
 # User API endpoints for dashboard
 
 async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
-    """தமிழ் - Real user profile with actual statistics"""
     conn = None
     try:
         user_email = current_user['email']
