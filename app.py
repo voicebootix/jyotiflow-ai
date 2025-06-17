@@ -3339,7 +3339,7 @@ admin_dashboard_html = """
 # ✅ FINAL INTEGRATION: Update your app.py with these critical fixes
 
 # Replace the admin dashboard HTML in your app.py with this working version:
-admin_dashboard_html_fixed = """
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5875,21 +5875,6 @@ async def enhanced_user_login(login_data: UserLogin):
             await release_db_connection(conn)
 
 # தமிழ் - Session Management Routes
-
-@app.post("/api/session/start")
-async def start_spiritual_session(session_data: SessionStart, current_user: Dict = Depends(get_current_user)):
-    """தமிழ் - Start spiritual guidance session with credit deduction"""
-    conn = None
-    try:
-        user_email = current_user['email']
-        sku = session_data.sku
-        # Add debug logging
-        logger.info(f"Session start request: user={user_email}, sku={sku}")
-        
-        # தமிழ் - Validate SKU
-        if sku not in SKUS:
-            raise HTTPException(status_code=400, detail="Invalid service type")
-        sku_config = SKUS[sku]
 
 # ✅ FIX #3: Enhanced session start with comprehensive validation
 @app.post("/api/session/start")
