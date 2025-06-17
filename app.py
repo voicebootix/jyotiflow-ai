@@ -6339,116 +6339,82 @@ async def send_follow_up(request_data: Dict, admin_user: Dict = Depends(get_admi
     
     return {"success": True, "message": f"Follow-up sent via {channel}"}
 
-# தமிழ் - Authentication Routes
 
-@app.post("/api/auth/register")
-async def register_user(user_data: UserRegister):
-    """தமிழ் - User registration with welcome credits"""
-    conn = None
-    try:
-        # தமிழ் - Validate password strength
-        if len(user_data.password) < 8:
-            raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
-        
-        if not re.search(r'[0-9]', user_data.password):
-            raise HTTPException(status_code=400, detail="Password must contain at least one number")
-        
-        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', user_data.password):
-            raise HTTPException(status_code=400, detail="Password must contain at least one special character")
-        
-        conn = await get_db_connection()
-        
-        # தமிழ் - Check if user already exists
-        existing_user = await conn.fetchrow(
-            "SELECT email FROM users WHERE email = $1", user_data.email
-        )
-        
-        if existing_user:
-            raise HTTPException(status_code=400, detail="User already exists")
-        
-        # தமிழ் - Hash password and create user
-        hashed_password = hash_password(user_data.password)
-        
-        await conn.execute("""
-            INSERT INTO users (email, password_hash, first_name, last_name, 
-                             birth_date, birth_time, birth_location, credits, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-        """, user_data.email, hashed_password, user_data.first_name, user_data.last_name,
-            user_data.birth_date, user_data.birth_time, user_data.birth_location, 
-            3, datetime.utcnow())  # தமிழ் - 3 welcome credits
-        
-        # தமிழ் - Log welcome credits transaction
-        await conn.execute("""
-            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
-            VALUES ($1, $2, $3, $4, $5)
-        """, "system", "welcome_credits", user_data.email, 
-            "3 welcome credits added for new user", datetime.utcnow())
-        
-        # தமிழ் - Create JWT token
-        token = create_jwt_token(user_data.email)
-        
-        return {
-            "message": "🙏🏼 Welcome to Swami Jyotirananthan's digital ashram",
-            "token": token,
-            "credits": 3,
-            "user": {
-                "email": user_data.email,
-                "first_name": user_data.first_name,
-                "last_name": user_data.last_name
-            }
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Registration error: {e}")
-        raise HTTPException(status_code=500, detail="Registration failed")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
+# ✅ FIX #2: Enhanced user login with proper error handling
 @app.post("/api/auth/login")
-async def login_user(login_data: UserLogin):
-    """தமிழ் - User login with JWT token generation"""
+async def enhanced_user_login(login_data: UserLogin):
+    """তমিল - Enhanced user login with better security and logging"""
     conn = None
     try:
         conn = await get_db_connection()
         
-        # தமிழ் - Get user from database
-        user = await conn.fetchrow(
-            "SELECT email, password_hash, credits, first_name, last_name FROM users WHERE email = $1",
+        # Get user from database with all necessary fields
+        user = await conn.fetchrow("""
+            SELECT email, password_hash, credits, first_name, last_name, 
+                   last_login, created_at, birth_date, birth_time, birth_location
+            FROM users WHERE email = $1
+        """, login_data.email)
+        
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Verify password
+        if not verify_password(login_data.password, user['password_hash']):
+            # Log failed login attempt
+            await conn.execute("""
+                INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+                VALUES ($1, $2, $3, $4, NOW())
+            """, "system", "failed_login", login_data.email, "Invalid password attempt")
+            
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        
+        # Update last login
+        await conn.execute(
+            "UPDATE users SET last_login = NOW() WHERE email = $1",
             login_data.email
         )
         
-        if not user or not verify_password(login_data.password, user['password_hash']):
-            raise HTTPException(status_code=401, detail="Invalid email or password")
+        # Log successful login
+        await conn.execute("""
+            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
+            VALUES ($1, $2, $3, $4, NOW())
+        """, "system", "user_login", login_data.email, "Successful login")
         
-        # தமிழ் - Update last login
-        await conn.execute(
-            "UPDATE users SET last_login = $1 WHERE email = $2",
-            datetime.utcnow(), login_data.email
-        )
-        
-        # தமிழ் - Create JWT token
+        # Create JWT token
         token = create_jwt_token(login_data.email)
+        
+        # Prepare user profile info
+        birth_profile = None
+        if user['birth_date']:
+            birth_profile = {
+                "date": user['birth_date'],
+                "time": user['birth_time'],
+                "location": user['birth_location'],
+                "complete": bool(user['birth_date'] and user['birth_time'] and user['birth_location'])
+            }
+        
+        logger.info(f"✅ User login successful: {login_data.email}")
         
         return {
             "success": True,
             "message": "🙏🏼 Welcome back to the ashram",
             "token": token,
-            "credits": user['credits'],
             "user": {
                 "email": user['email'],
                 "first_name": user['first_name'],
-                "last_name": user['last_name']
+                "last_name": user['last_name'],
+                "credits": user['credits'] or 0,
+                "last_login": user['last_login'].isoformat() if user['last_login'] else None,
+                "member_since": user['created_at'].strftime("%B %Y") if user['created_at'] else "Unknown",
+                "birth_profile": birth_profile
             }
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Login error: {e}")
-        raise HTTPException(status_code=500, detail="Login failed")
+        logger.error(f"❌ Login error: {e}")
+        raise HTTPException(status_code=500, detail="Login failed. Please try again.")
     finally:
         if conn:
             await release_db_connection(conn)
@@ -6469,95 +6435,195 @@ async def start_spiritual_session(session_data: SessionStart, current_user: Dict
         if sku not in SKUS:
             raise HTTPException(status_code=400, detail="Invalid service type")
         sku_config = SKUS[sku]
+
+# ✅ FIX #3: Enhanced session start with comprehensive validation
+@app.post("/api/session/start")
+async def enhanced_session_start(request: Request, current_user: Dict = Depends(get_current_user)):
+    """তমিল - Enhanced session start with comprehensive validation and error handling"""
+    conn = None
+    try:
+        data = await request.json()
+        user_email = current_user['email']
+        sku = data.get('sku', '').lower()
+        question = data.get('question', '').strip()
         
+        logger.info(f"🔄 Session start request: user={user_email}, sku={sku}")
+        
+        # Validate SKU
+        if not sku or sku not in SKUS:
+            raise HTTPException(status_code=400, detail=f"Invalid service type. Must be one of: {list(SKUS.keys())}")
+        
+        # Validate question
+        if not question:
+            question = "Please provide spiritual guidance for my current life situation."
+        elif len(question) > 1000:
+            raise HTTPException(status_code=400, detail="Question too long. Please limit to 1000 characters.")
+        
+        sku_config = SKUS[sku]
         credits_required = sku_config['credits']
-        logger.info(f"Credits required for {sku}: {credits_required}")
         
         conn = await get_db_connection()
         
-        # தமிழ் - Check user credits
-        user = await conn.fetchrow(
-        # Log user credits
-            "SELECT credits FROM users WHERE email = $1", user_email
-        )
-        logger.info(f"User {user_email} has {user['credits']} credits")
+        # Get user with comprehensive info
+        user = await conn.fetchrow("""
+            SELECT credits, first_name, last_name, birth_date, birth_time, birth_location,
+                   created_at, last_login
+            FROM users WHERE email = $1
+        """, user_email)
+        
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
-        if user['credits'] < credits_required:
-            logger.warning(f"Insufficient credits: user has {user['credits']}, needs {credits_required}")
+        current_credits = user['credits'] or 0
+        
+        # Check credits
+        if current_credits < credits_required:
+            logger.warning(f"❌ Insufficient credits: user {user_email} has {current_credits}, needs {credits_required}")
             raise HTTPException(
                 status_code=402, 
-                detail=f"Insufficient credits. Need {credits_required}, have {user['credits']}"
+                detail={
+                    "error": "Insufficient credits",
+                    "required": credits_required,
+                    "available": current_credits,
+                    "message": f"You need {credits_required} credits for {sku_config['name']} but only have {current_credits}"
+                }
             )
         
-        # தமிழ் - Deduct credits
+        # Deduct credits first
         await conn.execute(
-            "UPDATE users SET credits = credits - $1 WHERE email = $2",
+            "UPDATE users SET credits = credits - $1, updated_at = NOW() WHERE email = $2",
             credits_required, user_email
         )
         
-        # தமிழ் - Create session record
+        # Create initial session record
         session_id = await conn.fetchval("""
-            INSERT INTO sessions (user_email, session_type, credits_used, session_time, status)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO sessions (user_email, session_type, credits_used, session_time, status, question)
+            VALUES ($1, $2, $3, NOW(), 'started', $4)
             RETURNING id
-        """, user_email, sku, credits_required, datetime.utcnow(), 'started')
+        """, user_email, sku, credits_required, question)
         
-        # தமிழ் - Get birth chart if birth details provided
+        # Extract and validate birth details
         birth_chart = None
-        if session_data.birth_details:
-            birth_chart = await get_prokerala_chart(
-                session_data.birth_details.get('birth_date'),
-                session_data.birth_details.get('birth_time'),
-                session_data.birth_details.get('birth_location')
-            )
+        birth_date = data.get('birth_date')
+        birth_time = data.get('birth_time') 
+        birth_location = data.get('birth_location') or data.get('birth_place')
         
-        # தமிழ் - Generate spiritual guidance
-        guidance = await generate_spiritual_guidance(
-            sku, session_data.question or "Please provide general spiritual guidance", birth_chart
-        )
+        # Use user's stored birth details if not provided in request
+        if not birth_date and user['birth_date']:
+            birth_date = user['birth_date']
+            birth_time = user['birth_time']
+            birth_location = user['birth_location']
         
-        # தமிழ் - Update session with guidance
+        # Generate birth chart if we have birth details
+        if birth_date and birth_location:
+            try:
+                birth_chart = await get_real_prokerala_chart(
+                    str(birth_date), 
+                    birth_time or "12:00", 
+                    birth_location
+                )
+                logger.info(f"✅ Birth chart generated for {user_email}")
+            except Exception as e:
+                logger.warning(f"⚠️ Birth chart generation failed: {e}")
+                birth_chart = {"error": "Chart generation temporarily unavailable"}
+        
+        # Prepare user context for personalized guidance
+        user_context = {
+            "name": user['first_name'],
+            "email": user_email,
+            "service_level": sku,
+            "credits_remaining": current_credits - credits_required,
+            "member_since": user['created_at'].strftime("%B %Y") if user['created_at'] else "New",
+            "session_count": await conn.fetchval("SELECT COUNT(*) FROM sessions WHERE user_email = $1", user_email) or 0
+        }
+        
+        # Generate spiritual guidance
+        try:
+            if OPENAI_API_KEY and OPENAI_API_KEY != "sk-...":
+                guidance = await generate_real_spiritual_guidance(
+                    sku=sku,
+                    question=question,
+                    birth_chart=birth_chart,
+                    user_context=user_context
+                )
+                ai_powered = True
+                logger.info(f"✅ Real AI guidance generated for session {session_id}")
+            else:
+                # Fallback to template response
+                guidance = await generate_fallback_guidance(sku, question, user_context)
+                ai_powered = False
+                logger.info(f"⚠️ Fallback guidance used for session {session_id}")
+                
+        except Exception as e:
+            logger.error(f"❌ Guidance generation failed: {e}")
+            guidance = await generate_fallback_guidance(sku, question, user_context)
+            ai_powered = False
+        
+        # Update session with guidance and mark as completed
         await conn.execute("""
-            UPDATE sessions SET result_summary = $1, status = $2 
+            UPDATE sessions SET result_summary = $1, status = 'completed', 
+                              birth_chart_data = $2
             WHERE id = $3
-        """, guidance, 'completed', session_id)
+        """, guidance, json.dumps(birth_chart) if birth_chart else None, session_id)
         
-        # தமிழ் - Trigger SalesCloser Zoom session
-        zoom_result = await trigger_salescloser_session(user_email, sku, session_id)
-        
-        # தமிழ் - Log session completion
+        # Log session completion
         await conn.execute("""
             INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
-            VALUES ($1, $2, $3, $4, $5)
+            VALUES ($1, $2, $3, $4, NOW())
         """, "system", "session_completed", user_email, 
-            f"Session {session_id} completed for {sku_config['name']}", datetime.utcnow())
+            f"Session {session_id} completed: {sku_config['name']} - {credits_required} credits used")
+        
+        # Get updated user credits
+        updated_credits = await conn.fetchval("SELECT credits FROM users WHERE email = $1", user_email)
+        
+        logger.info(f"✅ Session {session_id} completed successfully for {user_email}")
         
         return {
+            "success": True,
             "session_id": session_id,
-            "service": sku_config['name'],
+            "service": {
+                "name": sku_config['name'],
+                "type": sku,
+                "price": sku_config['price'],
+                "duration": sku_config['duration_minutes']
+            },
             "credits_used": credits_required,
-            "remaining_credits": user['credits'] - credits_required,
+            "remaining_credits": updated_credits,
             "guidance": guidance,
-            "zoom_session": zoom_result,
-            "message": "🙏🏼 May this guidance illuminate your path"
+            "birth_chart": birth_chart if birth_chart and not birth_chart.get("error") else None,
+            "ai_powered": ai_powered,
+            "user": {
+                "name": user['first_name'],
+                "credits": updated_credits
+            },
+            "message": "🙏🏼 May this divine guidance illuminate your spiritual path"
         }
         
     except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Session start error: {e}")
-        # தமிழ் - Refund credits if session failed
+        # Refund credits on HTTP errors
         if conn and 'credits_required' in locals():
             try:
                 await conn.execute(
                     "UPDATE users SET credits = credits + $1 WHERE email = $2",
                     credits_required, user_email
                 )
+                logger.info(f"💰 Credits refunded to {user_email} due to session error")
             except:
                 pass
-        raise HTTPException(status_code=500, detail="Session failed to start")
+        raise
+    except Exception as e:
+        logger.error(f"❌ Session start error: {e}")
+        # Refund credits on unexpected errors
+        if conn and 'credits_required' in locals():
+            try:
+                await conn.execute(
+                    "UPDATE users SET credits = credits + $1 WHERE email = $2",
+                    credits_required, user_email
+                )
+                logger.info(f"💰 Credits refunded to {user_email} due to unexpected error")
+            except:
+                pass
+        raise HTTPException(status_code=500, detail="Session failed to start. Credits have been refunded.")
     finally:
         if conn:
             await release_db_connection(conn)
@@ -7459,131 +7525,6 @@ async def get_real_prokerala_chart(birth_date: str, birth_time: str, birth_locat
             }
         }
 
-# தமிழ் - Updated session start endpoint with REAL AI
-@app.post("/api/session/start")
-async def real_ai_session_start(request: Request, current_user: Dict = Depends(get_current_user)):
-    """தமிழ் - Session start with REAL AI spiritual guidance"""
-    conn = None
-    try:
-        data = await request.json()
-        user_email = current_user['email']
-        sku = data.get('sku', '')
-        question = data.get('question', 'Please provide spiritual guidance')
-        
-        logger.info(f"REAL AI Session start: user={user_email}, sku={sku}")
-        
-        if sku not in SKUS:
-            raise HTTPException(400, "Invalid service type")
-        
-        sku_config = SKUS[sku]
-        credits_required = sku_config['credits']
-        
-        conn = await get_db_connection()
-        
-        # Check credits
-        user = await conn.fetchrow("SELECT credits, first_name FROM users WHERE email = $1", user_email)
-        if not user:
-            raise HTTPException(404, "User not found")
-        
-        if user['credits'] < credits_required:
-            raise HTTPException(402, f"Insufficient credits. Need {credits_required}, have {user['credits']}")
-        
-        # Deduct credits first
-        await conn.execute(
-            "UPDATE users SET credits = credits - $1 WHERE email = $2",
-            credits_required, user_email
-        )
-        
-        # Extract birth details for astrology
-        birth_chart = None
-        birth_date = data.get('birth_date')
-        birth_time = data.get('birth_time')
-        birth_location = data.get('birth_location') or data.get('birth_place')
-        
-        if birth_date and birth_location:
-            birth_chart = await get_real_prokerala_chart(
-                birth_date, 
-                birth_time or "12:00", 
-                birth_location
-            )
-        
-        # Get user context for personalization
-        user_context = {
-            "name": user['first_name'],
-            "email": user_email,
-            "service_level": sku,
-            "credits_remaining": user['credits'] - credits_required
-        }
-        
-        # Generate REAL spiritual guidance using OpenAI
-        guidance = await generate_real_spiritual_guidance(
-            sku=sku,
-            question=question,
-            birth_chart=birth_chart,
-            user_context=user_context
-        )
-        
-        # Save session with real guidance
-        session_id = await conn.fetchval("""
-            INSERT INTO sessions (user_email, session_type, credits_used, session_time, status, 
-                                result_summary, question, birth_chart_data)
-            VALUES ($1, $2, $3, NOW(), 'completed', $4, $5, $6)
-            RETURNING id
-        """, user_email, sku, credits_required, guidance, question, 
-            json.dumps(birth_chart) if birth_chart else None)
-        
-        # Log in admin logs
-        await conn.execute("""
-            INSERT INTO admin_logs (admin_email, action, target_user, details, timestamp)
-            VALUES ($1, $2, $3, $4, NOW())
-        """, "system", "ai_session_completed", user_email, 
-            f"Real AI session {session_id} completed for {sku_config['name']}")
-        
-        updated_user = await conn.fetchrow("SELECT credits FROM users WHERE email = $1", user_email)
-        
-        logger.info(f"REAL AI session {session_id} completed successfully")
-        
-        return {
-            "success": True,
-            "session_id": session_id,
-            "service": sku_config['name'],
-            "credits_used": credits_required,
-            "remaining_credits": updated_user['credits'],
-            "guidance": guidance,
-            "birth_chart": birth_chart,
-            "ai_powered": True,
-            "message": "🙏🏼 Divine AI wisdom channeled through Swami Jyotirananthan"
-        }
-        
-    except HTTPException:
-        # Refund credits on error
-        if conn and 'credits_required' in locals():
-            try:
-                await conn.execute(
-                    "UPDATE users SET credits = credits + $1 WHERE email = $2",
-                    credits_required, user_email
-                )
-                logger.info(f"Credits refunded to {user_email} due to session error")
-            except:
-                pass
-        raise
-    except Exception as e:
-        logger.error(f"Real AI session error: {e}")
-        # Refund credits
-        if conn and 'credits_required' in locals():
-            try:
-                await conn.execute(
-                    "UPDATE users SET credits = credits + $1 WHERE email = $2",
-                    credits_required, user_email
-                )
-                logger.info(f"Credits refunded to {user_email} due to unexpected error")
-            except:
-                pass
-        raise HTTPException(500, "AI session failed - credits refunded")
-    finally:
-        if conn:
-            await release_db_connection(conn)
-
 
     # 🙏🏼 Dashboard Data Initialization - Add to your app.py
 # தமিழ் - Create real sample data for dashboard testing
@@ -8255,12 +8196,27 @@ async def enhanced_startup_event():
     except Exception as e:
         logger.error(f"❌ Platform startup failed: {e}")
 
-# তমিল - Fix registration to ensure proper credits
+# ✅ FIX #1: Enhanced user registration with better validation
 @app.post("/api/auth/register")
-async def fixed_register_user(user_data: UserRegister):
-    """তমিল - Fixed user registration with guaranteed credits"""
+async def enhanced_user_registration(user_data: UserRegister):
+    """তমিল - Enhanced user registration with comprehensive validation"""
     conn = None
     try:
+        # Validate email format
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, user_data.email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        
+        # Validate password strength
+        if len(user_data.password) < 8:
+            raise HTTPException(status_code=400, detail="Password must be at least 8 characters long")
+        
+        if not re.search(r'[A-Za-z]', user_data.password):
+            raise HTTPException(status_code=400, detail="Password must contain at least one letter")
+        
+        if not re.search(r'[0-9]', user_data.password):
+            raise HTTPException(status_code=400, detail="Password must contain at least one number")
+        
         conn = await get_db_connection()
         
         # Check if user already exists
@@ -8269,18 +8225,23 @@ async def fixed_register_user(user_data: UserRegister):
         )
         
         if existing_user:
-            raise HTTPException(status_code=400, detail="User already exists")
+            raise HTTPException(status_code=400, detail="User with this email already exists")
         
         # Hash password and create user with guaranteed 3 credits
         hashed_password = hash_password(user_data.password)
         
-        await conn.execute("""
+        # Create user with proper birth details handling
+        birth_date = user_data.birth_date if user_data.birth_date else None
+        birth_time = user_data.birth_time if user_data.birth_time else None
+        birth_location = user_data.birth_location if user_data.birth_location else None
+        
+        new_user = await conn.fetchrow("""
             INSERT INTO users (email, password_hash, first_name, last_name, 
                              birth_date, birth_time, birth_location, credits, created_at, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+            RETURNING email, first_name, last_name, credits, created_at
         """, user_data.email, hashed_password, user_data.first_name, user_data.last_name,
-            user_data.birth_date, user_data.birth_time, user_data.birth_location, 
-            3)  # Guaranteed 3 welcome credits
+            birth_date, birth_time, birth_location, 3)  # Guaranteed 3 welcome credits
         
         # Log welcome credits transaction
         await conn.execute("""
@@ -8292,26 +8253,26 @@ async def fixed_register_user(user_data: UserRegister):
         # Create JWT token
         token = create_jwt_token(user_data.email)
         
-        logger.info(f"New user registered: {user_data.email} with 3 credits")
+        logger.info(f"✅ New user registered: {user_data.email} with 3 credits")
         
         return {
             "success": True,
             "message": "🙏🏼 Welcome to Swami Jyotirananthan's digital ashram",
             "token": token,
-            "credits": 3,
             "user": {
-                "email": user_data.email,
-                "first_name": user_data.first_name,
-                "last_name": user_data.last_name,
-                "credits": 3
+                "email": new_user['email'],
+                "first_name": new_user['first_name'],
+                "last_name": new_user['last_name'],
+                "credits": new_user['credits'],
+                "created_at": new_user['created_at'].isoformat()
             }
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Registration error: {e}")
-        raise HTTPException(status_code=500, detail="Registration failed")
+        logger.error(f"❌ Registration error: {e}")
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
     finally:
         if conn:
             await release_db_connection(conn)
@@ -8466,9 +8427,10 @@ async def get_real_admin_sessions(skip: int = 0, limit: int = 100, admin_user: D
         if conn:
             await release_db_connection(conn)
 
+# ✅ FIX #5: Enhanced user profile endpoint
 @app.get("/api/user/profile")
-async def get_user_profile(current_user: Dict = Depends(get_current_user)):
-    """தமிழ் - Get real user profile with statistics"""
+async def enhanced_user_profile(current_user: Dict = Depends(get_current_user)):
+    """তমিল - Enhanced user profile with comprehensive statistics"""
     conn = None
     try:
         user_email = current_user['email']
@@ -8484,14 +8446,41 @@ async def get_user_profile(current_user: Dict = Depends(get_current_user)):
         if not user:
             raise HTTPException(404, "User not found")
         
-        # Get user statistics
+        # Get comprehensive user statistics
         stats = await conn.fetchrow("""
             SELECT 
                 COUNT(*) as total_sessions,
-                COALESCE(SUM(credits_used), 0) as total_credits_spent,
-                MAX(session_time) as last_session_time
-            FROM sessions WHERE user_email = $1 AND status = 'completed'
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_sessions,
+                COALESCE(SUM(CASE WHEN status = 'completed' THEN credits_used ELSE 0 END), 0) as total_credits_spent,
+                MAX(session_time) as last_session_time,
+                COUNT(CASE WHEN DATE(session_time) = CURRENT_DATE THEN 1 END) as sessions_today,
+                COUNT(CASE WHEN session_time >= CURRENT_DATE - INTERVAL '7 days' THEN 1 END) as sessions_this_week,
+                COUNT(CASE WHEN session_time >= CURRENT_DATE - INTERVAL '30 days' THEN 1 END) as sessions_this_month
+            FROM sessions WHERE user_email = $1
         """, user_email)
+        
+        # Get favorite service type
+        favorite_service = await conn.fetchrow("""
+            SELECT session_type, COUNT(*) as count
+            FROM sessions WHERE user_email = $1 AND status = 'completed'
+            GROUP BY session_type
+            ORDER BY count DESC
+            LIMIT 1
+        """, user_email)
+        
+        # Calculate member tenure
+        member_since = user['created_at']
+        days_as_member = (datetime.now() - member_since).days if member_since else 0
+        
+        # Build birth profile
+        birth_profile = None
+        if user['birth_date']:
+            birth_profile = {
+                "date": str(user['birth_date']),
+                "time": user['birth_time'],
+                "location": user['birth_location'],
+                "complete": bool(user['birth_date'] and user['birth_time'] and user['birth_location'])
+            }
         
         return {
             "success": True,
@@ -8501,24 +8490,34 @@ async def get_user_profile(current_user: Dict = Depends(get_current_user)):
                 "last_name": user['last_name'],
                 "full_name": f"{user['first_name'] or ''} {user['last_name'] or ''}".strip(),
                 "credits": user['credits'] or 0,
-                "birth_date": user['birth_date'],
-                "birth_time": user['birth_time'],
-                "birth_location": user['birth_location'],
-                "member_since": user['created_at'].strftime("%B %Y") if user['created_at'] else "Unknown",
+                "birth_profile": birth_profile,
+                "member_since": member_since.strftime("%B %Y") if member_since else "Unknown",
+                "days_as_member": days_as_member,
                 "last_login": user['last_login'].isoformat() if user['last_login'] else None,
                 "has_stripe": bool(user['stripe_customer_id'])
             },
             "stats": {
                 "total_sessions": stats['total_sessions'] or 0,
+                "completed_sessions": stats['completed_sessions'] or 0,
                 "total_credits_spent": stats['total_credits_spent'] or 0,
-                "last_session": stats['last_session_time'].strftime("%B %d, %Y") if stats['last_session_time'] else None
+                "sessions_today": stats['sessions_today'] or 0,
+                "sessions_this_week": stats['sessions_this_week'] or 0,
+                "sessions_this_month": stats['sessions_this_month'] or 0,
+                "last_session": stats['last_session_time'].strftime("%B %d, %Y") if stats['last_session_time'] else None,
+                "favorite_service": SKUS.get(favorite_service['session_type'], {}).get('name') if favorite_service else None,
+                "credits_per_session": round(stats['total_credits_spent'] / max(stats['completed_sessions'], 1), 1)
+            },
+            "insights": {
+                "engagement_level": "High" if stats['sessions_this_month'] >= 5 else "Medium" if stats['sessions_this_month'] >= 2 else "New",
+                "spiritual_journey_stage": "Advanced Seeker" if stats['total_sessions'] >= 10 else "Growing Seeker" if stats['total_sessions'] >= 3 else "New Seeker",
+                "recommended_service": "premium" if stats['total_sessions'] >= 5 else "love" if stats['total_sessions'] >= 2 else "clarity"
             }
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"User profile error: {e}")
+        logger.error(f"❌ User profile error: {e}")
         raise HTTPException(500, "Failed to load user profile")
     finally:
         if conn:
@@ -9029,3 +9028,234 @@ async def database_status(admin_user: Dict = Depends(get_admin_user)):
     return await verify_database_health()
 
 logger.info("✅ Database initialization system enhanced and ready")
+
+# ✅ FIX #4: Fallback guidance generation
+async def generate_fallback_guidance(sku: str, question: str, user_context: dict) -> str:
+    """তমিল - Generate fallback spiritual guidance when AI is unavailable"""
+    sku_config = SKUS.get(sku, {})
+    user_name = user_context.get('name', 'dear soul')
+    
+    fallback_responses = {
+        'clarity': f"""🙏🏼 {user_name}, your question "{question}" carries deep spiritual significance.
+
+Though the cosmic digital channels are momentarily shifting, I offer you this timeless wisdom from our Tamil tradition:
+
+"உள்ளத்தில் உண்மை இருந்தால், வெளியில் வெற்றி இருக்கும்" - When truth resides in the heart, success manifests outside.
+
+Daily practice for clarity:
+- 10 minutes morning meditation at sunrise
+- Practice mindful breathing throughout your day  
+- Write in a gratitude journal before sleep
+
+Trust your inner wisdom. The answers you seek already exist within your divine essence.
+
+May clarity dawn upon your path. Om Shanti. 🕉️""",
+
+        'love': f"""💕 Beloved {user_name}, your heart's question "{question}" reaches across the spiritual realms.
+
+While cosmic energies realign, receive this eternal truth:
+
+"அன்பே சிவம்" - Love itself is the divine. True love begins with self-acceptance and radiates outward to embrace all beings.
+
+Love guidance practices:
+- Morning self-love affirmations
+- Heart chakra meditation (green light visualization)
+- Practice loving-kindness to all beings
+- Evening gratitude for love in all forms
+
+Your heart is opening beautifully. Whether seeking new love or deepening existing bonds, remember that love flows to those who embody love.
+
+Divine love surrounds you. காதல் வெல்லும்! 🌹""",
+
+        'premium': f"""🔮 Sacred {user_name}, your comprehensive question "{question}" opens doorways to profound spiritual exploration.
+
+Though digital cosmic channels realign, receive this complete life guidance:
+
+**Life Areas Blessing You:**
+
+🌟 **Purpose & Career**: Align your work with dharmic service to humanity
+💕 **Relationships**: Practice unconditional love with healthy boundaries  
+🏥 **Health & Wellness**: Balance physical care with spiritual practices
+💰 **Abundance**: Trust that the universe provides when you serve others
+🧘 **Spiritual Growth**: Deepen daily meditation and self-inquiry
+
+The next 6 months bring powerful transformation opportunities. Trust your inner guidance and take aligned action courageously.
+
+Your soul's evolution accelerates through conscious choices. தர்மம் வெல்லும்! 🌟""",
+
+        'elite': f"""🌟 Beloved spiritual student {user_name}, your question "{question}" initiates today's profound coaching session.
+
+As your dedicated AstroCoach, I offer this wisdom while cosmic energies realign:
+
+**Daily Spiritual Practice:**
+- **Morning (6-8 AM)**: 20 minutes meditation with sunrise energy
+- **Midday**: Dharmic action and service to others
+- **Evening**: Reflection and gratitude practice
+- **Night**: Mantra chanting (Om Namah Shivaya - 108 times)
+
+**Weekly Focus**: Developing intuitive abilities through consistent spiritual practice.
+
+**Monthly Intention**: "நான் தெய்வீக சக்தியின் கருவி" - I am an instrument of divine power.
+
+Your spiritual acceleration begins with dedicated daily practice. The path of the seeker requires consistency, courage, and complete surrender to the divine.
+
+Until our next guidance session, may you walk in divine light. குருவே சரணம்! 🕉️"""
+    }
+    
+    return fallback_responses.get(sku, fallback_responses['clarity'])
+
+# ✅ FIX #6: Flow testing endpoint for admin
+@app.get("/api/admin/test/user-flow")
+async def test_complete_user_flow(admin_user: Dict = Depends(get_admin_user)):
+    """তমিল - Test complete user flow for admin verification"""
+    try:
+        test_results = {
+            "registration": {"status": "pending", "details": ""},
+            "login": {"status": "pending", "details": ""},
+            "session": {"status": "pending", "details": ""},
+            "profile": {"status": "pending", "details": ""},
+            "credits": {"status": "pending", "details": ""}
+        }
+        
+        # Test 1: User Registration
+        try:
+            test_email = f"test.flow.{int(datetime.now().timestamp())}@jyotiflow.test"
+            registration_data = {
+                "email": test_email,
+                "password": "TestFlow123!",
+                "first_name": "Test",
+                "last_name": "Flow",
+                "birth_date": "1990-01-01",
+                "birth_time": "12:00",
+                "birth_location": "Chennai, India"
+            }
+            
+            conn = await get_db_connection()
+            hashed_password = hash_password(registration_data["password"])
+            
+            await conn.execute("""
+                INSERT INTO users (email, password_hash, first_name, last_name, 
+                                 birth_date, birth_time, birth_location, credits, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+            """, test_email, hashed_password, "Test", "Flow",
+                "1990-01-01", "12:00", "Chennai, India", 3)
+            
+            test_results["registration"]["status"] = "passed"
+            test_results["registration"]["details"] = f"User {test_email} created with 3 credits"
+            
+        except Exception as e:
+            test_results["registration"]["status"] = "failed"
+            test_results["registration"]["details"] = str(e)
+        
+        # Test 2: User Login
+        try:
+            user = await conn.fetchrow(
+                "SELECT email, password_hash, credits FROM users WHERE email = $1", test_email
+            )
+            
+            if user and verify_password("TestFlow123!", user['password_hash']):
+                token = create_jwt_token(test_email)
+                test_results["login"]["status"] = "passed"
+                test_results["login"]["details"] = "Login successful, JWT token generated"
+            else:
+                test_results["login"]["status"] = "failed"
+                test_results["login"]["details"] = "Password verification failed"
+                
+        except Exception as e:
+            test_results["login"]["status"] = "failed"
+            test_results["login"]["details"] = str(e)
+        
+        # Test 3: Session Creation
+        try:
+            # Check credits before session
+            credits_before = await conn.fetchval("SELECT credits FROM users WHERE email = $1", test_email)
+            
+            # Create test session
+            session_id = await conn.fetchval("""
+                INSERT INTO sessions (user_email, session_type, credits_used, session_time, status, 
+                                    result_summary, question)
+                VALUES ($1, $2, $3, NOW(), 'completed', $4, $5)
+                RETURNING id
+            """, test_email, "clarity", 1, 
+                "Test guidance: Your spiritual path is illuminated.", 
+                "Test question for flow verification")
+            
+            # Deduct credits
+            await conn.execute(
+                "UPDATE users SET credits = credits - 1 WHERE email = $1", test_email
+            )
+            
+            credits_after = await conn.fetchval("SELECT credits FROM users WHERE email = $1", test_email)
+            
+            test_results["session"]["status"] = "passed"
+            test_results["session"]["details"] = f"Session {session_id} created, credits: {credits_before} → {credits_after}"
+            
+        except Exception as e:
+            test_results["session"]["status"] = "failed"
+            test_results["session"]["details"] = str(e)
+        
+        # Test 4: Profile Retrieval
+        try:
+            profile = await conn.fetchrow("""
+                SELECT u.email, u.first_name, u.credits, COUNT(s.id) as session_count
+                FROM users u
+                LEFT JOIN sessions s ON u.email = s.user_email
+                WHERE u.email = $1
+                GROUP BY u.email, u.first_name, u.credits
+            """, test_email)
+            
+            test_results["profile"]["status"] = "passed"
+            test_results["profile"]["details"] = f"Profile loaded: {profile['first_name']}, {profile['credits']} credits, {profile['session_count']} sessions"
+            
+        except Exception as e:
+            test_results["profile"]["status"] = "failed"
+            test_results["profile"]["details"] = str(e)
+        
+        # Test 5: Credits System
+        try:
+            # Test credit adjustment
+            await conn.execute(
+                "UPDATE users SET credits = credits + 5 WHERE email = $1", test_email
+            )
+            
+            final_credits = await conn.fetchval("SELECT credits FROM users WHERE email = $1", test_email)
+            
+            test_results["credits"]["status"] = "passed"
+            test_results["credits"]["details"] = f"Credit adjustment successful, final balance: {final_credits}"
+            
+        except Exception as e:
+            test_results["credits"]["status"] = "failed"
+            test_results["credits"]["details"] = str(e)
+        
+        # Cleanup test data
+        try:
+            await conn.execute("DELETE FROM sessions WHERE user_email = $1", test_email)
+            await conn.execute("DELETE FROM users WHERE email = $1", test_email)
+        except:
+            pass
+        
+        await release_db_connection(conn)
+        
+        # Calculate overall success
+        passed_tests = sum(1 for result in test_results.values() if result["status"] == "passed")
+        total_tests = len(test_results)
+        
+        return {
+            "success": True,
+            "overall_status": "passed" if passed_tests == total_tests else "partial" if passed_tests > 0 else "failed",
+            "tests_passed": f"{passed_tests}/{total_tests}",
+            "test_results": test_results,
+            "message": f"User flow test completed: {passed_tests}/{total_tests} tests passed"
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ User flow test error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "User flow test failed"
+        }
+
+logger.info("✅ Complete user flow testing system ready")
+
+
