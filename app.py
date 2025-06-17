@@ -5461,7 +5461,7 @@ async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
         
         user = await conn.fetchrow("""
             SELECT email, first_name, last_name, credits, birth_date, birth_time, 
-               birth_location, last_login, created_at, updated_at
+                   birth_location, last_login, created_at, updated_at
             FROM users WHERE email = $1
         """, user_email)
         
