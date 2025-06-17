@@ -5415,7 +5415,6 @@ def user_dashboard():
         </script>
     </body>
     </html>
-    """
     return HTMLResponse(content=DASHBOARD_TEMPLATE)
 
 @app.post("/api/admin/login")
