@@ -5451,8 +5451,8 @@ async def admin_login(login_data: AdminLogin):
         raise HTTPException(status_code=500, detail="Login failed")
 
 
-# User API endpoints for dashboard
-
+# ✅ FIXED - Add the missing route decorator:
+@app.get("/api/user/profile/real")
 async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
     conn = None
     try:
