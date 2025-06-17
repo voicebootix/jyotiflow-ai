@@ -3354,24 +3354,61 @@ admin_dashboard_html_fixed = """
             --secondary-color: #9d4edd;
             --accent-color: #e0aaff;
         }
-        body { font-family: 'Poppins', sans-serif; background-color: #f5f5f5; }
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f5f5f5;
+        }
         .sidebar {
             background: linear-gradient(180deg, var(--primary-color) 0%, var(--secondary-color) 100%);
-            color: white; height: 100vh; position: fixed; padding-top: 20px;
+            color: white;
+            height: 100vh;
+            position: fixed;
+            padding-top: 20px;
         }
         .sidebar .nav-link {
-            color: rgba(255,255,255,.8); margin-bottom: 5px; border-radius: 5px; padding: 10px 15px;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 5px;
+            border-radius: 5px;
+            padding: 10px 15px;
         }
-        .sidebar .nav-link:hover, .sidebar .nav-link.active {
-            background-color: rgba(255,255,255,.1); color: white;
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: white;
         }
-        .content { margin-left: 240px; padding: 20px; }
-        .card { border: none; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,.1); margin-bottom: 20px; }
-        .stats-card { background: linear-gradient(45deg, var(--primary-color), var(--secondary-color)); color: white; }
-        .hidden { display: none; }
-        .login-container { max-width: 400px; margin: 100px auto; }
-        #loginForm { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,.1); }
-        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 1050; }
+        .content {
+            margin-left: 240px;
+            padding: 20px;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .stats-card {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            color: white;
+        }
+        .hidden {
+            display: none;
+        }
+        .login-container {
+            max-width: 400px;
+            margin: 100px auto;
+        }
+        #loginForm {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1050;
+        }
     </style>
 </head>
 <body>
