@@ -1559,7 +1559,6 @@ def clarity_page():
 
 @app.get('/session/love')
 def astrolove_page():
-    ASTROLOVE_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -1898,8 +1897,6 @@ def astrolove_page():
     </script>
     </body>
     </html>
-    """
-    """
     return HTMLResponse(content=ASTROLOVE_TEMPLATE)
 
 @app.get('/session/premium')
