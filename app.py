@@ -1545,6 +1545,7 @@ def clarity_page():
     </body>
     </html>
     """
+    """
     return HTMLResponse(content=CLARITY_TEMPLATE)
 
 @app.get('/session/love')
@@ -1888,6 +1889,7 @@ def astrolove_page():
     </script>
     </body>
     </html>
+    """
     """
     return HTMLResponse(content=ASTROLOVE_TEMPLATE)
 
@@ -2313,6 +2315,7 @@ def r3live_page():
         </script>
     </body>
     </html>
+    """
     """
     return HTMLResponse(content=R3_TEMPLATE)
 
@@ -2754,6 +2757,7 @@ def daily_page():
     </body>
     </html>
     """
+    """
     return HTMLResponse(content=DAILY_TEMPLATE)
 
 @app.get('/login')
@@ -2995,6 +2999,7 @@ def login_page():
         </script>
     </body>
     </html>
+    """
     """
     return HTMLResponse(content=LOGIN_TEMPLATE)
 
@@ -3317,6 +3322,7 @@ def register_page():
         </script>
     </body>
     </html>
+    """
     """
     return HTMLResponse(content=REGISTER_TEMPLATE)
 
@@ -5091,6 +5097,7 @@ admin_dashboard_html = """
     
 @app.get('/dashboard')
 def user_dashboard():
+    USER_DASHBOARD_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -5415,7 +5422,8 @@ def user_dashboard():
         </script>
     </body>
     </html>
-    return HTMLResponse(content=DASHBOARD_TEMPLATE)
+    """
+    return HTMLResponse(content=USER_DASHBOARD_TEMPLATE)
 
 @app.post("/api/admin/login")
 async def admin_login(login_data: AdminLogin):
