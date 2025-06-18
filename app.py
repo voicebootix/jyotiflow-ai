@@ -3329,13 +3329,13 @@ async def admin_dashboard(request: Request):
     """
     try:
         # You can add authentication check here if needed
-        return admin_dashboard_html
+        return HTMLResponse(content=DASHBOARD_TEMPLATE)
     except Exception as e:
         logger.error(f"Admin dashboard error: {e}")
         raise HTTPException(status_code=500, detail="Error loading admin dashboard")
 
 # Admin Dashboard HTML (add this at the top of your file with other constants)
-admin_dashboard_html = """
+DASHBOARD_TEMPLATE = """
 # ✅ FINAL INTEGRATION: Update your app.py with these critical fixes
 
 # Replace the admin dashboard HTML in your app.py with this working version:
@@ -5087,10 +5087,11 @@ admin_dashboard_html = """
     </script>
 </body>
 </html>
+"""
 
-    
 @app.get('/dashboard')
 def user_dashboard():
+    """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -5415,6 +5416,7 @@ def user_dashboard():
         </script>
     </body>
     </html>
+    """
     return HTMLResponse(content=DASHBOARD_TEMPLATE)
 
 @app.post("/api/admin/login")
