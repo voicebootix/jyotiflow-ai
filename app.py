@@ -1907,7 +1907,7 @@ def r3live_page():
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🙏🏼 R3 Live Premium - JyotiFlow.ai</title>
+        <title> R3 Live Premium - JyotiFlow.ai</title>
         <style>
             * {
                 margin: 0;
