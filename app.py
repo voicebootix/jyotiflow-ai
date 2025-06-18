@@ -35,6 +35,7 @@ import aiohttp
 import json
 import uuid # For generating unique IDs where needed
 from dotenv import load_dotenv
+from fastapi.templating import Jinja2Templates
 
 
 
