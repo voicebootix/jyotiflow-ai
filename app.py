@@ -34,6 +34,7 @@ from datetime import datetime, timedelta, timezone
 import aiohttp
 import json
 import uuid # For generating unique IDs where needed
+from dotenv import load_dotenv
 
 
 
@@ -3920,8 +3921,12 @@ admin_dashboard_html = """
 </body>
 </html>
 
-@app.get('/dashboard')
+# Find and replace the broken user dashboard route:
+
+@app.get('/dashboard', response_class=HTMLResponse)
 def user_dashboard():
+    """তমিল - User dashboard with spiritual theming"""
+    DASHBOARD_TEMPLATE = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -3974,27 +3979,20 @@ def user_dashboard():
             .stat-card {
                 background: rgba(255, 255, 255, 0.1);
                 border-radius: 15px;
-                padding: 25px;
+                padding: 20px;
                 text-align: center;
                 backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.2);
             }
             
-            .stat-icon {
+            .stat-number {
                 font-size: 2.5rem;
-                margin-bottom: 10px;
-            }
-            
-            .stat-value {
-                font-size: 2rem;
                 font-weight: bold;
-                color: #FFD700;
-                margin-bottom: 5px;
+                margin-bottom: 10px;
             }
             
             .services-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
                 gap: 20px;
                 margin-bottom: 30px;
             }
@@ -4002,10 +4000,9 @@ def user_dashboard():
             .service-card {
                 background: rgba(255, 255, 255, 0.1);
                 border-radius: 15px;
-                padding: 25px;
+                padding: 20px;
                 text-align: center;
                 backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.2);
                 transition: transform 0.3s ease;
             }
             
@@ -4014,238 +4011,113 @@ def user_dashboard():
             }
             
             .btn {
-                background: linear-gradient(45deg, #FFD700, #FFA500);
-                color: #333;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white;
+                padding: 12px 24px;
                 border: none;
-                padding: 12px 25px;
                 border-radius: 25px;
-                font-weight: bold;
-                cursor: pointer;
                 text-decoration: none;
                 display: inline-block;
-                margin: 10px 5px;
+                margin: 10px;
                 transition: all 0.3s ease;
             }
             
             .btn:hover {
                 transform: translateY(-2px);
-                box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
-            }
-            
-            .history-section {
-                background: rgba(255, 255, 255, 0.1);
-                border-radius: 15px;
-                padding: 25px;
-                backdrop-filter: blur(10px);
-            }
-            
-            .table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 15px;
-            }
-            
-            .table th, .table td {
-                padding: 12px;
-                text-align: left;
-                border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            }
-            
-            .table th {
-                background: rgba(255, 255, 255, 0.1);
-                font-weight: bold;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.3);
             }
         </style>
     </head>
     <body>
         <div class="header">
-            <h1>🙏🏼 Welcome to Your Spiritual Dashboard</h1>
-            <button class="btn" onclick="logout()">🚪 Logout</button>
+            <h1>🙏🏼 JyotiFlow.ai Dashboard</h1>
+            <p>Your Spiritual Journey Continues</p>
         </div>
         
         <div class="container">
             <div class="welcome-section">
-                <h2 id="welcomeMessage">🙏🏼 Welcome back, Spiritual Seeker</h2>
-                <p>May your journey be filled with divine wisdom and inner peace</p>
+                <h2>Welcome Back, Seeker</h2>
+                <p>Your personalized spiritual guidance awaits</p>
             </div>
             
             <div class="stats-grid">
                 <div class="stat-card">
-                    <div class="stat-icon">💰</div>
-                    <div class="stat-value" id="userCredits">0</div>
-                    <div class="stat-label">Available Credits</div>
+                    <div class="stat-number" id="creditBalance">-</div>
+                    <div>Available Credits</div>
                 </div>
-                
                 <div class="stat-card">
-                    <div class="stat-icon">🔮</div>
-                    <div class="stat-value" id="totalSessions">0</div>
-                    <div class="stat-label">Total Sessions</div>
+                    <div class="stat-number" id="totalSessions">-</div>
+                    <div>Completed Sessions</div>
                 </div>
-                
                 <div class="stat-card">
-                    <div class="stat-icon">📅</div>
-                    <div class="stat-value" id="lastSession">Never</div>
-                    <div class="stat-label">Last Session</div>
+                    <div class="stat-number" id="favoriteService">-</div>
+                    <div>Favorite Service</div>
                 </div>
             </div>
             
             <div class="services-grid">
                 <div class="service-card">
-                    <h3>✨ Clarity Plus</h3>
-                    <p>Quick emotional support and life clarity</p>
-                    <p><strong>Cost:</strong> 1 credit</p>
-                    <a href="/session/clarity" class="btn">Start Session</a>
+                    <h3>🌟 Clarity Plus</h3>
+                    <p>Quick spiritual guidance for daily decisions</p>
+                    <a href="/session/clarity" class="btn">Start Session (1 Credit)</a>
                 </div>
-                
                 <div class="service-card">
                     <h3>💕 AstroLove Whisper</h3>
-                    <p>Deep relationship and love insights</p>
-                    <p><strong>Cost:</strong> 3 credits</p>
-                    <a href="/session/love" class="btn">Start Session</a>
+                    <p>Relationship and love guidance</p>
+                    <a href="/session/love" class="btn">Start Session (3 Credits)</a>
                 </div>
-                
                 <div class="service-card">
                     <h3>🔮 R3 Live Premium</h3>
-                    <p>Comprehensive spiritual life reading</p>
-                    <p><strong>Cost:</strong> 6 credits</p>
-                    <a href="/session/premium" class="btn">Start Session</a>
+                    <p>Comprehensive life guidance</p>
+                    <a href="/session/premium" class="btn">Start Session (6 Credits)</a>
                 </div>
-                
                 <div class="service-card">
-                    <h3>🌟 Daily AstroCoach</h3>
-                    <p>Monthly spiritual coaching subscription</p>
-                    <p><strong>Cost:</strong> 12 credits</p>
-                    <a href="/session/elite" class="btn">Start Session</a>
+                    <h3>👑 Daily AstroCoach</h3>
+                    <p>Elite personalized coaching</p>
+                    <a href="/session/elite" class="btn">Start Session (12 Credits)</a>
                 </div>
             </div>
             
-            <div class="history-section">
-                <h3>📜 Your Session History</h3>
-                <table class="table" id="historyTable">
-                    <thead>
-                        <tr>
-                            <th>Date</th>
-                            <th>Service</th>
-                            <th>Credits Used</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="historyTableBody">
-                        <tr>
-                            <td colspan="4" style="text-align: center; opacity: 0.7;">Loading your spiritual journey...</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div style="text-align: center;">
+                <a href="/" class="btn">← Back to Home</a>
+                <a href="/api/auth/logout" class="btn">Logout</a>
             </div>
         </div>
         
         <script>
-            // Load user data on page load
-            document.addEventListener('DOMContentLoaded', function() {
-                loadUserData();
-                loadSessionHistory();
-            });
-            
-            async function loadUserData() {
+            // Load user dashboard data
+            async function loadDashboardData() {
                 try {
-                    const token = localStorage.getItem('jyoti_token');
+                    const token = localStorage.getItem('jyotiflow_token');
                     if (!token) {
                         window.location.href = '/login';
                         return;
                     }
                     
-                    const response = await fetch('/api/user/profile', {
+                    const response = await fetch('/api/user/dashboard', {
                         headers: {
                             'Authorization': 'Bearer ' + token
                         }
                     });
                     
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        document.getElementById('welcomeMessage').textContent = 
-                            `🙏🏼 Welcome back, ${data.user.first_name}`;
-                        document.getElementById('userCredits').textContent = data.user.credits;
-                        document.getElementById('totalSessions').textContent = data.stats.total_sessions;
-                        document.getElementById('lastSession').textContent = 
-                            data.stats.last_session || 'Never';
-                    }
-                } catch (error) {
-                    console.error('Error loading user data:', error);
-                }
-            }
-            
-            async function loadSessionHistory() {
-                try {
-                    const token = localStorage.getItem('jyoti_token');
-                    const response = await fetch('/api/session/history', {
-                        headers: {
-                            'Authorization': 'Bearer ' + token
-                        }
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        const tbody = document.getElementById('historyTableBody');
-                        tbody.innerHTML = '';
-                        
-                        if (data.sessions.length === 0) {
-                            tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; opacity: 0.7;">No sessions yet. Start your spiritual journey!</td></tr>';
-                        } else {
-                            data.sessions.forEach(session => {
-                                const row = tbody.insertRow();
-                                row.innerHTML = `
-                                    <td>${new Date(session.session_time).toLocaleDateString()}</td>
-                                    <td>${session.service_name}</td>
-                                    <td>${session.credits_used}</td>
-                                    <td>${session.status}</td>
-                                `;
-                            });
-                        }
-                    }
-                } catch (error) {
-                    console.error('Error loading session history:', error);
-                }
-            }
-            
-            function logout() {
-                localStorage.removeItem('jyoti_token');
-                window.location.href = '/';
-            }
-
-            async function refreshCredits() {
-                try {
-                    const token = localStorage.getItem('jyoti_token');
-                    if (!token) {
-                        window.location.href = '/login';
-                        return;
-                    }
-        
-                    const response = await fetch('/api/credits/balance', {
-                        headers: {
-                            'Authorization': 'Bearer ' + token
-                        }
-                    });
-        
-                    const data = await response.json();
-        
                     if (response.ok) {
-                        document.getElementById('userCredits').textContent = data.credits;
-                        console.log("Credits refreshed:", data.credits);
-                        return data.credits;
-                    } else {
-                        console.error("Failed to refresh credits:", data);
-                        return null;
+                        const data = await response.json();
+                        document.getElementById('creditBalance').textContent = data.credits || 0;
+                        document.getElementById('totalSessions').textContent = data.total_sessions || 0;
+                        document.getElementById('favoriteService').textContent = data.favorite_service || 'None';
                     }
                 } catch (error) {
-                    console.error('Error refreshing credits:', error);
-                    return null;
+                    console.error('Dashboard load error:', error);
                 }
             }
+            
+            // Load data when page loads
+            document.addEventListener('DOMContentLoaded', loadDashboardData);
         </script>
     </body>
     </html>
+    """
+    return HTMLResponse(content=DASHBOARD_TEMPLATE)
 
 
 @app.post("/api/admin/login")
@@ -5085,15 +4957,16 @@ async def get_standardized_admin_sessions(skip: int = 0, limit: int = 100, admin
         if conn:
             await release_db_connection(conn)
 
-# ✅ FIX #2: Standardize admin users endpoint  
+# Find the broken admin users query and replace with this:
+
 @app.get("/api/admin/users")
 async def get_standardized_admin_users(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
-    """Standardized admin users endpoint with proper response format"""
+    """তমিল - Standardized admin users endpoint with proper response format"""
     conn = None
     try:
         conn = await get_db_connection()
         
-        # ✅ FIXED: Proper SQL query indentation
+        # ✅ FIXED: Complete SQL query with proper GROUP BY
         records = await conn.fetch("""
             SELECT u.email, u.first_name, u.last_name, u.birth_date, u.birth_time, 
                    u.birth_location, u.credits, u.last_login, u.created_at, u.updated_at, 
@@ -5106,62 +4979,51 @@ async def get_standardized_admin_users(skip: int = 0, limit: int = 100, admin_us
             WHERE u.email != $1
             GROUP BY u.email, u.first_name, u.last_name, u.birth_date, u.birth_time, 
                      u.birth_location, u.credits, u.last_login, u.created_at, u.updated_at, 
-                     u.stripe_customer_id  -- ADD THIS MISSING LINE
+                     u.stripe_customer_id
             ORDER BY u.created_at DESC
-            OFFSET $2 LIMIT $3
-        """, ADMIN_EMAIL, skip, limit)
+            LIMIT $2 OFFSET $3
+        """, ADMIN_EMAIL, limit, skip)
         
-        users_list = []
-        for record in records:
-            # Format birth details properly
-            birth_details = "Not provided"
-            if record['birth_date']:
-                birth_details = f"{record['birth_date']}"
-                if record['birth_time']:
-                    birth_details += f" at {record['birth_time']}"
-                if record['birth_location']:
-                    birth_details += f", {record['birth_location']}"
-            
-            # Format last session
-            last_session = "Never"
-            if record['last_session_time']:
-                last_session = record['last_session_time'].strftime("%b %d, %Y")
-            
-            users_list.append({
-                "email": record['email'],
-                "first_name": record['first_name'] or '',
-                "last_name": record['last_name'] or '',
-                "full_name": f"{record['first_name'] or ''} {record['last_name'] or ''}".strip() or "Unknown",
-                "credits": record['credits'] or 0,
-                "birth_details": birth_details,
-                "last_login": record['last_login'].strftime("%b %d, %Y at %I:%M %p") if record['last_login'] else "Never",
-                "created_at": record['created_at'].isoformat() if record['created_at'] else None,
-                "created_friendly": record['created_at'].strftime("%b %d, %Y") if record['created_at'] else "Unknown",
-                "session_count": record['session_count'] or 0,
-                "total_credits_spent": record['total_credits_spent'] or 0,
-                "last_session": last_session,
-                "has_stripe": bool(record['stripe_customer_id']),
-                "status": "Active" if record['credits'] and record['credits'] > 0 else "Low Credits"
-            })
-        
-        # Get total count for pagination
-        total_count = await conn.fetchval(
+        total_users = await conn.fetchval(
             "SELECT COUNT(*) FROM users WHERE email != $1", ADMIN_EMAIL
         ) or 0
         
-        logger.info(f"Admin users: returning {len(users_list)} users out of {total_count} total")
+        users_list = []
+        for record in records:
+            user_data = {
+                "email": record['email'],
+                "first_name": record['first_name'] or '',
+                "last_name": record['last_name'] or '',
+                "full_name": f"{record['first_name'] or ''} {record['last_name'] or ''}".strip(),
+                "credits": record['credits'] or 0,
+                "session_count": record['session_count'] or 0,
+                "total_credits_spent": record['total_credits_spent'] or 0,
+                "created_at": record['created_at'].isoformat() if record['created_at'] else None,
+                "created_friendly": record['created_at'].strftime("%b %d, %Y") if record['created_at'] else "Unknown",
+                "last_login": record['last_login'].isoformat() if record['last_login'] else None,
+                "last_login_friendly": record['last_login'].strftime("%b %d, %Y") if record['last_login'] else "Never",
+                "last_session_time": record['last_session_time'].isoformat() if record['last_session_time'] else None
+            }
+            users_list.append(user_data)
+        
+        logger.info(f"Admin users: returning {len(users_list)} users out of {total_users} total")
         
         return {
             "success": True,
             "users": users_list,
-            "total_count": total_count,
+            "total_count": total_users,
             "page_size": limit,
             "current_page": skip // limit + 1 if limit > 0 else 1
         }
         
     except Exception as e:
         logger.error(f"Admin users error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to fetch users")
+        return {
+            "success": False,
+            "message": f"Failed to load users: {str(e)}",
+            "users": [],
+            "total_count": 0
+        }
     finally:
         if conn:
             await release_db_connection(conn)
@@ -8601,5 +8463,51 @@ async def platform_status():
 
 logger.info("✅ JyotiFlow.ai Complete Platform Integration Ready!")
 logger.info("🙏🏼 All systems aligned for spiritual service!")
+
+# Add this new endpoint after your existing user endpoints:
+
+@app.get("/api/user/dashboard")
+async def get_user_dashboard_data(current_user: Dict = Depends(get_current_user)):
+    """তমিল - Get user dashboard data"""
+    conn = None
+    try:
+        conn = await get_db_connection()
+        
+        # Get user's session statistics
+        session_stats = await conn.fetchrow("""
+            SELECT 
+                COUNT(*) as total_sessions,
+                SUM(credits_used) as total_credits_used,
+                session_type as favorite_service
+            FROM sessions 
+            WHERE user_email = $1 AND status = 'completed'
+            GROUP BY session_type
+            ORDER BY COUNT(*) DESC
+            LIMIT 1
+        """, current_user['email'])
+        
+        total_sessions = session_stats['total_sessions'] if session_stats else 0
+        favorite_service = session_stats['favorite_service'] if session_stats else 'None'
+        
+        return {
+            "success": True,
+            "credits": current_user.get('credits', 0),
+            "total_sessions": total_sessions,
+            "favorite_service": favorite_service.title() if favorite_service != 'None' else 'None',
+            "user_name": f"{current_user.get('first_name', '')} {current_user.get('last_name', '')}".strip()
+        }
+        
+    except Exception as e:
+        logger.error(f"Dashboard data error: {e}")
+        return {
+            "success": False,
+            "credits": 0,
+            "total_sessions": 0,
+            "favorite_service": "None",
+            "user_name": "User"
+        }
+    finally:
+        if conn:
+            await release_db_connection(conn)
 
 
