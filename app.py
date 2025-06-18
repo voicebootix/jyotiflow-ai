@@ -5336,46 +5336,39 @@ async def admin_get_user_memory(user_email: str, admin_user: Dict = Depends(get_
 async def test_route():
     return {"status": "working"} 
     
-# ✅ FIX #6: Enhanced health check endpoint
+# Replace your existing health check with this enhanced version:
+
 @app.get("/health")
 async def enhanced_health_check():
-    """Enhanced health check with database connectivity test"""
+    """তমিল - Enhanced health check with database connectivity"""
     try:
-        # Test database connection
+        # Check database connectivity
         conn = await get_db_connection()
-        await conn.fetchval("SELECT 1")
-        await release_db_connection(conn)
+        db_status = "connected"
         
-        # Get basic system stats
-        user_count = await conn.fetchval("SELECT COUNT(*) FROM users") if conn else 0
-        session_count = await conn.fetchval("SELECT COUNT(*) FROM sessions") if conn else 0
+        # Test a simple query
+        user_count = await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        
+        await release_db_connection(conn)
         
         return {
             "status": "healthy",
-            "message": "🙏🏼 Swami Jyotirananthan's digital ashram is running smoothly",
             "timestamp": datetime.utcnow().isoformat(),
-            "version": "3.3",
-            "database": {
-                "connected": True,
-                "users": user_count,
-                "sessions": session_count
-            },
-            "services": {
-                "authentication": "operational",
-                "sessions": "operational", 
-                "payments": "operational",
-                "admin": "operational"
-            }
+            "database": db_status,
+            "total_users": user_count,
+            "version": "1.0.0",
+            "platform": "JyotiFlow.ai Spiritual Guidance Platform",
+            "message": "🙏🏼 All systems operational - ready to serve spiritual seekers"
         }
         
     except Exception as e:
         logger.error(f"Health check failed: {e}")
-        raise HTTPException(status_code=503, detail={
-            "status": "unhealthy",
-            "message": "Service temporarily unavailable",
+        return {
+            "status": "unhealthy", 
             "error": str(e),
-            "timestamp": datetime.utcnow().isoformat()
-        })
+            "timestamp": datetime.utcnow().isoformat(),
+            "message": "❌ System experiencing issues"
+        }
 
 
 
@@ -7319,53 +7312,54 @@ async def verify_database_setup(admin_user: Dict = Depends(get_admin_user)):
         if conn:
             await release_db_connection(conn)
 
-# Add this to the end of your startup function in app.py:
-@app.on_event("startup")
-async def startup_event():
-    # Your existing startup code...
-    
-    # তমিল - Ensure all tables exist
-    await ensure_all_tables_exist()
-    
-    # Initialize production data
-    await initialize_production_data()
-    
-    logger.info("🙏🏼 JyotiFlow.ai startup completed successfully!")
+# Replace your startup event with this enhanced version:
 
-async def ensure_all_tables_exist():
-    """তমিল - Create any missing tables"""
+@app.on_event("startup")
+async def enhanced_startup_event():
+    """তমিল - Enhanced startup with comprehensive initialization"""
+    try:
+        logger.info("🙏🏼 Starting JyotiFlow.ai Spiritual Platform...")
+        
+        # Initialize database connection pool
+        await init_db_pool()
+        
+        # Create admin user if needed
+        await ensure_admin_user_exists()
+        
+        # Initialize sample data for testing
+        await initialize_dashboard_data()
+        
+        logger.info("✅ JyotiFlow.ai startup completed successfully!")
+        logger.info(f"📊 Platform ready to serve spiritual seekers")
+        logger.info(f"🔧 Admin access: {ADMIN_EMAIL}")
+        
+    except Exception as e:
+        logger.error(f"❌ Startup failed: {e}", exc_info=True)
+        raise e
+
+async def ensure_admin_user_exists():
+    """তমিল - Ensure admin user exists with proper credentials"""
     conn = None
     try:
         conn = await get_db_connection()
         
-        # Create admin_logs table if missing
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS admin_logs (
-                id SERIAL PRIMARY KEY,
-                admin_email VARCHAR(255) NOT NULL,
-                action VARCHAR(100) NOT NULL,
-                target_user VARCHAR(255),
-                details TEXT,
-                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        """)
+        admin_exists = await conn.fetchval(
+            "SELECT 1 FROM users WHERE email = $1", ADMIN_EMAIL
+        )
         
-        # Create interaction_history table if missing
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS interaction_history (
-                id SERIAL PRIMARY KEY,
-                user_email VARCHAR(255) NOT NULL,
-                session_id VARCHAR(255),
-                interaction_data JSONB,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_email) REFERENCES users(email)
-            )
-        """)
-        
-        logger.info("✅ All database tables verified/created")
-        
+        if not admin_exists:
+            admin_hash = hash_password(ADMIN_PASSWORD)
+            await conn.execute("""
+                INSERT INTO users (email, password_hash, first_name, last_name, credits, created_at, updated_at)
+                VALUES ($1, $2, 'Admin', 'Swami', 1000, NOW(), NOW())
+            """, ADMIN_EMAIL, admin_hash)
+            
+            logger.info(f"✅ Admin user created: {ADMIN_EMAIL}")
+        else:
+            logger.info(f"✅ Admin user exists: {ADMIN_EMAIL}")
+            
     except Exception as e:
-        logger.error(f"Database table creation error: {e}")
+        logger.error(f"Admin user creation error: {e}")
     finally:
         if conn:
             await release_db_connection(conn)
