@@ -4283,12 +4283,12 @@ admin_dashboard_html = """
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 🙏🏼 তমিল - Complete Admin Dashboard JavaScript
+        // 🙏🏼  Complete Admin Dashboard JavaScript
         const apiBaseUrl = window.location.origin;
         let authToken = null;
         let currentSection = 'overview';
 
-        // তমিল - Authentication and initialization
+        //  Authentication and initialization
         function checkAuth() {
             authToken = localStorage.getItem('jyotiflow_admin_token');
             const loginSection = document.getElementById('loginSection');
@@ -4304,7 +4304,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load all dashboard data
+        //  Load all dashboard data
         async function loadDashboardData() {
             try {
                 await Promise.all([
@@ -4323,7 +4323,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load dashboard statistics
+        //  Load dashboard statistics
         async function loadDashboardStats() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/stats`, {
@@ -4350,7 +4350,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load recent users for overview
+        //  Load recent users for overview
         async function loadRecentUsers() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/users?limit=5`, {
@@ -4381,7 +4381,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load recent sessions for overview
+        //  Load recent sessions for overview
         async function loadRecentSessions() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/sessions?limit=5`, {
@@ -4412,7 +4412,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load all users
+        //  Load all users
         async function loadUsers() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/users`, {
@@ -4453,7 +4453,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load all sessions
+        //  Load all sessions
         async function loadSessions() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/sessions`, {
@@ -4492,7 +4492,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load analytics data
+        //  Load analytics data
         async function loadAnalytics() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/analytics`, {
@@ -4513,7 +4513,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load products/SKUs
+        //  Load products/SKUs
         async function loadProducts() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/products`, {
@@ -4586,7 +4586,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load subscriptions
+        //  Load subscriptions
         async function loadSubscriptions() {
             try {
                 // Load subscription plans
@@ -4655,7 +4655,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Load credit transactions
+        //  Load credit transactions
         async function loadCreditTransactions() {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/credit-transactions`, {
@@ -4688,7 +4688,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Initialize charts
+        //  Initialize charts
         function initializeCharts() {
             // Growth Chart
             const growthCtx = document.getElementById('growthChart');
@@ -4880,7 +4880,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - Section navigation
+        //  Section navigation
         function showSection(sectionName) {
             // Hide all sections
             document.querySelectorAll('.dashboard-section').forEach(section => {
@@ -4899,7 +4899,7 @@ admin_dashboard_html = """
             currentSection = sectionName;
         }
 
-        // তমিল - Utility functions
+        //  Utility functions
         function showToast(message, type = 'info') {
             let container = document.getElementById('toast-container');
             if (!container) {
@@ -4922,7 +4922,7 @@ admin_dashboard_html = """
             setTimeout(() => toast.remove(), 5000);
         }
 
-        // তমিল - Action functions
+        //  Action functions
         async function adjustCredits(userEmail, amount, reason) {
             try {
                 const response = await fetch(`${apiBaseUrl}/api/admin/credits/adjust`, {
@@ -4978,7 +4978,7 @@ admin_dashboard_html = """
             }
         }
 
-        // তমিল - View functions
+        //  View functions
         function viewUserDetails(userEmail) {
             showToast(`Viewing details for ${userEmail}`, 'info');
             // You can implement a modal or detailed view here
@@ -4996,7 +4996,7 @@ admin_dashboard_html = """
             // You can implement session details modal here
         }
 
-        // তমিল - Initialize on page load
+        //  Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
             checkAuth();
 
@@ -5454,7 +5454,7 @@ async def admin_login(login_data: AdminLogin):
 # ✅ FIXED - Add the missing route decorator:
 @app.get("/api/user/profile/real")  # Add this line
 async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
-    """তমিল - Get real user profile with comprehensive data"""
+    """real user profile with comprehensive data"""
     conn = None
     try:
         user_email = current_user['email']
@@ -5540,7 +5540,7 @@ async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
 
 @app.get("/api/session/history")
 async def get_real_session_history(current_user: Dict = Depends(get_current_user)):
-    """তমিল - Real session history with complete data"""
+    """Real session history with complete data"""
     conn = None
     try:
         user_email = current_user['email']
@@ -5620,7 +5620,7 @@ async def get_real_session_history(current_user: Dict = Depends(get_current_user
 
 @app.get("/api/credits/balance")
 async def get_real_credit_balance(current_user: Dict = Depends(get_current_user)):
-    """তমিল - Real credit balance with transaction history"""
+    """Real credit balance with transaction history"""
     conn = None
     try:
         user_email = current_user['email']
@@ -5695,7 +5695,7 @@ async def get_real_credit_balance(current_user: Dict = Depends(get_current_user)
 
 @app.put("/api/user/profile")
 async def update_real_user_profile(request_data: dict, current_user: Dict = Depends(get_current_user)):
-    """তমিল - Update real user profile"""
+    """Update real user profile"""
     conn = None
     try:
         user_email = current_user['email']
@@ -5773,7 +5773,7 @@ async def update_real_user_profile(request_data: dict, current_user: Dict = Depe
 
 @app.get("/api/user/insights")
 async def get_real_user_insights(current_user: Dict = Depends(get_current_user)):
-    """তমিল - Real spiritual insights and recommendations"""
+    """Real spiritual insights and recommendations"""
     conn = None
     try:
         user_email = current_user['email']
@@ -5922,7 +5922,7 @@ async def get_real_admin_logs(skip: int = 0, limit: int = 100, admin_user: Dict 
 # ✅ FIX #5: Standardize user creation endpoint
 @app.post("/api/admin/users")
 async def standardized_admin_create_user(user_data: dict, admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Standardized admin user creation endpoint"""
+    """Standardized admin user creation endpoint"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -6152,7 +6152,7 @@ async def get_credit_transactions(skip: int = 0, limit: int = 50, admin_user: Di
 # ✅ FIX #3: Standardize admin sessions endpoint
 @app.get("/api/admin/sessions") 
 async def get_standardized_admin_sessions(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Standardized admin sessions endpoint with proper response format"""
+    """Standardized admin sessions endpoint with proper response format"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -6258,7 +6258,7 @@ async def get_standardized_admin_sessions(skip: int = 0, limit: int = 100, admin
 # ✅ FIX #2: Standardize admin users endpoint  
 @app.get("/api/admin/users")
 async def get_standardized_admin_users(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Standardized admin users endpoint with proper response format"""
+    """Standardized admin users endpoint with proper response format"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -6496,7 +6496,7 @@ async def generate_swami_guidance_with_memory(user_email: str, sku_code: str, qu
 # ✅ FIX #4: Standardize credits adjustment endpoint
 @app.post("/api/admin/credits/adjust")
 async def standardized_admin_adjust_credits(request_data: dict, admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Standardized admin credit adjustment endpoint"""
+    """Standardized admin credit adjustment endpoint"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -6647,7 +6647,7 @@ async def test_route():
 # ✅ FIX #6: Enhanced health check endpoint
 @app.get("/health")
 async def enhanced_health_check():
-    """তমিল - Enhanced health check with database connectivity test"""
+    """Enhanced health check with database connectivity test"""
     try:
         # Test database connection
         conn = await get_db_connection()
@@ -6831,7 +6831,7 @@ async def send_follow_up(request_data: Dict, admin_user: Dict = Depends(get_admi
 # ✅ FIX #2: Enhanced user login with proper error handling
 @app.post("/api/auth/login")
 async def enhanced_user_login(login_data: UserLogin):
-    """তমিল - Enhanced user login with better security and logging"""
+    """ Enhanced user login with better security and logging"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -6912,7 +6912,7 @@ async def enhanced_user_login(login_data: UserLogin):
 # ✅ FIX #3: Enhanced session start with comprehensive validation
 @app.post("/api/session/start")
 async def enhanced_session_start(request: Request, current_user: Dict = Depends(get_current_user)):
-    """তমিল - Enhanced session start with comprehensive validation and error handling"""
+    """ Enhanced session start with comprehensive validation and error handling"""
     conn = None
     try:
         data = await request.json()
@@ -7203,7 +7203,7 @@ async def legacy_admin_stats(admin: Dict = Depends(get_admin_user)):
 
 @app.get("/admin_sessions") 
 async def legacy_admin_sessions(admin: Dict = Depends(get_admin_user)):
-    """তমিল - Legacy endpoint - redirects to new standardized endpoint"""
+    """ Legacy endpoint - redirects to new standardized endpoint"""
     logger.warning("Legacy endpoint /admin_sessions used - redirecting to /api/admin/sessions")
     result = await get_standardized_admin_sessions(0, 100, admin)
     # Convert to old format for backward compatibility
@@ -7214,7 +7214,7 @@ async def legacy_admin_sessions(admin: Dict = Depends(get_admin_user)):
 
 @app.post("/admin_add_credits")
 async def legacy_admin_add_credits(request: Request, admin: Dict = Depends(get_admin_user)):
-    """তমিল - Legacy endpoint - redirects to new standardized endpoint"""
+    """ Legacy endpoint - redirects to new standardized endpoint"""
     logger.warning("Legacy endpoint /admin_add_credits used - redirecting to /api/admin/credits/adjust")
     
     try:
@@ -7441,10 +7441,10 @@ async def init_db():
 
 
 # 🙏🏼 Database Initialization for REAL AI Testing
-# তমিল - Add this to your app.py after the database functions
+#  Add this to your app.py after the database functions
 
 async def initialize_real_ai_data():
-    """তমিল - Create sample data for testing REAL AI integration"""
+    """ Create sample data for testing REAL AI integration"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -7596,7 +7596,7 @@ Divine love is drawing near. 🌹""",
         if conn:
             await release_db_connection(conn)
 
-# তমিল - Add this to your lifespan function
+#  Add this to your lifespan function
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global db_pool
@@ -7614,11 +7614,11 @@ async def lifespan(app: FastAPI):
 
 
 # 🙏🏼 API Testing Endpoint - Add this to your app.py
-# তমিল - Test endpoint to verify all API integrations are working
+#  Test endpoint to verify all API integrations are working
 
 @app.get("/api/test/integrations")
 async def test_all_integrations(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Test all external API integrations"""
+    """ Test all external API integrations"""
     results = {}
     
     # Test OpenAI API
@@ -7713,7 +7713,7 @@ async def test_all_integrations(admin_user: Dict = Depends(get_admin_user)):
 
 @app.get("/api/test/ai-sample")
 async def test_ai_sample(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Generate a sample AI response for testing"""
+    """ Generate a sample AI response for testing"""
     try:
         # Test real AI generation
         guidance = await generate_real_spiritual_guidance(
@@ -7963,7 +7963,7 @@ async def get_real_prokerala_chart(birth_date: str, birth_time: str, birth_locat
     except Exception as e:
         logger.error(f"Prokerala API exception: {e}")
         
-        # তমিল - Enhanced fallback chart with random but consistent data
+        #  Enhanced fallback chart with random but consistent data
         import hashlib
         # Create consistent "random" data based on birth details
         seed = hashlib.md5(f"{birth_date}{birth_time}{birth_location}".encode()).hexdigest()
@@ -8003,7 +8003,7 @@ async def get_real_prokerala_chart(birth_date: str, birth_time: str, birth_locat
 # தமিழ் - Create real sample data for dashboard testing
 
 async def initialize_dashboard_data():
-    """তমিল - Initialize real sample data for dashboard functionality testing"""
+    """ Initialize real sample data for dashboard functionality testing"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -8276,10 +8276,10 @@ async def lifespan(app: FastAPI):
         if db_pool:
             await db_pool.close()
 
-# তমিল - Add a test endpoint to verify dashboard functionality
+#  Add a test endpoint to verify dashboard functionality
 @app.get("/api/test/dashboard")
 async def test_dashboard_data(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Test endpoint to verify dashboard data is working"""
+    """ Test endpoint to verify dashboard data is working"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -8324,7 +8324,7 @@ async def test_dashboard_data(admin_user: Dict = Depends(get_admin_user)):
             await release_db_connection(conn)
 
 async def initialize_production_data():
-    """তমিল - Initialize production-ready sample data with proper credits"""
+    """ Initialize production-ready sample data with proper credits"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -8558,10 +8558,10 @@ Divine blessings upon your life transformation. 🌟"""
         if conn:
             await release_db_connection(conn)
 
-# তমিল - Add database verification endpoint
+#  Add database verification endpoint
 @app.get("/api/admin/verify-database")
 async def verify_database_setup(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Verify database setup and fix any issues"""
+    """ Verify database setup and fix any issues"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -8630,7 +8630,7 @@ async def verify_database_setup(admin_user: Dict = Depends(get_admin_user)):
 # ✅ FINAL UPDATE: Enhanced startup with all fixes
 @app.on_event("startup")
 async def final_enhanced_startup():
-    """তমিল - Final enhanced startup with all fixes integrated"""
+    """ Final enhanced startup with all fixes integrated"""
     try:
         logger.info("🙏🏼 JyotiFlow.ai Platform Final Startup...")
         
@@ -8677,7 +8677,7 @@ async def final_enhanced_startup():
 # ✅ FIX #1: Enhanced user registration with better validation
 @app.post("/api/auth/register")
 async def enhanced_user_registration(user_data: UserRegister):
-    """তমিল - Enhanced user registration with comprehensive validation"""
+    """ Enhanced user registration with comprehensive validation"""
     conn = None
     try:
         # Validate email format
@@ -8759,7 +8759,7 @@ async def enhanced_user_registration(user_data: UserRegister):
 # ✅ FIX #1: Standardize admin stats endpoint
 @app.get("/api/admin/stats")
 async def get_standardized_admin_stats(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Standardized admin dashboard statistics endpoint"""
+    """ Standardized admin dashboard statistics endpoint"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -8832,7 +8832,7 @@ async def get_standardized_admin_stats(admin_user: Dict = Depends(get_admin_user
 
 @app.get("/api/admin/sessions")
 async def get_real_admin_sessions(skip: int = 0, limit: int = 100, admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Get all sessions for admin dashboard"""
+    """ Get all sessions for admin dashboard"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -8908,7 +8908,7 @@ async def get_real_admin_sessions(skip: int = 0, limit: int = 100, admin_user: D
 # ✅ FIX #5: Enhanced user profile endpoint
 @app.get("/api/user/profile")
 async def enhanced_user_profile(current_user: Dict = Depends(get_current_user)):
-    """তমিল - Enhanced user profile with comprehensive statistics"""
+    """ Enhanced user profile with comprehensive statistics"""
     conn = None
     try:
         user_email = current_user['email']
@@ -9004,7 +9004,7 @@ async def enhanced_user_profile(current_user: Dict = Depends(get_current_user)):
 # ✅ FIX #8: Add API documentation endpoint
 @app.get("/api/docs")
 async def api_documentation():
-    """তমিল - API documentation for frontend developers"""
+    """ API documentation for frontend developers"""
     return {
         "title": "JyotiFlow.ai API Documentation",
         "version": "3.3",
@@ -9043,7 +9043,7 @@ logger.info("✅ API endpoints standardized successfully")
 
 # ✅ FIX #1: Enhanced database initialization with proper error handling
 async def init_db_with_verification():
-    """তমিল - Database initialization with verification and error handling"""
+    """ Database initialization with verification and error handling"""
     try:
         db_url = os.getenv("DATABASE_URL")
         logger.info(f"🔄 Initializing database: {db_url[:50]}...")
@@ -9107,7 +9107,7 @@ async def init_db_with_verification():
 
 # ✅ FIX #2: Complete production data initialization with verification
 async def initialize_complete_production_data():
-    """তমিল - Complete production data initialization with admin and test users"""
+    """ Complete production data initialization with admin and test users"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -9258,7 +9258,7 @@ async def initialize_complete_production_data():
 
 # ✅ FIX #3: Create realistic session history for users
 async def create_user_session_history(conn, user_data, user_age_days):
-    """তমিল - Create realistic session history for a user"""
+    """ Create realistic session history for a user"""
     try:
         sessions_created = 0
         
@@ -9359,7 +9359,7 @@ Divine blessings upon your life transformation. 🌟"""
 
 # ✅ FIX #4: Create admin activity logs for realistic dashboard
 async def create_admin_activity_logs(conn):
-    """তমিল - Create realistic admin activity logs"""
+    """ Create realistic admin activity logs"""
     try:
         admin_activities = [
             {
@@ -9414,7 +9414,7 @@ async def create_admin_activity_logs(conn):
 
 # ✅ FIX #5: Database verification and health check
 async def verify_database_health():
-    """তমিল - Comprehensive database health verification"""
+    """ Comprehensive database health verification"""
     conn = None
     try:
         conn = await get_db_connection()
@@ -9474,7 +9474,7 @@ async def verify_database_health():
 # ✅ FIX #7: Database repair function for any issues
 @app.get("/api/admin/database/repair")
 async def repair_database(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Database repair function for admin use"""
+    """ Database repair function for admin use"""
     try:
         logger.info("🔄 Starting database repair...")
         
@@ -9502,14 +9502,14 @@ async def repair_database(admin_user: Dict = Depends(get_admin_user)):
 # ✅ FIX #8: Database status endpoint
 @app.get("/api/admin/database/status")
 async def database_status(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Database status check for admin dashboard"""
+    """ Database status check for admin dashboard"""
     return await verify_database_health()
 
 logger.info("✅ Database initialization system enhanced and ready")
 
 # ✅ FIX #4: Fallback guidance generation
 async def generate_fallback_guidance(sku: str, question: str, user_context: dict) -> str:
-    """তমিল - Generate fallback spiritual guidance when AI is unavailable"""
+    """ Generate fallback spiritual guidance when AI is unavailable"""
     sku_config = SKUS.get(sku, {})
     user_name = user_context.get('name', 'dear soul')
     
@@ -9585,7 +9585,7 @@ Until our next guidance session, may you walk in divine light. குருவ�
 # ✅ FIX #6: Flow testing endpoint for admin
 @app.get("/api/admin/test/user-flow")
 async def test_complete_user_flow(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Test complete user flow for admin verification"""
+    """ Test complete user flow for admin verification"""
     try:
         test_results = {
             "registration": {"status": "pending", "details": ""},
@@ -9739,7 +9739,7 @@ logger.info("✅ Complete user flow testing system ready")
 # ✅ FINAL VERIFICATION: Complete platform test endpoint
 @app.get("/api/admin/platform/verify")
 async def verify_complete_platform(admin_user: Dict = Depends(get_admin_user)):
-    """তমিল - Complete platform verification for deployment"""
+    """ Complete platform verification for deployment"""
     try:
         verification_results = {}
         
@@ -9813,7 +9813,7 @@ async def verify_complete_platform(admin_user: Dict = Depends(get_admin_user)):
 # ✅ DEPLOYMENT READY: Platform status endpoint
 @app.get("/api/status")
 async def platform_status():
-    """তমিল - Public platform status endpoint"""
+    """ Public platform status endpoint"""
     try:
         conn = await get_db_connection()
         user_count = await conn.fetchval("SELECT COUNT(*) FROM users WHERE email != $1", ADMIN_EMAIL)
