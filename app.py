@@ -5454,7 +5454,6 @@ async def admin_login(login_data: AdminLogin):
 # ✅ FIXED - Add the missing route decorator:
 @app.get("/api/user/profile/real")  # Add this line
 async def get_real_user_profile(current_user: Dict = Depends(get_current_user)):
-    """real user profile with comprehensive data"""
     conn = None
     try:
         user_email = current_user['email']
