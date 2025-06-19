@@ -44,34 +44,34 @@ logger = logging.getLogger(__name__)
 
 # =============================================================================
 # 🔧 ENHANCED ENVIRONMENT CONFIGURATION & VALIDATION
-# তমিল - উন্নত পরিবেশ কনফিগারেশন এবং বৈধতা
+# 
 # =============================================================================
 
 class EnhancedSettings(BaseSettings):
-    """তমিল - Enhanced environment settings with AI avatar services"""
-    
+    """Enhanced environment settings with AI avatar services"""
+   
     # Existing Core Settings (Preserved)
     app_name: str = "JyotiFlow.ai Enhanced"
     app_env: str = "development"
     debug: bool = True
     host: str = "0.0.0.0"
     port: int = 8000
-    
+   
     # Database Configuration (Preserved)
     database_url: str = "sqlite:///./jyotiflow_enhanced.db"
     database_pool_size: int = 20
     database_max_overflow: int = 30
     database_pool_timeout: int = 30
-    
-    # Security Configuration (Preserved) 
+   
+    # Security Configuration (Fixed to match standard env var names)
     jwt_secret: str = "your-super-secret-jwt-key-change-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 168  # 7 days
-    
+   
     # Admin Configuration (Preserved)
     admin_email: str = "admin@jyotiflow.ai"
     admin_password: str = "admin123"
-    
+   
     # External API Keys (Preserved)
     openai_api_key: str = "your-openai-api-key"
     stripe_secret_key: str = "your-stripe-secret-key"
@@ -80,7 +80,7 @@ class EnhancedSettings(BaseSettings):
     prokerala_api_key: str = "your-prokerala-api-key"
     salescloser_api_key: str = "your-salescloser-api-key"
     salescloser_webhook_url: str = "your-salescloser-webhook-url"
-    
+   
     # NEW: AI Avatar Service Configuration
     d_id_api_key: str = "your-d-id-api-key"
     d_id_api_url: str = "https://api.d-id.com"
@@ -88,36 +88,96 @@ class EnhancedSettings(BaseSettings):
     elevenlabs_voice_id: str = "your-custom-swamiji-voice-id"
     agora_app_id: str = "your-agora-app-id"
     agora_app_certificate: str = "your-agora-app-certificate"
-    
+   
     # NEW: Video Storage Configuration
     avatar_storage_bucket: str = "jyotiflow-avatar-videos"
     avatar_storage_region: str = "us-east-1"
     avatar_storage_access_key: str = "your-storage-access-key"
     avatar_storage_secret_key: str = "your-storage-secret-key"
     cdn_endpoint: str = "https://cdn.jyotiflow.ai"
-    
+   
     # NEW: AI Optimization Configuration
     ai_optimization_enabled: bool = True
     monetization_analysis_enabled: bool = True
     social_content_generation: bool = True
-    
+   
     # Enhanced Security Settings
     allowed_hosts: str = "localhost,127.0.0.1,jyotiflow.ai,*.jyotiflow.ai"
     cors_origins: str = "http://localhost:3000,https://jyotiflow.ai"
     ssl_cert_path: Optional[str] = None
     ssl_key_path: Optional[str] = None
     sentry_dsn: Optional[str] = None
-    
+   
     # NEW: Avatar Service Limits
     max_avatar_duration_seconds: int = 1800  # 30 minutes max
     max_concurrent_avatar_generations: int = 10
     avatar_quality: str = "high"  # low, medium, high
     voice_synthesis_language: str = "en-US"
     fallback_voice_enabled: bool = True
-    
+   
     class Config:
         env_file = ".env"
         case_sensitive = False
+        # Allow environment variables to use different naming conventions
+        env_prefix = ""
+        
+        # Map common environment variable names to field names
+        fields = {
+            'jwt_secret': {
+                'env': ['JWT_SECRET', 'jwt_secret', 'jwt_secret_key']
+            },
+            'openai_api_key': {
+                'env': ['OPENAI_API_KEY', 'openai_api_key']
+            },
+            'stripe_secret_key': {
+                'env': ['STRIPE_SECRET_KEY', 'stripe_secret_key']
+            },
+            'stripe_public_key': {
+                'env': ['STRIPE_PUBLIC_KEY', 'stripe_public_key']  
+            },
+            'stripe_webhook_secret': {
+                'env': ['STRIPE_WEBHOOK_SECRET', 'stripe_webhook_secret']
+            },
+            'admin_email': {
+                'env': ['ADMIN_EMAIL', 'admin_email']
+            },
+            'admin_password': {
+                'env': ['ADMIN_PASSWORD', 'admin_password']
+            },
+            'database_url': {
+                'env': ['DATABASE_URL', 'database_url']
+            },
+            'd_id_api_key': {
+                'env': ['D_ID_API_KEY', 'd_id_api_key']
+            },
+            'd_id_api_url': {
+                'env': ['D_ID_API_URL', 'd_id_api_url']
+            },
+            'elevenlabs_api_key': {
+                'env': ['ELEVENLABS_API_KEY', 'elevenlabs_api_key']
+            },
+            'elevenlabs_voice_id': {
+                'env': ['ELEVENLABS_VOICE_ID', 'elevenlabs_voice_id']
+            },
+            'agora_app_id': {
+                'env': ['AGORA_APP_ID', 'agora_app_id']
+            },
+            'agora_app_certificate': {
+                'env': ['AGORA_APP_CERTIFICATE', 'agora_app_certificate']
+            },
+            'prokerala_api_key': {
+                'env': ['PROKERALA_API_KEY', 'prokerala_api_key']
+            },
+            'app_env': {
+                'env': ['APP_ENV', 'app_env', 'ENVIRONMENT']
+            },
+            'allowed_hosts': {
+                'env': ['ALLOWED_HOSTS', 'allowed_hosts']
+            },
+            'cors_origins': {
+                'env': ['CORS_ORIGINS', 'cors_origins']
+            }
+        }
 
 # Initialize enhanced settings
 settings = EnhancedSettings()
