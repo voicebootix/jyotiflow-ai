@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="spiritual-container">
+    <section class="hero-section">
+        <h1>{{ hero_message }}</h1>
+        {% if user %}
+            <p>Welcome back, {{ user.name }}! {{ personalized_content.welcome_message if personalized_content else '' }}</p>
+        {% else %}
+            <p>Experience divine guidance through advanced AI avatar technology</p>
+        {% endif %}
+    </section>
+    
+    <section class="featured-services">
+        <div class="services-grid">
+            {% for service in featured_services %}
+            <div class="service-card {% if service.premium and not avatar_enabled %}premium-required{% endif %}">
+                <div class="service-icon">{{ service.icon }}</div>
+                <h3>{{ service.title }}</h3>
+                <p>{{ service.description }}</p>
+                <a href="{{ service.url }}" class="spiritual-btn">
+                    {% if service.premium %}✨ Premium Feature{% else %}Experience Now{% endif %}
+                </a>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+    
+    {% if upcoming_satsang %}
+    <section class="upcoming-satsang">
+        <h2>🕉️ Next Satsang: {{ upcoming_satsang.title }}</h2>
+        <p>{{ upcoming_satsang.scheduled_date.strftime('%B %d, %Y at %I:%M %p') }}</p>
+        <a href="/satsang" class="spiritual-btn">Join Community</a>
+    </section>
+    {% endif %}
+</div>
+{% endblock %}
