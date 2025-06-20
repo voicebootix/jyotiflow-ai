@@ -11,7 +11,19 @@ sys.path.append(str(Path(__file__).parent))
 
 # Import with proper fallbacks
 try:
-    from core_foundation_enhanced import app as core_app, settings, logger
+    from core_foundation_enhanced import (
+        app as core_app,
+        settings,
+        logger,
+        db_manager,
+        security_manager,
+        enhanced_app_lifespan,
+        StandardResponse,
+        UserLogin,
+        UserRegistration,
+        get_current_user,
+        get_admin_user
+    )
     print("✅ Core foundation imported successfully")
     app = core_app
     CORE_AVAILABLE = True
@@ -19,15 +31,21 @@ except ImportError as e:
     print(f"⚠ Core import failed: {e}")
     from fastapi import FastAPI
     from fastapi.middleware.cors import CORSMiddleware
-    
+
     app = FastAPI(title="JyotiFlow.ai - Fallback")
-    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-    
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"]
+    )
+
     class MockSettings:
         debug = True
         port = int(os.environ.get("PORT", 8000))
         host = "0.0.0.0"
-    
+
     settings = MockSettings()
     CORE_AVAILABLE = False
 
