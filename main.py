@@ -13,7 +13,10 @@ from fastapi import Request
 templates = Jinja2Templates(directory="templates")
 
 # Add current directory to path for imports
-sys.path.append(str(Path(__file__).parent))
+sys.path.append(str(Path(_file_).parent))
+
+# CRITICAL: Initialize app variable FIRST before any decorators
+app = None
 
 # =============================================================================
 # PART 1: REPLACE THE IMPORT SECTION
@@ -27,9 +30,7 @@ try:
         UserRegistration, UserLogin, StandardResponse
     )
     print("✅ Full enhanced core foundation imported successfully")
-
-    # Use the enhanced app instead of creating a new one
-    app = enhanced_app
+    app = enhanced_app  # Assign here
     ENHANCED_MODE = True
 
 except ImportError as e:
@@ -39,14 +40,14 @@ except ImportError as e:
     # If there's already a simple app.py, import from there
     try:
         from app import app as simple_app
-        app = simple_app
+        app = simple_app  # Assign here
         print("✅ Using existing simple app")
     except ImportError:
         # Fallback to basic FastAPI
         from fastapi import FastAPI
         from fastapi.middleware.cors import CORSMiddleware
 
-        app = FastAPI(title="JyotiFlow.ai - Basic Mode")
+        app = FastAPI(title="JyotiFlow.ai - Basic Mode")  # Assign here
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["*"],
