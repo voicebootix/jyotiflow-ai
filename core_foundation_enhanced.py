@@ -120,7 +120,7 @@ class EnhancedSettings(BaseSettings):
         "env_file_encoding": "utf-8",
         "case_sensitive": False,
         "extra": "ignore",  # This prevents "extra inputs not permitted" errors
-        "validate_default": True,
+        
     }
     
     #class config that was removed
@@ -140,7 +140,7 @@ class UserRegistration(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     email: EmailStr
     password: str = Field(..., min_length=8)
-    phone: Optional[str] = Field(None, regex=r'^\+?[\d\s\-\(\)]+$')
+    phone: Optional[str] = Field(None, pattern=r'^\+?[\d\s\-\(\)]+$') 
     birth_date: Optional[str] = None
     birth_time: Optional[str] = None
     birth_location: Optional[str] = None
@@ -183,7 +183,7 @@ class AvatarGenerationRequest(BaseModel):
     user_email: str
     session_id: str
     guidance_text: str
-    service_type: str = Field(..., regex=r'^(clarity|love|premium|elite)$')
+    service_type: str = Field(..., pattern=r'^(clarity|love|premium|elite)$')
     
     # Avatar Customization
     avatar_style: Optional[str] = "traditional"
@@ -212,7 +212,7 @@ class AvatarGenerationResponse(BaseModel):
 class LiveChatSessionRequest(BaseModel):
     """তমিল - Live video chat session request"""
     user_email: str
-    service_type: str = Field(..., regex=r'^(premium|elite)$')
+    service_type: str = Field(..., pattern=r'^(premium|elite)$')
     session_duration_minutes: int = Field(default=15, le=45)
     preferred_time: Optional[datetime] = None
     topic: Optional[str] = None
@@ -249,7 +249,7 @@ class SatsangEventResponse(BaseModel):
 # Enhanced Existing Models
 class SessionRequest(BaseModel):
     """তমিল - Enhanced session request with avatar options"""
-    service_type: str = Field(..., regex=r'^(clarity|love|premium|elite)$')
+    service_type: str = Field(..., pattern=r'^(clarity|love|premium|elite)$')
     question: str = Field(..., min_length=10, max_length=2000)
     birth_details: Optional[Dict[str, Any]] = None
     
