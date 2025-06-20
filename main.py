@@ -6,6 +6,11 @@ import logging
 from pathlib import Path
 from datetime import datetime
 from fastapi.responses import HTMLResponse  # Add this import
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi import Requestgit 
+
+templates = Jinja2Templates(directory="templates")
 
 # Add current directory to path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -52,6 +57,10 @@ except ImportError as e:
         print("✅ Created fallback FastAPI app")
 
     ENHANCED_MODE = False
+    
+    # Mount static files
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
     # Mock settings for fallback
     class MockSettings:
