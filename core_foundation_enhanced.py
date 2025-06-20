@@ -1255,8 +1255,243 @@ if __name__ == "__main__":
     )
 
 
-class SpiritualUser:
-    pass  # Placeholder for now
+class SpiritualUser(BaseModel):
+    """- Complete spiritual user model"""
+    id: Optional[int] = None
+    email: str
+    name: str
+    role: str = "user"
+    credits: int = 0
+    subscription_tier: str = "free"  # free, premium, elite
+    preferred_language: str = "en"
+    total_sessions: int = 0
+    avatar_sessions_count: int = 0
+    total_avatar_minutes: int = 0
+    preferred_avatar_style: str = "traditional"
+    voice_preference: str = "compassionate"
+    spiritual_level: str = "beginner"
+    birth_date: Optional[str] = None
+    birth_time: Optional[str] = None
+    birth_location: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    last_login_at: Optional[datetime] = None 
+
+
+class UserPurchase(BaseModel):
+    """ User purchase/transaction model"""
+    id: Optional[int] = None
+    user_email: str
+    transaction_type: str = "purchase"  # purchase, deduction, refund, bonus
+    amount: float
+    credits: int
+    balance_before: int = 0
+    balance_after: int = 0
+    package_type: Optional[str] = None
+    payment_method: Optional[str] = None
+    stripe_session_id: Optional[str] = None
+    stripe_payment_intent_id: Optional[str] = None
+    description: str
+    status: str = "completed"
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc)) 
+
+
+class SpiritualSession(BaseModel):
+    """তমিল - Complete spiritual session model"""
+    id: str
+    user_email: str
+    service_type: str = Field(..., pattern=r'^(clarity|love|premium|elite)$')
+    question: str
+    birth_details: Optional[Dict[str, Any]] = None
+    status: str = "completed"
+    result_summary: Optional[str] = None
+    full_result: Optional[str] = None
+    guidance: str
+    
+    # Avatar Integration
+    avatar_video_url: Optional[str] = None
+    avatar_duration_seconds: Optional[int] = None
+    avatar_generation_cost: Optional[float] = None
+    voice_synthesis_used: bool = False
+    avatar_quality: str = "high"
+    
+    # Credits & Payment
+    credits_used: int
+    original_price: Optional[float] = None
+    
+    # Quality & Feedback
+    user_rating: Optional[int] = Field(None, ge=1, le=5)
+    user_feedback: Optional[str] = None
+    session_quality_score: Optional[float] = None
+    
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    completed_at: Optional[datetime] = None 
+
+
+class AvatarSession(BaseModel):
+    """তমিল - Avatar generation session model"""
+    id: Optional[int] = None
+    session_id: str
+    user_email: str
+    avatar_prompt: str
+    voice_script: str
+    avatar_style: str = "traditional"
+    voice_tone: str = "compassionate"
+    generation_status: str = "pending"
+    generation_started_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    generation_completed_at: Optional[datetime] = None
+    video_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    duration_seconds: Optional[int] = None
+    file_size_mb: Optional[float] = None
+    video_quality: str = "high"
+    d_id_cost: Optional[float] = None
+    elevenlabs_cost: Optional[float] = None
+    total_cost: Optional[float] = None
+    generation_time_seconds: Optional[float] = None
+    quality_score: Optional[float] = None
+
+
+class SatsangEvent(BaseModel):
+    """তমিল - Satsang event model"""
+    id: Optional[int] = None
+    title: str
+    description: Optional[str] = None
+    scheduled_date: datetime
+    duration_minutes: int = 90
+    max_attendees: int = 1000
+    is_premium_only: bool = False
+    stream_url: Optional[str] = None
+    agora_channel_name: Optional[str] = None
+    recording_url: Optional[str] = None
+    status: str = "scheduled"  # scheduled, live, completed, cancelled
+    actual_start_time: Optional[datetime] = None
+    actual_end_time: Optional[datetime] = None
+    total_registrations: int = 0
+    peak_concurrent_attendees: int = 0
+    average_engagement_score: Optional[float] = None
+    spiritual_theme: Optional[str] = None
+    key_teachings: Optional[List[str]] = None
+    created_by: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc)) 
+
+
+class SatsangAttendee(BaseModel):
+    """তমিল - Satsang attendee model"""
+    id: Optional[int] = None
+    satsang_id: int
+    user_email: str
+    registration_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    attended: bool = False
+    join_time: Optional[datetime] = None
+    leave_time: Optional[datetime] = None
+    duration_minutes: Optional[int] = None
+    questions_asked: int = 0
+    chat_messages_sent: int = 0
+    engagement_score: Optional[float] = None
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    feedback: Optional[str] = None 
+
+
+
+class MonetizationInsight(BaseModel):
+    """তমিল - AI monetization insight model"""
+    id: Optional[int] = None
+    recommendation_id: str
+    recommendation_type: str  # pricing, product, marketing, optimization
+    title: str
+    description: str
+    projected_revenue_increase_percent: float
+    projected_user_impact: str
+    confidence_score: float = Field(..., ge=0.0, le=1.0)
+    implementation_effort: str = Field(..., pattern=r'^(low|medium|high)$')
+    timeframe_days: int
+    risk_level: str = Field(..., pattern=r'^(low|medium|high)$')
+    data_points: Optional[List[Dict[str, Any]]] = None
+    status: str = "pending"  # pending, approved, implemented, rejected
+    admin_response: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    expires_at: Optional[datetime] = None
+
+class SocialContent(BaseModel):
+    """তমিল - Social media content model"""
+    id: Optional[int] = None
+    content_id: str
+    content_type: str = Field(..., pattern=r'^(daily_wisdom|user_highlight|satsang_promo|spiritual_quote)$')
+    title: Optional[str] = None
+    content_text: str
+    hashtags: Optional[str] = None
+    image_url: Optional[str] = None
+    video_url: Optional[str] = None
+    audio_url: Optional[str] = None
+    source_session_id: Optional[str] = None
+    source_user_email: Optional[str] = None
+    ai_generated: bool = True
+    scheduled_publish_time: Optional[datetime] = None
+    published_at: Optional[datetime] = None
+    platforms: Optional[List[str]] = None
+    views: int = 0
+    likes: int = 0
+    shares: int = 0
+    comments: int = 0
+    engagement_rate: Optional[float] = None
+    status: str = "draft"  # draft, scheduled, published, archived
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+# Database alias for backward compatibility
+EnhancedJyotiFlowDatabase = EnhancedDatabaseManager
+
+# Additional Pydantic models for API consistency
+class SessionRequest(BaseModel):
+    """তমিল - Session request model"""
+    service_type: str = Field(..., pattern=r'^(clarity|love|premium|elite)$')
+    question: str = Field(..., min_length=10, max_length=2000)
+    birth_details: Optional[Dict[str, Any]] = None
+    include_avatar_video: bool = True
+    avatar_duration_preference: Optional[int] = None
+    request_live_chat: bool = False
+    voice_tone_preference: Optional[str] = "compassionate"
+
+class LiveChatSessionRequest(BaseModel):
+    """তমিল - Live chat session request"""
+    user_email: str
+    service_type: str = Field(..., pattern=r'^(premium|elite)$')
+    session_duration_minutes: int = Field(default=15, le=45)
+    preferred_time: Optional[datetime] = None
+    topic: Optional[str] = None
+
+class LiveChatSessionResponse(BaseModel):
+    """তমিল - Live chat session response"""
+    success: bool
+    session_id: str
+    chat_url: Optional[str] = None
+    scheduled_time: Optional[datetime] = None
+    duration_minutes: int
+    agora_token: Optional[str] = None
+    channel_name: Optional[str] = None
+    message: str
+
+class SatsangEventRequest(BaseModel):
+    """তমিল - Satsang event creation/join request"""
+    title: str = Field(..., min_length=5, max_length=200)
+    description: Optional[str] = None
+    scheduled_date: datetime
+    max_attendees: Optional[int] = 1000
+    is_premium_only: bool = False
+
+class SatsangEventResponse(BaseModel):
+    """তমিল - Satsang event response"""
+    success: bool
+    event_id: int
+    title: str
+    scheduled_date: datetime
+    stream_url: Optional[str] = None
+    attendee_count: int = 0
+    user_registered: bool = False  
+
+
 
 class EnhancedJyotiFlowDatabase:
     pass  # Placeholder for now
