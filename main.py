@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse  # Add this import
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi import Request
+from fastapi.middleware.cors import CORSMiddleware  # Add this import
 
 app = FastAPI(title="JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram")
 
