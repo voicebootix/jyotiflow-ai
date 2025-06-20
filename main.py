@@ -5,14 +5,27 @@ import argparse
 import logging
 from pathlib import Path
 from datetime import datetime
-from fastapi.responses import HTMLResponse  # Add this import
+
+# CRITICAL: Add these FastAPI imports FIRST
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi import Request
-from fastapi.middleware.cors import CORSMiddleware  # Add this import
+from fastapi.middleware.cors import CORSMiddleware
 
+# IMMEDIATELY create the app after imports
 app = FastAPI(title="JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram")
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# Continue with your existing code...
 templates = Jinja2Templates(directory="templates")
 
 # Add current directory to path for imports
