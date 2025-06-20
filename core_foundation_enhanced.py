@@ -1253,3 +1253,12 @@ if __name__ == "__main__":
         reload=settings.debug,
         log_level="info"
     )
+
+
+class SpiritualUser:
+    pass  # Placeholder for now
+
+class EnhancedJyotiFlowDatabase:
+    pass  # Placeholder for now
+
+app = None  # Will be set by production deployment

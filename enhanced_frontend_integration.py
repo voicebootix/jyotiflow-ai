@@ -145,6 +145,7 @@ async def enhanced_spiritual_guidance_page(
                 "features": ["Text guidance", "Voice blessing"],
                 "avatar_enabled": False
             },
+            
             {
                 "type": "spiritual_guidance", 
                 "title": "Spiritual Guidance",

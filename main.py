@@ -243,5 +243,5 @@ def main():
             logger.error(f"Critical error: {e}")
         sys.exit(1)
 
-if __name__ == "__main__":
-    main()
+if __name__ != "__main__":
+    app = enhanced_app  # Export for Render deployment
