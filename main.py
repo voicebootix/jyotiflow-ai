@@ -10,6 +10,8 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi import Request
 
+app = FastAPI(title="JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram")
+
 templates = Jinja2Templates(directory="templates")
 
 # Add current directory to path for imports
