@@ -95,3 +95,7 @@ celery==5.3.4
 prometheus-client==0.19.0
 
 # 🙏🏼 All dependencies for Swami Jyotirananthan's REAL AI digital ashram
+
+
+psutil==5.9.6
+scikit-learn==1.3.2

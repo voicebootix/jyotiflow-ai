@@ -9,91 +9,73 @@ from datetime import datetime
 # Add current directory to path for imports
 sys.path.append(str(Path(__file__).parent))
 
-# তমিল - Try importing artifacts with error handling
+# Import with proper fallbacks
 try:
-    # Check if files exist first
-    required_files = [
-        'core_foundation_enhanced.py',
-        'enhanced_business_logic.py', 
-        'enhanced_production_deployment.py',
-        'main_integration_hub.py'
-    ]
+    from core_foundation_enhanced import app as core_app, settings, logger
+    print("✅ Core foundation imported successfully")
+    app = core_app
+    CORE_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠ Core import failed: {e}")
+    from fastapi import FastAPI
+    from fastapi.middleware.cors import CORSMiddleware
     
-    missing_files = []
-    for file in required_files:
-        if not Path(file).exists():
-            missing_files.append(file)
+    app = FastAPI(title="JyotiFlow.ai - Fallback")
+    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
     
-    if missing_files:
-        print(f"❌ Missing required files: {missing_files}")
-        print("📝 Creating missing files with basic structure...")
-        # We'll create these files in next steps
+    class MockSettings:
+        debug = True
+        port = int(os.environ.get("PORT", 8000))
+        host = "0.0.0.0"
     
-    # Import what we have
-    try:
-        from core_foundation_enhanced import EnhancedSettings, logger
-        print("✅ Core foundation imported")
-    except ImportError as e:
-        print(f"⚠️ Core foundation import issue: {e}")
-        # Fallback to basic setup
-        import logging
-        logging.basicConfig(level=logging.INFO)
-        logger = logging.getLogger(__name__)
-        
-        class EnhancedSettings:
-            debug = True
-            port = 8000
-            host = "0.0.0.0"
+    settings = MockSettings()
+    CORE_AVAILABLE = False
+
+# Import other modules with fallbacks
+try:
+    from enhanced_business_logic import (
+        SpiritualAvatarEngine,
+        MonetizationOptimizer,
+        SatsangManager,
+        SocialContentEngine
+    )
+    print("✅ Business logic imported")
+except ImportError as e:
+    print(f"⚠️ Business logic import issue: {e}")
+    # Create placeholder classes
+    class SpiritualAvatarEngine:
+        pass
+    class MonetizationOptimizer:
+        pass
+    class SatsangManager:
+        pass
+    class SocialContentEngine:
+        pass
+
+try:
+    from enhanced_production_deployment import enhanced_app
+    print("✅ Production app imported")
+except ImportError as e:
+    print(f"⚠️ Production app import issue: {e}")
+    # Use fallback app
+    enhanced_app = app
+
+try:
+    from main_integration_hub import JyotiFlowIntegrationHub, JyotiFlowRunner
+    print("✅ Integration hub imported")
+except ImportError as e:
+    print(f"⚠️ Integration hub import issue: {e}")
+    # Create basic classes
+    class JyotiFlowIntegrationHub:
+        async def initialize_complete_platform(self):
+            return {"status": "basic_mode"}
     
-    try:
-        from enhanced_business_logic import (
-            SpiritualAvatarEngine,
-            MonetizationOptimizer,
-            SatsangManager,
-            SocialContentEngine
-        )
-        print("✅ Business logic imported")
-    except ImportError as e:
-        print(f"⚠️ Business logic import issue: {e}")
-        # Create placeholder classes
-        class SpiritualAvatarEngine:
-            pass
-        class MonetizationOptimizer:
-            pass
-        class SatsangManager:
-            pass
-        class SocialContentEngine:
-            pass
-    
-    try:
-        from enhanced_production_deployment import enhanced_app
-        print("✅ Production app imported")
-    except ImportError as e:
-        print(f"⚠️ Production app import issue: {e}")
-        # Create basic FastAPI app
-        from fastapi import FastAPI
-        enhanced_app = FastAPI(title="JyotiFlow.ai")
-    
-    try:
-        from main_integration_hub import JyotiFlowIntegrationHub, JyotiFlowRunner
-        print("✅ Integration hub imported")
-    except ImportError as e:
-        print(f"⚠️ Integration hub import issue: {e}")
-        # Create basic classes
-        class JyotiFlowIntegrationHub:
-            async def initialize_complete_platform(self):
-                return {"status": "basic_mode"}
-        
-        class JyotiFlowRunner:
-            def run_production_server(self):
-                import uvicorn
-                uvicorn.run(enhanced_app, host="0.0.0.0", port=8000)
-    
-    print("✅ All imports handled successfully!")
-    
-except Exception as e:
-    print(f"❌ Critical import error: {e}")
-    sys.exit(1)
+    class JyotiFlowRunner:
+        def run_production_server(self):
+            import uvicorn
+            uvicorn.run(enhanced_app, host="0.0.0.0", port=settings.port)
+
+print("✅ All imports handled successfully!")
 
 # =============================================================================
 # 🌟 MAIN APPLICATION SETUP
@@ -165,7 +147,6 @@ async def initialize_platform():
 def run_development_server():
     """Run development server"""
     import uvicorn
-    settings = EnhancedSettings()
     
     print("🚀 Starting JyotiFlow.ai in DEVELOPMENT mode...")
     print(f"🌐 Server: http://localhost:{settings.port}")
@@ -235,11 +216,13 @@ def main():
     
     except KeyboardInterrupt:
         print("\n🙏🏼 Graceful shutdown...")
-        logger.info("Platform shutdown by user")
+        if CORE_AVAILABLE:
+            logger.info("Platform shutdown by user")
     
     except Exception as e:
         print(f"\n❌ Critical error: {e}")
-        logger.error(f"Critical error: {e}")
+        if CORE_AVAILABLE:
+            logger.error(f"Critical error: {e}")
         sys.exit(1)
 
 if __name__ == "__main__":
