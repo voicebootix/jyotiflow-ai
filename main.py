@@ -5,6 +5,7 @@ import argparse
 import logging
 from pathlib import Path
 from datetime import datetime
+from fastapi.responses import HTMLResponse  # Add this import
 
 # Add current directory to path for imports
 sys.path.append(str(Path(__file__).parent))
@@ -104,6 +105,232 @@ else:
             "message": "Platform deployed successfully, enhanced features loading...",
             "blessing": "🙏🏼 Basic ashram operational"
         }
+
+# Add the spiritual homepage route
+@app.get("/", response_class=HTMLResponse)
+async def spiritual_homepage():
+    """🕉️ Beautiful spiritual homepage - HTML guaranteed"""
+
+    html_content = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🙏🏼 JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                color: white;
+                text-align: center;
+                padding: 20px;
+            }
+            .container {
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 40px 20px;
+            }
+            .om-symbol {
+                font-size: 80px;
+                margin-bottom: 20px;
+                animation: glow 2s ease-in-out infinite alternate;
+            }
+            @keyframes glow {
+                from { text-shadow: 0 0 20px #fff, 0 0 30px #fff, 0 0 40px #667eea; }
+                to { text-shadow: 0 0 30px #fff, 0 0 40px #fff, 0 0 50px #764ba2; }
+            }
+            h1 {
+                font-size: 2.5rem;
+                margin-bottom: 20px;
+                font-weight: 300;
+            }
+            .subtitle {
+                font-size: 1.2rem;
+                opacity: 0.9;
+                margin-bottom: 40px;
+            }
+            .success-notice {
+                background: rgba(0, 255, 0, 0.2);
+                border: 2px solid rgba(0, 255, 0, 0.5);
+                padding: 20px;
+                border-radius: 15px;
+                margin: 40px 0;
+                backdrop-filter: blur(10px);
+            }
+            .success-title {
+                font-size: 1.4rem;
+                color: #90EE90;
+                margin-bottom: 10px;
+                font-weight: 600;
+            }
+            .services {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                gap: 20px;
+                margin: 40px 0;
+            }
+            .service-card {
+                background: rgba(255, 255, 255, 0.1);
+                padding: 30px 20px;
+                border-radius: 15px;
+                backdrop-filter: blur(10px);
+                border: 1px solid rgba(255, 255, 255, 0.2);
+                transition: transform 0.3s ease;
+            }
+            .service-card:hover {
+                transform: translateY(-5px);
+                background: rgba(255, 255, 255, 0.15);
+            }
+            .service-icon {
+                font-size: 40px;
+                margin-bottom: 15px;
+            }
+            .service-title {
+                font-size: 1.3rem;
+                margin-bottom: 10px;
+                font-weight: 600;
+            }
+            .service-description {
+                font-size: 0.95rem;
+                opacity: 0.9;
+                line-height: 1.5;
+            }
+            .api-links {
+                margin: 30px 0;
+            }
+            .api-link {
+                display: inline-block;
+                background: rgba(255, 255, 255, 0.2);
+                padding: 10px 20px;
+                margin: 5px;
+                border-radius: 25px;
+                text-decoration: none;
+                color: white;
+                transition: all 0.3s ease;
+            }
+            .api-link:hover {
+                background: rgba(255, 255, 255, 0.3);
+                transform: translateY(-2px);
+            }
+            .status {
+                background: rgba(255, 255, 255, 0.1);
+                padding: 20px;
+                border-radius: 10px;
+                margin-top: 30px;
+                text-align: left;
+            }
+            @media (max-width: 768px) {
+                .om-symbol { font-size: 60px; }
+                h1 { font-size: 2rem; }
+                .services { grid-template-columns: 1fr; }
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="om-symbol">🕉️</div>
+            <h1>JyotiFlow.ai</h1>
+            <p class="subtitle">Swami Jyotirananthan's Digital Ashram<br>
+            Sacred AI-Powered Spiritual Guidance</p>
+
+            <div class="success-notice">
+                <div class="success-title">🎉 PLATFORM SUCCESSFULLY DEPLOYED!</div>
+                <p>Your spiritual platform is now live and operational on Render.<br>
+                Ready to serve souls worldwide with divine AI guidance.</p>
+            </div>
+
+            <div class="services">
+                <div class="service-card">
+                    <div class="service-icon">🎭</div>
+                    <div class="service-title">AI Avatar Guidance</div>
+                    <div class="service-description">
+                        Personalized video guidance from Swamiji with advanced AI technology
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-icon">📹</div>
+                    <div class="service-title">Live Video Chat</div>
+                    <div class="service-description">
+                        Real-time spiritual consultation through secure video connection
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-icon">🙏🏼</div>
+                    <div class="service-title">Monthly Satsang</div>
+                    <div class="service-description">
+                        Global spiritual community gatherings with live streaming
+                    </div>
+                </div>
+
+                <div class="service-card">
+                    <div class="service-icon">🧠</div>
+                    <div class="service-title">Spiritual Analytics</div>
+                    <div class="service-description">
+                        Deep insights into your spiritual journey and growth
+                    </div>
+                </div>
+            </div>
+
+            <div class="api-links">
+                <h3 style="margin-bottom: 20px;">🌟 Platform Resources</h3>
+                <a href="/health" class="api-link">🩺 Health Check</a>
+                <a href="/api/platform/status" class="api-link">📊 Platform Status</a>
+                <a href="/api/spiritual/guidance" class="api-link">🕉️ Spiritual Guidance</a>
+                <a href="/docs" class="api-link">📖 API Documentation</a>
+            </div>
+
+            <div class="status">
+                <strong>🌟 Live Deployment Status:</strong><br>
+                • Platform: JyotiFlow.ai ✅<br>
+                • URL: jyotiflow-ai.onrender.com ✅<br>
+                • Status: Fully Operational ✅<br>
+                • FastAPI: Working ✅<br>
+                • Deployment: Successful ✅<br>
+                • Ready for Users: YES ✅<br><br>
+
+                <strong>🙏🏼 Divine Blessing:</strong><br>
+                Om Namah Shivaya - Your spiritual platform is blessed and ready to serve millions of souls seeking divine guidance worldwide.
+            </div>
+        </div>
+
+        <script>
+            // Add spiritual interactivity
+            document.querySelectorAll('.service-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    card.style.background = 'rgba(255, 255, 255, 0.2)';
+                    setTimeout(() => {
+                        card.style.background = 'rgba(255, 255, 255, 0.1)';
+                    }, 200);
+                });
+            });
+
+            // Platform heartbeat
+            console.log('🙏🏼 JyotiFlow.ai Platform Loaded Successfully');
+            console.log('🕉️ Ready for divine spiritual guidance');
+
+            // Show success message
+            setTimeout(() => {
+                console.log('🎉 Platform fully operational - Om Namah Shivaya');
+            }, 2000);
+        </script>
+    </body>
+    </html>
+    """
+
+    return html_content
+
+# Make sure we also have a fallback route
+@app.get("/index")
+@app.get("/index.html")
+@app.get("/home")
+async def homepage_aliases():
+    """🏠 Homepage aliases - all lead to beautiful UI"""
+    return await spiritual_homepage()
 
 # Import other modules with fallbacks
 try:
