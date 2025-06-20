@@ -13,7 +13,7 @@ from fastapi import Request
 templates = Jinja2Templates(directory="templates")
 
 # Add current directory to path for imports
-sys.path.append(str(Path(_file_).parent))
+sys.path.append(str(Path(__file__).parent))
 
 # CRITICAL: Initialize app variable FIRST before any decorators
 app = None
