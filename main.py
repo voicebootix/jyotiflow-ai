@@ -536,3 +536,5 @@ def main():
 
 if __name__ != "__main__":
     app = enhanced_app  # Export for Render deployment
+    
+app = enhanced_app if 'enhanced_app' in locals() else app
