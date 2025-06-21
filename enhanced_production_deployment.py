@@ -76,7 +76,7 @@ class EnhancedMonitoringMiddleware(BaseHTTPMiddleware):
         
         # Add performance headers
         response.headers["X-Process-Time"] = str(duration)
-        response.headers["X-Swamiji-Blessing"] = "🙏🏼 Om Namah Shivaya"
+        response.headers["X-Swamiji-Blessing"] = "Om Namah Shivaya"
         
         return response
 
