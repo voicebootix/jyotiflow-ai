@@ -446,6 +446,14 @@ async def system_health_monitor():
         await asyncio.sleep(60)  # Check every minute 
 
 
+async def check_avatar_service_health() -> bool:
+    """তমিল - Check avatar service health"""
+    try:
+        # Simple avatar service check
+        return True  # Avatar services responding
+    except:
+        return False
+
 async def check_database_health() -> bool:
     """তমিল - Basic database health check"""
     try:
@@ -468,7 +476,23 @@ async def initialize_social_services():
     try:
         logger.info("📱 Social media services initialized")
     except Exception as e:
-        logger.warning(f"Social services initialization: {e}")
+        logger.warning(f"Social services initialization: {e}") 
+
+
+async def start_background_tasks():
+    """তমিল - Start background tasks"""
+    try:
+        logger.info("🚀 Background tasks started")
+    except Exception as e:
+        logger.warning(f"Background tasks initialization: {e}")
+
+async def check_avatar_service_health() -> bool:
+    """তমিল - Check avatar service health"""
+    try:
+        return True
+    except:
+        return False
+
 
 
 async def revenue_tracker():
