@@ -633,7 +633,9 @@ def print_platform_info():
 
 
 
-from core_foundation_enhanced import app as working_app
-app = working_app
+ # Export enhanced_app for Uvicorn deployment
+app = enhanced_app
+
+
 
 
