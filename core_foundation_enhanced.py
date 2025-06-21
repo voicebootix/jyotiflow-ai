@@ -235,7 +235,10 @@ class EnhancedDatabaseManager:
 
         except Exception as e:
             logger.error(f"❌ PostgreSQL pool creation failed: {e}")
-            raise e
+            raise e 
+    
+
+
 
     async def get_connection(self):
         """Get database connection"""
@@ -507,7 +510,11 @@ async def get_admin_user(current_user: Dict[str, Any] = Depends(get_current_user
     """Get current admin user"""
     if current_user.get('role') != 'admin':
         raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user
+    return current_user 
+
+async def get_database() -> EnhancedDatabaseManager:
+    """Get database manager for FastAPI dependency injection"""
+    return db_manager
 
 # =============================================================================
 # 🌐 ENHANCED EXTERNAL SERVICE CLIENTS
@@ -1112,7 +1119,8 @@ async def register_user(user_data: UserRegistration):
             success=False,
             message="Registration failed",
             data={"error": str(e)}
-        ).dict()
+        ).dict() 
+    
 
 @app.post("/api/auth/login")
 async def login_user(login_data: UserLogin):
