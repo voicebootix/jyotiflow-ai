@@ -617,5 +617,52 @@ async def count_active_users() -> int:
 # Create the enhanced application
 enhanced_app = create_enhanced_app()
 
-# Export the app
-__all__ = ["enhanced_app", "perform_startup_health_check", "get_detailed_health_status"]
+# =============================================================================
+# 🚀 ENHANCED FASTAPI APPLICATION CREATION
+# =============================================================================
+
+# Create the enhanced FastAPI application
+enhanced_app = FastAPI(
+    title="JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram",
+    description="Enhanced spiritual guidance platform with AI-powered avatar services",
+    version="2.0.0",
+    docs_url="/docs" if EnhancedSettings().debug_mode else None,
+    redoc_url="/redoc" if EnhancedSettings().debug_mode else None
+)
+
+# Add enhanced monitoring middleware
+enhanced_app.add_middleware(EnhancedMonitoringMiddleware)
+
+# Add security enhancement middleware  
+enhanced_app.add_middleware(SecurityEnhancementMiddleware)
+
+# Add CORS middleware for cross-origin requests
+enhanced_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+
+# Add lifespan management
+enhanced_app.router.lifespan_context = enhanced_lifespan
+
+# Include API routers (these will be imported from other modules)
+try:
+    from enhanced_api_layer import enhanced_router, original_router
+    enhanced_app.include_router(enhanced_router, prefix="/api/v2")
+    enhanced_app.include_router(original_router, prefix="/api/v1")
+except ImportError as e:
+    logger.warning(f"Could not import API routers: {e}")
+
+# Add health check endpoint
+@enhanced_app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "service": "JyotiFlow.ai Enhanced",
+        "timestamp": datetime.now().isoformat()
+    }
+
+logger.info("✅ Enhanced FastAPI application created and configured")
