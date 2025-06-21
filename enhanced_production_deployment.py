@@ -26,7 +26,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 # তমিল - আমাদের সমস্ত উপাদান থেকে আমদানি
 try:
-    from core_foundation_enhanced import EnhancedSettings, logger, db_manager as EnhancedJyotiFlowDatabase
+    from core_foundation_enhanced import EnhancedSettings, logger, db_manager
 except ImportError:
     # Fallback for development
     logger = logging.getLogger(__name__)
@@ -332,7 +332,7 @@ async def initialize_enhanced_services():
     try:
         # Initialize Database
         db = EnhancedJyotiFlowDatabase()
-        await db.initialize_enhanced_tables()
+        await db_manager.initialize_enhanced_tables()
         logger.info("✅ Enhanced database initialized")
         
         # Test AI Services
@@ -491,8 +491,7 @@ async def revenue_tracker():
     """তমিল - রাজস্ব ট্র্যাকার"""
     while True:
         try:
-            db = EnhancedJyotiFlowDatabase()
-            total_revenue = await db.calculate_total_revenue()
+            total_revenue = await db_manager.calculate_total_revenue()
             REVENUE_GAUGE.set(float(total_revenue))
             
             # Daily revenue report
@@ -540,8 +539,7 @@ async def perform_startup_health_check() -> Dict:
     
     # Check Database
     try:
-        db = EnhancedJyotiFlowDatabase()
-        await db.health_check()
+        await db_manager.health_check()
         health_status["services"]["database"] = "healthy"
     except Exception as e:
         health_status["services"]["database"] = f"unhealthy: {e}"
@@ -620,8 +618,7 @@ async def graceful_shutdown():
                 await asyncio.sleep(min(queue_size * 30, 300))  # Max 5 minutes wait
         
         # Close database connections
-        db = EnhancedJyotiFlowDatabase()
-        await db.close_connections()
+        await db_manager.close_connections()
         
         logger.info("🙏🏼 All divine services concluded gracefully")
         
