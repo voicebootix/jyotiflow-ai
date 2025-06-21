@@ -626,8 +626,9 @@ enhanced_app = FastAPI(
     title="JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram",
     description="Enhanced spiritual guidance platform with AI-powered avatar services",
     version="2.0.0",
-    docs_url="/docs" if EnhancedSettings().debug_mode else None,
-    redoc_url="/redoc" if EnhancedSettings().debug_mode else None
+    docs_url="/docs",
+    redoc_url="/redoc"
+
 )
 
 # Add enhanced monitoring middleware
