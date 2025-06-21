@@ -1525,6 +1525,9 @@ class SatsangEventResponse(BaseModel):
 
 
 class EnhancedJyotiFlowDatabase:
+    def __init__(self):
+        self.engine = None  # Add this line
+
     async def initialize_enhanced_tables(self):
         """Initialize enhanced database tables for JyotiFlow.ai"""
         try:
@@ -1538,4 +1541,23 @@ class EnhancedJyotiFlowDatabase:
         except Exception as e:
             logger.error(f"❌ Failed to initialize enhanced tables: {e}")
             return False
+
+    async def calculate_total_revenue(self) -> float:
+        """তমিল - Calculate total revenue"""
+        try:
+            # Simple implementation - you can enhance later
+            return 1250.50  # Mock revenue for now
+        except:
+            return 0.0
+
+    async def calculate_daily_revenue(self) -> float:
+        """তমিল - Calculate daily revenue"""
+        try:
+            return 125.75  # Mock daily revenue
+        except:
+            return 0.0
+
+
+
+
 

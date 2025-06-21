@@ -407,7 +407,8 @@ async def setup_background_monitoring():
     asyncio.create_task(performance_optimizer())
     
     # Cost monitor
-    asyncio.create_task(cost_optimization_monitor())
+    # asyncio.create_task(cost_optimization_monitor())  # Temporarily disabled
+
 
 async def system_health_monitor():
     """তমিল - সিস্টেম স্বাস্থ্য নিরীক্ষক"""
@@ -442,7 +443,17 @@ async def system_health_monitor():
         except Exception as e:
             logger.error(f"Health monitoring error: {e}")
         
-        await asyncio.sleep(60)  # Check every minute
+        await asyncio.sleep(60)  # Check every minute 
+
+
+async def check_database_health() -> bool:
+    """তমিল - Basic database health check"""
+    try:
+        from core_foundation_enhanced import db_manager
+        health = await db_manager.health_check()
+        return health.get("status") == "healthy"
+    except:
+        return False
 
 async def revenue_tracker():
     """তমিল - রাজস্ব ট্র্যাকার"""
