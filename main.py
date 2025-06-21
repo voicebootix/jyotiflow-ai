@@ -8,6 +8,9 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from pathlib import Path
 
+#newly added code
+sys.path.append(str(Path(__file__).parent))
+
 # তমিল - সমস্ত পবিত্র উপাদান আমদানি
 # Import all 5 enhanced artifacts in sacred order
 from core_foundation_enhanced import (
@@ -52,15 +55,7 @@ from enhanced_production_deployment import (
     get_detailed_health_status
 )
 
-from app.routes.voice_conversation_router import router as voice_conversation_router
-from app.routes.business_intelligence_router import router as business_intelligence_router
-from app.routes.dream_router import router as dream_router
-from app.routes.debug_router import router as debug_router
-from app.routes.github_router import router as github_router
-from app.routes.smart_contract_router import router as smart_contract_router
-from app.routes.contract_method_router import router as contract_method_router
-from app.routes.project_router import router as project_router
-from app.routes.auth_router import router as auth_router 
+
 
 
 from fastapi import FastAPI, Request
