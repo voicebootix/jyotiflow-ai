@@ -331,7 +331,6 @@ async def initialize_enhanced_services():
     """তমিল - সমস্ত উন্নত সেবা সূচনা করুন"""
     try:
         # Initialize Database
-        db = EnhancedJyotiFlowDatabase()
         await db_manager.initialize_enhanced_tables()
         logger.info("✅ Enhanced database initialized")
         
@@ -672,8 +671,7 @@ async def initialize_social_services():
 async def check_database_health() -> bool:
     """তমিল - Basic database health check"""
     try:
-        db = EnhancedJyotiFlowDatabase()
-        health = await db.health_check()
+        await db_manager.health_check()
         return health.get("status") == "healthy"
     except:
         return False
