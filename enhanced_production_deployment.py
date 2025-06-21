@@ -99,9 +99,9 @@ class SecurityEnhancementMiddleware(BaseHTTPMiddleware):
         }
         
         for header, value in security_headers.items():
-            response.headers[header] = value
+           # response.headers[header] = value
         
-        return response
+        #return response
 
 # =============================================================================
 # 🚀 ENHANCED FASTAPI APPLICATION
