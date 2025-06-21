@@ -1352,6 +1352,26 @@ class AvatarSession(BaseModel):
     quality_score: Optional[float] = None
 
 
+class AvatarGenerationRequest(BaseModel):
+    """Avatar video generation request"""
+    user_email: str
+    session_id: str
+    guidance_text: str
+    service_type: str = Field(..., pattern=r'^(clarity|love|premium|elite)$')
+    
+    # Avatar Customization
+    avatar_style: Optional[str] = "traditional"
+    voice_tone: Optional[str] = "compassionate"
+    video_duration: Optional[int] = Field(default=300, le=1800)
+    include_subtitles: bool = True
+    video_quality: str = "high"
+    
+    # Spiritual Context
+    user_birth_details: Optional[Dict[str, Any]] = None
+    astrological_context: Optional[Dict[str, Any]] = None
+    emotional_tone: Optional[str] = "supportive"
+
+
 class SatsangEvent(BaseModel):
     """তমিল - Satsang event model"""
     id: Optional[int] = None
@@ -1490,6 +1510,9 @@ class SatsangEventResponse(BaseModel):
     stream_url: Optional[str] = None
     attendee_count: int = 0
     user_registered: bool = False  
+
+
+
 
 
 
