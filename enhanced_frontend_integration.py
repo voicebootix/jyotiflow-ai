@@ -523,11 +523,9 @@ async def _check_avatar_service_health() -> Dict:
 def setup_template_filters():
     """তমিল - টেমপ্লেট ফিল্টার সেট করুন"""
     
-    @templates.env.filter('format_currency')
     def format_currency(amount):
         return f"${amount:,.2f}"
     
-    @templates.env.filter('format_duration')  
     def format_duration(seconds):
         if seconds < 60:
             return f"{seconds}s"
@@ -536,13 +534,16 @@ def setup_template_filters():
         else:
             return f"{seconds//3600}h {(seconds%3600)//60}m"
     
-    @templates.env.filter('spiritual_greeting')
     def spiritual_greeting():
-        greetings = ["🙏🏼 Namaste", "🕉️ Om Shanti", "🌺 Divine Blessings"]
+        greetings = ["🙏🏼 Namaste", "🕉 Om Shanti", "🌺 Divine Blessings"]
         import random
         return random.choice(greetings)
     
-    @templates.env.global_func
+    # CORRECT WAY to add filters
+    templates.env.filters['format_currency'] = format_currency
+    templates.env.filters['format_duration'] = format_duration  
+    templates.env.filters['spiritual_greeting'] = spiritual_greeting
+    
     def get_subscription_benefits(tier):
         benefits = {
             "free": ["Basic spiritual guidance", "Text responses"],
@@ -550,6 +551,10 @@ def setup_template_filters():
             "elite": ["Extended sessions", "Personal consultations", "Exclusive satsangs", "Direct access to Swamiji"]
         }
         return benefits.get(tier, [])
+    
+    # Add global function
+    templates.env.globals['get_subscription_benefits'] = get_subscription_benefits 
+    
 
 # Initialize template filters
 setup_template_filters()
