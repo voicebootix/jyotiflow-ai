@@ -1,557 +1,649 @@
+import asyncio
 import os
 import sys
-import asyncio
-import argparse
 import logging
+import signal
+import uvicorn
+from datetime import datetime, timezone
+from typing import Dict, List, Optional, Any
 from pathlib import Path
-from datetime import datetime
 
-# CRITICAL: Add these FastAPI imports FIRST
+# তমিল - সমস্ত পবিত্র উপাদান আমদানি
+# Import all 5 enhanced artifacts in sacred order
+from core_foundation_enhanced import (
+    EnhancedSettings, 
+    EnhancedJyotiFlowDatabase,
+    logger,
+    SpiritualUser,
+    AvatarSession,
+    SatsangEvent
+)
+
+from enhanced_api_layer import (
+    enhanced_router,
+    original_router,
+    generate_avatar_video_endpoint,
+    initiate_live_chat,
+    create_satsang,
+    analyze_monetization
+)
+
+from enhanced_business_logic import (
+    SpiritualAvatarEngine,
+    MonetizationOptimizer, 
+    SatsangManager,
+    SocialContentEngine,
+    EnhancedSessionProcessor
+)
+
+from enhanced_frontend_integration import (
+    enhanced_home_page,
+    enhanced_spiritual_guidance_page,
+    live_chat_page,
+    satsang_page,
+    enhanced_admin_dashboard,
+    admin_ai_insights_page,
+    social_content_management_page
+)
+
+from enhanced_production_deployment import (
+    enhanced_app,
+    perform_startup_health_check,
+    get_detailed_health_status
+)
+
+from app.routes.voice_conversation_router import router as voice_conversation_router
+from app.routes.business_intelligence_router import router as business_intelligence_router
+from app.routes.dream_router import router as dream_router
+from app.routes.debug_router import router as debug_router
+from app.routes.github_router import router as github_router
+from app.routes.smart_contract_router import router as smart_contract_router
+from app.routes.contract_method_router import router as contract_method_router
+from app.routes.project_router import router as project_router
+from app.routes.auth_router import router as auth_router 
+
+
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-# IMMEDIATELY create the app after imports
-app = FastAPI(title="JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram")
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"]
-)
-
-# Continue with your existing code...
-templates = Jinja2Templates(directory="templates")
-
-# Add current directory to path for imports
-sys.path.append(str(Path(__file__).parent))
-
-# CRITICAL: Initialize app variable FIRST before any decorators
-app = None
-
 # =============================================================================
-# PART 1: REPLACE THE IMPORT SECTION
-# Import enhanced components with proper error handling
-try:
-    from core_foundation_enhanced import (
-        app as enhanced_app, settings, logger, db_manager,
-        SpiritualUser, UserPurchase, SpiritualSession, AvatarSession,
-        SatsangEvent, SatsangAttendee, MonetizationInsight, SocialContent,
-        EnhancedJyotiFlowDatabase, get_current_user, get_admin_user,
-        UserRegistration, UserLogin, StandardResponse
-    )
-    print("✅ Full enhanced core foundation imported successfully")
-    app = enhanced_app  # Assign here
-    ENHANCED_MODE = True
+# 🕉️ MAIN INTEGRATION HUB CLASS
+# তমিল - প্রধান একীকরণ হাব ক্লাস
+# =============================================================================
 
-except ImportError as e:
-    print(f"⚠️ Enhanced import failed: {e}")
-    print("🔄 Using existing simple app...")
-
-    # If there's already a simple app.py, import from there
-    try:
-        from app import app as simple_app
-        app = simple_app  # Assign here
-        print("✅ Using existing simple app")
-    except ImportError:
-        # Fallback to basic FastAPI
-        from fastapi import FastAPI
-        from fastapi.middleware.cors import CORSMiddleware
-
-        app = FastAPI(title="JyotiFlow.ai - Basic Mode")  # Assign here
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"]
-        )
-        print("✅ Created fallback FastAPI app")
-
-    ENHANCED_MODE = False
+class JyotiFlowIntegrationHub:
+    """তমিল - সম্পূর্ণ প্ল্যাটফর্ম অর্কেস্ট্রেটর"""
     
-    # Mount static files
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-
-
-    # Mock settings for fallback
-    class MockSettings:
-        debug = True
-        port = int(os.environ.get("PORT", 8000))
-        host = "0.0.0.0"
-        app_env = "fallback"
-
-    settings = MockSettings()
-
-# =============================================================================
-# PART 2: ADD AFTER THE IMPORT SECTION
-if ENHANCED_MODE:
-    # Enhanced routes are already included with the enhanced_app
-    print("🌟 Enhanced routes active - Full JyotiFlow.ai functionality available")
-
-    @app.get("/api/platform/status")
-    async def enhanced_platform_status():
-        """Enhanced platform status with full feature list"""
+    def __init__(self):
+        self.settings = EnhancedSettings()
+        self.db = EnhancedJyotiFlowDatabase()
+        
+        # Initialize all enhanced engines
+        self.avatar_engine = SpiritualAvatarEngine()
+        self.monetization_optimizer = MonetizationOptimizer()
+        self.satsang_manager = SatsangManager()
+        self.social_engine = SocialContentEngine()
+        self.session_processor = EnhancedSessionProcessor()
+        
+        # Platform state
+        self.is_running = False
+        self.startup_time = None
+        self.scheduled_tasks = []
+        
+        logger.info("🙏🏼 JyotiFlow Integration Hub initialized - All sacred components united")
+    
+    async def initialize_complete_platform(self) -> Dict[str, Any]:
+        """তমিল - সম্পূর্ণ প্ল্যাটফর্ম সূচনা করুন"""
+        try:
+            initialization_start = datetime.now()
+            
+            logger.info("🌟 Starting complete JyotiFlow.ai platform initialization...")
+            
+            # Phase 1: Core Foundation
+            await self._initialize_core_foundation()
+            logger.info("✅ Phase 1: Core Foundation - Complete")
+            
+            # Phase 2: Enhanced Services
+            await self._initialize_enhanced_services()
+            logger.info("✅ Phase 2: Enhanced Services - Complete")
+            
+            # Phase 3: AI Engines
+            await self._initialize_ai_engines()
+            logger.info("✅ Phase 3: AI Engines - Complete")
+            
+            # Phase 4: Background Automation
+            await self._initialize_background_automation()
+            logger.info("✅ Phase 4: Background Automation - Complete")
+            
+            # Phase 5: Health Monitoring
+            await self._initialize_health_monitoring()
+            logger.info("✅ Phase 5: Health Monitoring - Complete")
+            
+            # Final Health Check
+            health_status = await perform_startup_health_check()
+            
+            if health_status["status"] != "healthy":
+                raise Exception(f"Platform health check failed: {health_status}")
+            
+            self.startup_time = datetime.now()
+            self.is_running = True
+            
+            initialization_time = (self.startup_time - initialization_start).total_seconds()
+            
+            logger.info(f"🎉 JyotiFlow.ai COMPLETELY OPERATIONAL in {initialization_time:.2f} seconds!")
+            logger.info("🕉️ Divine blessings flow through all channels - Platform ready to serve millions")
+            
+            return {
+                "status": "operational",
+                "startup_time": self.startup_time.isoformat(),
+                "initialization_duration": f"{initialization_time:.2f} seconds",
+                "health_status": health_status,
+                "platform_features": {
+                    "avatar_guidance": "✅ Operational",
+                    "live_video_chat": "✅ Operational", 
+                    "satsang_community": "✅ Operational",
+                    "ai_optimization": "✅ Operational",
+                    "social_automation": "✅ Operational",
+                    "admin_intelligence": "✅ Operational"
+                },
+                "divine_blessing": "🙏🏼 Om Namah Shivaya - All systems blessed and ready"
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Platform initialization failed: {e}")
+            raise Exception(f"Critical initialization failure: {e}")
+    
+    async def _initialize_core_foundation(self):
+        """তমিল - মূল ভিত্তি সূচনা করুন"""
+        # Database initialization
+        await self.db.initialize_enhanced_tables()
+        
+        # Verify admin user exists
+        admin_exists = await self.db.verify_admin_user()
+        if not admin_exists:
+            await self.db.create_admin_user()
+        
+        # Initialize core spiritual data
+        await self._initialize_spiritual_data()
+    
+    async def _initialize_enhanced_services(self):
+        """তমিল - উন্নত সেবাসমূহ সূচনা করুন"""
+        # Test all external API connections
+        await self._test_external_services()
+        
+        # Initialize avatar generation infrastructure
+        await self._setup_avatar_infrastructure()
+        
+        # Initialize live chat infrastructure
+        await self._setup_live_chat_infrastructure()
+    
+    async def _initialize_ai_engines(self):
+        """তমিল - AI ইঞ্জিন সূচনা করুন"""
+        # Warm up AI models
+        await self.avatar_engine.generate_personalized_guidance(
+            context=None, user_query="Test initialization", birth_details=None
+        )
+        
+        # Initialize monetization optimizer
+        await self.monetization_optimizer.generate_pricing_recommendations("weekly")
+        
+        # Pre-generate satsang content
+        await self._prepare_satsang_content()
+    
+    async def _initialize_background_automation(self):
+        """তমিল - ব্যাকগ্রাউন্ড অটোমেশন সূচনা করুন"""
+        # Start scheduled tasks
+        self.scheduled_tasks = [
+            asyncio.create_task(self._daily_ai_optimization()),
+            asyncio.create_task(self._social_content_automation()),
+            asyncio.create_task(self._satsang_management_automation()),
+            asyncio.create_task(self._revenue_optimization_automation())
+        ]
+        
+        logger.info("🤖 Background automation systems activated")
+    
+    async def _initialize_health_monitoring(self):
+        """তমিল - স্বাস্থ্য নিরীক্ষণ সূচনা করুন"""
+        # Start comprehensive health monitoring
+        asyncio.create_task(self._comprehensive_health_monitor())
+        
+        # Start performance optimization
+        asyncio.create_task(self._performance_optimization_loop())
+    
+    # Background Automation Tasks
+    async def _daily_ai_optimization(self):
+        """তমিল - দৈনিক AI অপ্টিমাইজেশন"""
+        while self.is_running:
+            try:
+                # Run at 3 AM daily
+                now = datetime.now()
+                if now.hour == 3 and now.minute == 0:
+                    logger.info("🧠 Starting daily AI optimization...")
+                    
+                    # Generate business insights
+                    insights = await self.monetization_optimizer.generate_pricing_recommendations("daily")
+                    
+                    # Optimize user segmentation
+                    await self._optimize_user_segmentation()
+                    
+                    # Update AI model parameters
+                    await self._update_ai_parameters()
+                    
+                    logger.info("✅ Daily AI optimization complete")
+                
+                await asyncio.sleep(60)  # Check every minute
+                
+            except Exception as e:
+                logger.error(f"Daily AI optimization error: {e}")
+                await asyncio.sleep(300)  # Wait 5 minutes on error
+    
+    async def _social_content_automation(self):
+        """তমিল - সামাজিক বিষয়বস্তু অটোমেশন"""
+        while self.is_running:
+            try:
+                # Generate daily wisdom post at 6 AM
+                now = datetime.now()
+                if now.hour == 6 and now.minute == 0:
+                    logger.info("📱 Generating daily social content...")
+                    
+                    # Generate for multiple platforms
+                    platforms = ["instagram", "twitter", "linkedin", "youtube"]
+                    for platform in platforms:
+                        content = await self.social_engine.generate_daily_wisdom_post(platform)
+                        await self._schedule_social_post(content, platform)
+                    
+                    logger.info("✅ Daily social content generated and scheduled")
+                
+                await asyncio.sleep(60)  # Check every minute
+                
+            except Exception as e:
+                logger.error(f"Social content automation error: {e}")
+                await asyncio.sleep(300)
+    
+    async def _satsang_management_automation(self):
+        """তমিল - সত্সং ব্যবস্থাপনা অটোমেশন"""
+        while self.is_running:
+            try:
+                # Check for upcoming satsangs
+                upcoming = await self.db.get_upcoming_satsangs_next_24h()
+                
+                for satsang in upcoming:
+                    # Send reminders
+                    await self._send_satsang_reminders(satsang)
+                    
+                    # Prepare live streaming
+                    await self._prepare_satsang_streaming(satsang)
+                
+                # Generate monthly satsang (first day of month)
+                now = datetime.now()
+                if now.day == 1 and now.hour == 9:
+                    next_month_date = now.replace(day=1) + timedelta(days=32)
+                    next_month_date = next_month_date.replace(day=1, hour=19)  # 7 PM
+                    
+                    await self.satsang_manager.create_monthly_satsang(
+                        date=next_month_date,
+                        theme=await self._generate_monthly_theme()
+                    )
+                
+                await asyncio.sleep(3600)  # Check every hour
+                
+            except Exception as e:
+                logger.error(f"Satsang automation error: {e}")
+                await asyncio.sleep(1800)  # Wait 30 minutes on error
+    
+    async def _revenue_optimization_automation(self):
+        """তমিল - রাজস্ব অপ্টিমাইজেশন অটোমেশন"""
+        while self.is_running:
+            try:
+                # Weekly revenue analysis (Mondays at 10 AM)
+                now = datetime.now()
+                if now.weekday() == 0 and now.hour == 10 and now.minute == 0:
+                    logger.info("💰 Running weekly revenue optimization...")
+                    
+                    # Generate comprehensive business insights
+                    pricing_insights = await self.monetization_optimizer.generate_pricing_recommendations("weekly")
+                    product_insights = await self.monetization_optimizer.optimize_product_offerings()
+                    retention_insights = await self.monetization_optimizer.generate_retention_strategies()
+                    
+                    # Store insights for admin review
+                    await self.db.store_business_insights({
+                        "pricing": pricing_insights,
+                        "products": product_insights,
+                        "retention": retention_insights,
+                        "generated_at": now.isoformat()
+                    })
+                    
+                    # Auto-implement low-risk recommendations
+                    await self._auto_implement_safe_recommendations(pricing_insights)
+                    
+                    logger.info("✅ Weekly revenue optimization complete")
+                
+                await asyncio.sleep(60)  # Check every minute
+                
+            except Exception as e:
+                logger.error(f"Revenue optimization error: {e}")
+                await asyncio.sleep(300)
+    
+    async def _comprehensive_health_monitor(self):
+        """তমিল - ব্যাপক স্বাস্থ্য নিরীক্ষণ"""
+        while self.is_running:
+            try:
+                # Get detailed system health
+                health_status = await get_detailed_health_status()
+                
+                # Check critical metrics
+                if health_status["metrics"]["system_health_score"] < 70:
+                    await self._handle_health_degradation(health_status)
+                
+                # Monitor service-specific health
+                await self._monitor_avatar_service_health()
+                await self._monitor_database_performance()
+                await self._monitor_api_response_times()
+                
+                # Log health summary every hour
+                if datetime.now().minute == 0:
+                    logger.info(f"💚 Platform Health: {health_status['metrics']['system_health_score']}/100")
+                
+                await asyncio.sleep(300)  # Check every 5 minutes
+                
+            except Exception as e:
+                logger.error(f"Health monitoring error: {e}")
+                await asyncio.sleep(60)
+    
+    # Platform Control Methods
+    async def graceful_shutdown(self):
+        """তমিল - করুণাময় প্ল্যাটফর্ম বন্ধ"""
+        logger.info("🙏🏼 Initiating graceful shutdown of JyotiFlow.ai platform...")
+        
+        self.is_running = False
+        
+        # Cancel all scheduled tasks
+        for task in self.scheduled_tasks:
+            task.cancel()
+        
+        # Wait for critical operations to complete
+        await self._wait_for_critical_operations()
+        
+        # Close all connections
+        await self.db.close_all_connections()
+        
+        logger.info("🕉️ JyotiFlow.ai platform shutdown complete. Om Shanti.")
+    
+    async def get_platform_status(self) -> Dict[str, Any]:
+        """তমিল - প্ল্যাটফর্ম অবস্থা পান"""
+        if not self.is_running:
+            return {"status": "offline", "message": "Platform not running"}
+        
+        uptime = datetime.now() - self.startup_time if self.startup_time else timedelta(0)
+        
         return {
-            "success": True,
-            "platform": "JyotiFlow.ai - Enhanced Mode",
-            "mode": "full_featured",
-            "features": {
-                "avatar_guidance": "✅ Available",
-                "live_video_chat": "✅ Available",
-                "monthly_satsang": "✅ Available",
-                "ai_business_intelligence": "✅ Available",
-                "social_automation": "✅ Available",
-                "admin_dashboard": "✅ Available"
-            },
+            "status": "operational",
+            "uptime": str(uptime),
+            "startup_time": self.startup_time.isoformat() if self.startup_time else None,
             "services": {
-                "clarity_plus": {"price": 9, "credits": 1},
-                "astrolove_whisper": {"price": 19, "credits": 3},
-                "r3_live_premium": {"price": 39, "credits": 6},
-                "daily_astrocoach": {"price": 149, "credits": 12}
+                "avatar_engine": "operational",
+                "monetization_optimizer": "operational", 
+                "satsang_manager": "operational",
+                "social_engine": "operational",
+                "session_processor": "operational"
             },
-            "blessing": "🙏🏼 Full digital ashram operational"
-        }
-else:
-    # Keep existing simple routes if they exist
-    print("⚡ Simple mode active - Basic functionality")
-
-    @app.get("/api/platform/status")
-    async def simple_platform_status():
-        """Simple platform status"""
-        return {
-            "success": True,
-            "platform": "JyotiFlow.ai - Simple Mode",
-            "mode": "basic",
-            "message": "Platform deployed successfully, enhanced features loading...",
-            "blessing": "🙏🏼 Basic ashram operational"
+            "background_tasks": {
+                "ai_optimization": "running",
+                "social_automation": "running",
+                "satsang_automation": "running", 
+                "revenue_optimization": "running"
+            },
+            "health_score": await self._calculate_overall_health(),
+            "divine_blessing": "🕉️ All systems flowing in divine harmony"
         }
 
-# Add the spiritual homepage route
-@app.get("/", response_class=HTMLResponse)
-async def spiritual_homepage():
-    """🕉️ Beautiful spiritual homepage - HTML guaranteed"""
-
-    html_content = """
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>🙏🏼 JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
-        <style>
-            * { margin: 0; padding: 0; box-sizing: border-box; }
-            body {
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                min-height: 100vh;
-                color: white;
-                text-align: center;
-                padding: 20px;
-            }
-            .container {
-                max-width: 900px;
-                margin: 0 auto;
-                padding: 40px 20px;
-            }
-            .om-symbol {
-                font-size: 80px;
-                margin-bottom: 20px;
-                animation: glow 2s ease-in-out infinite alternate;
-            }
-            @keyframes glow {
-                from { text-shadow: 0 0 20px #fff, 0 0 30px #fff, 0 0 40px #667eea; }
-                to { text-shadow: 0 0 30px #fff, 0 0 40px #fff, 0 0 50px #764ba2; }
-            }
-            h1 {
-                font-size: 2.5rem;
-                margin-bottom: 20px;
-                font-weight: 300;
-            }
-            .subtitle {
-                font-size: 1.2rem;
-                opacity: 0.9;
-                margin-bottom: 40px;
-            }
-            .success-notice {
-                background: rgba(0, 255, 0, 0.2);
-                border: 2px solid rgba(0, 255, 0, 0.5);
-                padding: 20px;
-                border-radius: 15px;
-                margin: 40px 0;
-                backdrop-filter: blur(10px);
-            }
-            .success-title {
-                font-size: 1.4rem;
-                color: #90EE90;
-                margin-bottom: 10px;
-                font-weight: 600;
-            }
-            .services {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-                gap: 20px;
-                margin: 40px 0;
-            }
-            .service-card {
-                background: rgba(255, 255, 255, 0.1);
-                padding: 30px 20px;
-                border-radius: 15px;
-                backdrop-filter: blur(10px);
-                border: 1px solid rgba(255, 255, 255, 0.2);
-                transition: transform 0.3s ease;
-            }
-            .service-card:hover {
-                transform: translateY(-5px);
-                background: rgba(255, 255, 255, 0.15);
-            }
-            .service-icon {
-                font-size: 40px;
-                margin-bottom: 15px;
-            }
-            .service-title {
-                font-size: 1.3rem;
-                margin-bottom: 10px;
-                font-weight: 600;
-            }
-            .service-description {
-                font-size: 0.95rem;
-                opacity: 0.9;
-                line-height: 1.5;
-            }
-            .api-links {
-                margin: 30px 0;
-            }
-            .api-link {
-                display: inline-block;
-                background: rgba(255, 255, 255, 0.2);
-                padding: 10px 20px;
-                margin: 5px;
-                border-radius: 25px;
-                text-decoration: none;
-                color: white;
-                transition: all 0.3s ease;
-            }
-            .api-link:hover {
-                background: rgba(255, 255, 255, 0.3);
-                transform: translateY(-2px);
-            }
-            .status {
-                background: rgba(255, 255, 255, 0.1);
-                padding: 20px;
-                border-radius: 10px;
-                margin-top: 30px;
-                text-align: left;
-            }
-            @media (max-width: 768px) {
-                .om-symbol { font-size: 60px; }
-                h1 { font-size: 2rem; }
-                .services { grid-template-columns: 1fr; }
-            }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="om-symbol">🕉️</div>
-            <h1>JyotiFlow.ai</h1>
-            <p class="subtitle">Swami Jyotirananthan's Digital Ashram<br>
-            Sacred AI-Powered Spiritual Guidance</p>
-
-            <div class="success-notice">
-                <div class="success-title">🎉 PLATFORM SUCCESSFULLY DEPLOYED!</div>
-                <p>Your spiritual platform is now live and operational on Render.<br>
-                Ready to serve souls worldwide with divine AI guidance.</p>
-            </div>
-
-            <div class="services">
-                <div class="service-card">
-                    <div class="service-icon">🎭</div>
-                    <div class="service-title">AI Avatar Guidance</div>
-                    <div class="service-description">
-                        Personalized video guidance from Swamiji with advanced AI technology
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <div class="service-icon">📹</div>
-                    <div class="service-title">Live Video Chat</div>
-                    <div class="service-description">
-                        Real-time spiritual consultation through secure video connection
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <div class="service-icon">🙏🏼</div>
-                    <div class="service-title">Monthly Satsang</div>
-                    <div class="service-description">
-                        Global spiritual community gatherings with live streaming
-                    </div>
-                </div>
-
-                <div class="service-card">
-                    <div class="service-icon">🧠</div>
-                    <div class="service-title">Spiritual Analytics</div>
-                    <div class="service-description">
-                        Deep insights into your spiritual journey and growth
-                    </div>
-                </div>
-            </div>
-
-            <div class="api-links">
-                <h3 style="margin-bottom: 20px;">🌟 Platform Resources</h3>
-                <a href="/health" class="api-link">🩺 Health Check</a>
-                <a href="/api/platform/status" class="api-link">📊 Platform Status</a>
-                <a href="/api/spiritual/guidance" class="api-link">🕉️ Spiritual Guidance</a>
-                <a href="/docs" class="api-link">📖 API Documentation</a>
-            </div>
-
-            <div class="status">
-                <strong>🌟 Live Deployment Status:</strong><br>
-                • Platform: JyotiFlow.ai ✅<br>
-                • URL: jyotiflow-ai.onrender.com ✅<br>
-                • Status: Fully Operational ✅<br>
-                • FastAPI: Working ✅<br>
-                • Deployment: Successful ✅<br>
-                • Ready for Users: YES ✅<br><br>
-
-                <strong>🙏🏼 Divine Blessing:</strong><br>
-                Om Namah Shivaya - Your spiritual platform is blessed and ready to serve millions of souls seeking divine guidance worldwide.
-            </div>
-        </div>
-
-        <script>
-            // Add spiritual interactivity
-            document.querySelectorAll('.service-card').forEach(card => {
-                card.addEventListener('click', () => {
-                    card.style.background = 'rgba(255, 255, 255, 0.2)';
-                    setTimeout(() => {
-                        card.style.background = 'rgba(255, 255, 255, 0.1)';
-                    }, 200);
-                });
-            });
-
-            // Platform heartbeat
-            console.log('🙏🏼 JyotiFlow.ai Platform Loaded Successfully');
-            console.log('🕉️ Ready for divine spiritual guidance');
-
-            // Show success message
-            setTimeout(() => {
-                console.log('🎉 Platform fully operational - Om Namah Shivaya');
-            }, 2000);
-        </script>
-    </body>
-    </html>
-    """
-
-    return html_content
-
-# Make sure we also have a fallback route
-@app.get("/index")
-@app.get("/index.html")
-@app.get("/home")
-async def homepage_aliases():
-    """🏠 Homepage aliases - all lead to beautiful UI"""
-    return await spiritual_homepage()
-
-# Import other modules with fallbacks
-try:
-    from enhanced_business_logic import (
-        SpiritualAvatarEngine,
-        MonetizationOptimizer,
-        SatsangManager,
-        SocialContentEngine
-    )
-    print("✅ Business logic imported")
-except ImportError as e:
-    print(f"⚠️ Business logic import issue: {e}")
-    # Create placeholder classes
-    class SpiritualAvatarEngine:
-        pass
-    class MonetizationOptimizer:
-        pass
-    class SatsangManager:
-        pass
-    class SocialContentEngine:
-        pass
-
-try:
-    from enhanced_production_deployment import enhanced_app
-    print("✅ Production app imported")
-except ImportError as e:
-    print(f"⚠️ Production app import issue: {e}")
-    # Use fallback app
-    enhanced_app = app
-
-try:
-    from main_integration_hub import JyotiFlowIntegrationHub, JyotiFlowRunner
-    print("✅ Integration hub imported")
-except ImportError as e:
-    print(f"⚠️ Integration hub import issue: {e}")
-    # Create basic classes
-    class JyotiFlowIntegrationHub:
-        async def initialize_complete_platform(self):
-            return {"status": "basic_mode"}
-
-    class JyotiFlowRunner:
-        def run_production_server(self):
-            import uvicorn
-            uvicorn.run(enhanced_app, host="0.0.0.0", port=settings.port)
-
-print("✅ All imports handled successfully!")
-
 # =============================================================================
-# 🌟 MAIN APPLICATION SETUP
+# 🚀 APPLICATION RUNNER & DEPLOYMENT
+# তমিল - অ্যাপ্লিকেশন রানার এবং স্থাপনা
 # =============================================================================
 
-def validate_environment():
-    """Validate environment variables"""
-    required_vars = ['OPENAI_API_KEY', 'STRIPE_SECRET_KEY', 'JWT_SECRET']
-    missing = [var for var in required_vars if not os.getenv(var)]
+class JyotiFlowRunner:
+    """তমিল - JyotiFlow প্ল্যাটফর্ম রানার"""
+    
+    def __init__(self):
+        self.integration_hub = JyotiFlowIntegrationHub()
+        self.app = enhanced_app
+        self.server = None
+    
+    async def start_complete_platform(self):
+        """তমিল - সম্পূর্ণ প্ল্যাটফর্ম শুরু করুন"""
+        try:
+            # Initialize the complete platform
+            initialization_result = await self.integration_hub.initialize_complete_platform()
+            
+            logger.info("🌟 JyotiFlow.ai Platform Summary:")
+            logger.info(f"   🏠 Status: {initialization_result['status']}")
+            logger.info(f"   ⏱️ Startup Time: {initialization_result['initialization_duration']}")
+            logger.info(f"   🎭 Avatar Guidance: {initialization_result['platform_features']['avatar_guidance']}")
+            logger.info(f"   📹 Live Video Chat: {initialization_result['platform_features']['live_video_chat']}")
+            logger.info(f"   🕉️ Satsang Community: {initialization_result['platform_features']['satsang_community']}")
+            logger.info(f"   🧠 AI Optimization: {initialization_result['platform_features']['ai_optimization']}")
+            logger.info(f"   📱 Social Automation: {initialization_result['platform_features']['social_automation']}")
+            logger.info(f"   📊 Admin Intelligence: {initialization_result['platform_features']['admin_intelligence']}")
+            logger.info("🙏🏼 Ready to serve millions of spiritual seekers worldwide!")
+            
+            return initialization_result
+            
+        except Exception as e:
+            logger.error(f"❌ Platform startup failed: {e}")
+            raise
+    
+    def run_production_server(self, host="0.0.0.0", port=8000):
+        """তমিল - প্রোডাকশন সার্ভার চালান"""
+        settings = EnhancedSettings()
+        
+        logger.info(f"🚀 Starting JyotiFlow.ai production server on {host}:{port}")
+        
+        # Configure Uvicorn for production
+        config = uvicorn.Config(
+            app=self.app,
+            host=host,
+            port=port,
+            log_level="info",
+            access_log=True,
+            server_header=False,
+            date_header=False,
+            reload=settings.debug,
+            workers=1 if settings.debug else 4
+        )
+        
+        self.server = uvicorn.Server(config)
+        
+        # Setup signal handlers for graceful shutdown
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
+        
+        try:
+            # Start the platform and server
+            asyncio.run(self._run_with_platform_initialization())
+        except KeyboardInterrupt:
+            logger.info("🙏🏼 Graceful shutdown initiated by user")
+        except Exception as e:
+            logger.error(f"❌ Server error: {e}")
+            raise
+    
+    async def _run_with_platform_initialization(self):
+        """তমিল - প্ল্যাটফর্ম সূচনা সহ চালান"""
+        # Initialize platform first
+        await self.start_complete_platform()
+        
+        # Then start the web server
+        await self.server.serve()
+    
+    def _signal_handler(self, signum, frame):
+        """তমিল - সিগন্যাল হ্যান্ডলার"""
+        logger.info(f"🙏🏼 Received signal {signum}, initiating graceful shutdown...")
+        asyncio.create_task(self.integration_hub.graceful_shutdown())
 
-    if missing:
-        print(f"❌ Missing environment variables: {', '.join(missing)}")
-        print("💡 Create .env file with these variables")
-        return False
-
-    print("✅ Environment validation passed!")
-    return True
-
-def create_sample_env():
-    """Create sample .env file"""
-    env_content = '''# 🙏🏼 JyotiFlow.ai Environment Configuration
-
-# Required Settings
-OPENAI_API_KEY=sk-your-openai-key-here
-STRIPE_SECRET_KEY=sk_test_your-stripe-key
-JWT_SECRET=your-super-secret-jwt-key-om-namah-shivaya
-
-# Optional Avatar Services
-D_ID_API_KEY=your-d-id-api-key
-ELEVENLABS_API_KEY=your-elevenlabs-api-key
-AGORA_APP_ID=your-agora-app-id
-
-# Database
-DATABASE_URL=sqlite:///./jyotiflow_enhanced.db
-
-# Admin
-ADMIN_EMAIL=admin@jyotiflow.ai
-ADMIN_PASSWORD=your-secure-admin-password
-'''
-
-    with open('.env.sample', 'w') as f:
-        f.write(env_content)
-    print("✅ Sample .env file created: .env.sample")
-
-async def initialize_platform():
-    """Initialize the platform"""
-    print("\n🕉️ ===== JYOTIFLOW.AI PLATFORM INITIALIZATION =====")
-    print("🙏🏼 Swami Jyotirananthan's Digital Ashram")
-    print("✨ Version 5.0 - Enhanced Spiritual Platform")
-    print("=" * 60)
-
-    try:
-        integration_hub = JyotiFlowIntegrationHub()
-        result = await integration_hub.initialize_complete_platform()
-
-        print("\n🌟 Platform Initialization Complete!")
-        print(f"   Status: {result.get('status', 'operational')}")
-        print("\n🙏🏼 Digital ashram ready to serve souls worldwide")
-        print("=" * 60)
-
-        return integration_hub
-
-    except Exception as e:
-        print(f"❌ Platform initialization failed: {e}")
-        print("⚠️ Running in basic mode...")
-        return None
-
-def run_development_server():
-    """Run development server"""
-    import uvicorn
-
-    print("🚀 Starting JyotiFlow.ai in DEVELOPMENT mode...")
-    print(f"🌐 Server: http://localhost:{settings.port}")
-
-    uvicorn.run(
-        enhanced_app,
-        host="0.0.0.0",
-        port=settings.port,
-        reload=True,
-        log_level="info"
-    )
-
-def run_production_server():
-    """Run production server"""
-    runner = JyotiFlowRunner()
-    runner.run_production_server()
+# =============================================================================
+# 🌟 MAIN EXECUTION ENTRY POINT
+# তমিল - প্রধান কার্যকর প্রবেশ পয়েন্ট
+# =============================================================================
 
 def main():
-    """Main entry point"""
-    parser = argparse.ArgumentParser(description='🙏🏼 JyotiFlow.ai Platform')
-    parser.add_argument('--dev', action='store_true', help='Run in development mode')
-    parser.add_argument('--create-env', action='store_true', help='Create sample .env file')
-    parser.add_argument('--validate-env', action='store_true', help='Validate environment')
-
-    args = parser.parse_args()
-
-    # Handle special commands
-    if args.create_env:
-        create_sample_env()
-        return
-
-    if args.validate_env:
-        validate_environment()
-        return
-
-    # Load environment variables
+    """তমিল - JyotiFlow.ai প্রধান এন্ট্রি পয়েন্ট"""
+    
+    # Setup logging for main execution
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - 🙏🏼 JyotiFlow.ai - %(levelname)s - %(message)s',
+        handlers=[
+            logging.StreamHandler(),
+            logging.FileHandler('jyotiflow_complete.log', encoding='utf-8')
+        ]
+    )
+    
+    logger.info("🕉️ ===== JYOTIFLOW.AI COMPLETE PLATFORM STARTUP =====")
+    logger.info("🙏🏼 Swami Jyotirananthan's Digital Ashram")
+    logger.info("✨ Version 5.0 - Complete AI Avatar Spiritual Platform")
+    logger.info("🌟 All 6 Enhanced Artifacts Integrated")
+    logger.info("=" * 60)
+    
     try:
-        from dotenv import load_dotenv
-        load_dotenv()
-        print("✅ Environment variables loaded")
-    except ImportError:
-        print("⚠️ python-dotenv not installed")
+        # Create and run the complete platform
+        runner = JyotiFlowRunner()
+        
+        # Get configuration
+        settings = EnhancedSettings()
+        
+        # Start the production server
+        runner.run_production_server(
+            host=settings.host,
+            port=settings.port
+        )
+        
     except Exception as e:
-        print(f"⚠️ Could not load .env file: {e}")
-
-    # Validate environment
-    if not validate_environment():
-        print("\n💡 Tip: Run 'python main.py --create-env' to create .env file")
-        print("💡 Then copy .env.sample to .env and update with your API keys")
-        return
-
-    try:
-        if args.dev:
-            # Run development server
-            run_development_server()
-        else:
-            # Run production server
-            print("🚀 Starting JyotiFlow.ai platform...")
-
-            # Initialize platform
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            integration_hub = loop.run_until_complete(initialize_platform())
-
-            # Start server
-            run_production_server()
-
-    except KeyboardInterrupt:
-        print("\n🙏🏼 Graceful shutdown...")
-        if ENHANCED_MODE:
-            logger.info("Platform shutdown by user")
-
-    except Exception as e:
-        print(f"\n❌ Critical error: {e}")
-        if ENHANCED_MODE:
-            logger.error(f"Critical error: {e}")
+        logger.error(f"❌ Critical startup failure: {e}")
         sys.exit(1)
 
-if __name__ != "__main__":
-    app = enhanced_app  # Export for Render deployment
+# =============================================================================
+# 🎯 DEVELOPMENT & TESTING UTILITIES
+# তমিল - উন্নয়ন এবং পরীক্ষার ইউটিলিটি
+# =============================================================================
+
+async def test_complete_platform():
+    """তমিল - সম্পূর্ণ প্ল্যাটফর্ম পরীক্ষা করুন"""
+    logger.info("🧪 Starting complete platform test suite...")
     
-app = enhanced_app if 'enhanced_app' in locals() else app
+    try:
+        # Initialize integration hub
+        hub = JyotiFlowIntegrationHub()
+        
+        # Test initialization
+        result = await hub.initialize_complete_platform()
+        assert result["status"] == "operational"
+        
+        # Test all engines
+        await test_avatar_engine(hub.avatar_engine)
+        await test_monetization_optimizer(hub.monetization_optimizer) 
+        await test_satsang_manager(hub.satsang_manager)
+        await test_social_engine(hub.social_engine)
+        
+        # Test platform status
+        status = await hub.get_platform_status()
+        assert status["status"] == "operational"
+        
+        logger.info("✅ Complete platform test suite PASSED")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Platform test failed: {e}")
+        return False
+
+async def test_avatar_engine(engine):
+    """তমিল - অবতার ইঞ্জিন পরীক্ষা করুন"""
+    # Test avatar generation (mock)
+    guidance, metadata = await engine.generate_personalized_guidance(
+        context=None,
+        user_query="Test spiritual guidance",
+        birth_details=None
+    )
+    assert len(guidance) > 0
+    logger.info("✅ Avatar Engine test passed")
+
+async def test_monetization_optimizer(optimizer):
+    """তমিল - নগদীকরণ অপ্টিমাইজার পরীক্ষা করুন"""
+    recommendations = await optimizer.generate_pricing_recommendations("weekly")
+    assert "recommendations" in recommendations
+    logger.info("✅ Monetization Optimizer test passed")
+
+async def test_satsang_manager(manager):
+    """তমিল - সত্সং ম্যানেজার পরীক্ষা করুন"""
+    future_date = datetime.now() + timedelta(days=30)
+    satsang = await manager.create_monthly_satsang(future_date, "Divine Love")
+    assert "event_id" in satsang
+    logger.info("✅ Satsang Manager test passed")
+
+async def test_social_engine(engine):
+    """তমিল - সামাজিক ইঞ্জিন পরীক্ষা করুন"""
+    content = await engine.generate_daily_wisdom_post("instagram")
+    assert "content" in content
+    logger.info("✅ Social Engine test passed")
+
+# =============================================================================
+# 📋 PLATFORM INFORMATION & EXPORT
+# তমিল - প্ল্যাটফর্ম তথ্য এবং রপ্তানি
+# =============================================================================
+
+PLATFORM_INFO = {
+    "name": "JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram",
+    "version": "5.0.0",
+    "description": "Complete AI-powered spiritual guidance platform with avatar technology",
+    "artifacts": [
+        "1. Enhanced Core Foundation - Database, Auth, Configuration",
+        "2. Enhanced API Layer - REST endpoints, Avatar APIs, Live Chat",
+        "3. Enhanced Business Logic - AI engines, Optimization, Community",
+        "4. Enhanced Frontend Integration - UI, Templates, Admin Dashboard", 
+        "5. Enhanced Production Deployment - Security, Monitoring, Scaling",
+        "6. Main Integration Hub - Complete system orchestration"
+    ],
+    "features": {
+        "avatar_video_guidance": "✅ D-ID + ElevenLabs integration",
+        "live_video_chat": "✅ Agora WebRTC integration",
+        "monthly_satsangs": "✅ Community events platform",
+        "ai_business_intelligence": "✅ Revenue optimization",
+        "social_automation": "✅ Multi-platform content generation",
+        "admin_dashboard": "✅ Enhanced with AI insights",
+        "mobile_responsive": "✅ Progressive Web App",
+        "production_ready": "✅ Security, monitoring, scaling"
+    },
+    "blessing": "🕉️ May this platform bring divine guidance to millions of seeking souls"
+}
+
+def print_platform_info():
+    """তমিল - প্ল্যাটফর্ম তথ্য প্রিন্ট করুন"""
+    info = PLATFORM_INFO
+    print("\n" + "="*80)
+    print(f"🙏🏼 {info['name']}")
+    print(f"✨ Version: {info['version']}")
+    print(f"📝 {info['description']}")
+    print("\n🏗️ Complete Architecture (6 Artifacts):")
+    for artifact in info['artifacts']:
+        print(f"   {artifact}")
+    print("\n🌟 Platform Features:")
+    for feature, status in info['features'].items():
+        print(f"   {feature.replace('_', ' ').title()}: {status}")
+    print(f"\n{info['blessing']}")
+    print("="*80 + "\n")
+
+# Execute main if run directly
+if __name__ == "__main__":
+    print_platform_info()
+    main()
+
+# Export all components
+__all__ = [
+    "JyotiFlowIntegrationHub",
+    "JyotiFlowRunner", 
+    "main",
+    "test_complete_platform",
+    "PLATFORM_INFO"
+]
