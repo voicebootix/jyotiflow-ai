@@ -1525,6 +1525,17 @@ class SatsangEventResponse(BaseModel):
 
 
 class EnhancedJyotiFlowDatabase:
-    pass  # Placeholder for now
+    async def initialize_enhanced_tables(self):
+        """Initialize enhanced database tables for JyotiFlow.ai"""
+        try:
+            # Create all tables defined in the models
+            async with self.engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
 
-app = None  # Will be set by production deployment
+            logger.info("✅ Enhanced database tables initialized successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize enhanced tables: {e}")
+            return False
+
