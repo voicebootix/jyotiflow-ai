@@ -6,7 +6,9 @@ import signal
 import uvicorn
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
-from pathlib import Path
+from pathlib import Path 
+
+
 
 #newly added code
 sys.path.append(str(Path(__file__).parent))
@@ -629,16 +631,15 @@ def print_platform_info():
     print(f"\n{info['blessing']}")
     print("="*80 + "\n")
 
-# Execute main if run directly
-if __name__ == "__main__":
-    print_platform_info()
-    main()
 
-# Export all components
-__all__ = [
-    "JyotiFlowIntegrationHub",
-    "JyotiFlowRunner", 
-    "main",
-    "test_complete_platform",
-    "PLATFORM_INFO"
-]
+
+from core_foundation_enhanced import app
+
+# Ensure app is available for uvicorn
+if __name__ != "__main__":
+    # This makes 'app' available when uvicorn imports the module
+    pass
+
+# Export for uvicorn: uvicorn main:app
+__all__ = ["app"]
+
