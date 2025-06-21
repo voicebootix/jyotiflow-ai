@@ -633,13 +633,7 @@ def print_platform_info():
 
 
 
-from core_foundation_enhanced import app
+from core_foundation_enhanced import app as working_app
+app = working_app
 
-# Ensure app is available for uvicorn
-if __name__ != "__main__":
-    # This makes 'app' available when uvicorn imports the module
-    pass
-
-# Export for uvicorn: uvicorn main:app
-__all__ = ["app"]
 
