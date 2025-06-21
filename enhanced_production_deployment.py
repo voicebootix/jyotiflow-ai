@@ -331,7 +331,7 @@ async def initialize_enhanced_services():
     """তমিল - সমস্ত উন্নত সেবা সূচনা করুন"""
     try:
         # Initialize Database
-        await db_manager.initialize_enhanced_tables()
+        await db_manager.initialize()
         logger.info("✅ Enhanced database initialized")
         
         # Test AI Services
