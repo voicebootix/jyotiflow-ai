@@ -340,10 +340,17 @@ async def initialize_avatar_services():
         avatar_generation_queue = asyncio.Queue()
         
         # Start avatar processing workers
+async def initialize_avatar_services():
+    try:
+        # Initialize avatar generation queue
+        global avatar_generation_queue
+        avatar_generation_queue = asyncio.Queue()
+        
+        # Start avatar processing workers
         for i in range(3):  # 3 concurrent avatar processors
             asyncio.create_task(avatar_processing_worker(f"worker_{i}"))
         
-        logger.info("🎭 Avatar services initialized with 3 workers")
+        logger.info(" Avatar services initialized with 3 workers")
         
     except Exception as e:
         logger.error(f"Avatar service initialization failed: {e}")
@@ -356,7 +363,7 @@ async def avatar_processing_worker(worker_name: str):
             task = await avatar_generation_queue.get()
             
             start_time = time.time()
-            logger.info(f"🎭 {worker_name} processing avatar: {task['session_id']}")
+            logger.info(f"{worker_name} processing avatar: {task['session_id']}")
             
             # Process avatar generation
             result = await process_avatar_task(task)
