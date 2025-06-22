@@ -19,7 +19,7 @@ try:
         UserRegistration, UserLogin, SessionRequest, 
         StandardResponse, AvatarGenerationRequest,
         LiveChatSessionRequest, SatsangEventRequest,
-        settings, logger
+        settings, logger, get_database
     )
 except ImportError:
     # Fallback imports
