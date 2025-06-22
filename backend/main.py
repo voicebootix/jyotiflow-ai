@@ -77,16 +77,9 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-# =============================================================================
-# 🕉️ MAIN INTEGRATION HUB CLASS
-# তমিল - প্রধান একীকরণ হাব ক্লাস
-# =============================================================================
 
-class JyotiFlowIntegrationHub:
-    """তমিল - সম্পূর্ণ প্ল্যাটফর্ম অর্কেস্ট্রেটর"""
-    
-    # Add CORS middleware for frontend integration
-    app.add_middleware(
+# Add CORS middleware for frontend integration
+app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://jyotiflow-frontend.onrender.com",  # Production frontend
@@ -97,7 +90,14 @@ class JyotiFlowIntegrationHub:
     allow_methods=["*"],
     allow_headers=["*"],
 )
-    
+
+# =============================================================================
+# 🕉️ MAIN INTEGRATION HUB CLASS
+# তমিল - প্রধান একীকরণ হাব ক্লাস
+# =============================================================================
+
+class JyotiFlowIntegrationHub:
+    """তমিল - সম্পূর্ণ প্ল্যাটফর্ম অর্কেস্ট্রেটর"""
     def __init__(self):
         self.settings = EnhancedSettings()
         self.db = EnhancedJyotiFlowDatabase()
