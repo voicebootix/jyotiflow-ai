@@ -39,16 +39,6 @@ from enhanced_business_logic import (
     EnhancedSessionProcessor
 )
 
-from enhanced_frontend_integration import (
-    enhanced_home_page,
-    enhanced_spiritual_guidance_page,
-    live_chat_page,
-    satsang_page,
-    enhanced_admin_dashboard,
-    admin_ai_insights_page,
-    social_content_management_page
-)
-
 try:
     from enhanced_production_deployment import (
         enhanced_app,
