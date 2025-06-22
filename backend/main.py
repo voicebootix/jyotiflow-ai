@@ -7,15 +7,6 @@ import uvicorn
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from pathlib import Path 
-from fastapi import FastAPI
-
-app = FastAPI()
-
-
-# Health check endpoint for Render
-@app.get("/health")
-async def health_check():
-    return {"status": "healthy", "service": "JyotiFlow.ai Backend"}
 
 if __name__ == "__main__":
     import uvicorn
@@ -62,11 +53,22 @@ from enhanced_frontend_integration import (
     social_content_management_page
 )
 
-from enhanced_production_deployment import (
-    enhanced_app,
-    perform_startup_health_check,
-    get_detailed_health_status
-)
+try:
+    from enhanced_production_deployment import (
+        enhanced_app,
+        perform_startup_health_check,
+        get_detailed_health_status
+    )
+    
+except Exception as e:
+    print(f"❌ Enhanced import failed: {e}")
+    # தமிழ் - Create fallback app
+    from fastapi import FastAPI
+    app = FastAPI(title="JyotiFlow.ai - Fallback Mode")
+    
+    @app.get("/health")
+    async def health_check():
+        return {"status": "degraded", "error": str(e)}
 
 
 
@@ -431,7 +433,6 @@ class JyotiFlowRunner:
     
     def __init__(self):
         self.integration_hub = JyotiFlowIntegrationHub()
-        self.app = enhanced_app
         self.server = None
     
     async def start_complete_platform(self):
@@ -658,7 +659,7 @@ def print_platform_info():
 
 
  # Export enhanced_app for Uvicorn deployment
-app = enhanced_app
+
 
 
 

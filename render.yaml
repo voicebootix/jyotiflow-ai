@@ -3,7 +3,7 @@ services:
     name: jyotiflow-backend
     env: python
     buildCommand: "cd backend && pip install -r requirements.txt"
-    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    startCommand: cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -15,7 +15,7 @@ services:
     name: jyotiflow-frontend
     env: node
     buildCommand: "cd frontend && npm install && npm run build"
-    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    startCommand: "cd frontend && uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: NODE_VERSION
         value: 18

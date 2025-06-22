@@ -24,9 +24,32 @@ import aiohttp
 from prometheus_client import Counter, Histogram, Gauge, generate_latest
 from starlette.middleware.base import BaseHTTPMiddleware
 
+try:
+    from prometheus_client import Counter, Histogram, Gauge, generate_latest
+except ImportError:
+    # Mock prometheus if not installed
+    class Counter:
+        def __init__(self, *args, **kwargs): pass
+        def labels(self, **kwargs): return self
+        def inc(self): pass
+    
+    class Histogram:
+        def __init__(self, *args, **kwargs): pass
+        def labels(self, **kwargs): return self
+        def observe(self, value): pass
+    
+    class Gauge:
+        def __init__(self, *args, **kwargs): pass
+        def set(self, value): pass
+    
+    def generate_latest():
+        return b"# Prometheus metrics disabled"
+
 # তমিল - আমাদের সমস্ত উপাদান থেকে আমদানি
 try:
-    from core_foundation_enhanced import EnhancedSettings, logger, db_manager
+    from core_foundation_enhanced import EnhancedSettings, logger, EnhancedJyotiFlowDatabase
+    # தமிழ் - Create db_manager instance
+    db_manager = EnhancedJyotiFlowDatabase()
 except ImportError:
     # Fallback for development
     logger = logging.getLogger(__name__)

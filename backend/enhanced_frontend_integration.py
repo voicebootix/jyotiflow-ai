@@ -28,7 +28,12 @@ from enhanced_business_logic import (
 # =============================================================================
 
 # Initialize Enhanced Templates
-templates = Jinja2Templates(directory="templates")
+# தமிழ் - Ensure templates directory exists
+from pathlib import Path
+templates_dir = Path(__file__).parent / "templates"
+templates_dir.mkdir(exist_ok=True)
+
+templates = Jinja2Templates(directory=str(templates_dir))
 
 # Enhanced template context for all pages
 async def enhanced_template_context(
