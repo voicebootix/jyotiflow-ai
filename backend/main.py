@@ -7,7 +7,9 @@ import uvicorn
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from pathlib import Path 
+from fastapi import FastAPI
 
+app = FastAPI()
 
 
 # Health check endpoint for Render
