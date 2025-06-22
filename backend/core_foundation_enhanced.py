@@ -320,6 +320,48 @@ class EnhancedDatabaseManager:
             completed_at TIMESTAMP,
             FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
         );
+        # NEW: Automated avatar styling system
+        CREATE TABLE IF NOT EXISTS avatar_style_templates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            style_name VARCHAR(100) NOT NULL,
+            clothing_prompt TEXT NOT NULL,
+            background_prompt TEXT NOT NULL,
+            cultural_elements TEXT,
+            mood_description TEXT,
+            usage_contexts TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        # NEW: Automated festival calendar
+        CREATE TABLE IF NOT EXISTS automated_festivals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            festival_name VARCHAR(100) NOT NULL,
+            date_pattern TEXT,
+            fixed_date DATE,
+            style_override TEXT,
+            cultural_elements TEXT,
+            auto_enabled BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        
+        # NEW: Admin-configurable community events (Phase 2)
+        CREATE TABLE IF NOT EXISTS community_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            event_name VARCHAR(100) NOT NULL,
+            event_type VARCHAR(50) NOT NULL,
+            recurring_pattern TEXT,
+            avatar_style VARCHAR(100),
+            content_themes TEXT,
+            auto_generated BOOLEAN DEFAULT TRUE,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        # Add columns to existing avatar_sessions table for automation
+        ALTER TABLE avatar_sessions ADD COLUMN dynamic_style_prompt TEXT;
+        ALTER TABLE avatar_sessions ADD COLUMN auto_detected_occasion VARCHAR(100);
+        ALTER TABLE avatar_sessions ADD COLUMN cultural_theme VARCHAR(100);
+        
         """
 
         conn = None

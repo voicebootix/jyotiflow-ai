@@ -7,6 +7,11 @@ from typing import Dict, List, Optional, Any, Union, Tuple
 from decimal import Decimal
 from dataclasses import dataclass
 from enum import Enum
+from datetime import datetime, timedelta
+import random
+from typing import Optional, Dict, List, Any, Tuple
+import json
+
 
 # External Integrations
 import aiohttp
@@ -26,6 +31,229 @@ from core_foundation_enhanced import (
 # তমিল - আধ্যাত্মিক পথনির্দেশনা গণনা এবং ধ্রুবক
 # =============================================================================
 
+class AutomatedStyleManager:
+    """TRUE automation - dynamic avatar styling through prompts"""
+    
+    def __init__(self, db_manager):
+        self.db = db_manager
+        self.style_templates = {}
+        self.festival_calendar = {}
+        
+    async def load_style_templates(self):
+        """Load style templates - இந্ত method automatic style load செয্যুম্"""
+        self.style_templates = {
+            "daily_guidance": {
+                "clothing_prompt": "wearing simple white cotton kurta with peaceful expression",
+                "background_prompt": "peaceful ashram garden with flowers and meditation stones",
+                "cultural_elements": "basic rudraksha mala, gentle spiritual presence",
+                "mood_description": "calm and encouraging"
+            },
+            "satsang_traditional": {
+                "clothing_prompt": "wearing rich orange silk robes with gold borders and traditional markings",
+                "background_prompt": "sacred temple interior with oil lamps and spiritual symbols",
+                "cultural_elements": "elaborate rudraksha mala, spiritual ornaments",
+                "mood_description": "wise and authoritative"
+            },
+            "festival_ceremonial": {
+                "clothing_prompt": "wearing luxurious silk robes with intricate embroidery in festival colors",
+                "background_prompt": "decorated temple with thousands of oil lamps and festival decorations",
+                "cultural_elements": "multiple malas, ceremonial items, divine aura",
+                "mood_description": "joyous and celebratory"
+            },
+            "social_media_modern": {
+                "clothing_prompt": "wearing contemporary spiritual attire in earth tones",
+                "background_prompt": "natural outdoor setting with mountains or rivers",
+                "cultural_elements": "minimalist spiritual jewelry, accessible presence",
+                "mood_description": "warm and relatable"
+            },
+            "premium_consultation": {
+                "clothing_prompt": "wearing high-quality traditional robes with silk and spiritual symbols",
+                "background_prompt": "luxurious temple setting with golden decorations",
+                "cultural_elements": "premium spiritual ornaments, majestic presence",
+                "mood_description": "deeply wise and powerful"
+            }
+        }
+    
+    async def detect_occasion(self, session_context: Dict) -> str:
+        """Automatic occasion detection - இந்த method automatic-ஆக occasion detect செய்யும்"""
+        current_date = datetime.now()
+        
+        # Check for Tamil festivals first
+        festival = await self.check_festival_date(current_date)
+        if festival:
+            return "festival_ceremonial"
+        
+        # Check content type and service level
+        content_type = session_context.get('content_type', '')
+        service_type = session_context.get('service_type', 'clarity')
+        
+        if 'satsang' in content_type.lower() or 'community' in content_type.lower():
+            return "satsang_traditional"
+        elif service_type in ['premium', 'elite']:
+            return "premium_consultation"
+        elif 'social' in content_type.lower():
+            return "social_media_modern"
+        else:
+            return "daily_guidance"
+    
+    async def check_festival_date(self, date: datetime) -> Optional[str]:
+        """Festival date checker - Tamil festival automatic detect செয্যুম্"""
+        festival_dates = {
+            "2025-02-26": "Maha Shivaratri",
+            "2025-04-14": "Tamil New Year",
+            "2025-10-03": "Navaratri",
+            "2025-11-15": "Karthikai Deepam",
+            "2025-01-14": "Thai Pongal",
+            "2025-08-19": "Krishna Janmashtami",
+            "2025-09-07": "Ganesh Chaturthi"
+        }
+        
+        date_str = date.strftime("%Y-%m-%d")
+        return festival_dates.get(date_str)
+    
+    def generate_dynamic_prompt(self, style_name: str, festival_name: str = None) -> str:
+        """Dynamic D-ID prompt generation - automatic variety তৈরি செয্યুম্"""
+        template = self.style_templates.get(style_name, self.style_templates["daily_guidance"])
+        
+        # Festival-specific automatic overrides
+        if festival_name:
+            festival_overrides = {
+                "Maha Shivaratri": "wearing pure white silk robes with silver accents, Shiva temple with lingam and sacred fire, Shiva symbols and sacred ash",
+                "Tamil New Year": "wearing fresh yellow and golden silk robes, temple decorated with mango leaves and kolam, prosperity symbols",
+                "Navaratri": "wearing traditional Devi colors, Devi temple with divine feminine decorations, Devi symbols and lotus flowers",
+                "Karthikai Deepam": "wearing deep orange and golden robes, temple with thousands of oil lamps, light symbolism and fire elements",
+                "Thai Pongal": "wearing yellow and golden festive robes, natural abundance setting, harvest symbols and gratitude themes"
+            }
+            
+            override = festival_overrides.get(festival_name, "")
+            if override:
+                return f"Tamil spiritual master {override}, {template['mood_description']} expression"
+        
+        # Regular automatic dynamic prompt
+        return f"Tamil spiritual master {template['clothing_prompt']}, {template['background_prompt']}, {template['cultural_elements']}, {template['mood_description']} expression"
+
+class TamilCulturalIntegration:
+    """Tamil cultural phrases automatic integration"""
+    
+    def __init__(self):
+        self.greetings = {
+            "daily": ["Vanakkam, anbulla makkalae", "Kalaiyil vanakkam, atma nanbarkalay"],
+            "festival": ["Thiruvizha dinam vanakkam, iraivan makkalae", "Festival vanakkam, bhakta janangalay"],
+            "satsang": ["Satsanga vanakkam, spiritual family", "Om Anbulla atmaakkalae"],
+            "premium": ["Divine vanakkam, blessed soul", "Iraivan arul kondae vanakkam"]
+        }
+        
+        self.closures = {
+            "daily": ["Tamil thaai arul kondae vazhlga", "May divine light guide your path"],
+            "festival": ["Festival blessings upon you", "Thiruvizha anugrahangal ungal mael"],
+            "healing": ["Rogam mudhitu, arogiyam perunga", "Health and healing be yours"],
+            "prosperity": ["Selvam serunga, anbu velukka", "Prosperity and love flourish"],
+            "spiritual": ["Atma unnathiya adhigarikka", "May your soul reach greater heights"],
+            "peace": ["Shanti perunga, sukham nerunga", "Receive peace, gain happiness"]
+        }
+        
+        self.weekly_themes = {
+            "monday": "New week spiritual energy, motivation for divine path",
+            "tuesday": "Ancient Tamil wisdom, Thirukkural teachings",
+            "wednesday": "Spiritual wellness, mind-body-soul harmony",
+            "thursday": "Transformation through divine grace",
+            "friday": "Fearless faith, courage through spirituality",
+            "saturday": "Community satsang, shared spiritual journey",
+            "sunday": "Sacred teachings, deep spiritual truths"
+        }
+    
+    def get_cultural_greeting(self, occasion: str, context: str = "daily") -> str:
+        """Tamil greeting automatic selection"""
+        greeting_type = "festival" if "festival" in occasion else context
+        greetings_list = self.greetings.get(greeting_type, self.greetings["daily"])
+        return random.choice(greetings_list)
+    
+    def get_cultural_closure(self, session_type: str) -> str:
+        """Tamil closure automatic selection"""
+        closures_list = self.closures.get(session_type, self.closures["daily"])
+        return random.choice(closures_list)
+    
+    def get_weekly_theme(self) -> str:
+        """Weekly theme automatic detection"""
+        today = datetime.now().strftime("%A").lower()
+        return self.weekly_themes.get(today, self.weekly_themes["sunday"])
+
+class CommunityEventManager:
+    """Phase 2: Dashboard event management"""
+    
+    def __init__(self, db_manager):
+        self.db = db_manager
+        
+    async def create_weekly_programs(self):
+        """Automatic weekly program creation"""
+        weekly_programs = [
+            {
+                "event_name": "Monday Motivation Satsang",
+                "event_type": "weekly_motivation",
+                "recurring_pattern": "every_monday",
+                "avatar_style": "daily_guidance",
+                "content_themes": "Week ahead blessings, spiritual goals, motivation"
+            },
+            {
+                "event_name": "Tuesday Tamil Wisdom",
+                "event_type": "cultural_wisdom",
+                "recurring_pattern": "every_tuesday", 
+                "avatar_style": "satsang_traditional",
+                "content_themes": "Thirukkural quotes, Tamil saints, ancient knowledge"
+            },
+            {
+                "event_name": "Wednesday Wellness Circle",
+                "event_type": "spiritual_wellness",
+                "recurring_pattern": "every_wednesday",
+                "avatar_style": "daily_guidance",
+                "content_themes": "Ayurveda, yoga, spiritual health practices"
+            },
+            {
+                "event_name": "Saturday Satsang Community",
+                "event_type": "community_gathering", 
+                "recurring_pattern": "every_saturday",
+                "avatar_style": "satsang_traditional",
+                "content_themes": "Group meditation, community wisdom, shared blessings"
+            }
+        ]
+        
+        return weekly_programs
+    
+    async def create_monthly_specials(self):
+        """Automatic monthly special events"""
+        monthly_events = [
+            {
+                "event_name": "Tamil Heritage Satsang",
+                "event_type": "cultural_celebration",
+                "recurring_pattern": "first_saturday_monthly",
+                "avatar_style": "festival_ceremonial",
+                "content_themes": "Tamil spiritual heritage, cultural pride, traditional wisdom"
+            },
+            {
+                "event_name": "Healing Circle Gathering", 
+                "event_type": "healing_session",
+                "recurring_pattern": "second_saturday_monthly",
+                "avatar_style": "premium_consultation",
+                "content_themes": "Spiritual healing, energy cleansing, divine restoration"
+            },
+            {
+                "event_name": "Youth Spiritual Awakening",
+                "event_type": "youth_program",
+                "recurring_pattern": "third_saturday_monthly", 
+                "avatar_style": "social_media_modern",
+                "content_themes": "Modern spirituality, youth guidance, contemporary wisdom"
+            },
+            {
+                "event_name": "Family Harmony Session",
+                "event_type": "family_program",
+                "recurring_pattern": "fourth_saturday_monthly",
+                "avatar_style": "satsang_traditional", 
+                "content_themes": "Family blessings, relationship harmony, household peace"
+            }
+        ]
+        
+        return monthly_events
+    
 class SpiritualState(Enum):
     """তমিল - আধ্যাত্মিক অবস্থার গণনা"""
     SEEKING = "seeking_guidance"
@@ -89,32 +317,62 @@ class SpiritualAvatarEngine:
             "spiritual_lineage": "advaita_vedanta"
         }
     
-    async def generate_personalized_guidance(
-        self, 
-        context: AvatarGenerationContext,
-        user_query: str,
-        birth_details: Optional[Dict] = None
-    ) -> Tuple[str, Dict]:
-        """তমিল - ব্যক্তিগতকৃত আধ্যাত্মিক পথনির্দেশনা তৈরি করুন"""
+async def generate_personalized_guidance(
+    self,
+    context: Optional[Dict],
+    user_query: str,
+    birth_details: Optional[Dict] = None
+) -> Tuple[str, Dict]:
+    """TRUE AUTOMATION - Enhanced with dynamic avatar styling"""
+    try:
+        session_context = context or {}
+        
+        # AUTOMATED: Generate avatar styling automatically
+        avatar_info = await self.generate_automated_avatar_prompt(session_context)
+        
+        # Generate base spiritual guidance
         try:
-            # Analyze user's spiritual journey
-            spiritual_profile = await self._analyze_spiritual_profile(context)
-            
-            # Generate culturally appropriate guidance
-            guidance_text = await self._generate_guidance_text(
-                user_query, spiritual_profile, birth_details, context
-            )
-            
-            # Create avatar video metadata
-            video_metadata = await self._prepare_avatar_metadata(
-                guidance_text, context, spiritual_profile
-            )
-            
-            return guidance_text, video_metadata
-            
-        except Exception as e:
-            logger.error(f"Personalized guidance generation failed: {e}")
-            return self._get_fallback_guidance(context), {}
+            base_guidance = await self._generate_guidance_text(user_query, {}, birth_details, context or {})
+        except:
+            # Fallback guidance generation
+            base_guidance = f"""Dear beloved soul, regarding your heartfelt question about {user_query}, 
+
+Divine wisdom flows through the ancient teachings of our Tamil spiritual tradition. Trust in the divine plan that unfolds for your highest good. Through prayer, meditation, and devotion, all answers will be revealed in perfect divine timing.
+
+Remember that every challenge is an opportunity for spiritual growth, and every blessing is a reminder of divine love."""
+        
+        # AUTOMATED: Add Tamil cultural elements
+        culturally_enhanced_guidance = self.add_automated_cultural_elements(base_guidance, avatar_info)
+        
+        # AUTOMATED: Enhanced video metadata with TRUE automation
+        video_metadata = {
+            "text_content": culturally_enhanced_guidance,
+            "dynamic_style_prompt": avatar_info["dynamic_prompt"],
+            "presenter_id": avatar_info["presenter_id"],
+            "auto_detected_style": avatar_info["style_name"],
+            "festival_theme": avatar_info.get("festival_name"),
+            "cultural_theme": "tamil_vedic_tradition",
+            "automation_active": avatar_info["automation_active"],
+            "voice_settings": {
+                "stability": 0.8,
+                "similarity_boost": 0.75,
+                "style": 0.3,
+                "use_speaker_boost": True
+            },
+            "video_settings": {
+                "automated_styling": True,
+                "dynamic_prompts": True,
+                "cultural_integration": True
+            }
+        }
+        
+        return culturally_enhanced_guidance, video_metadata
+        
+    except Exception as e:
+        logger.error(f"Automated guidance generation failed: {e}")
+        # Safe fallback
+        fallback = "Vanakkam, beloved soul. Divine love and blessings are always with you. Tamil thaai arul kondae vazhlga."
+        return fallback, {"cultural_theme": "daily_wisdom", "automation_active": False}
     
     async def _analyze_spiritual_profile(self, context: AvatarGenerationContext) -> Dict:
         """তমিল - ব্যবহারকারীর আধ্যাত্মিক প্রোফাইল বিশ্লেষণ"""
@@ -251,8 +509,73 @@ class SpiritualAvatarEngine:
         May peace fill your heart and light guide your way. 🙏🏼
         
         Om Shanti Shanti Shanti
+        
+         # ADD these NEW automation components AFTER existing code
+        self.style_manager = AutomatedStyleManager(self.db)
+        self.cultural_integration = TamilCulturalIntegration()
+        self.event_manager = CommunityEventManager(self.db)
+        
+        # Single base presenter ID for TRUE automation
+        self.base_presenter_id = getattr(self.settings, 'd_id_presenter_id', 'default_presenter')   
         """
+async def generate_automated_avatar_prompt(self, session_context: Dict) -> Dict:
+    """TRUE automation - automatic avatar prompt generation"""
+    await self.style_manager.load_style_templates()
+    
+    # Automatic occasion detection
+    style_name = await self.style_manager.detect_occasion(session_context)
+    
+    # Automatic festival checking
+    current_date = datetime.now()
+    festival_name = await self.style_manager.check_festival_date(current_date)
+    
+    # Dynamic prompt generation
+    dynamic_prompt = self.style_manager.generate_dynamic_prompt(style_name, festival_name)
+    
+    return {
+        "style_name": style_name,
+        "festival_name": festival_name,
+        "dynamic_prompt": dynamic_prompt,
+        "presenter_id": self.base_presenter_id,
+        "automation_active": True
+    }
 
+def add_automated_cultural_elements(self, guidance_text: str, style_info: Dict) -> str:
+    """Automatic Tamil cultural integration"""
+    style_name = style_info.get("style_name", "daily")
+    festival_name = style_info.get("festival_name")
+    
+    # Automatic greeting selection
+    occasion = "festival" if festival_name else style_name
+    greeting = self.cultural_integration.get_cultural_greeting(occasion, style_name)
+    
+    # Automatic closure selection
+    closure = self.cultural_integration.get_cultural_closure(style_name)
+    
+    # Automatic weekly theme (if applicable)
+    weekly_theme = self.cultural_integration.get_weekly_theme()
+    
+    # Enhanced guidance with automation
+    enhanced_guidance = f"""{greeting}
+
+{guidance_text}
+
+Today's spiritual focus: {weekly_theme}
+
+{closure}"""
+    
+    return enhanced_guidance.strip()
+
+async def get_dashboard_event_suggestions(self) -> Dict:
+    """Phase 2: Dashboard event suggestions"""
+    weekly_programs = await self.event_manager.create_weekly_programs()
+    monthly_specials = await self.event_manager.create_monthly_specials()
+    
+    return {
+        "weekly_programs": weekly_programs,
+        "monthly_specials": monthly_specials,
+        "automation_enabled": True
+    }
 # =============================================================================
 # 💰 MONETIZATION OPTIMIZER
 # তমিল - নগদীকরণ অপ্টিমাইজার

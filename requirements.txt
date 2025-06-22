@@ -1,0 +1,103 @@
+# 🙏🏼 JyotiFlow.ai Requirements - Updated for REAL AI Integration
+# தமிழ் - Python dependencies for real spiritual AI platform
+
+# தமிழ் - Core FastAPI framework and ASGI server
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# தমিল - Database connectivity
+asyncpg==0.29.0
+psycopg2-binary==2.9.9
+aiosqlite==0.19.0
+
+# தமিழ் - Authentication and security
+PyJWT==2.8.0
+bcrypt==4.1.2
+python-multipart==0.0.6
+
+# তমিল - Payment processing
+stripe==8.0.0
+
+# 🤖 REAL AI Integration - UPDATED VERSION
+openai==1.3.0  # IMPORTANT: Updated to latest version for real AI
+aiohttp==3.9.1  # For async HTTP requests to external APIs
+
+# தমিল - HTTP client for API integrations
+httpx==0.25.2
+requests==2.31.0
+
+# தমিল - Data validation and serialization
+pydantic[email]==2.5.0
+
+# তমিল - Environment variables
+python-dotenv==1.0.0
+
+# তমিল - Date and time handling
+python-dateutil==2.8.2
+
+# তমিল - Logging and monitoring
+structlog==23.2.0
+
+# তমিল - Development and testing dependencies
+pytest==7.4.3
+pytest-asyncio==0.21.1
+
+# তমিল - Optional: Production deployment
+gunicorn==21.2.0
+
+# তমিল - Optional: Database migrations
+alembic==1.13.0
+
+# তমিল - Optional: Caching
+redis==5.0.1
+
+# তমিল - Optional: Email functionality
+aiosmtplib==3.0.1
+
+# তমিল - Optional: File handling
+aiofiles==23.2.1
+
+# তমিল - Optional: Image processing (for future features)
+Pillow==10.1.0
+
+# তমিল - Optional: PDF generation (for reports)
+reportlab==4.0.7
+
+# তমিল - Optional: Excel file handling
+openpyxl==3.1.2
+
+# তমিল - Optional: Data analysis
+pandas==2.1.4
+numpy==1.26.2
+
+# তমিল - Optional: Timezone handling
+pytz==2023.3
+
+# তমিল - Optional: URL parsing
+yarl==1.9.4
+
+# তমিল - Optional: JSON handling
+orjson==3.9.10
+
+# তমিল - Optional: Configuration management
+pydantic-settings==2.1.0
+
+# তমিল - Optional: API documentation
+fastapi-users==12.1.2
+
+# তমিল - Optional: Rate limiting
+slowapi==0.1.9
+
+# তমিল - Optional: Background tasks
+celery==5.3.4
+
+# তমিল - Optional: Monitoring and health checks
+prometheus-client==0.19.0
+
+# 🙏🏼 All dependencies for Swami Jyotirananthan's REAL AI digital ashram
+
+
+psutil==5.9.6
+scikit-learn==1.3.2
+jinja2==3.1.2
+python-multipart==0.0.6
