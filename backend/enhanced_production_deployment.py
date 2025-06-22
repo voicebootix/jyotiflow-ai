@@ -269,7 +269,7 @@ def setup_enhanced_routes(app: FastAPI):
             "version": "5.0.0",
             "status": "operational",
             "docs": "/docs"
-    })
+    }
     
     @app.get("/favicon.ico")
     async def favicon():
