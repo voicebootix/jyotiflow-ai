@@ -19,7 +19,7 @@ try:
         UserRegistration, UserLogin, SessionRequest, 
         StandardResponse, AvatarGenerationRequest,
         LiveChatSessionRequest, SatsangEventRequest,
-        settings, logger, get_database
+        settings, logger, get_database, EnhancedJyotiFlowDatabase
     )
 except ImportError:
     # Fallback imports
