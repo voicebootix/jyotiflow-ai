@@ -1,7 +1,7 @@
 import json
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, List, Any, Union
+from typing import Optional, Dict, List, Any, Union, TYPE_CHECKING
 from decimal import Decimal
 
 # FastAPI imports
