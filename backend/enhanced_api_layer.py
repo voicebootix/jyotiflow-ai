@@ -9,6 +9,9 @@ from fastapi import APIRouter, HTTPException, Depends, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials
 
+if TYPE_CHECKING:
+    from core_foundation_enhanced import EnhancedJyotiFlowDatabase
+
 # Import from Core Foundation
 try:
     from core_foundation_enhanced import (
