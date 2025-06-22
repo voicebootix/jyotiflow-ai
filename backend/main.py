@@ -17,6 +17,10 @@ app = FastAPI()
 async def health_check():
     return {"status": "healthy", "service": "JyotiFlow.ai Backend"}
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
 #newly added code
 sys.path.append(str(Path(__file__).parent))
 
