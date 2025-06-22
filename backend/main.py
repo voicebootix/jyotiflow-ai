@@ -8,10 +8,6 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from pathlib import Path 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
 #newly added code
 sys.path.append(str(Path(__file__).parent))
 
@@ -59,7 +55,8 @@ try:
         perform_startup_health_check,
         get_detailed_health_status
     )
-    
+    # ADD THIS LINE:
+    app = enhanced_app
 except Exception as e:
     print(f"❌ Enhanced import failed: {e}")
     # தமிழ் - Create fallback app
@@ -69,29 +66,6 @@ except Exception as e:
     @app.get("/health")
     async def health_check():
         return {"status": "degraded", "error": str(e)}
-
-
-
-
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.middleware.cors import CORSMiddleware
-
-
-# Add CORS middleware for frontend integration
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://jyotiflow-frontend.onrender.com",  # Production frontend
-        "http://localhost:5173",                    # Local development
-        "https://zxilwjoc.manus.space",            # Current deployment
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # =============================================================================
 # 🕉️ MAIN INTEGRATION HUB CLASS
