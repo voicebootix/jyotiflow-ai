@@ -81,12 +81,6 @@ except ImportError:
     original_router = APIRouter(prefix="/api/v1")
     logger.warning("Using fallback API routers")
 
-try:
-    from enhanced_frontend_integration import (
-        enhanced_home_page, enhanced_spiritual_guidance_page, live_chat_page,
-        satsang_page, enhanced_admin_dashboard, admin_ai_insights_page,
-        social_content_management_page
-    )
 except ImportError:
     # Create fallback route handlers
     async def enhanced_home_page(request):
@@ -269,11 +263,12 @@ def setup_enhanced_routes(app: FastAPI):
     
     # Enhanced Frontend Routes
     @app.get("/")
-    async def home():
-        return JSONResponse({
+    async def root():
+        return {
+            "message": "JyotiFlow.ai Backend API",
+            "version": "5.0.0",
             "status": "operational",
-            "message": "JyotiFlow.ai API",
-            "version": "5.0.0"
+            "docs": "/docs"
     })
     
     @app.get("/favicon.ico")
