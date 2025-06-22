@@ -268,88 +268,13 @@ def setup_enhanced_routes(app: FastAPI):
     app.include_router(original_router, tags=["Core Services (Preserved)"])
     
     # Enhanced Frontend Routes
-    @app.get("/", response_class=HTMLResponse)
-    async def home(request: Request):
-        return await enhanced_home_page(request, user=None, db=None)
-
-    @app.get("/spiritual-guidance", response_class=HTMLResponse) 
-    async def spiritual_guidance_route(request: Request):
-        """Spiritual guidance page"""
-        try:
-            return await enhanced_spiritual_guidance_page(request, user=None, db=None)
-        except Exception as e:
-            logger.error(f"Spiritual guidance error: {e}")
-            return HTMLResponse("""
-            <html><body style="text-align:center;padding:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;">
-            <h1>🕉 Spiritual Guidance</h1>
-            <p>AI-powered spiritual guidance with Swamiji</p>
-            <a href="/" style="color:#90EE90;">← Back to Home</a>
-            </body></html>
-            """)
-    
-    @app.get("/live-chat", response_class=HTMLResponse)
-    async def live_chat_route(request: Request):
-        """Live chat page"""
-        try:
-            return await live_chat_page(request, user=None, db=None)
-        except Exception as e:
-            logger.error(f"Live chat error: {e}")
-            return HTMLResponse("""
-            <html><body style="text-align:center;padding:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;">
-            <h1>📹 Live Video Chat</h1>
-            <p>Coming Soon - Premium spiritual consultations</p>
-            <a href="/" style="color:#90EE90;">← Back to Home</a>
-            </body></html>
-            """)
-    
-    @app.get("/satsang", response_class=HTMLResponse)
-    async def satsang_route(request: Request):
-        """Satsang community page"""
-        try:
-            return await satsang_page(request, user=None, db=None)
-        except Exception as e:
-            logger.error(f"Satsang error: {e}")
-            return HTMLResponse("""
-            <html><body style="text-align:center;padding:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;">
-            <h1>🙏🏼 Monthly Satsang</h1>
-            <p>Join our global spiritual community gatherings</p>
-            <a href="/" style="color:#90EE90;">← Back to Home</a>
-            </body></html>
-            """)
-    
-    @app.get("/admin", response_class=HTMLResponse)
-    async def admin_dashboard(request: Request):
-        return await enhanced_admin_dashboard(request)
-    
-    @app.get("/admin/ai-insights", response_class=HTMLResponse)
-    async def admin_ai_insights(request: Request):
-        return await admin_ai_insights_page(request)
-    
-    @app.get("/admin/social-content", response_class=HTMLResponse)
-    async def admin_social_content(request: Request):
-        return await social_content_management_page(request)
-    
-    @app.get("/pricing", response_class=HTMLResponse)
-    async def pricing_route(request: Request):
-        """Pricing page"""
-        return HTMLResponse("""
-        <html><body style="text-align:center;padding:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;">
-        <h1>💎 Spiritual Pricing</h1>
-        <p>Choose your divine guidance package</p>
-        <a href="/" style="color:#90EE90;">← Back to Home</a>
-        </body></html>
-        """)
-
-    @app.get("/profile", response_class=HTMLResponse)
-    async def profile_route(request: Request):
-        """Profile page"""
-        return HTMLResponse("""
-        <html><body style="text-align:center;padding:50px;background:linear-gradient(135deg,#667eea,#764ba2);color:white;">
-        <h1>👤 Spiritual Profile</h1>
-        <p>Your divine journey dashboard</p>
-        <a href="/" style="color:#90EE90;">← Back to Home</a>
-        </body></html>
-        """)
+    @app.get("/")
+    async def home():
+        return JSONResponse({
+            "status": "operational",
+            "message": "JyotiFlow.ai API",
+            "version": "5.0.0"
+    })
     
     @app.get("/favicon.ico")
     async def favicon():
