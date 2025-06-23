@@ -28,7 +28,7 @@ const Navigation = () => {
   };
 
   const handleLogout = () => {
-    spiritualAPI.clearAuth();
+    spiritualAPI.logout();;
     setIsAuthenticated(false);
     setUserProfile(null);
     window.location.href = '/';
