@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Star, Temple, Scroll } from 'lucide-react';
+import { ArrowLeft, BookOpen, Star, Scroll } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const TamilHeritage = () => {
