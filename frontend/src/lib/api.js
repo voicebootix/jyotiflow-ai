@@ -1,8 +1,3 @@
-import { useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import './App.css';
-
-
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
 const spiritualAPI = {
@@ -41,7 +36,7 @@ const spiritualAPI = {
     });
   },
 
-  // Platform statistics (MISSING FUNCTION - ADDED)
+  // Platform statistics
   async loadPlatformStats() {
     try {
       // Mock data to prevent crashes - replace with real API later
@@ -57,7 +52,7 @@ const spiritualAPI = {
     }
   },
 
-  // Engagement tracking (MISSING FUNCTION - ADDED)
+  // Engagement tracking
   async trackSpiritualEngagement(eventType, data) {
     try {
       console.log(`🕉️ Spiritual engagement tracked: ${eventType}`, data);
@@ -165,3 +160,4 @@ const spiritualAPI = {
 };
 
 export default spiritualAPI;
+
