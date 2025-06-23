@@ -129,6 +129,27 @@ const spiritualAPI = {
   async getSpiritualQuote() {
     return this.get('/api/content/spiritual-quote');
   }
+  // Add these methods to your existing spiritualAPI object
+
+  const spiritualAPI = {
+    // ... existing methods ...
+
+    // Daily Content Methods
+    async getDailyWisdom() {
+      return this.get('/api/content/daily-wisdom');
+    },
+
+    async getSatsangSchedule() {
+      return this.get('/api/content/satsang-schedule');
+    },
+
+    async getSpiritualQuote() {
+      return this.get('/api/content/spiritual-quote');
+    },
+
+    // ... rest of existing methods ...
+  };
+
 };
 
 export default spiritualAPI;

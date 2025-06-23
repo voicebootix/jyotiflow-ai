@@ -7,6 +7,8 @@ import uvicorn
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 from pathlib import Path 
+from datetime import datetime, timedelta
+import hashlib
 
 #newly added code
 sys.path.append(str(Path(__file__).parent))
@@ -56,6 +58,131 @@ except Exception as e:
     @app.get("/health")
     async def health_check():
         return {"status": "degraded", "error": str(e)}
+    
+    # Daily Wisdom Endpoint
+@app.get("/api/content/daily-wisdom")
+async def get_daily_wisdom():
+    """
+    Generate daily spiritual wisdom using existing content generation system
+    """
+    try:
+        # Get today's date for consistent daily content
+        today = datetime.now().strftime("%Y-%m-%d")
+        
+        # Create a seed based on date for consistent daily content
+        date_seed = hashlib.md5(today.encode()).hexdigest()[:8]
+        
+        # Use existing spiritual content generation
+        from core_foundation_enhanced import SpiritualFoundation
+        spiritual_core = SpiritualFoundation()
+        
+        # Generate daily wisdom content
+        wisdom_prompt = f"""
+        Create a profound daily spiritual wisdom message for {today}.
+        Include:
+        1. A meaningful spiritual insight (2-3 sentences)
+        2. A practical application for modern life
+        3. A Sanskrit/Tamil phrase with translation
+        4. An affirmation for the day
+        
+        Style: Compassionate, wise, accessible to modern seekers
+        Voice: Swami Jyotirananthan speaking directly to the soul
+        """
+        
+        daily_wisdom = await spiritual_core.generate_spiritual_content(
+            content_type="daily_wisdom",
+            prompt=wisdom_prompt,
+            seed=date_seed
+        )
+        
+        # Structure the response
+        response = {
+            "date": today,
+            "wisdom": daily_wisdom,
+            "swamiji_blessing": "May this wisdom illuminate your path today, beloved soul.",
+            "next_update": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
+            "prana_points": 10  # Points for reading daily wisdom
+        }
+        
+        return response
+        
+    except Exception as e:
+        # Fallback wisdom if generation fails
+        fallback_wisdom = {
+            "date": today,
+            "wisdom": "The light within you is eternal and unchanging. In every moment, you have the power to choose love over fear, wisdom over ignorance, and peace over chaos. Trust in the divine plan that unfolds through your life.",
+            "swamiji_blessing": "Om Shanti - Go with divine peace.",
+            "next_update": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d"),
+            "prana_points": 10
+        }
+        return fallback_wisdom
+
+# Weekly Satsang Schedule Endpoint
+@app.get("/api/content/satsang-schedule")
+async def get_satsang_schedule():
+    """
+    Get upcoming community satsang schedule
+    """
+    # This will be expanded later with actual scheduling system
+    schedule = {
+        "upcoming_satsangs": [
+            {
+                "title": "Motivation Monday - Finding Your Life Purpose",
+                "date": "2025-06-30",
+                "time": "19:00 IST",
+                "duration": "45 minutes",
+                "type": "free",
+                "youtube_link": "https://youtube.com/live/jyotiflow-monday",
+                "description": "Discover your dharma and align with your soul's calling"
+            },
+            {
+                "title": "Wisdom Wednesday - The Art of Letting Go",
+                "date": "2025-07-02", 
+                "time": "19:00 IST",
+                "duration": "60 minutes",
+                "type": "free",
+                "youtube_link": "https://youtube.com/live/jyotiflow-wednesday",
+                "description": "Learn ancient techniques for releasing attachment and finding peace"
+            }
+        ],
+        "regular_schedule": {
+            "monday": "Motivation Monday - 7:00 PM IST",
+            "wednesday": "Wisdom Wednesday - 7:00 PM IST", 
+            "friday": "Festival Friday - 7:00 PM IST",
+            "sunday": "Soul Sunday - 6:00 PM IST"
+        }
+    }
+    return schedule
+
+# Spiritual Quote of the Hour
+@app.get("/api/content/spiritual-quote")
+async def get_spiritual_quote():
+    """
+    Get inspirational spiritual quote (updates every hour)
+    """
+    quotes = [
+        {
+            "quote": "The divine light within you is brighter than a thousand suns.",
+            "author": "Swami Jyotirananthan",
+            "context": "On recognizing your inner divinity"
+        },
+        {
+            "quote": "In the silence between thoughts, the eternal speaks.",
+            "author": "Tamil Spiritual Tradition",
+            "context": "On meditation and inner listening"
+        },
+        {
+            "quote": "Your challenges are not obstacles, but opportunities for the soul to grow.",
+            "author": "Swami Jyotirananthan", 
+            "context": "On transforming difficulties into wisdom"
+        }
+    ]
+    
+    # Rotate quotes based on hour of day
+    current_hour = datetime.now().hour
+    selected_quote = quotes[current_hour % len(quotes)]
+    
+    return selected_quote
 
 # =============================================================================
 # 🕉️ MAIN INTEGRATION HUB CLASS

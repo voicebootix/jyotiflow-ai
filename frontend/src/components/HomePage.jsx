@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Star, Users, Calendar, Award, Globe } from 'lucide-react';
 import spiritualAPI from '../lib/api';
+import DailyWisdom from '../spiritual/DailyWisdom';
 
 const HomePage = () => {
   const [platformStats, setPlatformStats] = useState({
@@ -369,6 +370,25 @@ const HomePage = () => {
           </div>
         </div>
       </section>
+
+            {/* Daily Wisdom Section */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Daily Spiritual Nourishment
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Begin each day with divine wisdom from Swami Jyotirananthan
+            </p>
+          </div>
+          
+          <div className="max-w-4xl mx-auto">
+            <DailyWisdom />
+          </div>
+        </div>
+      </section>
+
     </div>
   );
 };
