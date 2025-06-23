@@ -1,9 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Send, Loader, Play } from 'lucide-react';
-import spiritualAPI from '../lib/api';
-
 import { ArrowLeft, Send, Loader, Play } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
