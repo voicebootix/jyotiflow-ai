@@ -49,7 +49,7 @@
   --wisdom-purple: #8A2BE2;
   --sacred-white: #FEFEFE;
   --divine-black: #1A1A1A;
-  --lotus-pink: #FFB6C1;
+  --Flower2-pink: #FFB6C1;
   --om-saffron: #FF9933;
   --sacred-maroon: #800020;
   --temple-gold: #B8860B;
@@ -200,7 +200,7 @@
 }
 
 .sacred-gradient {
-  background: linear-gradient(135deg, var(--spiritual-orange), var(--lotus-pink));
+  background: linear-gradient(135deg, var(--spiritual-orange), var(--Flower2-pink));
 }
 
 /* Sacred Typography */

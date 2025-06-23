@@ -1,4 +1,4 @@
-import { ArrowLeft, Heart, Star, Coins, Lotus } from 'lucide-react';
+import { ArrowLeft, Heart, Star, Coins, Flower2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const FourPillars = () => {
@@ -44,7 +44,7 @@ const FourPillars = () => {
     },
     {
       name: "Enlightenment",
-      icon: Lotus,
+      icon: Flower2,
       color: "purple",
       description: "Awakening to your highest spiritual potential",
       details: [

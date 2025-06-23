@@ -120,7 +120,7 @@ class AutomatedStyleManager:
             festival_overrides = {
                 "Maha Shivaratri": "wearing pure white silk robes with silver accents, Shiva temple with lingam and sacred fire, Shiva symbols and sacred ash",
                 "Tamil New Year": "wearing fresh yellow and golden silk robes, temple decorated with mango leaves and kolam, prosperity symbols",
-                "Navaratri": "wearing traditional Devi colors, Devi temple with divine feminine decorations, Devi symbols and lotus flowers",
+                "Navaratri": "wearing traditional Devi colors, Devi temple with divine feminine decorations, Devi symbols and Flower2 flowers",
                 "Karthikai Deepam": "wearing deep orange and golden robes, temple with thousands of oil lamps, light symbolism and fire elements",
                 "Thai Pongal": "wearing yellow and golden festive robes, natural abundance setting, harvest symbols and gratitude themes"
             }

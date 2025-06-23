@@ -89,7 +89,7 @@ const SwamijiStory = () => {
         {/* The Sacred Transmission */}
         <section className="mb-16">
           <div className="flex items-center mb-8">
-            <Lotus className="h-8 w-8 text-orange-600 mr-3" />
+            <Flower2 className="h-8 w-8 text-orange-600 mr-3" />
             <h2 className="text-3xl font-bold text-gray-900">The Sacred Transmission</h2>
           </div>
           

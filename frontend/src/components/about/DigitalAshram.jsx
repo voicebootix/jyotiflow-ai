@@ -1,4 +1,4 @@
-import { ArrowLeft, Wifi, Heart, Users, Lotus, Globe, Smartphone } from 'lucide-react';
+import { ArrowLeft, Wifi, Heart, Users, Flower2, Globe, Smartphone } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const DigitalAshram = () => {
@@ -28,7 +28,7 @@ const DigitalAshram = () => {
         {/* Vision */}
         <section className="mb-16">
           <div className="flex items-center mb-8">
-            <Lotus className="h-8 w-8 text-indigo-600 mr-3" />
+            <Flower2 className="h-8 w-8 text-indigo-600 mr-3" />
             <h2 className="text-3xl font-bold text-gray-900">The Vision</h2>
           </div>
           
