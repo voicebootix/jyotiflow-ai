@@ -36,6 +36,34 @@ const spiritualAPI = {
     });
   },
 
+  // Platform statistics (MISSING FUNCTION - ADDED)
+  async loadPlatformStats() {
+    try {
+      // Mock data to prevent crashes - replace with real API later
+      return {
+        totalUsers: 25000,
+        totalSessions: 75000,
+        communityMembers: 8000,
+        countriesReached: 67
+      };
+    } catch (error) {
+      console.log('🕉️ Platform stats loading blessed with patience:', error);
+      return {};
+    }
+  },
+
+  // Engagement tracking (MISSING FUNCTION - ADDED)
+  async trackSpiritualEngagement(eventType, data) {
+    try {
+      console.log(`🕉️ Spiritual engagement tracked: ${eventType}`, data);
+      // Mock tracking - replace with real analytics later
+      return { success: true };
+    } catch (error) {
+      console.log('🕉️ Engagement tracking blessed with patience:', error);
+      return { success: false };
+    }
+  },
+
   // Authentication methods
   async login(email, password) {
     try {
@@ -129,27 +157,6 @@ const spiritualAPI = {
   async getSpiritualQuote() {
     return this.get('/api/content/spiritual-quote');
   }
-  // Add these methods to your existing spiritualAPI object
-
-  const spiritualAPI = {
-    // ... existing methods ...
-
-    // Daily Content Methods
-    async getDailyWisdom() {
-      return this.get('/api/content/daily-wisdom');
-    },
-
-    async getSatsangSchedule() {
-      return this.get('/api/content/satsang-schedule');
-    },
-
-    async getSpiritualQuote() {
-      return this.get('/api/content/spiritual-quote');
-    },
-
-    // ... rest of existing methods ...
-  };
-
 };
 
 export default spiritualAPI;
