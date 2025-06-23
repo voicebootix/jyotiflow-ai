@@ -16,14 +16,34 @@ const DailyWisdom = () => {
     try {
       setLoading(true);
       const response = await spiritualAPI.get('/api/content/daily-wisdom');
+    
+    // ✅ PROPER ERROR HANDLING
+    if (response && response.success && response.data) {
       setWisdom(response.data);
-    } catch (err) {
-      setError('Unable to fetch daily wisdom');
-      console.error('Daily wisdom error:', err);
-    } finally {
-      setLoading(false);
+    } else {
+      // Fallback wisdom if API fails
+      setWisdom({
+        date: new Date().toISOString(),
+        wisdom: "Divine guidance flows through every moment of your existence.",
+        swamiji_blessing: "May peace and prosperity be with you always.",
+        prana_points: 10
+      });
     }
-  };
+  } catch (err) {
+    setError('Unable to fetch daily wisdom');
+    console.error('Daily wisdom error:', err);
+    
+    // ✅ SET FALLBACK DATA INSTEAD OF LEAVING WISDOM NULL
+    setWisdom({
+      date: new Date().toISOString(),
+      wisdom: "In every challenge lies the seed of spiritual growth.",
+      swamiji_blessing: "Trust in the divine plan unfolding in your life.",
+      prana_points: 5
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   if (loading) {
     return (
