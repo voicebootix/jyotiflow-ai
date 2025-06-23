@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Star, Users, Calendar, Award, Globe } from 'lucide-react';
 import spiritualAPI from '../lib/api';
-import DailyWisdom from '../spiritual/DailyWisdom';
+import DailyWisdom from './spiritual/DailyWisdom';
 
 const HomePage = () => {
   const [platformStats, setPlatformStats] = useState({
