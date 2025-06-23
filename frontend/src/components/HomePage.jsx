@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Star, Users, Calendar, Award, Globe } from 'lucide-react';
 import spiritualAPI from '../lib/api';
-import DailyWisdom from './spiritual/DailyWisdom';
 
 const HomePage = () => {
   const [platformStats, setPlatformStats] = useState({
@@ -18,55 +17,121 @@ const HomePage = () => {
   });
   const [nextSatsang, setNextSatsang] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [dailyWisdom, setDailyWisdom] = useState(null);
+  const [wisdomLoading, setWisdomLoading] = useState(true);
+  const [wisdomError, setWisdomError] = useState(null);
 
   useEffect(() => {
     loadPlatformData();
+    fetchDailyWisdom();
   }, []);
 
   const loadPlatformData = async () => {
     try {
-      // Load platform statistics
-      const stats = await spiritualAPI.loadPlatformStats();
-      if (stats) {
-        setPlatformStats(stats);
+      // Load platform statistics with proper error handling
+      if (spiritualAPI.loadPlatformStats) {
+        const stats = await spiritualAPI.loadPlatformStats();
+        if (stats && typeof stats === 'object') {
+          setPlatformStats(prevStats => ({ ...prevStats, ...stats }));
+        }
       }
 
-      // Load next satsang information
-      const satsangData = await spiritualAPI.getSatsangSchedule();
-      if (satsangData && satsangData.success && satsangData.data) {
-        setNextSatsang(satsangData.data);
+      // Load next satsang information with proper error handling
+      if (spiritualAPI.getSatsangSchedule) {
+        const satsangData = await spiritualAPI.getSatsangSchedule();
+        if (satsangData && satsangData.success && satsangData.data) {
+          setNextSatsang(satsangData.data);
+        }
       }
 
-      // Track homepage visit
-      await spiritualAPI.trackSpiritualEngagement('homepage_visit', {
-        timestamp: new Date().toISOString(),
-        user_agent: navigator.userAgent
-      });
+      // Track homepage visit with proper error handling
+      if (spiritualAPI.trackSpiritualEngagement) {
+        await spiritualAPI.trackSpiritualEngagement('homepage_visit', {
+          timestamp: new Date().toISOString(),
+          user_agent: navigator.userAgent
+        });
+      }
     } catch (error) {
       console.log('🕉️ Platform data loading blessed with patience:', error);
+      // Continue with default values - don't crash
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleAvatarClick = async () => {
-    await spiritualAPI.trackSpiritualEngagement('avatar_interaction', {
-      action: 'click',
-      location: 'homepage_hero'
-    });
+  const fetchDailyWisdom = async () => {
+    try {
+      setWisdomLoading(true);
+      setWisdomError(null);
+      
+      if (spiritualAPI.get) {
+        const response = await spiritualAPI.get('/api/content/daily-wisdom');
+        
+        // Robust response handling
+        if (response && response.success && response.data) {
+          setDailyWisdom(response.data);
+        } else if (response && response.data) {
+          setDailyWisdom(response.data);
+        } else {
+          // Fallback wisdom if API structure is different
+          setDailyWisdom({
+            date: new Date().toISOString(),
+            wisdom: "Divine guidance flows through every moment of your existence.",
+            swamiji_blessing: "May peace and prosperity be with you always.",
+            prana_points: 10
+          });
+        }
+      } else {
+        throw new Error('API method not available');
+      }
+    } catch (err) {
+      console.error('Daily wisdom error:', err);
+      setWisdomError('Unable to fetch daily wisdom');
+      
+      // Set fallback data instead of leaving wisdom null
+      setDailyWisdom({
+        date: new Date().toISOString(),
+        wisdom: "In every challenge lies the seed of spiritual growth.",
+        swamiji_blessing: "Trust in the divine plan unfolding in your life.",
+        prana_points: 5
+      });
+    } finally {
+      setWisdomLoading(false);
+    }
+  };
 
-    if (spiritualAPI.isAuthenticated()) {
-      window.location.href = '/profile';
-    } else {
+  const handleAvatarClick = async () => {
+    try {
+      if (spiritualAPI.trackSpiritualEngagement) {
+        await spiritualAPI.trackSpiritualEngagement('avatar_interaction', {
+          action: 'click',
+          location: 'homepage_hero'
+        });
+      }
+
+      if (spiritualAPI.isAuthenticated && spiritualAPI.isAuthenticated()) {
+        window.location.href = '/profile';
+      } else {
+        window.location.href = '/register?welcome=true';
+      }
+    } catch (error) {
+      console.log('🕉️ Avatar interaction blessed with patience:', error);
+      // Fallback navigation
       window.location.href = '/register?welcome=true';
     }
   };
 
   const handleServiceClick = async (serviceType) => {
-    await spiritualAPI.trackSpiritualEngagement('service_selection', {
-      service_type: serviceType,
-      location: 'homepage'
-    });
+    try {
+      if (spiritualAPI.trackSpiritualEngagement) {
+        await spiritualAPI.trackSpiritualEngagement('service_selection', {
+          service_type: serviceType,
+          location: 'homepage'
+        });
+      }
+    } catch (error) {
+      console.log('🕉️ Service tracking blessed with patience:', error);
+    }
     
     window.location.href = `/login?service=${serviceType}&redirect=profile`;
   };
@@ -115,6 +180,86 @@ const HomePage = () => {
       tier: 'Elite'
     }
   ];
+
+  // Daily Wisdom Component (inline to avoid import issues)
+  const DailyWisdomComponent = () => {
+    if (wisdomLoading) {
+      return (
+        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-6 shadow-lg">
+          <div className="animate-pulse">
+            <div className="h-4 bg-orange-200 rounded w-3/4 mb-4"></div>
+            <div className="h-4 bg-orange-200 rounded w-1/2 mb-2"></div>
+            <div className="h-4 bg-orange-200 rounded w-2/3"></div>
+          </div>
+        </div>
+      );
+    }
+
+    if (wisdomError && !dailyWisdom) {
+      return (
+        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-6 shadow-lg">
+          <div className="text-center">
+            <div className="text-4xl mb-2">☀️</div>
+            <p className="text-orange-600">Daily wisdom will be available soon</p>
+          </div>
+        </div>
+      );
+    }
+
+    if (!dailyWisdom) {
+      return null;
+    }
+
+    return (
+      <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-6 shadow-lg border border-orange-100">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <div className="text-2xl">☀️</div>
+            <h3 className="text-lg font-semibold text-orange-800">Daily Wisdom</h3>
+          </div>
+          <div className="flex items-center space-x-1 text-sm text-orange-600">
+            <Calendar className="h-4 w-4" />
+            <span>{new Date(dailyWisdom.date).toLocaleDateString()}</span>
+          </div>
+        </div>
+
+        {/* Wisdom Content */}
+        <div className="space-y-4">
+          <div className="text-gray-700 leading-relaxed">
+            {dailyWisdom.wisdom}
+          </div>
+
+          {/* Swamiji's Blessing */}
+          <div className="bg-white/50 rounded-lg p-4 border-l-4 border-orange-400">
+            <div className="flex items-start space-x-2">
+              <div className="text-orange-500 mt-0.5">❤️</div>
+              <div>
+                <p className="text-sm font-medium text-orange-800 mb-1">Swamiji's Blessing</p>
+                <p className="text-sm text-gray-600 italic">{dailyWisdom.swamiji_blessing}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Prana Points Earned */}
+          <div className="flex items-center justify-between pt-2 border-t border-orange-200">
+            <div className="flex items-center space-x-2">
+              <Star className="h-4 w-4 text-yellow-500" />
+              <span className="text-sm text-gray-600">
+                +{dailyWisdom.prana_points} Prana Points earned
+              </span>
+            </div>
+            <button 
+              onClick={fetchDailyWisdom}
+              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   if (isLoading) {
     return (
@@ -185,6 +330,24 @@ const HomePage = () => {
                 Join Community
               </Link>
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Daily Wisdom Section */}
+      <section className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">
+              Daily Spiritual Nourishment
+            </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Begin each day with divine wisdom from Swami Jyotirananthan
+            </p>
+          </div>
+          
+          <div className="max-w-4xl mx-auto">
+            <DailyWisdomComponent />
           </div>
         </div>
       </section>
@@ -370,28 +533,11 @@ const HomePage = () => {
           </div>
         </div>
       </section>
-
-            {/* Daily Wisdom Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Daily Spiritual Nourishment
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Begin each day with divine wisdom from Swami Jyotirananthan
-            </p>
-          </div>
-          
-          <div className="max-w-4xl mx-auto">
-            <DailyWisdom />
-          </div>
-        </div>
-      </section>
-
     </div>
   );
 };
 
 export default HomePage;
+
+
 
