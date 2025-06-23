@@ -67,7 +67,7 @@ const HomePage = () => {
       location: 'homepage'
     });
     
-    window.location.href = `/spiritual-guidance?service=${serviceType}`;
+    window.location.href = `/login?service=${serviceType}&redirect=profile`;
   };
 
   const formatNumber = (num, addPlus = false) => {
@@ -260,7 +260,7 @@ const HomePage = () => {
                   ))}
                 </ul>
                 <button className="w-full divine-button">
-                  Select {service.tier}
+                  Login to Access {service.tier}
                 </button>
               </div>
             ))}

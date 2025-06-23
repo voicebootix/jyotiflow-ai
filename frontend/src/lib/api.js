@@ -43,21 +43,58 @@ class SpiritualJourneyAPI {
     }
   }
 
-  /**
-   * Authentication Methods
-   */
-  setToken(token) {
-    this.token = token;
-    localStorage.setItem('spiritual_token', token);
-  }
 
-  clearAuth() {
-    this.token = null;
-    localStorage.removeItem('spiritual_token');
-  }
+  // Authentication methods
+  login: async (email, password) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password })
+      });
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Login API error:', error);
+      return { success: false, message: 'Network error' };
+    }
+  },
 
-  isAuthenticated() {
-    return !!this.token;
+  register: async (userData) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(userData)
+      });
+      
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Register API error:', error);
+      return { success: false, message: 'Network error' };
+    }
+  },
+
+  isAuthenticated: () => {
+    const token = localStorage.getItem('jyotiflow_token');
+    return !!token;
+  },
+
+  logout: () => {
+    localStorage.removeItem('jyotiflow_token');
+    localStorage.removeItem('jyotiflow_user');
+    window.location.href = '/';
+  },
+
+  getAuthHeaders: () => {
+    const token = localStorage.getItem('jyotiflow_token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
   }
 
   /**
@@ -246,8 +283,12 @@ class SpiritualJourneyAPI {
   async healthCheck() {
     return await this.makeAPICall('/health');
   }
+  
+ 
 }
 
+
+ 
 // Create global instance
 const spiritualAPI = new SpiritualJourneyAPI();
 

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Send, Loader, Play } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const SpiritualGuidance = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [selectedService, setSelectedService] = useState(searchParams.get('service') || 'clarity');
   const [isLoading, setIsLoading] = useState(false);
   const [guidance, setGuidance] = useState(null);
@@ -23,6 +24,15 @@ const SpiritualGuidance = () => {
     });
   }, [selectedService]);
 
+// Authentication check
+  useEffect(() => {
+    if (!spiritualAPI.isAuthenticated()) {
+      // Redirect to login with current service
+      navigate(`/login?service=${selectedService}&redirect=spiritual-guidance`);
+      return;
+    }
+  }, [navigate, selectedService]);
+  
   const services = {
     clarity: {
       name: 'Clarity Plus',

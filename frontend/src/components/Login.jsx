@@ -3,6 +3,42 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Loader } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
+const handleLogin = async (e) => {
+  e.preventDefault();
+  setIsLoading(true);
+  setError('');
+
+  try {
+    const response = await spiritualAPI.login(formData.email, formData.password);
+    
+    if (response && response.success) {
+      // Store token
+      localStorage.setItem('jyotiflow_token', response.data.token);
+      localStorage.setItem('jyotiflow_user', JSON.stringify(response.data.user));
+      
+      // Check for redirect parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectTo = urlParams.get('redirect');
+      const service = urlParams.get('service');
+      
+      if (redirectTo === 'profile' && service) {
+        window.location.href = `/profile?service=${service}`;
+      } else if (redirectTo) {
+        window.location.href = `/${redirectTo}`;
+      } else {
+        window.location.href = '/profile';
+      }
+    } else {
+      setError(response?.message || 'Login failed');
+    }
+  } catch (error) {
+    console.error('Login error:', error);
+    setError('Login failed. Please try again.');
+  } finally {
+    setIsLoading(false);
+  }
+};
+
 const Login = () => {
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({

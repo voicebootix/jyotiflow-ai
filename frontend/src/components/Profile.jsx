@@ -1,14 +1,25 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const Profile = () => {
+  const [searchParams] = useSearchParams();
   const [userProfile, setUserProfile] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
   const [creditBalance, setCreditBalance] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
+  const [selectedService, setSelectedService] = useState(null);
+
+  // Check if user came from service selection
+  useEffect(() => {
+    const serviceFromUrl = searchParams.get('service');
+    if (serviceFromUrl) {
+      setSelectedService(serviceFromUrl);
+      setActiveTab('services');
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (!spiritualAPI.isAuthenticated()) {
@@ -141,6 +152,7 @@ const Profile = () => {
           <div className="flex space-x-6 overflow-x-auto">
             {[
               { id: 'overview', label: 'Overview', icon: User },
+              { id: 'services', label: 'Services', icon: Play },
               { id: 'sessions', label: 'Sessions', icon: Calendar },
               { id: 'credits', label: 'Credits', icon: Star },
               { id: 'settings', label: 'Settings', icon: Settings }
@@ -225,6 +237,85 @@ const Profile = () => {
             </div>
           )}
 
+
+          {activeTab === 'services' && (
+            <div className="space-y-8">
+              <div className="sacred-card p-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-6">
+                  🕉️ Your Spiritual Services
+                </h2>
+                
+                {selectedService && (
+                  <div className="mb-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-yellow-800">
+                      ✨ You selected: <strong>{selectedService.charAt(0).toUpperCase() + selectedService.slice(1)}</strong> service
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {[
+                    {
+                      id: 'clarity',
+                      name: 'Clarity Plus',
+                      icon: '🔮',
+                      color: 'blue',
+                      price: '$29',
+                      description: 'Deep spiritual insights and life guidance'
+                    },
+                    {
+                      id: 'love',
+                      name: 'AstroLove',
+                      icon: '💕',
+                      color: 'pink',
+                      price: '$39',
+                      description: 'Relationship and love compatibility analysis'
+                    },
+                    {
+                      id: 'premium',
+                      name: 'Premium',
+                      icon: '🌟',
+                      color: 'yellow',
+                      price: '$59',
+                      description: 'Comprehensive spiritual consultation'
+                    },
+                    {
+                      id: 'elite',
+                      name: 'Elite',
+                      icon: '👑',
+                      color: 'purple',
+                      price: '$99',
+                      description: 'Ultimate spiritual transformation package'
+                    }
+                  ].map((service) => (
+                    <div 
+                      key={service.id}
+                      className={`sacred-card p-6 border-2 ${
+                        selectedService === service.id 
+                          ? 'border-yellow-400 bg-yellow-50' 
+                          : 'border-gray-200'
+                      }`}
+                    >
+                      <div className="text-center mb-4">
+                        <div className="text-4xl mb-2">{service.icon}</div>
+                        <h3 className="text-xl font-bold text-gray-800">{service.name}</h3>
+                        <p className="text-gray-600 text-sm">{service.description}</p>
+                        <div className="text-2xl font-bold text-gray-800 mt-2">{service.price}</div>
+                      </div>
+                      
+                      <Link 
+                        to={`/spiritual-guidance?service=${service.id}`}
+                        className="w-full divine-button block text-center"
+                      >
+                        Start {service.name} Session
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          
           {activeTab === 'sessions' && (
             <div className="sacred-card p-8">
               <h2 className="text-2xl font-bold text-gray-800 mb-6">Session History</h2>
