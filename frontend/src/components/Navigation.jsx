@@ -191,8 +191,32 @@ const Navigation = () => {
               )}
             </div>
           </div>
-        </div>
+        </div> 
       )}
+
+        <div className="relative group">
+          <button className="flex items-center space-x-1 text-gray-700 hover:text-orange-600">
+            <span>About Swamiji</span>
+            <ChevronDown className="h-4 w-4" />
+          </button>
+          
+          <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            <div className="py-2">
+              <Link to="/about/swamiji" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
+                Swamiji's Story
+              </Link>
+              <Link to="/about/digital-ashram" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
+                The Digital Ashram
+              </Link>
+              <Link to="/about/four-pillars" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
+                Four Sacred Pillars
+              </Link>
+              <Link to="/about/tamil-heritage" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
+                Tamil Heritage
+              </Link>
+            </div>
+          </div>
+        </div>
     </nav>
   );
 };
