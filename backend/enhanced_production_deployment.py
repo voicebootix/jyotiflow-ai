@@ -261,64 +261,6 @@ def setup_enhanced_routes(app: FastAPI):
     app.include_router(enhanced_router, tags=["Enhanced Spiritual Services"])
     app.include_router(original_router, tags=["Core Services (Preserved)"])
     
-    # SOLUTION 1: KimiDev's Core Fix - Register Frontend Routes
-    try:
-        from enhanced_frontend_integration import (
-            enhanced_home_page,
-            enhanced_spiritual_guidance_page,
-            live_chat_page,
-            satsang_page,
-            enhanced_admin_dashboard,
-            admin_ai_insights_page,
-            social_content_management_page
-        )
-        
-        app.add_api_route("/", enhanced_home_page, methods=["GET"], response_class=HTMLResponse, name="home")
-        app.add_api_route("/spiritual-guidance", enhanced_spiritual_guidance_page, methods=["GET"], response_class=HTMLResponse, name="spiritual_guidance")
-        app.add_api_route("/live-chat", live_chat_page, methods=["GET"], response_class=HTMLResponse, name="live_chat")
-        app.add_api_route("/satsang", satsang_page, methods=["GET"], response_class=HTMLResponse, name="satsang")
-        app.add_api_route("/admin", enhanced_admin_dashboard, methods=["GET"], response_class=HTMLResponse, name="admin_dashboard")
-        app.add_api_route("/admin/ai-insights", admin_ai_insights_page, methods=["GET"], response_class=HTMLResponse, name="admin_insights")
-        app.add_api_route("/admin/social-content", social_content_management_page, methods=["GET"], response_class=HTMLResponse, name="social_content")
-        
-        logger.info("Frontend routes registered successfully")
-        
-    except ImportError as e:
-        logger.error(f"Frontend integration import failed: {e}")
-        # Continue with basic routes for now
-    
-    # SPA Route Support for React Router
-    @app.get("/profile", response_class=HTMLResponse)
-    @app.get("/login", response_class=HTMLResponse)
-    @app.get("/register", response_class=HTMLResponse)
-    @app.get("/about/{path:path}", response_class=HTMLResponse)
-    async def spa_routes(request: Request):
-        """Handle SPA routing for React Router compatibility"""
-        try:
-            from enhanced_frontend_integration import enhanced_home_page
-            return await enhanced_home_page(request)
-        except Exception:
-            return HTMLResponse(
-                content=f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>JyotiFlow.ai - Loading</title>
-                    <script>
-                        if (window.location.hostname === 'localhost') {{
-                            window.location.href = 'http://localhost:5173' + window.location.pathname;
-                        }}
-                    </script>
-                </head>
-                <body>
-                    <p>Redirecting to frontend application...</p>
-                </body>
-                </html>
-                """,
-                status_code=200
-            )
     
     # Enhanced Frontend Routes (original routes with API prefix)
     @app.get("/api")
