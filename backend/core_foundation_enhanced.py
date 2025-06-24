@@ -464,6 +464,92 @@ class EnhancedDatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error closing database connections: {e}")
 
+    async def count_users(self) -> int:
+        """Count total users"""
+        conn = await self.get_connection()
+        try:
+            if self.is_sqlite:
+                result = await conn.execute("SELECT COUNT(*) FROM users")
+                count = await result.fetchone()
+                return count[0] if count else 0
+            else:
+                return await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        finally:
+            await self.release_connection(conn)
+
+    async def count_sessions(self) -> int:
+        """Count total sessions"""
+        conn = await self.get_connection()
+        try:
+            if self.is_sqlite:
+                result = await conn.execute("SELECT COUNT(*) FROM sessions")
+                count = await result.fetchone()
+                return count[0] if count else 0
+            else:
+                return await conn.fetchval("SELECT COUNT(*) FROM sessions") or 0
+        finally:
+            await self.release_connection(conn)
+
+    async def count_active_users_last_hour(self) -> int:
+        """Count active users in last hour"""
+        conn = await self.get_connection()
+        try:
+            if self.is_sqlite:
+                result = await conn.execute(
+                    "SELECT COUNT(*) FROM users WHERE last_login_at >= datetime('now', '-1 hour')"
+                )
+                count = await result.fetchone()
+                return count[0] if count else 0
+            else:
+                return await conn.fetchval(
+                    "SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '1 hour'"
+                ) or 0
+        finally:
+            await self.release_connection(conn)
+
+    async def count_users(self) -> int:
+        """Count total users"""
+        conn = await self.get_connection()
+        try:
+            if self.is_sqlite:
+                result = await conn.execute("SELECT COUNT(*) FROM users")
+                count = await result.fetchone()
+                return count[0] if count else 0
+            else:
+                return await conn.fetchval("SELECT COUNT(*) FROM users") or 0
+        finally:
+            await self.release_connection(conn)
+
+    async def count_sessions(self) -> int:
+        """Count total sessions"""
+        conn = await self.get_connection()
+        try:
+            if self.is_sqlite:
+                result = await conn.execute("SELECT COUNT(*) FROM sessions")
+                count = await result.fetchone()
+                return count[0] if count else 0
+            else:
+                return await conn.fetchval("SELECT COUNT(*) FROM sessions") or 0
+        finally:
+            await self.release_connection(conn)
+
+    async def count_active_users_last_hour(self) -> int:
+        """Count active users in last hour"""
+        conn = await self.get_connection()
+        try:
+            if self.is_sqlite:
+                result = await conn.execute(
+                    "SELECT COUNT(*) FROM users WHERE last_login_at >= datetime('now', '-1 hour')"
+                )
+                count = await result.fetchone()
+                return count[0] if count else 0
+            else:
+                return await conn.fetchval(
+                    "SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '1 hour'"
+                ) or 0
+        finally:
+            await self.release_connection(conn)
+
 # Initialize enhanced database manager
 db_manager = EnhancedDatabaseManager()
 
@@ -495,8 +581,8 @@ class EnhancedSecurityManager:
             'avatar_enabled': True,
             'live_chat_enabled': user_data.get('role') in ['user', 'admin'],
             'satsang_access': True,
-            'iat': datetime.utcnow(),
-            'exp': datetime.utcnow() + timedelta(hours=settings.jwt_expiration_hours),
+            'iat': datetime.now(timezone.utc),
+            'exp': datetime.now(timezone.utc) + timedelta(hours=settings.jwt_expiration_hours),
             'iss': 'jyotiflow-enhanced'
         }
         return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
@@ -1696,6 +1782,14 @@ class SocialContent(BaseModel):
 # Database alias for backward compatibility
 EnhancedJyotiFlowDatabase = EnhancedDatabaseManager
 
+# Service pricing and credits configuration
+SKUS: Dict[str, dict] = {
+    'clarity': {'price': 9, 'credits': 1, 'name': 'Clarity Plus'},
+    'love': {'price': 19, 'credits': 3, 'name': 'AstroLove Whisper'},
+    'premium': {'price': 39, 'credits': 6, 'name': 'R3 Live Premium'},
+    'elite': {'price': 149, 'credits': 12, 'name': 'Daily AstroCoach'}
+}
+
 # Additional Pydantic models for API consistency
 class SessionRequest(BaseModel):
     """তমিল - Session request model"""
@@ -1765,16 +1859,37 @@ class EnhancedJyotiFlowDatabase:
     async def calculate_total_revenue(self) -> float:
         """তমিল - Calculate total revenue"""
         try:
-            # Simple implementation - you can enhance later
-            return 1250.50  # Mock revenue for now
-        except:
+            conn = await self.get_connection()
+            try:
+                if self.is_sqlite:
+                    result = await conn.execute("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE status = 'completed'")
+                    total = await result.fetchone()
+                    return float(total[0]) if total else 0.0
+                else:
+                    result = await conn.fetchval("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE status = 'completed'")
+                    return float(result) if result else 0.0
+            finally:
+                await self.release_connection(conn)
+        except Exception as e:
+            logger.error(f"Revenue calculation failed: {e}")
             return 0.0
 
     async def calculate_daily_revenue(self) -> float:
         """তমিল - Calculate daily revenue"""
         try:
-            return 125.75  # Mock daily revenue
-        except:
+            conn = await self.get_connection()
+            try:
+                if self.is_sqlite:
+                    result = await conn.execute("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE created_at >= DATE('now', '-1 day') AND status = 'completed'")
+                    total = await result.fetchone()
+                    return float(total[0]) if total else 0.0
+                else:
+                    result = await conn.fetchval("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE created_at >= NOW() - INTERVAL '1 day' AND status = 'completed'")
+                    return float(result) if result else 0.0
+            finally:
+                await self.release_connection(conn)
+        except Exception as e:
+            logger.error(f"Daily revenue calculation failed: {e}")
             return 0.0
         
 class FestivalDataManager:
@@ -1867,20 +1982,30 @@ class PerformanceMonitor:
 
 # Add indexes for performance
 additional_indexes = """
--- Performance indexes for avatar sessions
-CREATE INDEX IF NOT EXISTS idx_avatar_sessions_user_date 
-ON avatar_sessions(user_id, created_at DESC);
+# Critical performance indexes
+        CREATE INDEX IF NOT EXISTS idx_sessions_user_email 
+        ON sessions(user_email);
+        
+        CREATE INDEX IF NOT EXISTS idx_sessions_status 
+        ON sessions(status);
+        
+        CREATE INDEX IF NOT EXISTS idx_users_email 
+        ON users(email);
 
-CREATE INDEX IF NOT EXISTS idx_avatar_sessions_occasion 
-ON avatar_sessions(auto_detected_occasion);
+        # Performance indexes for avatar sessions
+        CREATE INDEX IF NOT EXISTS idx_avatar_sessions_user_date 
+        ON avatar_sessions(user_id, created_at DESC);
 
--- Festival lookup optimization
-CREATE INDEX IF NOT EXISTS idx_tamil_festivals_date 
-ON tamil_festivals(festival_date);
+        CREATE INDEX IF NOT EXISTS idx_avatar_sessions_occasion 
+        ON avatar_sessions(auto_detected_occasion);
 
--- Community events performance
-CREATE INDEX IF NOT EXISTS idx_community_events_date 
-ON community_events(event_date, event_status);
+        -- Festival lookup optimization
+        CREATE INDEX IF NOT EXISTS idx_tamil_festivals_date 
+        ON tamil_festivals(festival_date);
+
+        -- Community events performance
+        CREATE INDEX IF NOT EXISTS idx_community_events_date 
+        ON community_events(event_date, event_status);
 
 -- Style templates caching
 CREATE TABLE IF NOT EXISTS style_template_cache (

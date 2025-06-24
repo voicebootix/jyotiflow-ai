@@ -88,6 +88,27 @@ async def generate_avatar_video_endpoint(
 ):
     """TRUE AUTOMATION: Single base avatar with dynamic styling"""
     try:
+        from core_foundation_enhanced import SKUS
+        
+        # Validate service type
+        if request.service_type not in SKUS:
+            raise HTTPException(status_code=400, detail="Invalid service type")
+            
+        # Check credits before processing
+        credits_needed = SKUS[request.service_type]['credits']
+        if current_user.get('credits', 0) < credits_needed:
+            raise HTTPException(
+                status_code=402,
+                detail=f"Insufficient credits. Required: {credits_needed}, Available: {current_user.get('credits', 0)}"
+            )
+        
+        # Existing permission check - keep as is
+        if current_user.get('subscription_tier') not in ['premium', 'elite']:
+            raise HTTPException(
+                status_code=403,
+                detail="Avatar video generation requires premium subscription"
+            )
+        
         # Existing permission check - keep as is
         if current_user.get('subscription_tier') not in ['premium', 'elite']:
             raise HTTPException(

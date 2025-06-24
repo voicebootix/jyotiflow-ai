@@ -12,6 +12,10 @@ const Profile = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedService, setSelectedService] = useState(null);
 
+  useEffect(() => {
+    loadUserProfile();
+  }, []);
+
   // Check if user came from service selection
   useEffect(() => {
     const serviceFromUrl = searchParams.get('service');
