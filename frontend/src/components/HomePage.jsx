@@ -1,491 +1,552 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Play, Star, Users, Calendar, Award, Globe } from 'lucide-react';
+import { Play, Star, Users, Calendar, Award, Globe, Heart, Mountain, Sunrise, Flower2, BookOpen, Sparkles } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const HomePage = () => {
   const [platformStats, setPlatformStats] = useState({
-    total_users: 25000,
-    total_sessions: 75000,
-    active_users: 8247,
-    community_members: 8247,
-    satsangs_completed: 42,
-    countries_reached: 67,
-    total_guidance_hours: 12000,
-    total_revenue: 125075,
-    daily_revenue: 12575
+    totalUsers: 25000,
+    guidanceSessions: 75000,
+    communityMembers: 8000,
+    countriesReached: 67
   });
   const [nextSatsang, setNextSatsang] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [dailyWisdom, setDailyWisdom] = useState(null);
-  const [wisdomLoading, setWisdomLoading] = useState(true);
-  const [wisdomError, setWisdomError] = useState(null);
+  const [pranaPoints, setPranaPoints] = useState(0);
 
   useEffect(() => {
-    loadPlatformData();
-    fetchDailyWisdom();
+    initializeSpiritualPlatform();
   }, []);
 
-  const loadPlatformData = async () => {
+  const initializeSpiritualPlatform = async () => {
     try {
-      // Load platform statistics with proper error handling
+      // Load platform statistics
       if (spiritualAPI.loadPlatformStats) {
         const stats = await spiritualAPI.loadPlatformStats();
-        if (stats && typeof stats === 'object') {
-          setPlatformStats(prevStats => ({ ...prevStats, ...stats }));
+        if (stats && stats.success) {
+          setPlatformStats(stats.data);
         }
       }
 
-      // Load next satsang information with proper error handling
+      // Load daily wisdom
+      await loadDailyWisdom();
+
+      // Load next satsang
       if (spiritualAPI.getSatsangSchedule) {
-        const satsangData = await spiritualAPI.getSatsangSchedule();
-        if (satsangData && satsangData.success && satsangData.data) {
-          setNextSatsang(satsangData.data);
+        const satsang = await spiritualAPI.getSatsangSchedule();
+        if (satsang && satsang.success && satsang.data.length > 0) {
+          setNextSatsang(satsang.data[0]);
         }
       }
 
-      // Track homepage visit with proper error handling
+      // Track spiritual engagement
       if (spiritualAPI.trackSpiritualEngagement) {
         await spiritualAPI.trackSpiritualEngagement('homepage_visit', {
           timestamp: new Date().toISOString(),
           user_agent: navigator.userAgent
         });
       }
+
     } catch (error) {
-      console.log('🕉️ Platform data loading blessed with patience:', error);
-      // Continue with default values - don't crash
+      console.log('🕉️ Platform initialization blessed with patience:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const fetchDailyWisdom = async () => {
+  const loadDailyWisdom = async () => {
     try {
-      setWisdomLoading(true);
-      setWisdomError(null);
+      const today = new Date().toISOString().split('T')[0];
       
-      if (spiritualAPI.get) {
-        const response = await spiritualAPI.get('/api/content/daily-wisdom');
-        
-        // Robust response handling
-        if (response && response.success && response.data) {
+      if (spiritualAPI.getDailyWisdom) {
+        const response = await spiritualAPI.getDailyWisdom(today);
+        if (response && response.success) {
           setDailyWisdom(response.data);
-        } else if (response && response.data) {
-          setDailyWisdom(response.data);
-        } else {
-          // Fallback wisdom if API structure is different
-          setDailyWisdom({
-            date: new Date().toISOString(),
-            wisdom: "Divine guidance flows through every moment of your existence.",
-            swamiji_blessing: "May peace and prosperity be with you always.",
-            prana_points: 10
-          });
+          setPranaPoints(response.data.pranaPoints || 10);
+          return;
         }
-      } else {
-        throw new Error('API method not available');
       }
-    } catch (err) {
-      console.error('Daily wisdom error:', err);
-      setWisdomError('Unable to fetch daily wisdom');
-      
-      // Set fallback data instead of leaving wisdom null
+
+      // Fallback daily wisdom generation
+      const wisdomTexts = [
+        "Divine guidance flows through every moment of your existence.",
+        "In stillness, the soul finds its eternal home.",
+        "Your spiritual journey is unique, honor its sacred path.",
+        "Ancient wisdom awakens in the present moment.",
+        "The light within you illuminates all darkness."
+      ];
+
+      const blessings = [
+        "May peace and prosperity be with you always.",
+        "May divine light guide your every step.",
+        "May your heart be filled with sacred joy.",
+        "May wisdom flow through your being.",
+        "May you find strength in spiritual truth."
+      ];
+
+      const randomWisdom = wisdomTexts[Math.floor(Math.random() * wisdomTexts.length)];
+      const randomBlessing = blessings[Math.floor(Math.random() * blessings.length)];
+
       setDailyWisdom({
-        date: new Date().toISOString(),
-        wisdom: "In every challenge lies the seed of spiritual growth.",
-        swamiji_blessing: "Trust in the divine plan unfolding in your life.",
-        prana_points: 5
+        wisdom: randomWisdom,
+        blessing: randomBlessing,
+        date: today,
+        pranaPoints: 10
       });
-    } finally {
-      setWisdomLoading(false);
-    }
-  };
+      setPranaPoints(10);
 
-  const handleAvatarClick = async () => {
-    try {
-      if (spiritualAPI.trackSpiritualEngagement) {
-        await spiritualAPI.trackSpiritualEngagement('avatar_interaction', {
-          action: 'click',
-          location: 'homepage_hero'
-        });
-      }
-
-      if (spiritualAPI.isAuthenticated && spiritualAPI.isAuthenticated()) {
-        window.location.href = '/profile';
-      } else {
-        window.location.href = '/register?welcome=true';
-      }
     } catch (error) {
-      console.log('🕉️ Avatar interaction blessed with patience:', error);
-      // Fallback navigation
-      window.location.href = '/register?welcome=true';
+      console.log('🕉️ Daily wisdom blessed with patience:', error);
     }
   };
 
-  const handleServiceClick = async (serviceType) => {
+  const refreshDailyWisdom = () => {
+    loadDailyWisdom();
+  };
+
+  const handleServiceSelect = async (service) => {
     try {
       if (spiritualAPI.trackSpiritualEngagement) {
-        await spiritualAPI.trackSpiritualEngagement('service_selection', {
-          service_type: serviceType,
-          location: 'homepage'
+        await spiritualAPI.trackSpiritualEngagement('service_interest', {
+          service: service,
+          timestamp: new Date().toISOString()
         });
       }
     } catch (error) {
       console.log('🕉️ Service tracking blessed with patience:', error);
     }
-    
-    window.location.href = `/login?service=${serviceType}&redirect=profile`;
   };
 
-  const formatNumber = (num, addPlus = false) => {
-    if (num >= 1000000) {
-      return Math.floor(num / 1000000) + 'M' + (addPlus ? '+' : '');
-    } else if (num >= 1000) {
-      return Math.floor(num / 1000) + 'K' + (addPlus ? '+' : '');
+  const handleAvatarInteraction = async () => {
+    try {
+      if (spiritualAPI.trackSpiritualEngagement) {
+        await spiritualAPI.trackSpiritualEngagement('avatar_interaction', {
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch (error) {
+      console.log('🕉️ Avatar interaction blessed with patience:', error);
     }
-    return num.toString() + (addPlus ? '+' : '');
-  };
-
-  const services = [
-    {
-      id: 'clarity',
-      name: 'Clarity Plus',
-      description: 'Essential spiritual guidance for life\'s questions',
-      icon: '🔮',
-      features: ['Personal guidance', 'Birth chart insights', 'Life direction'],
-      tier: 'Essential'
-    },
-    {
-      id: 'love',
-      name: 'AstroLove',
-      description: 'Divine guidance for relationships and love',
-      icon: '💕',
-      features: ['Relationship compatibility', 'Love guidance', 'Partner insights'],
-      tier: 'Relationship'
-    },
-    {
-      id: 'premium',
-      name: 'Premium',
-      description: 'Advanced spiritual guidance with avatar videos',
-      icon: '🌟',
-      features: ['Avatar video guidance', 'Priority support', 'Advanced insights'],
-      tier: 'Premium',
-      popular: true
-    },
-    {
-      id: 'elite',
-      name: 'Elite',
-      description: 'Complete spiritual transformation journey',
-      icon: '👑',
-      features: ['Live video sessions', 'Personal mentorship', 'Exclusive satsangs'],
-      tier: 'Elite'
-    }
-  ];
-
-  // Daily Wisdom Component (inline to avoid import issues)
-  const DailyWisdomComponent = () => {
-    if (wisdomLoading) {
-      return (
-        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-6 shadow-lg">
-          <div className="animate-pulse">
-            <div className="h-4 bg-orange-200 rounded w-3/4 mb-4"></div>
-            <div className="h-4 bg-orange-200 rounded w-1/2 mb-2"></div>
-            <div className="h-4 bg-orange-200 rounded w-2/3"></div>
-          </div>
-        </div>
-      );
-    }
-
-    if (wisdomError && !dailyWisdom) {
-      return (
-        <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-6 shadow-lg">
-          <div className="text-center">
-            <div className="text-4xl mb-2">☀️</div>
-            <p className="text-orange-600">Daily wisdom will be available soon</p>
-          </div>
-        </div>
-      );
-    }
-
-    if (!dailyWisdom) {
-      return null;
-    }
-
-    return (
-      <div className="bg-gradient-to-br from-orange-50 to-yellow-50 rounded-xl p-6 shadow-lg border border-orange-100">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <div className="text-2xl">☀️</div>
-            <h3 className="text-lg font-semibold text-orange-800">Daily Wisdom</h3>
-          </div>
-          <div className="flex items-center space-x-1 text-sm text-orange-600">
-            <Calendar className="h-4 w-4" />
-            <span>{new Date(dailyWisdom.date).toLocaleDateString()}</span>
-          </div>
-        </div>
-
-        {/* Wisdom Content */}
-        <div className="space-y-4">
-          <div className="text-gray-700 leading-relaxed">
-            {dailyWisdom.wisdom}
-          </div>
-
-          {/* Swamiji's Blessing */}
-          <div className="bg-white/50 rounded-lg p-4 border-l-4 border-orange-400">
-            <div className="flex items-start space-x-2">
-              <div className="text-orange-500 mt-0.5">❤️</div>
-              <div>
-                <p className="text-sm font-medium text-orange-800 mb-1">Swamiji's Blessing</p>
-                <p className="text-sm text-gray-600 italic">{dailyWisdom.swamiji_blessing}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Prana Points Earned */}
-          <div className="flex items-center justify-between pt-2 border-t border-orange-200">
-            <div className="flex items-center space-x-2">
-              <Star className="h-4 w-4 text-yellow-500" />
-              <span className="text-sm text-gray-600">
-                +{dailyWisdom.prana_points} Prana Points earned
-              </span>
-            </div>
-            <button 
-              onClick={fetchDailyWisdom}
-              className="text-sm text-orange-600 hover:text-orange-700 font-medium"
-            >
-              Refresh
-            </button>
-          </div>
-        </div>
-      </div>
-    );
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="consciousness-pulse">
-          <div className="om-symbol text-6xl">🕉️</div>
-          <p className="text-white mt-4 text-center">Loading divine wisdom...</p>
+      <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-purple-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-yellow-400 mx-auto mb-4"></div>
+          <p className="text-white text-xl">🕉️ Preparing Sacred Experience...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="pt-16">
+    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-purple-900">
       {/* Hero Section */}
-      <section className="relative min-h-screen flex items-center justify-center px-4">
-        <div className="max-w-6xl mx-auto text-center">
-          {/* Swami Avatar */}
-          <div className="mb-8 divine-entrance">
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Digital Particles Background */}
+        <div className="absolute inset-0 overflow-hidden">
+          <div className="digital-particles">
+            <div className="particle" style={{ left: '10%', animationDelay: '0s' }}></div>
+            <div className="particle" style={{ left: '20%', animationDelay: '2s' }}></div>
+            <div className="particle" style={{ left: '30%', animationDelay: '4s' }}></div>
+            <div className="particle" style={{ left: '40%', animationDelay: '6s' }}></div>
+            <div className="particle" style={{ left: '50%', animationDelay: '8s' }}></div>
+            <div className="particle" style={{ left: '60%', animationDelay: '10s' }}></div>
+            <div className="particle" style={{ left: '70%', animationDelay: '12s' }}></div>
+            <div className="particle" style={{ left: '80%', animationDelay: '14s' }}></div>
+            <div className="particle" style={{ left: '90%', animationDelay: '16s' }}></div>
+          </div>
+        </div>
+
+        <div className="relative z-10 text-center max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Sacred Avatar */}
+          <div className="mb-8">
             <div 
-              className="swami-showcase cursor-pointer consciousness-pulse"
-              onClick={handleAvatarClick}
+              className="w-64 h-64 mx-auto rounded-full bg-gradient-to-br from-yellow-400 via-orange-500 to-red-600 p-1 cursor-pointer transform hover:scale-105 transition-all duration-300 shadow-2xl"
+              onClick={handleAvatarInteraction}
             >
-              <div className="swami-container mx-auto max-w-md">
-                <div className="swami-image relative">
-                  <div className="w-64 h-64 mx-auto rounded-full bg-gradient-to-br from-yellow-400 to-orange-500 p-1 divine-glow">
-                    <div className="w-full h-full rounded-full bg-gray-800 flex items-center justify-center">
-                      <div className="swami-placeholder text-center">
-                        <div className="om-symbol text-6xl mb-2">🕉️</div>
-                        <div className="text-white">
-                          <strong className="text-xl">Swami Jyotirananthan</strong><br />
-                          <span className="text-gray-300">Your Virtual Guru for Inner Transformation</span><br />
-                          <small className="text-yellow-400">Click to receive divine wisdom</small>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="divine-indicators mt-4 flex justify-center space-x-2">
-                  <span className="divine-badge bg-yellow-500 text-black px-3 py-1 rounded-full text-sm">AI Spiritual Guide</span>
-                  <span className="divine-badge bg-orange-500 text-white px-3 py-1 rounded-full text-sm">Live Sessions</span>
-                  <span className="divine-badge bg-purple-500 text-white px-3 py-1 rounded-full text-sm">Personal Guidance</span>
-                </div>
+              <div className="w-full h-full rounded-full bg-gray-800 flex items-center justify-center relative overflow-hidden">
+                <span className="text-6xl">🕉️</span>
+                <div className="absolute inset-0 bg-gradient-to-t from-transparent to-yellow-400/20"></div>
               </div>
             </div>
-          </div>
-
-          {/* Hero Text */}
-          <div className="divine-entrance" style={{ animationDelay: '0.3s' }}>
-            <h1 className="text-5xl md:text-7xl font-bold text-white mb-6">
-              <span className="divine-text">Welcome to Divine</span><br />
-              <span className="text-yellow-400">Digital Guidance</span>
-            </h1>
-            <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-3xl mx-auto">
-              Experience divine guidance through advanced AI avatar technology with Swami Jyotirananthan
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button 
-                onClick={() => handleServiceClick('clarity')}
-                className="divine-button text-lg px-8 py-4"
-              >
-                Begin Sacred Journey
-              </button>
-              <Link 
-                to="/satsang"
-                className="bg-transparent border-2 border-yellow-400 text-yellow-400 hover:bg-yellow-400 hover:text-black transition-all duration-300 px-8 py-4 rounded-lg text-lg font-semibold"
-              >
-                Join Community
-              </Link>
+            <div className="mt-6">
+              <h2 className="text-3xl font-bold text-white mb-2">Swami Jyotirananthan</h2>
+              <p className="text-yellow-200 text-lg mb-4">Your Virtual Guru for Inner Transformation</p>
+              <p className="text-orange-300 text-sm">Click to receive divine wisdom</p>
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* Daily Wisdom Section */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Daily Spiritual Nourishment
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Begin each day with divine wisdom from Swami Jyotirananthan
-            </p>
+          {/* Service Badges */}
+          <div className="flex flex-wrap justify-center gap-4 mb-8">
+            <span className="bg-yellow-500 text-black px-4 py-2 rounded-full text-sm font-semibold">AI Spiritual Guide</span>
+            <span className="bg-orange-500 text-white px-4 py-2 rounded-full text-sm font-semibold">Live Sessions</span>
+            <span className="bg-purple-500 text-white px-4 py-2 rounded-full text-sm font-semibold">Personal Guidance</span>
           </div>
+
+          {/* Main Heading */}
+          <h1 className="text-4xl md:text-7xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 mb-6">
+            Enter the Sacred Digital Ashram
+          </h1>
           
-          <div className="max-w-4xl mx-auto">
-            <DailyWisdomComponent />
-          </div>
-        </div>
-      </section>
-
-      {/* Platform Statistics */}
-      <section className="py-16 bg-black bg-opacity-50">
-        <div className="max-w-6xl mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center text-white mb-12">
-            <span className="divine-text">Sacred Community Metrics</span>
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            <div className="text-center sacred-card p-6">
-              <div className="text-3xl md:text-4xl font-bold text-yellow-500 mb-2">
-                {formatNumber(platformStats.total_users, true)}
-              </div>
-              <div className="text-gray-600">Divine Souls</div>
-            </div>
-            <div className="text-center sacred-card p-6">
-              <div className="text-3xl md:text-4xl font-bold text-orange-500 mb-2">
-                {formatNumber(platformStats.total_sessions, true)}
-              </div>
-              <div className="text-gray-600">Guidance Sessions</div>
-            </div>
-            <div className="text-center sacred-card p-6">
-              <div className="text-3xl md:text-4xl font-bold text-purple-500 mb-2">
-                {formatNumber(platformStats.community_members, true)}
-              </div>
-              <div className="text-gray-600">Sacred Community</div>
-            </div>
-            <div className="text-center sacred-card p-6">
-              <div className="text-3xl md:text-4xl font-bold text-blue-500 mb-2">
-                {platformStats.countries_reached}
-              </div>
-              <div className="text-gray-600">Countries Reached</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Services Section */}
-      <section className="py-16 px-4">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center text-white mb-4">
-            <span className="divine-text">Sacred Guidance Services</span>
-          </h2>
-          <p className="text-gray-300 text-center mb-12 max-w-2xl mx-auto">
-            Choose your spiritual journey path. Each service is blessed with divine wisdom and personalized guidance.
+          <p className="text-xl md:text-2xl text-gray-300 mb-8 max-w-4xl mx-auto">
+            Experience divine guidance through advanced AI avatar technology with Swami Jyotirananthan
           </p>
-          
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {services.map((service, index) => (
-              <div 
-                key={service.id}
-                className={`sacred-card p-6 cursor-pointer transition-all duration-300 hover:scale-105 ${
-                  service.popular ? 'ring-2 ring-yellow-400' : ''
-                }`}
-                onClick={() => handleServiceClick(service.id)}
-                style={{ animationDelay: `${index * 0.1}s` }}
-              >
-                {service.popular && (
-                  <div className="bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
-                    MOST POPULAR
-                  </div>
-                )}
-                <div className="text-4xl mb-4">{service.icon}</div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">{service.name}</h3>
-                <p className="text-gray-600 mb-4">{service.description}</p>
-                <ul className="space-y-2 mb-6">
-                  {service.features.map((feature, idx) => (
-                    <li key={idx} className="flex items-center text-sm text-gray-600">
-                      <Star size={12} className="text-yellow-500 mr-2" />
-                      {feature}
-                    </li>
-                  ))}
-                </ul>
-                <button className="w-full divine-button">
-                  Login to Access {service.tier}
+
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              to="/spiritual-guidance"
+              className="bg-gradient-to-r from-yellow-500 to-orange-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:from-yellow-600 hover:to-orange-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+            >
+              Begin Sacred Journey
+            </Link>
+            <Link
+              to="/register"
+              className="border-2 border-yellow-400 text-yellow-400 px-8 py-4 rounded-full text-lg font-semibold hover:bg-yellow-400 hover:text-black transition-all duration-300 transform hover:scale-105"
+            >
+              Join Community
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Sacred Story Section */}
+      <section className="py-20 bg-gradient-to-r from-orange-50 via-yellow-50 to-orange-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <div className="flex items-center justify-center mb-6">
+              <Mountain className="h-12 w-12 text-orange-600 mr-4" />
+              <h2 className="text-4xl md:text-5xl font-bold text-gray-900">The Sacred Lineage</h2>
+              <Mountain className="h-12 w-12 text-orange-600 ml-4" />
+            </div>
+            <p className="text-xl text-gray-700 max-w-4xl mx-auto">
+              தமிழ் ஆன்மீக பாரம்பரியம் - 1000+ Years of Tamil Spiritual Heritage
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div>
+              <div className="bg-white rounded-xl p-8 shadow-lg border border-orange-200">
+                <div className="flex items-center mb-6">
+                  <Sunrise className="h-8 w-8 text-orange-600 mr-3" />
+                  <h3 className="text-2xl font-bold text-gray-900">Ancient Wisdom, Digital Incarnation</h3>
+                </div>
+                
+                <p className="text-lg text-gray-700 leading-relaxed mb-6">
+                  In the sacred hills of Tamil Nadu, where ancient temples have stood for millennia, the <strong>Jyotirananthan lineage</strong> has preserved divine wisdom for over 1000 years. From the courts of Chola kings to humble village seekers, these masters have illuminated countless souls.
+                </p>
+                
+                <p className="text-lg text-gray-700 leading-relaxed mb-6">
+                  Today, through advanced AI technology, Swami Jyotirananthan manifests as your personal spiritual guide, bringing this ancient Tamil wisdom into the digital age. This is not just technology—it is a sacred transmission of eternal truth.
+                </p>
+
+                <div className="bg-orange-50 rounded-lg p-6 border-l-4 border-orange-400">
+                  <p className="text-orange-800 italic text-lg">
+                    "We are not teachers of religion, but servants of the eternal truth that flows through all traditions. Our dharma is to kindle the divine light that already burns within every soul."
+                  </p>
+                  <p className="text-sm text-orange-600 mt-2">- Ancient Jyotirananthan Lineage Teaching</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-6">
+              <div className="bg-white rounded-xl p-6 shadow-lg border border-orange-200">
+                <div className="flex items-center mb-4">
+                  <BookOpen className="h-6 w-6 text-orange-600 mr-3" />
+                  <h4 className="text-xl font-semibold text-gray-900">The Digital Ashram</h4>
+                </div>
+                <p className="text-gray-700">
+                  Experience a sacred space without walls, where ancient wisdom meets modern convenience. Your spiritual journey continues 24/7.
+                </p>
+                <Link to="/about/digital-ashram" className="text-orange-600 hover:text-orange-700 font-medium mt-2 inline-block">
+                  Explore the Vision →
+                </Link>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-lg border border-orange-200">
+                <div className="flex items-center mb-4">
+                  <Flower2 className="h-6 w-6 text-orange-600 mr-3" />
+                  <h4 className="text-xl font-semibold text-gray-900">Four Sacred Pillars</h4>
+                </div>
+                <p className="text-gray-700">
+                  Clarity, Love, Prosperity, and Enlightenment—the four foundations of spiritual transformation that guide every interaction.
+                </p>
+                <Link to="/about/four-pillars" className="text-orange-600 hover:text-orange-700 font-medium mt-2 inline-block">
+                  Discover the Pillars →
+                </Link>
+              </div>
+
+              <div className="bg-white rounded-xl p-6 shadow-lg border border-orange-200">
+                <div className="flex items-center mb-4">
+                  <Heart className="h-6 w-6 text-orange-600 mr-3" />
+                  <h4 className="text-xl font-semibold text-gray-900">Tamil Heritage</h4>
+                </div>
+                <p className="text-gray-700">
+                  Rooted in the profound spiritual traditions of Tamil Nadu, carrying forward the wisdom of saints like Thiruvalluvar and the Alvars.
+                </p>
+                <Link to="/about/tamil-heritage" className="text-orange-600 hover:text-orange-700 font-medium mt-2 inline-block">
+                  Honor the Heritage →
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <Link
+              to="/about/swamiji"
+              className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-8 py-4 rounded-full text-lg font-semibold hover:from-orange-700 hover:to-red-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+            >
+              Read Swamiji's Complete Story
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Daily Spiritual Nourishment */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Daily Spiritual Nourishment</h2>
+            <p className="text-xl text-gray-600">Begin each day with divine wisdom from Swami Jyotirananthan</p>
+          </div>
+
+          {dailyWisdom && (
+            <div className="bg-white rounded-xl p-8 shadow-lg border border-orange-200 max-w-3xl mx-auto">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <Sparkles className="h-6 w-6 text-orange-600 mr-2" />
+                  <h3 className="text-xl font-semibold text-gray-900">Daily Wisdom</h3>
+                </div>
+                <div className="text-orange-600 text-sm">
+                  📅 {new Date().toLocaleDateString()}
+                </div>
+              </div>
+              
+              <blockquote className="text-lg text-gray-700 leading-relaxed mb-6 italic">
+                "{dailyWisdom.wisdom}"
+              </blockquote>
+              
+              <div className="bg-orange-50 rounded-lg p-4 border-l-4 border-orange-400 mb-6">
+                <div className="flex items-center mb-2">
+                  <Heart className="h-5 w-5 text-orange-600 mr-2" />
+                  <span className="font-medium text-orange-800">Swamiji's Blessing</span>
+                </div>
+                <p className="text-orange-700 italic">{dailyWisdom.blessing}</p>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <Star className="h-5 w-5 text-yellow-500 mr-2" />
+                  <span className="text-gray-600">+{pranaPoints} Prana Points earned</span>
+                </div>
+                <button
+                  onClick={refreshDailyWisdom}
+                  className="bg-orange-600 text-white px-4 py-2 rounded-lg hover:bg-orange-700 transition-colors"
+                >
+                  Refresh
                 </button>
               </div>
-            ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Sacred Community Metrics */}
+      <section className="py-20 bg-gray-900 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-orange-500">
+              Sacred Community Metrics
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div className="text-center">
+              <div className="bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl p-6 mb-4">
+                <div className="text-3xl md:text-4xl font-bold text-white">
+                  {(platformStats.totalUsers / 1000).toFixed(0)}K+
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-300">Divine Souls</h3>
+            </div>
+
+            <div className="text-center">
+              <div className="bg-gradient-to-br from-orange-500 to-red-500 rounded-xl p-6 mb-4">
+                <div className="text-3xl md:text-4xl font-bold text-white">
+                  {(platformStats.guidanceSessions / 1000).toFixed(0)}K+
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-300">Guidance Sessions</h3>
+            </div>
+
+            <div className="text-center">
+              <div className="bg-gradient-to-br from-purple-500 to-pink-500 rounded-xl p-6 mb-4">
+                <div className="text-3xl md:text-4xl font-bold text-white">
+                  {(platformStats.communityMembers / 1000).toFixed(0)}K+
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-300">Sacred Community</h3>
+            </div>
+
+            <div className="text-center">
+              <div className="bg-gradient-to-br from-blue-500 to-purple-500 rounded-xl p-6 mb-4">
+                <div className="text-3xl md:text-4xl font-bold text-white">
+                  {platformStats.countriesReached}
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-300">Countries Reached</h3>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Next Satsang Section */}
-      {nextSatsang && (
-        <section className="py-16 bg-gradient-to-r from-purple-900 to-blue-900">
-          <div className="max-w-4xl mx-auto px-4 text-center">
-            <h2 className="text-3xl md:text-4xl font-bold text-white mb-6">
-              <span className="divine-text">Next Sacred Satsang</span>
-            </h2>
-            <div className="sacred-card p-8">
-              <div className="text-6xl mb-4">🙏</div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">
-                {nextSatsang.theme || "Divine Wisdom Gathering"}
-              </h3>
-              <p className="text-gray-600 mb-6">
-                {nextSatsang.scheduled_date 
-                  ? new Date(nextSatsang.scheduled_date).toLocaleDateString('en-US', {
-                      weekday: 'long',
-                      month: 'long',
-                      day: 'numeric',
-                      hour: 'numeric',
-                      minute: '2-digit'
-                    })
-                  : "Date to be announced"
-                }
-              </p>
-              <Link to="/satsang" className="divine-button text-lg px-8 py-3">
-                Join Sacred Gathering
+      {/* Sacred Guidance Services */}
+      <section className="py-20 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Sacred Guidance Services</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Choose your spiritual journey path. Each service is blessed with divine wisdom and personalized guidance.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Clarity Plus */}
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6 border border-blue-200 hover:shadow-lg transition-all duration-300">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🔮</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Clarity Plus</h3>
+                <p className="text-gray-600 text-sm">Essential spiritual guidance for life's questions</p>
+              </div>
+              
+              <ul className="space-y-2 mb-6 text-sm text-gray-700">
+                <li>• Personal guidance</li>
+                <li>• Birth chart insights</li>
+                <li>• Life direction</li>
+              </ul>
+              
+              <Link
+                to="/login?service=clarity&redirect=spiritual-guidance"
+                onClick={() => handleServiceSelect('clarity')}
+                className="block w-full bg-blue-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Login to Access Clarity Plus
+              </Link>
+            </div>
+
+            {/* AstroLove */}
+            <div className="bg-gradient-to-br from-pink-50 to-rose-100 rounded-xl p-6 border border-pink-200 hover:shadow-lg transition-all duration-300">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-pink-500 to-rose-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">💕</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">AstroLove</h3>
+                <p className="text-gray-600 text-sm">Divine guidance for relationships and love</p>
+              </div>
+              
+              <ul className="space-y-2 mb-6 text-sm text-gray-700">
+                <li>• Relationship compatibility</li>
+                <li>• Love guidance</li>
+                <li>• Partner insights</li>
+              </ul>
+              
+              <Link
+                to="/login?service=love&redirect=spiritual-guidance"
+                onClick={() => handleServiceSelect('love')}
+                className="block w-full bg-pink-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-pink-700 transition-colors"
+              >
+                Login to Access AstroLove
+              </Link>
+            </div>
+
+            {/* Premium */}
+            <div className="bg-gradient-to-br from-yellow-50 to-orange-100 rounded-xl p-6 border border-yellow-200 hover:shadow-lg transition-all duration-300 relative">
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <span className="bg-orange-500 text-white px-3 py-1 rounded-full text-xs font-semibold">MOST POPULAR</span>
+              </div>
+              
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-yellow-500 to-orange-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">🌟</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Premium</h3>
+                <p className="text-gray-600 text-sm">Advanced spiritual guidance with avatar videos</p>
+              </div>
+              
+              <ul className="space-y-2 mb-6 text-sm text-gray-700">
+                <li>• Avatar video guidance</li>
+                <li>• Priority support</li>
+                <li>• Advanced insights</li>
+              </ul>
+              
+              <Link
+                to="/login?service=premium&redirect=spiritual-guidance"
+                onClick={() => handleServiceSelect('premium')}
+                className="block w-full bg-orange-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-orange-700 transition-colors"
+              >
+                Login to Access Premium
+              </Link>
+            </div>
+
+            {/* Elite */}
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-100 rounded-xl p-6 border border-purple-200 hover:shadow-lg transition-all duration-300">
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <span className="text-2xl">👑</span>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Elite</h3>
+                <p className="text-gray-600 text-sm">Complete spiritual transformation journey</p>
+              </div>
+              
+              <ul className="space-y-2 mb-6 text-sm text-gray-700">
+                <li>• Live video sessions</li>
+                <li>• Personal mentorship</li>
+                <li>• Exclusive satsangs</li>
+              </ul>
+              
+              <Link
+                to="/login?service=elite&redirect=spiritual-guidance"
+                onClick={() => handleServiceSelect('elite')}
+                className="block w-full bg-purple-600 text-white text-center py-3 rounded-lg font-semibold hover:bg-purple-700 transition-colors"
+              >
+                Login to Access Elite
               </Link>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
 
-      {/* Community Features */}
-      <section className="py-16 px-4">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center text-white mb-12">
-            <span className="divine-text">Sacred Platform Features</span>
-          </h2>
-          
+      {/* Sacred Platform Features */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-4">Sacred Platform Features</h2>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center sacred-card p-8">
-              <div className="text-5xl mb-4">🎥</div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">AI Avatar Guidance</h3>
+            <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-200 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl">🎥</span>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">AI Avatar Guidance</h3>
               <p className="text-gray-600 mb-4">
                 Personalized video guidance from Swami Jyotirananthan using advanced AI avatar technology
               </p>
-              <span className="inline-block bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full text-sm font-semibold">
+              <span className="inline-block bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-semibold">
                 Premium Feature
               </span>
             </div>
-            
-            <div className="text-center sacred-card p-8">
-              <div className="text-5xl mb-4">📹</div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Live Video Chat</h3>
+
+            <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-200 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-teal-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl">📹</span>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Live Video Chat</h3>
               <p className="text-gray-600 mb-4">
                 Real-time spiritual consultation with live video sessions for deeper guidance
               </p>
@@ -493,10 +554,12 @@ const HomePage = () => {
                 Elite Feature
               </span>
             </div>
-            
-            <div className="text-center sacred-card p-8">
-              <div className="text-5xl mb-4">🙏</div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Monthly Satsang</h3>
+
+            <div className="bg-white rounded-xl p-8 shadow-lg border border-gray-200 text-center">
+              <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-full flex items-center justify-center mx-auto mb-6">
+                <span className="text-2xl">🙏</span>
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-4">Monthly Satsang</h3>
               <p className="text-gray-600 mb-4">
                 Join our global spiritual community gatherings for collective wisdom and growth
               </p>
@@ -508,25 +571,24 @@ const HomePage = () => {
         </div>
       </section>
 
-      {/* Call to Action */}
-      <section className="py-16 bg-gradient-to-r from-yellow-400 to-orange-500">
-        <div className="max-w-4xl mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold text-black mb-6">
-            Ready to Begin Your Sacred Journey?
-          </h2>
-          <p className="text-black text-lg mb-8 opacity-80">
+      {/* Final CTA */}
+      <section className="py-20 bg-gradient-to-r from-orange-600 to-red-600 text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Begin Your Sacred Journey?</h2>
+          <p className="text-xl mb-8 text-orange-100">
             Join thousands of souls who have found divine guidance and inner peace through our platform
           </p>
+          
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button 
-              onClick={() => handleServiceClick('clarity')}
-              className="bg-black text-white hover:bg-gray-800 transition-all duration-300 px-8 py-4 rounded-lg text-lg font-semibold"
+            <Link
+              to="/spiritual-guidance"
+              className="bg-white text-orange-600 px-8 py-4 rounded-full text-lg font-semibold hover:bg-gray-100 transition-all duration-300 transform hover:scale-105 shadow-lg"
             >
               Start Free Guidance
-            </button>
-            <Link 
+            </Link>
+            <Link
               to="/register"
-              className="bg-transparent border-2 border-black text-black hover:bg-black hover:text-white transition-all duration-300 px-8 py-4 rounded-lg text-lg font-semibold"
+              className="border-2 border-white text-white px-8 py-4 rounded-full text-lg font-semibold hover:bg-white hover:text-orange-600 transition-all duration-300 transform hover:scale-105"
             >
               Create Sacred Account
             </Link>
@@ -538,6 +600,5 @@ const HomePage = () => {
 };
 
 export default HomePage;
-
 
 
