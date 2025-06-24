@@ -21,12 +21,19 @@ const handleLogin = async (e) => {
       const redirectTo = urlParams.get('redirect');
       const service = urlParams.get('service');
       
+      // இது React Router navigation - This uses React Router navigation
+      import { useNavigate } from 'react-router-dom'; // Add this import at top
+
+      // In your Login component, add:
+      const navigate = useNavigate();
+
+      // Replace the navigation block with:
       if (redirectTo === 'profile' && service) {
-        window.location.href = `/profile?service=${service}`;
+        navigate(`/profile?service=${service}`, { replace: true });
       } else if (redirectTo) {
-        window.location.href = `/${redirectTo}`;
+        navigate(`/${redirectTo}`, { replace: true });
       } else {
-        window.location.href = '/profile';
+        navigate('/profile', { replace: true });
       }
     } else {
       setError(response?.message || 'Login failed');
