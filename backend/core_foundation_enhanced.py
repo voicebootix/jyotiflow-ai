@@ -1,20 +1,31 @@
 import os
-import re
 import jwt
 import bcrypt
-import asyncio
+import string
 import asyncpg
 import aiosqlite
 import logging
 import secrets
-import json
 import sys
-from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Any, Union
 from contextlib import asynccontextmanager
 from pathlib import Path
-from decimal import Decimal
 from contextlib import contextmanager
+
+import asyncio
+import json
+import uuid
+import re
+import os
+from datetime import datetime, timezone, timedelta
+from typing import Dict, List, Optional, Any, Union, Tuple
+from decimal import Decimal
+from dataclasses import dataclass
+from enum import Enum
+from datetime import datetime, timedelta
+import random
+from typing import Optional, Dict, List, Any, Tuple
+import json
 
 
 # FastAPI Core Imports
@@ -631,7 +642,7 @@ class EnhancedUtilities:
     @staticmethod
     def generate_session_id() -> str:
         """Generate unique session ID"""
-        from uuid import uuid4
+        
         return str(uuid4())
 
 # =============================================================================
@@ -1158,8 +1169,6 @@ async def register_user(user_data: UserRegistration):
             password_hash = security_manager.hash_password(user_data.password)
             
             # Generate unique referral code for new user
-            import string
-            import random
             referral_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
             
             # Get current timestamp
