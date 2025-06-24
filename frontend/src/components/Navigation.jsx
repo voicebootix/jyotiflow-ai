@@ -12,6 +12,18 @@ const Navigation = () => {
 
   useEffect(() => {
     checkAuthStatus();
+    
+    // Listen for authentication state changes
+    const handleAuthChange = (event) => {
+      console.log('Auth state changed:', event.detail);
+      checkAuthStatus();
+    };
+    
+    window.addEventListener('auth-state-changed', handleAuthChange);
+    
+    return () => {
+      window.removeEventListener('auth-state-changed', handleAuthChange);
+    };
   }, []);
 
   const checkAuthStatus = async () => {
@@ -32,17 +44,18 @@ const Navigation = () => {
 
   const handleLogout = () => {
     try {
-      if (spiritualAPI.logout) {
-        spiritualAPI.logout();
-      }
-      localStorage.removeItem('auth_token');
+      spiritualAPI.logout();
       setIsAuthenticated(false);
       setUserProfile(null);
-      window.location.href = '/';
+      
+      // Use React Router for navigation
+      navigate('/', { replace: true });
+      
     } catch (error) {
-      console.log('🕉️ Logout blessed with patience:', error);
-      localStorage.removeItem('auth_token');
-      window.location.href = '/';
+      console.log('Logout blessed with patience:', error);
+      localStorage.removeItem('jyotiflow_token');
+      localStorage.removeItem('jyotiflow_user');
+      navigate('/', { replace: true });
     }
   };
 

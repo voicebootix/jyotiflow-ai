@@ -464,6 +464,24 @@ class EnhancedDatabaseManager:
         except Exception as e:
             logger.error(f"❌ Error closing database connections: {e}")
 
+    def execute_sync_query(self, query: str) -> List[Dict]:
+        """Execute synchronous query for festival calendar loading"""
+        try:
+            logger.warning(f"Sync query not implemented yet: {query}")
+            return []
+        except Exception as e:
+            logger.error(f"Sync query failed: {e}")
+            return []
+
+    async def get_connection(self):
+        """Get database connection - enhanced version"""
+        if self.is_sqlite:
+            return await aiosqlite.connect(self.database_url.replace("sqlite:///", ""))
+        else:
+            if not self.pool:
+                raise Exception("Database pool not initialized")
+            return await self.pool.acquire()
+
     async def count_users(self) -> int:
         """Count total users"""
         conn = await self.get_connection()
@@ -1845,10 +1863,7 @@ class EnhancedJyotiFlowDatabase:
     async def initialize_enhanced_tables(self):
         """Initialize enhanced database tables for JyotiFlow.ai"""
         try:
-            # Create all tables defined in the models
-            async with self.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-
+            await self._create_enhanced_schema()
             logger.info("✅ Enhanced database tables initialized successfully")
             return True
 
@@ -1862,10 +1877,18 @@ class EnhancedJyotiFlowDatabase:
             conn = await self.get_connection()
             try:
                 if self.is_sqlite:
+                    table_check = await conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_purchases'")
+                    if not await table_check.fetchone():
+                        return 0.0
+                    
                     result = await conn.execute("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE status = 'completed'")
                     total = await result.fetchone()
                     return float(total[0]) if total else 0.0
                 else:
+                    table_check = await conn.fetchval("SELECT to_regclass('user_purchases')")
+                    if not table_check:
+                        return 0.0
+                        
                     result = await conn.fetchval("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE status = 'completed'")
                     return float(result) if result else 0.0
             finally:
@@ -1880,10 +1903,18 @@ class EnhancedJyotiFlowDatabase:
             conn = await self.get_connection()
             try:
                 if self.is_sqlite:
+                    table_check = await conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_purchases'")
+                    if not await table_check.fetchone():
+                        return 0.0
+                        
                     result = await conn.execute("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE created_at >= DATE('now', '-1 day') AND status = 'completed'")
                     total = await result.fetchone()
                     return float(total[0]) if total else 0.0
                 else:
+                    table_check = await conn.fetchval("SELECT to_regclass('user_purchases')")
+                    if not table_check:
+                        return 0.0
+                        
                     result = await conn.fetchval("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE created_at >= NOW() - INTERVAL '1 day' AND status = 'completed'")
                     return float(result) if result else 0.0
             finally:

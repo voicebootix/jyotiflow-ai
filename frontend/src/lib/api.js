@@ -101,6 +101,17 @@ const spiritualAPI = {
     }
   },
 
+  setAuthToken(token, user) {
+    localStorage.setItem('jyotiflow_token', token);
+    localStorage.setItem('jyotiflow_user', JSON.stringify(user));
+    console.log('Divine token stored successfully');
+    
+    // Trigger auth state change event for components
+    window.dispatchEvent(new CustomEvent('auth-state-changed', { 
+      detail: { authenticated: true, user } 
+    }));
+  },
+
   isAuthenticated() {
     const token = localStorage.getItem('jyotiflow_token');
     return !!token;
@@ -109,7 +120,12 @@ const spiritualAPI = {
   logout() {
     localStorage.removeItem('jyotiflow_token');
     localStorage.removeItem('jyotiflow_user');
-    window.location.href = '/';
+    console.log('Sacred logout completed');
+    
+    // Trigger auth state change event
+    window.dispatchEvent(new CustomEvent('auth-state-changed', { 
+      detail: { authenticated: false, user: null } 
+    }));
   },
 
   getAuthHeaders() {

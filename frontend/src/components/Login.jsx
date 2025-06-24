@@ -60,11 +60,12 @@ const Login = () => {
       referrer: searchParams.get('from') || document.referrer
     });
 
-    // Redirect if already authenticated
+    // Redirect if already authenticated using React Router
     if (spiritualAPI.isAuthenticated()) {
-      window.location.href = isAdmin ? '/admin' : '/profile';
+      const redirectTo = isAdmin ? '/admin' : '/profile';
+      navigate(redirectTo, { replace: true });
     }
-  }, [searchParams, isAdmin]);
+  }, [searchParams, isAdmin, navigate]);
 
   const handleInputChange = (e) => {
     setFormData({
@@ -96,11 +97,12 @@ const Login = () => {
           user_id: result.user?.id
         });
 
-        // Redirect based on user type and intended destination
+        // Use React Router for navigation instead of window.location
         const redirectTo = searchParams.get('redirect') || 
-                          (isAdmin ? '/admin' : '/profile');
+                          (isAdmin ? 'admin' : 'profile');
         
-        window.location.href = redirectTo;
+        console.log('Divine redirect to:', redirectTo);
+        navigate(`/${redirectTo}`, { replace: true });
       } else {
         setError(result?.message || 'Invalid email or password. Please try again.');
         

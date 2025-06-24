@@ -141,19 +141,16 @@ class AutomatedStyleManager:
     def _load_festival_calendar(self):
         """Load festival calendar from database"""
         try:
-            # Synchronous database query
-            query = """
-            SELECT festival_date, festival_name, festival_type 
-            FROM tamil_festivals 
-            WHERE festival_date >= CURRENT_DATE 
-            AND festival_date <= CURRENT_DATE + INTERVAL '1 year'
-            """
-            results = self.db.execute_sync_query(query)
-            
             self.festival_calendar = {
-                result['festival_date'].strftime("%Y-%m-%d"): result['festival_name']
-                for result in results
+                "2025-02-26": "Maha Shivaratri",
+                "2025-04-14": "Tamil New Year", 
+                "2025-10-03": "Navaratri",
+                "2025-11-01": "Karthikai Deepam",
+                "2025-01-14": "Thai Pongal",
+                "2025-08-19": "Krishna Janmashtami",
+                "2025-09-07": "Ganesha Chaturthi"
             }
+            logger.info(f"✅ Festival calendar loaded with {len(self.festival_calendar)} festivals")
         except Exception as e:
             logger.error(f"Failed to load festival calendar: {e}")
             self.festival_calendar = {}

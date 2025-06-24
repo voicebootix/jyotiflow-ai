@@ -53,11 +53,137 @@ except Exception as e:
     print(f"❌ Enhanced import failed: {e}")
     # தமிழ் - Create fallback app
     from fastapi import FastAPI
+    from fastapi.responses import HTMLResponse
     app = FastAPI(title="JyotiFlow.ai - Fallback Mode")
     
     @app.get("/health")
     async def health_check():
         return {"status": "degraded", "error": str(e)}
+    
+    # Add frontend routes to fallback app
+    try:
+        from enhanced_frontend_integration import (
+            enhanced_home_page,
+            enhanced_spiritual_guidance_page,
+            live_chat_page,
+            satsang_page,
+            enhanced_admin_dashboard,
+            admin_ai_insights_page,
+            social_content_management_page
+        )
+
+        app.add_api_route("/", enhanced_home_page, methods=["GET"], response_class=HTMLResponse)
+        app.add_api_route("/spiritual-guidance", enhanced_spiritual_guidance_page, methods=["GET"], response_class=HTMLResponse)
+        app.add_api_route("/live-chat", live_chat_page, methods=["GET"], response_class=HTMLResponse)
+        app.add_api_route("/satsang", satsang_page, methods=["GET"], response_class=HTMLResponse)
+        app.add_api_route("/admin", enhanced_admin_dashboard, methods=["GET"], response_class=HTMLResponse)
+        app.add_api_route("/admin/ai-insights", admin_ai_insights_page, methods=["GET"], response_class=HTMLResponse)
+        app.add_api_route("/admin/social-content", social_content_management_page, methods=["GET"], response_class=HTMLResponse)
+        
+    except ImportError:
+        # If frontend integration fails, provide basic navigation
+        @app.get("/", response_class=HTMLResponse)
+        async def fallback_home():
+            return HTMLResponse("""
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>JyotiFlow.ai - Swami Jyotirananthan's Digital Ashram</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; margin: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; min-height: 100vh; }
+                    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+                    .header { text-align: center; margin-bottom: 3rem; }
+                    .nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2rem; margin: 3rem 0; }
+                    .nav-card { background: rgba(255,255,255,0.1); padding: 2rem; border-radius: 15px; text-align: center; transition: transform 0.3s ease; border: 1px solid rgba(255,255,255,0.2); }
+                    .nav-card:hover { transform: translateY(-5px); background: rgba(255,255,255,0.15); }
+                    .nav-card a { color: white; text-decoration: none; display: block; }
+                    .icon { font-size: 3rem; margin-bottom: 1rem; }
+                    .api-section { margin-top: 4rem; padding: 2rem; background: rgba(0,0,0,0.2); border-radius: 10px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <div class="header">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">🕉️</div>
+                        <h1>JyotiFlow.ai</h1>
+                        <h2>Swami Jyotirananthan's Digital Ashram</h2>
+                        <p>Sacred AI-powered spiritual guidance platform with divine avatar technology</p>
+                    </div>
+                    
+                    <div class="nav-grid">
+                        <div class="nav-card">
+                            <a href="/spiritual-guidance">
+                                <div class="icon">🔮</div>
+                                <h3>Spiritual Guidance</h3>
+                                <p>AI-powered personalized spiritual guidance with avatar video responses</p>
+                            </a>
+                        </div>
+                        
+                        <div class="nav-card">
+                            <a href="/live-chat">
+                                <div class="icon">📹</div>
+                                <h3>Live Video Chat</h3>
+                                <p>Real-time spiritual consultations via Agora WebRTC integration</p>
+                            </a>
+                        </div>
+                        
+                        <div class="nav-card">
+                            <a href="/satsang">
+                                <div class="icon">🙏</div>
+                                <h3>Sacred Satsang</h3>
+                                <p>Monthly community gatherings for collective spiritual practice</p>
+                            </a>
+                        </div>
+                        
+                        <div class="nav-card">
+                            <a href="/admin">
+                                <div class="icon">👑</div>
+                                <h3>Admin Dashboard</h3>
+                                <p>Platform management with AI-powered business intelligence</p>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div class="api-section">
+                        <h3>🛠️ API Endpoints</h3>
+                        <p><strong>Health Check:</strong> <a href="/health" style="color: #ffd700;">/health</a></p>
+                        <p><strong>API Documentation:</strong> <a href="/docs" style="color: #ffd700;">/docs</a></p>
+                        <p><strong>Daily Wisdom:</strong> <a href="/api/content/daily-wisdom" style="color: #ffd700;">/api/content/daily-wisdom</a></p>
+                        <p><strong>Satsang Schedule:</strong> <a href="/api/content/satsang-schedule" style="color: #ffd700;">/api/content/satsang-schedule</a></p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """)
+        
+        @app.get("/spiritual-guidance", response_class=HTMLResponse)
+        @app.get("/live-chat", response_class=HTMLResponse)
+        @app.get("/satsang", response_class=HTMLResponse)
+        @app.get("/admin", response_class=HTMLResponse)
+        async def fallback_pages():
+            return HTMLResponse("""
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <title>Feature Loading - JyotiFlow.ai</title>
+                <style>
+                    body { font-family: system-ui, sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin: 0; padding: 2rem; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+                    .loader { font-size: 3rem; margin-bottom: 2rem; animation: pulse 2s infinite; }
+                    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+                    a { color: #ffd700; text-decoration: none; }
+                </style>
+            </head>
+            <body>
+                <div class="loader">🕉️</div>
+                <h1>Sacred Feature Loading</h1>
+                <p>Enhanced spiritual features are being prepared for your divine journey...</p>
+                <p><a href="/">← Return to Sacred Home</a></p>
+            </body>
+            </html>
+            """)
     
     # Daily Wisdom Endpoint
 @app.get("/api/content/daily-wisdom")
