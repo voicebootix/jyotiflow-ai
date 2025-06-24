@@ -1134,26 +1134,100 @@ async def health_check():
 
 @app.post("/api/auth/register")
 async def register_user(user_data: UserRegistration):
-    """User registration using fixed core foundation"""
+    """User registration with complete field handling"""
     try:
-        password_hash = security_manager.hash_password(user_data.password)
-        logger.info(f"Registration request for: {user_data.email}")
-
-        return StandardResponse(
-            success=True,
-            message="Registration successful - Welcome to the digital ashram!",
-            data={
-                "email": user_data.email,
-                "name": user_data.name,
-                "welcome_credits": 3,
-                "spiritual_level": "beginner",
-                "avatar_preferences": {
-                    "style": user_data.preferred_avatar_style,
-                    "voice": user_data.voice_preference,
-                    "quality": user_data.video_quality_preference
+        # Check if user already exists
+        conn = await db_manager.get_connection()
+        try:
+            if db_manager.is_sqlite:
+                existing = await conn.execute("SELECT 1 FROM users WHERE email = ?", (user_data.email,))
+                exists = await existing.fetchone()
+            else:
+                exists = await conn.fetchval("SELECT 1 FROM users WHERE email = $1", user_data.email)
+            
+            if exists:
+                return StandardResponse(
+                    success=False,
+                    message="User with this email already exists",
+                    data={"error": "Email already registered"}
+                ).dict()
+            
+            # Hash password
+            password_hash = security_manager.hash_password(user_data.password)
+            
+            # Generate unique referral code for new user
+            import string
+            import random
+            referral_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            
+            # Get current timestamp
+            now = datetime.now(timezone.utc)
+            
+            # Insert user with ALL fields
+            if db_manager.is_sqlite:
+                await conn.execute("""
+                    INSERT INTO users (
+                        email, password_hash, name, phone, credits, role,
+                        birth_date, birth_time, birth_location,
+                        preferred_avatar_style, voice_preference, video_quality_preference,
+                        referral_code, marketing_source, referred_by,
+                        spiritual_level, timezone, language,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    user_data.email, password_hash, user_data.name, user_data.phone,
+                    3, "user",  # 3 welcome credits, user role
+                    user_data.birth_date, user_data.birth_time, user_data.birth_location,
+                    user_data.preferred_avatar_style or "traditional",
+                    user_data.voice_preference or "compassionate",
+                    user_data.video_quality_preference or "high",
+                    referral_code, user_data.marketing_source, user_data.referral_code,
+                    "beginner", "Asia/Kolkata", "en",
+                    now.isoformat(), now.isoformat()
+                ))
+                await conn.commit()
+            else:
+                await conn.execute("""
+                    INSERT INTO users (
+                        email, password_hash, name, phone, credits, role,
+                        birth_date, birth_time, birth_location,
+                        preferred_avatar_style, voice_preference, video_quality_preference,
+                        referral_code, marketing_source, referred_by,
+                        spiritual_level, timezone, language,
+                        created_at, updated_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
+                """, 
+                    user_data.email, password_hash, user_data.name, user_data.phone,
+                    3, "user",
+                    user_data.birth_date, user_data.birth_time, user_data.birth_location,
+                    user_data.preferred_avatar_style or "traditional",
+                    user_data.voice_preference or "compassionate", 
+                    user_data.video_quality_preference or "high",
+                    referral_code, user_data.marketing_source, user_data.referral_code,
+                    "beginner", "Asia/Kolkata", "en"
+                )
+                
+            logger.info(f"✅ User registered successfully: {user_data.email}")
+            
+            return StandardResponse(
+                success=True,
+                message="Registration successful - Welcome to the digital ashram!",
+                data={
+                    "email": user_data.email,
+                    "name": user_data.name,
+                    "welcome_credits": 3,
+                    "spiritual_level": "beginner",
+                    "referral_code": referral_code,
+                    "avatar_preferences": {
+                        "style": user_data.preferred_avatar_style or "traditional",
+                        "voice": user_data.voice_preference or "compassionate",
+                        "quality": user_data.video_quality_preference or "high"
+                    }
                 }
-            }
-        ).dict()
+            ).dict()
+            
+        finally:
+            await db_manager.release_connection(conn)
 
     except Exception as e:
         logger.error(f"Registration failed: {e}")
@@ -1166,31 +1240,117 @@ async def register_user(user_data: UserRegistration):
 
 @app.post("/api/auth/login")
 async def login_user(login_data: UserLogin):
-    """User login using fixed security manager"""
+    """User login with complete field handling"""
     try:
         logger.info(f"Login request for: {login_data.email}")
 
-        mock_user_data = {
-            'email': login_data.email,
-            'role': 'user',
-            'name': 'Spiritual Seeker',
-            'id': 1
-        }
+        conn = await db_manager.get_connection()
+        try:
+            # Get ALL user fields for complete profile
+            if db_manager.is_sqlite:
+                user_row = await conn.execute("""
+                    SELECT id, email, password_hash, role, name, phone, credits,
+                           birth_date, birth_time, birth_location,
+                           preferred_avatar_style, voice_preference, video_quality_preference,
+                           spiritual_level, timezone, language,
+                           total_sessions, avatar_sessions_count, total_avatar_minutes,
+                           referral_code, created_at
+                    FROM users WHERE email = ?
+                """, (login_data.email,))
+                user_data = await user_row.fetchone()
+            else:
+                user_data = await conn.fetchrow("""
+                    SELECT id, email, password_hash, role, name, phone, credits,
+                           birth_date, birth_time, birth_location,
+                           preferred_avatar_style, voice_preference, video_quality_preference,
+                           spiritual_level, timezone, language,
+                           total_sessions, avatar_sessions_count, total_avatar_minutes,
+                           referral_code, created_at
+                    FROM users WHERE email = $1
+                """, login_data.email)
+            
+            if not user_data:
+                return StandardResponse(
+                    success=False,
+                    message="Invalid email or password",
+                    data={"error": "Authentication failed"}
+                ).dict()
 
-        token = security_manager.create_access_token(mock_user_data)
+            # Verify password
+            if not security_manager.verify_password(login_data.password, user_data['password_hash']):
+                return StandardResponse(
+                    success=False,
+                    message="Invalid email or password",
+                    data={"error": "Authentication failed"}
+                ).dict()
 
-        return StandardResponse(
-            success=True,
-            message="Login successful - Welcome back to the ashram",
-            data={
-                "token": token,
-                "user": mock_user_data,
-                "expires_in": f"{settings.jwt_expiration_hours} hours",
-                "avatar_enabled": True,
-                "live_chat_enabled": True
+            # Update last login timestamp
+            now = datetime.now(timezone.utc)
+            if db_manager.is_sqlite:
+                await conn.execute(
+                    "UPDATE users SET last_login_at = ? WHERE email = ?",
+                    (now.isoformat(), login_data.email)
+                )
+                await conn.commit()
+            else:
+                await conn.execute(
+                    "UPDATE users SET last_login_at = NOW() WHERE email = $1",
+                    login_data.email
+                )
+
+            # Create token with complete user data
+            token = security_manager.create_access_token(dict(user_data))
+
+            # Prepare complete user response
+            user_response = {
+                "id": user_data['id'],
+                "email": user_data['email'],
+                "name": user_data['name'],
+                "role": user_data['role'],
+                "credits": user_data['credits'],
+                "spiritual_level": user_data['spiritual_level'],
+                "profile": {
+                    "phone": user_data['phone'],
+                    "birth_date": user_data['birth_date'],
+                    "birth_time": user_data['birth_time'],
+                    "birth_location": user_data['birth_location'],
+                    "timezone": user_data['timezone'],
+                    "language": user_data['language']
+                },
+                "avatar_preferences": {
+                    "style": user_data['preferred_avatar_style'],
+                    "voice": user_data['voice_preference'],
+                    "quality": user_data['video_quality_preference']
+                },
+                "stats": {
+                    "total_sessions": user_data['total_sessions'],
+                    "avatar_sessions": user_data['avatar_sessions_count'],
+                    "avatar_minutes": user_data['total_avatar_minutes']
+                },
+                "referral_code": user_data['referral_code'],
+                "member_since": user_data['created_at'].isoformat() if user_data['created_at'] else None
             }
-        ).dict()
 
+            logger.info(f"✅ User login successful: {login_data.email}")
+
+            return StandardResponse(
+                success=True,
+                message="Login successful - Welcome back to the ashram",
+                data={
+                    "token": token,
+                    "user": user_response,
+                    "expires_in": f"{settings.jwt_expiration_hours} hours",
+                    "avatar_enabled": True,
+                    "live_chat_enabled": True,
+                    "satsang_access": True
+                }
+            ).dict()
+            
+        finally:
+            await db_manager.release_connection(conn)
+            
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Login failed: {e}")
         return StandardResponse(
@@ -1403,11 +1563,17 @@ class AvatarSession(BaseModel):
 
 
 class AvatarGenerationRequest(BaseModel):
-    """Avatar video generation request"""
+    """Enhanced avatar video generation request"""
     user_email: str
     session_id: str
     guidance_text: str
     service_type: str = Field(..., pattern=r'^(clarity|love|premium|elite)$')
+    
+    # Add content_type field
+    content_type: Optional[str] = Field(
+        default="daily_guidance",
+        description="Type of content: daily_guidance, satsang, social_media, consultation"
+    )
     
     # Avatar Customization
     avatar_style: Optional[str] = "traditional"
@@ -1420,6 +1586,12 @@ class AvatarGenerationRequest(BaseModel):
     user_birth_details: Optional[Dict[str, Any]] = None
     astrological_context: Optional[Dict[str, Any]] = None
     emotional_tone: Optional[str] = "supportive"
+    
+    # User timezone for proper festival detection
+    user_timezone: Optional[str] = Field(
+        default="Asia/Kolkata",
+        description="User's timezone for accurate festival and daily theme detection"
+    )
 
 
 class SatsangEvent(BaseModel):
@@ -1561,11 +1733,6 @@ class SatsangEventResponse(BaseModel):
     attendee_count: int = 0
     user_registered: bool = False  
 
-
-
-
-
-
 class EnhancedJyotiFlowDatabase:
     def __init__(self):
         self.engine = None  # Add this line
@@ -1598,8 +1765,118 @@ class EnhancedJyotiFlowDatabase:
             return 125.75  # Mock daily revenue
         except:
             return 0.0
+        
+class FestivalDataManager:
+    """Manages festival data from multiple sources"""
+    
+    def __init__(self, db_manager):
+        self.db = db_manager
+        self.cache_duration = timedelta(hours=24)
+        self.last_update = None
+        self.festival_data = {}
+    
+    async def get_festival_for_date(self, date: datetime) -> Optional[str]:
+        """Get festival with caching and fallback"""
+        # Check if cache needs refresh
+        if self._needs_refresh():
+            await self._refresh_festival_data()
+        
+        date_str = date.strftime("%Y-%m-%d")
+        return self.festival_data.get(date_str)
+    
+    async def _refresh_festival_data(self):
+        """Refresh from database, API, or fallback sources"""
+        try:
+            # Try database first
+            db_festivals = await self._load_from_database()
+            if db_festivals:
+                self.festival_data.update(db_festivals)
+            
+            # Try external API if configured
+            if hasattr(self.db.settings, 'panchangam_api_key'):
+                api_festivals = await self._load_from_api()
+                self.festival_data.update(api_festivals)
+            
+            self.last_update = datetime.now(timezone.utc)
+            
+        except Exception as e:
+            logger.error(f"Festival data refresh failed: {e}")       
 
+class UserTimezoneManager:
+    """Handles user timezone detection and conversion"""
+    
+    @staticmethod
+    def get_user_timezone(user_data: Dict) -> timezone:
+        """Get user's timezone with fallback to IST"""
+        tz_string = user_data.get('timezone', 'Asia/Kolkata')
+        
+        try:
+            import pytz
+            return pytz.timezone(tz_string)
+        except:
+            # Default to IST for Tamil users
+            return timezone(timedelta(hours=5, minutes=30))
+    
+    @staticmethod
+    def convert_to_user_time(utc_time: datetime, user_tz: timezone) -> datetime:
+        """Convert UTC time to user's local time"""
+        if utc_time.tzinfo is None:
+            utc_time = utc_time.replace(tzinfo=timezone.utc)
+        return utc_time.astimezone(user_tz)
+class PerformanceMonitor:
+    """Monitor and log performance metrics"""
+    
+    def __init__(self):
+        self.metrics = defaultdict(list)
+    
+    @contextmanager
+    def measure(self, operation_name: str):
+        """Context manager to measure operation time"""
+        start_time = time.time()
+        try:
+            yield
+        finally:
+            duration = time.time() - start_time
+            self.metrics[operation_name].append(duration)
+            
+            if duration > 1.0:  # Log slow operations
+                logger.warning(f"Slow operation: {operation_name} took {duration:.2f}s")
+    
+    def get_stats(self) -> Dict:
+        """Get performance statistics"""
+        stats = {}
+        for operation, times in self.metrics.items():
+            stats[operation] = {
+                'count': len(times),
+                'avg': sum(times) / len(times),
+                'max': max(times),
+                'min': min(times)
+            }
+        return stats
 
+# Add indexes for performance
+additional_indexes = """
+-- Performance indexes for avatar sessions
+CREATE INDEX IF NOT EXISTS idx_avatar_sessions_user_date 
+ON avatar_sessions(user_id, created_at DESC);
 
+CREATE INDEX IF NOT EXISTS idx_avatar_sessions_occasion 
+ON avatar_sessions(auto_detected_occasion);
 
+-- Festival lookup optimization
+CREATE INDEX IF NOT EXISTS idx_tamil_festivals_date 
+ON tamil_festivals(festival_date);
+
+-- Community events performance
+CREATE INDEX IF NOT EXISTS idx_community_events_date 
+ON community_events(event_date, event_status);
+
+-- Style templates caching
+CREATE TABLE IF NOT EXISTS style_template_cache (
+    cache_key VARCHAR(100) PRIMARY KEY,
+    template_data JSONB NOT NULL,
+    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    expires_at TIMESTAMP
+);
+"""
 

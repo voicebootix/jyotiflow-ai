@@ -34,10 +34,36 @@ from core_foundation_enhanced import (
 class AutomatedStyleManager:
     """TRUE automation - dynamic avatar styling through prompts"""
     
+        # In AutomatedStyleManager class
     def __init__(self, db_manager):
         self.db = db_manager
         self.style_templates = {}
         self.festival_calendar = {}
+        self._initialize_templates()  # Load on init
+        self._load_festival_calendar()  # Load from database
+
+    def _initialize_templates(self):
+        """Initialize style templates from configuration"""
+        # Load from database or configuration file
+        config_path = os.path.join(os.path.dirname(__file__), 'config', 'style_templates.json')
+        if os.path.exists(config_path):
+            with open(config_path, 'r', encoding='utf-8') as f:
+                self.style_templates = json.load(f)
+        else:
+            # Fallback to default templates
+            self.style_templates = self._get_default_templates()
+
+    def _get_default_templates(self) -> Dict:
+        """Get default style templates"""
+        return {
+            "daily_guidance": {
+                "clothing_prompt": "wearing simple white cotton kurta with peaceful expression",
+                "background_prompt": "peaceful ashram garden with flowers and meditation stones",
+                "cultural_elements": "basic rudraksha mala, gentle spiritual presence",
+                "mood_description": "calm and encouraging"
+            },
+            # ... other templates
+        }
         
     async def load_style_templates(self):
         """Load style templates - இந্ত method automatic style load செয্যুম্"""
@@ -75,11 +101,11 @@ class AutomatedStyleManager:
         }
     
     async def detect_occasion(self, session_context: Dict) -> str:
-        """Automatic occasion detection - இந்த method automatic-ஆக occasion detect செய்யும்"""
-        current_date = datetime.now()
-        
+        """Automatic occasion detection with proper timezone"""
+        current_date = datetime.now(timezone.utc)
+    
         # Check for Tamil festivals first
-        festival = await self.check_festival_date(current_date)
+        festival = self.check_festival_date(current_date)
         if festival:
             return "festival_ceremonial"
         
@@ -96,20 +122,40 @@ class AutomatedStyleManager:
         else:
             return "daily_guidance"
     
-    async def check_festival_date(self, date: datetime) -> Optional[str]:
-        """Festival date checker - Tamil festival automatic detect செয্যুম্"""
-        festival_dates = {
-            "2025-02-26": "Maha Shivaratri",
-            "2025-04-14": "Tamil New Year",
-            "2025-10-03": "Navaratri",
-            "2025-11-15": "Karthikai Deepam",
-            "2025-01-14": "Thai Pongal",
-            "2025-08-19": "Krishna Janmashtami",
-            "2025-09-07": "Ganesh Chaturthi"
-        }
+    def check_festival_date(self, date: datetime) -> Optional[str]:
+        """Festival date checker with database integration"""
+        # Ensure timezone awareness
+        if date.tzinfo is None or date.tzinfo.utcoffset(date) is None:
+            date = date.replace(tzinfo=timezone.utc)
         
         date_str = date.strftime("%Y-%m-%d")
-        return festival_dates.get(date_str)
+        
+        # Check database first
+        if hasattr(self, 'festival_calendar') and self.festival_calendar:
+            return self.festival_calendar.get(date_str)
+        
+        # Fallback to API or return None
+        return None
+
+    def _load_festival_calendar(self):
+        """Load festival calendar from database"""
+        try:
+            # Synchronous database query
+            query = """
+            SELECT festival_date, festival_name, festival_type 
+            FROM tamil_festivals 
+            WHERE festival_date >= CURRENT_DATE 
+            AND festival_date <= CURRENT_DATE + INTERVAL '1 year'
+            """
+            results = self.db.execute_sync_query(query)
+            
+            self.festival_calendar = {
+                result['festival_date'].strftime("%Y-%m-%d"): result['festival_name']
+                for result in results
+            }
+        except Exception as e:
+            logger.error(f"Failed to load festival calendar: {e}")
+            self.festival_calendar = {}
     
     def generate_dynamic_prompt(self, style_name: str, festival_name: str = None) -> str:
         """Dynamic D-ID prompt generation - automatic variety তৈরি செয্યুম্"""
@@ -174,8 +220,16 @@ class TamilCulturalIntegration:
         return random.choice(closures_list)
     
     def get_weekly_theme(self) -> str:
-        """Weekly theme automatic detection"""
-        today = datetime.now().strftime("%A").lower()
+        """Weekly theme detection with timezone awareness"""
+        # Convert to user's timezone if available, default to IST
+        user_tz = self.get_user_timezone()  # Implement based on user profile
+        if user_tz:
+            today = datetime.now(user_tz).strftime("%A").lower()
+        else:
+            # Default to IST for Tamil audience
+            ist_tz = timezone(timedelta(hours=5, minutes=30))
+            today = datetime.now(ist_tz).strftime("%A").lower()
+    
         return self.weekly_themes.get(today, self.weekly_themes["sunday"])
 
 class CommunityEventManager:
@@ -308,14 +362,23 @@ class SpiritualAvatarEngine:
         self.settings = EnhancedSettings()
         self.openai_client = AsyncOpenAI(api_key=self.settings.openai_api_key)
         self.db = EnhancedJyotiFlowDatabase()
-        
-        # তমিল - অবতার ব্যক্তিত্বের কনফিগারেশন
+    
+    # Avatar personality configuration
         self.avatar_personality = {
-            "core_traits": ["compassionate", "wise", "patient", "loving"],
-            "speaking_style": "gentle_authority",
-            "cultural_background": "tamil_vedic_tradition",
-            "spiritual_lineage": "advaita_vedanta"
+        "core_traits": ["compassionate", "wise", "patient", "loving"],
+        "speaking_style": "gentle_authority",
+        "cultural_background": "tamil_vedic_tradition",
+        "spiritual_lineage": "advaita_vedanta"
         }
+    
+        # Initialize automation components ONCE
+        self.style_manager = AutomatedStyleManager(self.db)
+        self.cultural_integration = TamilCulturalIntegration()
+        self.event_manager = CommunityEventManager(self.db)
+    
+        # Single base presenter ID for automation
+        self.base_presenter_id = getattr(self.settings, 'd_id_presenter_id', 
+                                     self.settings.get_from_env('D_ID_PRESENTER_ID'))
     
 async def generate_personalized_guidance(
     self,
@@ -518,16 +581,16 @@ Remember that every challenge is an opportunity for spiritual growth, and every 
         # Single base presenter ID for TRUE automation
         self.base_presenter_id = getattr(self.settings, 'd_id_presenter_id', 'default_presenter')   
         """
+#In generate_automated_avatar_prompt method:
 async def generate_automated_avatar_prompt(self, session_context: Dict) -> Dict:
-    """TRUE automation - automatic avatar prompt generation"""
-    await self.style_manager.load_style_templates()
+    """Automatic avatar prompt generation with timezone awareness"""
     
     # Automatic occasion detection
     style_name = await self.style_manager.detect_occasion(session_context)
     
-    # Automatic festival checking
-    current_date = datetime.now()
-    festival_name = await self.style_manager.check_festival_date(current_date)
+    # Festival checking with UTC timezone
+    current_date = datetime.now(timezone.utc)
+    festival_name = self.style_manager.check_festival_date(current_date)
     
     # Dynamic prompt generation
     dynamic_prompt = self.style_manager.generate_dynamic_prompt(style_name, festival_name)
