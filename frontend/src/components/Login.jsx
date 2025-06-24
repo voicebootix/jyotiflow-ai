@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Loader } from 'lucide-react';
 import spiritualAPI from '../lib/api';
+// இது React Router navigation - This uses React Router navigation
+import { useNavigate } from 'react-router-dom'; // Add this import at top
 
 const handleLogin = async (e) => {
   e.preventDefault();
@@ -20,9 +22,6 @@ const handleLogin = async (e) => {
       const urlParams = new URLSearchParams(window.location.search);
       const redirectTo = urlParams.get('redirect');
       const service = urlParams.get('service');
-      
-      // இது React Router navigation - This uses React Router navigation
-      import { useNavigate } from 'react-router-dom'; // Add this import at top
 
       // In your Login component, add:
       const navigate = useNavigate();
