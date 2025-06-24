@@ -7,6 +7,7 @@ const Navigation = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
+  const [showAboutDropdown, setShowAboutDropdown] = useState(false);
   const location = useLocation();
 
   useEffect(() => {
@@ -14,24 +15,35 @@ const Navigation = () => {
   }, []);
 
   const checkAuthStatus = async () => {
-    if (spiritualAPI.isAuthenticated()) {
-      setIsAuthenticated(true);
-      try {
-        const profile = await spiritualAPI.getUserProfile();
-        if (profile && profile.success) {
-          setUserProfile(profile.data);
+    try {
+      if (spiritualAPI.isAuthenticated && spiritualAPI.isAuthenticated()) {
+        setIsAuthenticated(true);
+        if (spiritualAPI.getUserProfile) {
+          const profile = await spiritualAPI.getUserProfile();
+          if (profile && profile.success) {
+            setUserProfile(profile.data);
+          }
         }
-      } catch (error) {
-        console.log('Profile loading blessed with patience:', error);
       }
+    } catch (error) {
+      console.log('🕉️ Profile loading blessed with patience:', error);
     }
   };
 
   const handleLogout = () => {
-    spiritualAPI.logout();;
-    setIsAuthenticated(false);
-    setUserProfile(null);
-    window.location.href = '/';
+    try {
+      if (spiritualAPI.logout) {
+        spiritualAPI.logout();
+      }
+      localStorage.removeItem('auth_token');
+      setIsAuthenticated(false);
+      setUserProfile(null);
+      window.location.href = '/';
+    } catch (error) {
+      console.log('🕉️ Logout blessed with patience:', error);
+      localStorage.removeItem('auth_token');
+      window.location.href = '/';
+    }
   };
 
   const navItems = [
@@ -42,18 +54,25 @@ const Navigation = () => {
     { path: '/profile', label: '👤 Profile', icon: '👤', authRequired: true }
   ];
 
+  const aboutItems = [
+    { path: '/about/swamiji', label: "Swamiji's Story" },
+    { path: '/about/digital-ashram', label: 'The Digital Ashram' },
+    { path: '/about/four-pillars', label: 'Four Sacred Pillars' },
+    { path: '/about/tamil-heritage', label: 'Tamil Heritage' }
+  ];
+
   const isActivePath = (path) => {
     return location.pathname === path;
   };
 
   return (
-    <nav className="sacred-nav fixed top-0 left-0 right-0 z-50">
+    <nav className="sacred-nav fixed top-0 left-0 right-0 z-50 bg-gray-900/95 backdrop-blur-sm border-b border-gray-700">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link to="/" className="flex items-center space-x-2">
-            <span className="om-symbol">🕉️</span>
-            <span className="divine-text text-xl font-bold">JyotiFlow.ai</span>
+            <span className="text-2xl">🕉️</span>
+            <span className="text-xl font-bold text-white">JyotiFlow.ai</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -71,13 +90,44 @@ const Navigation = () => {
                         ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white shadow-lg'
                         : 'text-gray-300 hover:text-white hover:bg-gray-700'
                     }`}
-                    onClick={() => spiritualAPI.trackSpiritualEngagement('navigation_click', { page: item.path })}
                   >
                     <span className="mr-1">{item.icon}</span>
-                    {item.label.replace(/^[🏠🕉️📹🙏👤]\s/, '')}
+                    {item.label}
                   </Link>
                 );
               })}
+
+              {/* About Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowAboutDropdown(!showAboutDropdown)}
+                  onMouseEnter={() => setShowAboutDropdown(true)}
+                  className="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-300 hover:text-white hover:bg-gray-700 transition-all duration-300"
+                >
+                  <span>About Swamiji</span>
+                  <ChevronDown className="h-4 w-4" />
+                </button>
+                
+                {showAboutDropdown && (
+                  <div 
+                    className="absolute top-full left-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-lg border border-gray-600 z-50"
+                    onMouseLeave={() => setShowAboutDropdown(false)}
+                  >
+                    <div className="py-2">
+                      {aboutItems.map((item) => (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className="block px-4 py-2 text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"
+                          onClick={() => setShowAboutDropdown(false)}
+                        >
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -87,7 +137,7 @@ const Navigation = () => {
               <div className="flex items-center space-x-4">
                 {userProfile && (
                   <span className="text-gray-300 text-sm">
-                    Welcome, {userProfile.name || 'Divine Soul'}
+                    Welcome, {userProfile.name || userProfile.email || 'Divine Soul'}
                   </span>
                 )}
                 <button
@@ -108,7 +158,7 @@ const Navigation = () => {
                 </Link>
                 <Link
                   to="/register"
-                  className="divine-button text-sm"
+                  className="bg-gradient-to-r from-orange-500 to-red-500 text-white px-4 py-2 rounded-full text-sm font-semibold hover:from-orange-600 hover:to-red-600 transition-all duration-300"
                 >
                   Join Sacred Journey
                 </Link>
@@ -131,7 +181,7 @@ const Navigation = () => {
       {/* Mobile Navigation */}
       {isOpen && (
         <div className="md:hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-900 bg-opacity-95">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 bg-gray-900/95 backdrop-blur-sm">
             {navItems.map((item) => {
               if (item.authRequired && !isAuthenticated) return null;
               
@@ -144,15 +194,28 @@ const Navigation = () => {
                       ? 'bg-gradient-to-r from-yellow-400 to-orange-400 text-white'
                       : 'text-gray-300 hover:text-white hover:bg-gray-700'
                   }`}
-                  onClick={() => {
-                    setIsOpen(false);
-                    spiritualAPI.trackSpiritualEngagement('mobile_navigation_click', { page: item.path });
-                  }}
+                  onClick={() => setIsOpen(false)}
                 >
+                  <span className="mr-2">{item.icon}</span>
                   {item.label}
                 </Link>
               );
             })}
+
+            {/* Mobile About Section */}
+            <div className="border-t border-gray-700 pt-4">
+              <div className="px-3 py-2 text-gray-400 text-sm font-medium">About Swamiji</div>
+              {aboutItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className="block px-6 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md"
+                  onClick={() => setIsOpen(false)}
+                >
+                  {item.label}
+                </Link>
+              ))}
+            </div>
             
             {/* Mobile Auth */}
             <div className="border-t border-gray-700 pt-4">
@@ -160,7 +223,7 @@ const Navigation = () => {
                 <div className="space-y-2">
                   {userProfile && (
                     <div className="px-3 py-2 text-gray-300 text-sm">
-                      Welcome, {userProfile.name || 'Divine Soul'}
+                      Welcome, {userProfile.name || userProfile.email || 'Divine Soul'}
                     </div>
                   )}
                   <button
@@ -182,7 +245,7 @@ const Navigation = () => {
                   </Link>
                   <Link
                     to="/register"
-                    className="block px-3 py-2 divine-button text-center"
+                    className="block px-3 py-2 bg-gradient-to-r from-orange-500 to-red-500 text-white text-center rounded-md font-semibold"
                     onClick={() => setIsOpen(false)}
                   >
                     Join Sacred Journey
@@ -191,35 +254,13 @@ const Navigation = () => {
               )}
             </div>
           </div>
-        </div> 
-      )}
-
-        <div className="relative group">
-          <button className="flex items-center space-x-1 text-gray-700 hover:text-orange-600">
-            <span>About Swamiji</span>
-            <ChevronDown className="h-4 w-4" />
-          </button>
-          
-          <div className="absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-            <div className="py-2">
-              <Link to="/about/swamiji" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
-                Swamiji's Story
-              </Link>
-              <Link to="/about/digital-ashram" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
-                The Digital Ashram
-              </Link>
-              <Link to="/about/four-pillars" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
-                Four Sacred Pillars
-              </Link>
-              <Link to="/about/tamil-heritage" className="block px-4 py-2 text-gray-700 hover:bg-orange-50 hover:text-orange-600">
-                Tamil Heritage
-              </Link>
-            </div>
-          </div>
         </div>
+      )}
     </nav>
   );
 };
 
 export default Navigation;
+
+
 
