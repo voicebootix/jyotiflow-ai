@@ -378,8 +378,8 @@ class SpiritualAvatarEngine:
         self.event_manager = CommunityEventManager(self.db)
     
         # Single base presenter ID for automation
-        self.base_presenter_id = getattr(self.settings, 'd_id_presenter_id', 
-                                     self.settings.get_from_env('D_ID_PRESENTER_ID'))
+        self.base_presenter_id = getattr(self.settings, 'd_id_presenter_id', 'default_presenter')
+
     
 async def generate_personalized_guidance(
     self,
