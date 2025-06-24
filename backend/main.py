@@ -53,7 +53,6 @@ except Exception as e:
     print(f"❌ Enhanced import failed: {e}")
     # தமிழ் - Create fallback app
     from fastapi import FastAPI
-    from fastapi.responses import HTMLResponse
     app = FastAPI(title="JyotiFlow.ai - Fallback Mode")
     
     @app.get("/health")
