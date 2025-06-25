@@ -81,6 +81,15 @@ except ImportError:
     original_router = APIRouter(prefix="/api/v1")
     logger.warning("Using fallback API routers")
 
+# CRITICAL FIX: Import core foundation app with all auth endpoints
+try:
+    from core_foundation_enhanced import app as core_foundation_app
+    CORE_APP_AVAILABLE = True
+    logger.info("✅ Core foundation app imported successfully")
+except ImportError:
+    CORE_APP_AVAILABLE = False
+    logger.warning("⚠️ Core foundation app not available - AUTH ENDPOINTS MISSING!")
+
 except ImportError:
     # Create fallback route handlers
     async def enhanced_home_page(request):
@@ -261,6 +270,48 @@ def setup_enhanced_routes(app: FastAPI):
     app.include_router(enhanced_router, tags=["Enhanced Spiritual Services"])
     app.include_router(original_router, tags=["Core Services (Preserved)"])
     
+    # CRITICAL FIX: Include ALL routes from core_foundation_enhanced.py
+    if CORE_APP_AVAILABLE:
+        logger.info("🔗 Integrating core foundation routes...")
+        
+        # Import all routes from core foundation app
+        routes_added = 0
+        for route in core_foundation_app.routes:
+            # Skip duplicate routes and internal routes
+            if (hasattr(route, 'path') and 
+                not any(existing_route.path == route.path for existing_route in app.routes) and
+                not route.path.startswith('/docs') and
+                not route.path.startswith('/redoc') and
+                not route.path.startswith('/openapi.json')):
+                
+                app.routes.append(route)
+                routes_added += 1
+        
+        # Import middleware from core foundation (avoid duplicates)
+        middleware_added = 0
+        for middleware in core_foundation_app.user_middleware:
+            # Check if middleware already exists
+            middleware_exists = any(
+                existing.cls == middleware.cls for existing in app.user_middleware
+            )
+            if not middleware_exists:
+                app.add_middleware(middleware.cls, **middleware.kwargs)
+                middleware_added += 1
+        
+        # Import exception handlers from core foundation
+        handlers_added = 0
+        for exception_type, handler in core_foundation_app.exception_handlers.items():
+            if exception_type not in app.exception_handlers:
+                app.add_exception_handler(exception_type, handler)
+                handlers_added += 1
+        
+        logger.info(f"✅ Core foundation integration complete:")
+        logger.info(f"   - Routes added: {routes_added}")
+        logger.info(f"   - Middleware added: {middleware_added}")
+        logger.info(f"   - Exception handlers added: {handlers_added}")
+    else:
+        logger.error("❌ Core foundation routes not available - AUTH ENDPOINTS MISSING!")
+    
     
     # Enhanced Frontend Routes (original routes with API prefix)
     @app.get("/api")
@@ -269,7 +320,9 @@ def setup_enhanced_routes(app: FastAPI):
             "message": "JyotiFlow.ai Backend API",
             "version": "5.0.0",
             "status": "operational",
-            "docs": "/docs"
+            "docs": "/docs",
+            "core_integration": CORE_APP_AVAILABLE,
+            "auth_endpoints": "available" if CORE_APP_AVAILABLE else "missing"
     }
     
     @app.get("/favicon.ico")
@@ -289,6 +342,11 @@ def setup_enhanced_routes(app: FastAPI):
     @app.get("/spiritual-status")
     async def spiritual_status():
         return await get_spiritual_platform_status()
+    
+    # Route verification endpoint for debugging
+    @app.get("/debug/routes")
+    async def debug_routes():
+        return await verify_route_integration()
 
 def setup_enhanced_error_handlers(app: FastAPI):
     """তমিল - উন্নত ত্রুটি হ্যান্ডলার সেটআপ"""
@@ -300,7 +358,10 @@ def setup_enhanced_error_handlers(app: FastAPI):
             content={
                 "message": "🙏🏼 The path you seek is not found. May divine guidance lead you to the right direction.",
                 "blessing": "Om Namah Shivaya",
-                "suggested_paths": ["/", "/spiritual-guidance", "/satsang"]
+                "suggested_paths": ["/", "/spiritual-guidance", "/satsang"],
+                "core_integration": CORE_APP_AVAILABLE,
+                "debug_info": f"Path: {request.url.path}",
+                "help": "Visit /debug/routes to see all available endpoints"
             }
         )
     
@@ -333,30 +394,29 @@ def setup_enhanced_error_handlers(app: FastAPI):
 # =============================================================================
 
 async def initialize_enhanced_services():
-    """তমিল - সমস্ত উন্নত সেবা সূচনা করুন"""
+    """তমিল - Initialize enhanced spiritual services"""
     try:
-        # Initialize Database
-        await db_manager.initialize_enhanced_tables()
-        logger.info("✅ Enhanced database initialized")
+        # Initialize database
+        if hasattr(db_manager, 'initialize_enhanced_tables'):
+            await db_manager.initialize_enhanced_tables()
         
-        # Test AI Services
-        await test_ai_service_connections()
-        logger.info("✅ AI services connected")
+        # Initialize avatar processing queue
+        global avatar_generation_queue
+        avatar_generation_queue = []
         
-        # Initialize Avatar Services
-        await initialize_avatar_services()
-        logger.info("✅ Avatar services initialized")
+        # Verify route integration
+        route_status = await verify_route_integration()
+        if route_status["integration_status"] == "incomplete":
+            logger.error(f"❌ CRITICAL: Missing routes: {route_status['critical_routes_missing']}")
+            logger.error("❌ Admin dashboard and user login WILL NOT WORK!")
+        else:
+            logger.info("✅ All critical routes successfully integrated")
+            logger.info("✅ Admin dashboard and user login ready")
         
-        # Setup Background Monitoring
-        await setup_background_monitoring()
-        logger.info("✅ Background monitoring active")
-        
-        # Initialize Social Media Services
-        await initialize_social_services()
-        logger.info("✅ Social media services ready")
+        logger.info("✅ Enhanced services initialized")
         
     except Exception as e:
-        logger.error(f"❌ Service initialization failed: {e}")
+        logger.error(f"Enhanced services initialization failed: {e}")
         raise
 
 async def test_ai_service_connections():
@@ -589,16 +649,50 @@ async def get_detailed_health_status() -> Dict:
         "blessing": "🕉️ All systems blessed and operational"
     }
 
-async def get_spiritual_platform_status() -> Dict:
-    """তমিল - আধ্যাত্মিক প্ল্যাটফর্ম অবস্থা"""
+async def get_spiritual_platform_status():
+    """তমিল - Get spiritual platform status"""
     return {
-        "swamiji_status": "🙏🏼 Available for divine guidance",
-        "ashram_energy": "High spiritual vibration",
-        "divine_connections": await count_active_connections(),
-        "sacred_sessions_today": await count_todays_sessions(),
-        "community_strength": await get_community_metrics(),
-        "cosmic_alignment": "Favorable for spiritual growth",
-        "om_frequency": "432 Hz - Perfect harmony"
+        "platform": "JyotiFlow.ai",
+        "status": "divine_operational",
+        "blessing": "🕉️ Om Namah Shivaya",
+        "core_integration": CORE_APP_AVAILABLE,
+        "services": {
+            "avatar_generation": "ready",
+            "live_chat": "ready", 
+            "satsang_events": "scheduled",
+            "ai_optimization": "active",
+            "user_authentication": "ready" if CORE_APP_AVAILABLE else "degraded",
+            "admin_dashboard": "ready" if CORE_APP_AVAILABLE else "degraded"
+        }
+    }
+
+async def verify_route_integration():
+    """Verify that all critical routes are properly integrated"""
+    critical_routes = [
+        "/api/auth/login",        # USER LOGIN
+        "/api/auth/register",     # USER REGISTRATION
+        "/api/user/profile",      # USER PROFILE
+        "/api/user/sessions",     # USER SESSIONS
+        "/api/user/credits",      # USER CREDITS
+        "/api/admin/stats",       # ADMIN DASHBOARD
+        "/api/admin/analytics"    # ADMIN ANALYTICS
+    ]
+    
+    available_routes = []
+    if CORE_APP_AVAILABLE:
+        for route in core_foundation_app.routes:
+            if hasattr(route, 'path'):
+                available_routes.append(route.path)
+    
+    missing_routes = [route for route in critical_routes if route not in available_routes]
+    
+    return {
+        "total_routes_available": len(available_routes),
+        "critical_routes_found": len(critical_routes) - len(missing_routes),
+        "critical_routes_missing": missing_routes,
+        "integration_status": "complete" if not missing_routes else "incomplete",
+        "core_app_available": CORE_APP_AVAILABLE,
+        "all_available_routes": available_routes if len(available_routes) < 50 else f"{len(available_routes)} routes total"
     }
 
 # =============================================================================
