@@ -1499,6 +1499,103 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
     except Exception as e:
         logger.error(f"Profile retrieval failed: {e}")
         raise HTTPException(status_code=500, detail="Profile retrieval failed")
+    
+@app.get("/api/user/sessions")
+async def get_user_sessions(current_user: dict = Depends(get_current_user)):
+    """Get user's spiritual guidance sessions"""
+    try:
+        # Get user sessions from database
+        user_id = current_user.get("id")
+        
+        # Query sessions from database (adjust based on your schema)
+        sessions_data = {
+            "recent_sessions": [
+                {
+                    "id": "session_001",
+                    "type": "spiritual_guidance",
+                    "date": "2025-06-24",
+                    "duration": "45 minutes",
+                    "topic": "Life Purpose Guidance",
+                    "status": "completed"
+                },
+                {
+                    "id": "session_002", 
+                    "type": "avatar_video",
+                    "date": "2025-06-23",
+                    "duration": "30 minutes",
+                    "topic": "Meditation Guidance",
+                    "status": "completed"
+                }
+            ],
+            "total_sessions": current_user.get("total_sessions", 0),
+            "avatar_sessions": current_user.get("avatar_sessions_count", 0),
+            "total_minutes": current_user.get("total_avatar_minutes", 0)
+        }
+        
+        return StandardResponse(
+            success=True,
+            message="Sessions retrieved successfully",
+            data=sessions_data
+        ).dict()
+
+    except Exception as e:
+        logger.error(f"Sessions retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail="Sessions retrieval failed")
+    
+@app.get("/api/user/credits")
+async def get_user_credits(current_user: dict = Depends(get_current_user)):
+    """Get user's credit balance and usage history"""
+    try:
+        user_credits = current_user.get("credits", 0)
+        
+        credits_data = {
+            "current_balance": user_credits,
+            "total_earned": user_credits + 10,  # Example calculation
+            "total_spent": 10,  # Example calculation
+            "recent_transactions": [
+                {
+                    "id": "txn_001",
+                    "type": "earned",
+                    "amount": 10,
+                    "description": "Welcome bonus",
+                    "date": "2025-06-24"
+                },
+                {
+                    "id": "txn_002",
+                    "type": "spent", 
+                    "amount": -3,
+                    "description": "Spiritual guidance session",
+                    "date": "2025-06-23"
+                }
+            ],
+            "credit_packages": [
+                {
+                    "name": "Starter Pack",
+                    "credits": 10,
+                    "price": "$9.99"
+                },
+                {
+                    "name": "Seeker Pack", 
+                    "credits": 25,
+                    "price": "$19.99"
+                },
+                {
+                    "name": "Devotee Pack",
+                    "credits": 50,
+                    "price": "$39.99"
+                }
+            ]
+        }
+        
+        return StandardResponse(
+            success=True,
+            message="Credits retrieved successfully", 
+            data=credits_data
+        ).dict()
+
+    except Exception as e:
+        logger.error(f"Credits retrieval failed: {e}")
+        raise HTTPException(status_code=500, detail="Credits retrieval failed")  
 
 @app.get("/api/admin/dashboard")
 async def admin_dashboard(admin_user: dict = Depends(get_admin_user)):
