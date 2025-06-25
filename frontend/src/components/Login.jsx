@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams,useNavigate } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Loader } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 // இது React Router navigation - This uses React Router navigation
