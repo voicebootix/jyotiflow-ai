@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Video, Clock, Users, Star } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const LiveChat = () => {
+  const navigate = useNavigate(); 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +31,7 @@ const LiveChat = () => {
 
   const initiateLiveChat = async () => {
     if (!isAuthenticated) {
-      window.location.href = '/register?service=live-chat';
+      navigate('/register?service=live-chat');
       return;
     }
 

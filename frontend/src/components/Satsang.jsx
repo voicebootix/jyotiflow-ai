@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Users, Clock, MapPin, Bell } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const Satsang = () => {
+  const navigate = useNavigate(); // ADD THIS LINE
   const [satsangSchedule, setSatsangSchedule] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [registeredEvents, setRegisteredEvents] = useState(new Set());
@@ -54,7 +55,7 @@ const Satsang = () => {
 
   const registerForSatsang = async (eventId) => {
     if (!isAuthenticated) {
-      window.location.href = '/register?service=satsang';
+      navigate('/register?service=satsang');
       return;
     }
 

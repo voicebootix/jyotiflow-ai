@@ -6,8 +6,10 @@ import {
   Eye, MessageSquare, Video, Crown
 } from 'lucide-react';
 import spiritualAPI from '../lib/api';
+import { Link, useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
+  const navigate = useNavigate();
   const [adminStats, setAdminStats] = useState({
     total_users: 0,
     active_users: 0,
@@ -30,7 +32,7 @@ const AdminDashboard = () => {
 
   const checkAdminAuth = async () => {
     if (!spiritualAPI.isAuthenticated()) {
-      window.location.href = '/login?admin=true&redirect=admin';
+      navigate('/login?admin=true&redirect=admin');
       return;
     }
 
@@ -43,11 +45,11 @@ const AdminDashboard = () => {
       } else {
         // Not an admin user
         alert('Access denied. Admin privileges required.');
-        window.location.href = '/';
+        navigate('/');
       }
     } catch (error) {
       console.error('Admin authentication check failed:', error);
-      window.location.href = '/login?admin=true&redirect=/admin';
+      navigate('/login?admin=true&redirect=/admin');
     }
   };
 
