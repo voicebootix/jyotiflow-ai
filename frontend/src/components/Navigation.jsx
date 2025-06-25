@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, User, LogOut, ChevronDown } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
@@ -9,6 +9,7 @@ const Navigation = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [showAboutDropdown, setShowAboutDropdown] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   useEffect(() => {
     checkAuthStatus();
