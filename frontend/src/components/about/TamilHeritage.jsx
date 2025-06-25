@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ArrowLeft, BookOpen, Star, Scroll } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
