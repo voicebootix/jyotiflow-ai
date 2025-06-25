@@ -28,20 +28,28 @@ const Navigation = () => {
   }, []);
 
   const checkAuthStatus = async () => {
-    try {
-      if (spiritualAPI.isAuthenticated && spiritualAPI.isAuthenticated()) {
-        setIsAuthenticated(true);
-        if (spiritualAPI.getUserProfile) {
-          const profile = await spiritualAPI.getUserProfile();
-          if (profile && profile.success) {
-            setUserProfile(profile.data);
-          }
+  try {
+    if (spiritualAPI.isAuthenticated && spiritualAPI.isAuthenticated()) {
+      setIsAuthenticated(true);
+      try {
+        const profile = await spiritualAPI.getUserProfile();
+        if (profile && profile.success) {
+          setUserProfile(profile.data);
         }
+      } catch (profileError) {
+        console.log('🕉️ Profile loading blessed with patience:', profileError);
+        // Still keep user authenticated even if profile fails
       }
-    } catch (error) {
-      console.log('🕉️ Profile loading blessed with patience:', error);
+    } else {
+      setIsAuthenticated(false);
+      setUserProfile(null);
     }
-  };
+  } catch (error) {
+    console.log('🕉️ Auth check blessed with patience:', error);
+    setIsAuthenticated(false);
+    setUserProfile(null);
+  }
+};
 
   const handleLogout = () => {
     try {

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Lock, Eye, EyeOff, Loader, Check } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const Register = () => {
+  const navigate = useNavigate(); // ADD THIS LINE
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: '',
@@ -22,7 +23,7 @@ const Register = () => {
   const [error, setError] = useState('');
   const [step, setStep] = useState(1);
   const [welcomeService, setWelcomeService] = useState(null);
-
+  
   useEffect(() => {
     // Check welcome parameters
     const service = searchParams.get('service');
@@ -141,10 +142,10 @@ const Register = () => {
             ? `/spiritual-guidance?service=${welcomeService}&welcome=true`
             : '/profile?welcome=true';
           
-          window.location.href = redirectTo;
+          navigate(redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`);
         } else {
           // Registration successful but login failed, redirect to login
-          window.location.href = '/login?message=Registration successful! Please sign in.';
+          navigate('/login?message=Registration successful! Please sign in.');
         }
       } else {
         setError(result?.message || 'Registration failed. Please try again.');

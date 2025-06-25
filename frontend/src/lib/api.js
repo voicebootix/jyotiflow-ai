@@ -14,14 +14,27 @@ const spiritualAPI = {
     };
 
     try {
-      const response = await fetch(url, config);
-      const data = await response.json();
-      return data;
-    } catch (error) {
-      console.error('API request failed:', error);
-      throw error;
+    const response = await fetch(url, config);
+    if (!response.ok) {
+      console.error(`API Error: ${response.status} - ${response.statusText}`);
+      return { 
+        success: false, 
+        message: `Server error: ${response.status}`,
+        status: response.status 
+      };
     }
-  },
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('API request failed:', error);
+    return { 
+      success: false, 
+      message: 'Network connection failed',
+      error: error.message 
+    };
+  }
+    },
 
   // GET request
   async get(endpoint) {
@@ -159,6 +172,42 @@ const spiritualAPI = {
   // Credits and billing
   async getCreditBalance() {
     return this.get('/api/user/credits');
+  },
+  
+// Admin methods - Add these before getDailyWisdom()
+  async getAdminStats() {
+    return this.get('/api/admin/stats');
+  },
+
+  async getMonetizationInsights() {
+    return this.get('/api/admin/monetization');
+  },
+
+  async getProductOptimization() {
+    return this.get('/api/admin/optimization');
+  },
+
+  async initiateLiveChat(sessionDetails) {
+    return this.post('/api/livechat/initiate', sessionDetails);
+  },
+
+  async startSession(sessionData) {
+    return this.post('/api/sessions/start', sessionData);
+  },
+
+  async generateAvatarVideo(guidanceText, birthDetails) {
+    return this.post('/api/avatar/generate', {
+      guidance_text: guidanceText,
+      birth_details: birthDetails
+    });
+  },
+
+  async getAvatarGenerationStatus(sessionId) {
+    return this.get(`/api/avatar/status/${sessionId}`);
+  },
+
+  async purchaseCredits(amount) {
+    return this.post('/api/credits/purchase', { amount });
   },
 
   // Daily content methods
