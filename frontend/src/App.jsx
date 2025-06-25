@@ -64,7 +64,7 @@ function App() {
         <main className="relative z-10">
           <Routes>
             <Route path="/" element={<HomePage />} />
-            <Route path="/spiritual-guidance" component={<SpiritualGuidance />} />
+            <Route path="/spiritual-guidance" element={<SpiritualGuidance />} />
             <Route path="/live-chat" element={<LiveChat />} />
             <Route path="/satsang" element={<Satsang />} />
             <Route path="/profile" element={<Profile />} />
