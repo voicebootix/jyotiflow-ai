@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { 
   ArrowLeft, Users, DollarSign, Calendar, TrendingUp, 
   BarChart3, Settings, Bell, Download, RefreshCw,
