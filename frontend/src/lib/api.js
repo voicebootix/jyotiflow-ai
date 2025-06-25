@@ -89,6 +89,10 @@ const spiritualAPI = {
       });
       
       const data = await response.json();
+       if (data.success && data.token) {
+      this.setAuthToken(data.token, data.user);
+    }
+
       return data;
     } catch (error) {
       console.error('Login API error:', error);
@@ -107,6 +111,9 @@ const spiritualAPI = {
       });
       
       const data = await response.json();
+      if (data.success && data.token) {
+      this.setAuthToken(data.token, data.user);
+    }
       return data;
     } catch (error) {
       console.error('Register API error:', error);

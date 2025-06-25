@@ -18,7 +18,7 @@ const Login = () => {
 
   useEffect(() => {
     // Check if this is admin login
-    setIsAdmin(window.location.pathname.includes('admin') || searchParams.get('admin') === 'true');
+    setIsAdmin(searchParams.get('admin') === 'true');
     
     // Track login page visit
     spiritualAPI.trackSpiritualEngagement('login_visit', {
