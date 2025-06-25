@@ -1,51 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams,useNavigate } from 'react-router-dom';
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Loader } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 // இது React Router navigation - This uses React Router navigation
 import { useNavigate } from 'react-router-dom'; // Add this import at top
 
-const handleLogin = async (e) => {
-  e.preventDefault();
-  setIsLoading(true);
-  setError('');
-
-  try {
-    const response = await spiritualAPI.login(formData.email, formData.password);
-    
-    if (response && response.success) {
-      // Store token
-      localStorage.setItem('jyotiflow_token', response.data.token);
-      localStorage.setItem('jyotiflow_user', JSON.stringify(response.data.user));
-      
-      // Check for redirect parameters
-      const urlParams = new URLSearchParams(window.location.search);
-      const redirectTo = urlParams.get('redirect');
-      const service = urlParams.get('service');
-
-      // In your Login component, add:
-      const navigate = useNavigate();
-
-      // Replace the navigation block with:
-      if (redirectTo === 'profile' && service) {
-        navigate(`/profile?service=${service}`, { replace: true });
-      } else if (redirectTo) {
-        navigate(`/${redirectTo}`, { replace: true });
-      } else {
-        navigate('/profile', { replace: true });
-      }
-    } else {
-      setError(response?.message || 'Login failed');
-    }
-  } catch (error) {
-    console.error('Login error:', error);
-    setError('Login failed. Please try again.');
-  } finally {
-    setIsLoading(false);
-  }
-};
 
 const Login = () => {
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     email: '',
