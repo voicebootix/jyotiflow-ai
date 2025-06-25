@@ -26,11 +26,11 @@ const SpiritualGuidance = () => {
 
 // Authentication check
   useEffect(() => {
-    if (!spiritualAPI.isAuthenticated()) {
+   // if (!spiritualAPI.isAuthenticated()) {
       // Redirect to login with current service
-      navigate(`/login?service=${selectedService}&redirect=spiritual-guidance`);
-      return;
-    }
+     // navigate(`/login?service=${selectedService}&redirect=spiritual-guidance`);
+     // return;
+   // }
   }, [navigate, selectedService]);
   
   const services = {
