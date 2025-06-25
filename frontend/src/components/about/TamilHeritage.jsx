@@ -1,4 +1,4 @@
-import { ArrowLeft, BookOpen, Star, Scroll } from 'lucide-react';
+import { ArrowLeft, BookOpen, Star, Scroll ,BUILDING2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 const TamilHeritage = () => {
@@ -96,7 +96,7 @@ const TamilHeritage = () => {
             
             <div className="bg-white rounded-xl p-6 shadow-lg border border-red-200">
               <div className="flex items-center mb-4">
-                <Temple className="h-6 w-6 text-purple-600 mr-3" />
+                <BUILDING2 className="h-6 w-6 text-purple-600 mr-3" />
                 <h3 className="text-xl font-semibold text-gray-900">Temple Science</h3>
               </div>
               <p className="text-gray-700 mb-4">
