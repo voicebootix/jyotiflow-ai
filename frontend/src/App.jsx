@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import './App.css';
+import spiritualAPI from '../lib/api';
 
 // Import components (to be created)
 import HomePage from './components/HomePage';
