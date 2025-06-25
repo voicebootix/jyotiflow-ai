@@ -40,7 +40,7 @@ const Register = () => {
 
     // Redirect if already authenticated
     if (spiritualAPI.isAuthenticated()) {
-      window.location.href = '/profile';
+      navigate('/profile', { replace: true });
     }
   }, [searchParams]);
 

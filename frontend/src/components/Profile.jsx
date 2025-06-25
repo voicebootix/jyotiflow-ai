@@ -22,10 +22,9 @@ const Profile = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!spiritualAPI.isAuthenticated()) {
-      window.location.href = '/login';
-      return;
-    }
+    if (spiritualAPI.isAuthenticated()) {
+    navigate('/login', { replace: true });
+  }
     
     loadProfileData();
     spiritualAPI.trackSpiritualEngagement('profile_visit');
