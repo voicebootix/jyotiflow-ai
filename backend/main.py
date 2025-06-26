@@ -10,10 +10,10 @@ from pathlib import Path
 from datetime import datetime, timedelta
 import hashlib
 
-#newly added code
+# Ensure the backend directory is in the path
 sys.path.append(str(Path(__file__).parent))
 
-# Import the real app from core_foundation_enhanced.py only
+# Only import and use the real app
 from core_foundation_enhanced import app
 
 # তমিল - সমস্ত পবিত্র উপাদান আমদানি
