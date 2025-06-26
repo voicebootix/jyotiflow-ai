@@ -51,9 +51,39 @@ try:
     app = enhanced_app
 except Exception as e:
     print(f"❌ Enhanced import failed: {e}")
-    # தமிழ் - Create fallback app
+    #  - Create fallback app
     from fastapi import FastAPI
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.middleware.cors import CORSMiddleware
+    import os
+    
     app = FastAPI(title="JyotiFlow.ai - Fallback Mode")
+    
+    #  - CORS settings for React
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000", "http://localhost:5173"],  # React dev servers
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    
+    #  - Serve frontend files
+    # Check multiple possible locations for build directory
+    build_paths = [
+        "frontend/build",  # Standard React build
+        "frontend/dist",   # Vite build
+        "build",          # Root build
+        "../frontend/build",  # Backend in subdirectory
+    ]
+    
+    for build_path in build_paths:
+        if os.path.exists(build_path) and os.path.isdir(build_path):
+            print(f"✅ Serving React app from: {build_path}")
+            app.mount("/", StaticFiles(directory=build_path, html=True), name="static")
+            break
+    else:
+        print("⚠️ No React build directory found. API-only mode.")
     
     @app.get("/health")
     async def health_check():
