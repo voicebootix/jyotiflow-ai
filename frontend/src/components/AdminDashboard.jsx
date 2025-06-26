@@ -31,7 +31,7 @@ const AdminDashboard = () => {
 
   const checkAdminAuth = async () => {
     if (!spiritualAPI.isAuthenticated()) {
-      navigate('/login?admin=true&redirect="/"');
+      navigate('/login?admin=true&redirect=admin');
       return;
     }
 
