@@ -979,8 +979,15 @@ app = FastAPI(
     lifespan=enhanced_app_lifespan
 )
 
+# Create APIRouter for auth and user endpoints
+from fastapi import APIRouter
+
+auth_router = APIRouter(prefix="/api/auth", tags=["Authentication"])
+user_router = APIRouter(prefix="/api/user", tags=["User"])
+admin_router = APIRouter(prefix="/api/admin", tags=["Admin"])
+
 # Export app for main.py import
-__all__ = ["app", "settings", "db_manager", "security_manager", "enhanced_app_lifespan",
+__all__ = ["app", "auth_router", "user_router", "admin_router", "settings", "db_manager", "security_manager", "enhanced_app_lifespan",
            "StandardResponse", "UserLogin", "UserRegistration", "get_current_user", "get_admin_user"]
 
 # Add CORS middleware
@@ -1249,7 +1256,7 @@ async def health_check():
 # 🔐 AUTHENTICATION ENDPOINTS WITH FIXED CORE
 # =============================================================================
 
-@app.post("/api/auth/register")
+@auth_router.post("/register")
 async def register_user(user_data: UserRegistration):
     """User registration with complete field handling"""
     try:
@@ -1353,7 +1360,7 @@ async def register_user(user_data: UserRegistration):
         ).dict() 
     
 
-@app.post("/api/auth/login")
+@auth_router.post("/login")
 async def login_user(login_data: UserLogin):
     """User login with complete field handling"""
     try:
@@ -1478,124 +1485,230 @@ async def login_user(login_data: UserLogin):
 # 📊 PROTECTED ENDPOINTS USING FIXED AUTHENTICATION
 # =============================================================================
 
-@app.get("/api/user/profile")
+@user_router.get("/profile")
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
-    """Get user profile using fixed authentication"""
+    """Get complete user profile with avatar preferences"""
     try:
-        return StandardResponse(
-            success=True,
-            message="Profile retrieved successfully",
-            data={
-                "user": current_user,
-                "platform_version": "5.0.0 - Fixed",
-                "spiritual_journey": {
-                    "level": "growing",
-                    "sessions_completed": current_user.get("total_sessions", 0),
-                    "avatar_minutes": current_user.get("total_avatar_minutes", 0)
+        conn = await db_manager.get_connection()
+        try:
+            # Get complete user data
+            if db_manager.is_sqlite:
+                user_row = await conn.execute("""
+                    SELECT id, email, name, phone, credits, role,
+                           birth_date, birth_time, birth_location,
+                           preferred_avatar_style, voice_preference, video_quality_preference,
+                           spiritual_level, timezone, language,
+                           total_sessions, avatar_sessions_count, total_avatar_minutes,
+                           referral_code, created_at, last_login_at
+                    FROM users WHERE email = ?
+                """, (current_user['email'],))
+                user_data = await user_row.fetchone()
+            else:
+                user_data = await conn.fetchrow("""
+                    SELECT id, email, name, phone, credits, role,
+                           birth_date, birth_time, birth_location,
+                           preferred_avatar_style, voice_preference, video_quality_preference,
+                           spiritual_level, timezone, language,
+                           total_sessions, avatar_sessions_count, total_avatar_minutes,
+                           referral_code, created_at, last_login_at
+                    FROM users WHERE email = $1
+                """, current_user['email'])
+            
+            if not user_data:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            return StandardResponse(
+                success=True,
+                message="Profile retrieved successfully",
+                data={
+                    "id": user_data['id'],
+                    "email": user_data['email'],
+                    "name": user_data['name'],
+                    "role": user_data['role'],
+                    "credits": user_data['credits'],
+                    "spiritual_level": user_data['spiritual_level'],
+                    "profile": {
+                        "phone": user_data['phone'],
+                        "birth_date": user_data['birth_date'],
+                        "birth_time": user_data['birth_time'],
+                        "birth_location": user_data['birth_location'],
+                        "timezone": user_data['timezone'],
+                        "language": user_data['language']
+                    },
+                    "avatar_preferences": {
+                        "style": user_data['preferred_avatar_style'],
+                        "voice": user_data['voice_preference'],
+                        "quality": user_data['video_quality_preference']
+                    },
+                    "stats": {
+                        "total_sessions": user_data['total_sessions'],
+                        "avatar_sessions": user_data['avatar_sessions_count'],
+                        "total_avatar_minutes": user_data['total_avatar_minutes']
+                    },
+                    "referral_code": user_data['referral_code'],
+                    "created_at": user_data['created_at'],
+                    "last_login_at": user_data['last_login_at']
                 }
-            }
-        ).dict()
-
+            ).dict()
+            
+        finally:
+            await db_manager.release_connection(conn)
+            
     except Exception as e:
         logger.error(f"Profile retrieval failed: {e}")
-        raise HTTPException(status_code=500, detail="Profile retrieval failed")
-    
-@app.get("/api/user/sessions")
+        return StandardResponse(
+            success=False,
+            message="Failed to retrieve profile",
+            data={"error": str(e)}
+        ).dict()
+
+@user_router.get("/sessions")
 async def get_user_sessions(current_user: dict = Depends(get_current_user)):
-    """Get user's spiritual guidance sessions"""
+    """Get user's spiritual sessions"""
     try:
-        # Get user sessions from database
-        user_id = current_user.get("id")
-        
-        # Query sessions from database (adjust based on your schema)
-        sessions_data = {
-            "recent_sessions": [
-                {
-                    "id": "session_001",
-                    "type": "spiritual_guidance",
-                    "date": "2025-06-24",
-                    "duration": "45 minutes",
-                    "topic": "Life Purpose Guidance",
-                    "status": "completed"
-                },
-                {
-                    "id": "session_002", 
-                    "type": "avatar_video",
-                    "date": "2025-06-23",
-                    "duration": "30 minutes",
-                    "topic": "Meditation Guidance",
-                    "status": "completed"
+        conn = await db_manager.get_connection()
+        try:
+            # Get user's sessions
+            if db_manager.is_sqlite:
+                sessions = await conn.execute("""
+                    SELECT id, service_type, question, guidance, credits_used,
+                           avatar_video_url, avatar_duration_seconds,
+                           user_rating, user_feedback, created_at, completed_at
+                    FROM spiritual_sessions 
+                    WHERE user_email = ? 
+                    ORDER BY created_at DESC 
+                    LIMIT 50
+                """, (current_user['email'],))
+                sessions_data = await sessions.fetchall()
+            else:
+                sessions_data = await conn.fetch("""
+                    SELECT id, service_type, question, guidance, credits_used,
+                           avatar_video_url, avatar_duration_seconds,
+                           user_rating, user_feedback, created_at, completed_at
+                    FROM spiritual_sessions 
+                    WHERE user_email = $1 
+                    ORDER BY created_at DESC 
+                    LIMIT 50
+                """, current_user['email'])
+            
+            # Convert to list of dicts
+            sessions_list = []
+            for session in sessions_data:
+                sessions_list.append({
+                    "id": session['id'],
+                    "service_type": session['service_type'],
+                    "question": session['question'],
+                    "guidance": session['guidance'],
+                    "credits_used": session['credits_used'],
+                    "avatar_video_url": session['avatar_video_url'],
+                    "avatar_duration_seconds": session['avatar_duration_seconds'],
+                    "user_rating": session['user_rating'],
+                    "user_feedback": session['user_feedback'],
+                    "created_at": session['created_at'],
+                    "completed_at": session['completed_at']
+                })
+            
+            return StandardResponse(
+                success=True,
+                message="Sessions retrieved successfully",
+                data={
+                    "sessions": sessions_list,
+                    "total_sessions": len(sessions_list),
+                    "user_email": current_user['email']
                 }
-            ],
-            "total_sessions": current_user.get("total_sessions", 0),
-            "avatar_sessions": current_user.get("avatar_sessions_count", 0),
-            "total_minutes": current_user.get("total_avatar_minutes", 0)
-        }
-        
+            ).dict()
+            
+        finally:
+            await db_manager.release_connection(conn)
+            
+    except Exception as e:
+        logger.error(f"Session retrieval failed: {e}")
         return StandardResponse(
-            success=True,
-            message="Sessions retrieved successfully",
-            data=sessions_data
+            success=False,
+            message="Failed to retrieve sessions",
+            data={"error": str(e)}
         ).dict()
 
-    except Exception as e:
-        logger.error(f"Sessions retrieval failed: {e}")
-        raise HTTPException(status_code=500, detail="Sessions retrieval failed")
-    
-@app.get("/api/user/credits")
+@user_router.get("/credits")
 async def get_user_credits(current_user: dict = Depends(get_current_user)):
-    """Get user's credit balance and usage history"""
+    """Get user's credit balance and transaction history"""
     try:
-        user_credits = current_user.get("credits", 0)
-        
-        credits_data = {
-            "current_balance": user_credits,
-            "total_earned": user_credits + 10,  # Example calculation
-            "total_spent": 10,  # Example calculation
-            "recent_transactions": [
-                {
-                    "id": "txn_001",
-                    "type": "earned",
-                    "amount": 10,
-                    "description": "Welcome bonus",
-                    "date": "2025-06-24"
-                },
-                {
-                    "id": "txn_002",
-                    "type": "spent", 
-                    "amount": -3,
-                    "description": "Spiritual guidance session",
-                    "date": "2025-06-23"
+        conn = await db_manager.get_connection()
+        try:
+            # Get current credit balance
+            if db_manager.is_sqlite:
+                user_row = await conn.execute("""
+                    SELECT credits, total_sessions, avatar_sessions_count
+                    FROM users WHERE email = ?
+                """, (current_user['email'],))
+                user_data = await user_row.fetchone()
+            else:
+                user_data = await conn.fetchrow("""
+                    SELECT credits, total_sessions, avatar_sessions_count
+                    FROM users WHERE email = $1
+                """, current_user['email'])
+            
+            if not user_data:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Get recent transactions
+            if db_manager.is_sqlite:
+                transactions = await conn.execute("""
+                    SELECT id, transaction_type, amount, credits, description,
+                           package_type, payment_method, status, created_at
+                    FROM user_purchases 
+                    WHERE user_email = ? 
+                    ORDER BY created_at DESC 
+                    LIMIT 20
+                """, (current_user['email'],))
+                transactions_data = await transactions.fetchall()
+            else:
+                transactions_data = await conn.fetch("""
+                    SELECT id, transaction_type, amount, credits, description,
+                           package_type, payment_method, status, created_at
+                    FROM user_purchases 
+                    WHERE user_email = $1 
+                    ORDER BY created_at DESC 
+                    LIMIT 20
+                """, current_user['email'])
+            
+            # Convert to list of dicts
+            transactions_list = []
+            for tx in transactions_data:
+                transactions_list.append({
+                    "id": tx['id'],
+                    "transaction_type": tx['transaction_type'],
+                    "amount": tx['amount'],
+                    "credits": tx['credits'],
+                    "description": tx['description'],
+                    "package_type": tx['package_type'],
+                    "payment_method": tx['payment_method'],
+                    "status": tx['status'],
+                    "created_at": tx['created_at']
+                })
+            
+            return StandardResponse(
+                success=True,
+                message="Credit information retrieved successfully",
+                data={
+                    "current_credits": user_data['credits'],
+                    "total_sessions": user_data['total_sessions'],
+                    "avatar_sessions": user_data['avatar_sessions_count'],
+                    "recent_transactions": transactions_list,
+                    "user_email": current_user['email']
                 }
-            ],
-            "credit_packages": [
-                {
-                    "name": "Starter Pack",
-                    "credits": 10,
-                    "price": "$9.99"
-                },
-                {
-                    "name": "Seeker Pack", 
-                    "credits": 25,
-                    "price": "$19.99"
-                },
-                {
-                    "name": "Devotee Pack",
-                    "credits": 50,
-                    "price": "$39.99"
-                }
-            ]
-        }
-        
-        return StandardResponse(
-            success=True,
-            message="Credits retrieved successfully", 
-            data=credits_data
-        ).dict()
-
+            ).dict()
+            
+        finally:
+            await db_manager.release_connection(conn)
+            
     except Exception as e:
-        logger.error(f"Credits retrieval failed: {e}")
-        raise HTTPException(status_code=500, detail="Credits retrieval failed")  
+        logger.error(f"Credit retrieval failed: {e}")
+        return StandardResponse(
+            success=False,
+            message="Failed to retrieve credit information",
+            data={"error": str(e)}
+        ).dict()
 
 @app.get("/api/admin/dashboard")
 async def admin_dashboard(admin_user: dict = Depends(get_admin_user)):

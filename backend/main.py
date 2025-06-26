@@ -49,6 +49,30 @@ try:
     )
     # ADD THIS LINE:
     app = enhanced_app
+    
+    # DEBUG: Add route tracing
+    print("🔍 DEBUG: Tracing route registration...")
+    print(f"✅ Enhanced app imported successfully")
+    print(f"📊 Total routes in enhanced_app: {len([r for r in enhanced_app.routes if hasattr(r, 'path')])}")
+    
+    # List all routes
+    all_routes = [r.path for r in enhanced_app.routes if hasattr(r, 'path')]
+    auth_routes = [r for r in all_routes if '/auth/' in r]
+    user_routes = [r for r in all_routes if '/user/' in r]
+    
+    print(f"🔐 Auth routes: {auth_routes}")
+    print(f"👤 User routes: {user_routes}")
+    print(f"📋 All routes: {sorted(all_routes)}")
+    
+    # Check if core foundation app is available
+    try:
+        from core_foundation_enhanced import app as core_foundation_app
+        print(f"✅ Core foundation app available with {len([r for r in core_foundation_app.routes if hasattr(r, 'path')])} routes")
+        core_routes = [r.path for r in core_foundation_app.routes if hasattr(r, 'path')]
+        print(f"🔍 Core foundation routes: {sorted(core_routes)}")
+    except Exception as e:
+        print(f"❌ Core foundation app not available: {e}")
+    
 except Exception as e:
     print(f"❌ Enhanced import failed: {e}")
     #  - Create fallback app

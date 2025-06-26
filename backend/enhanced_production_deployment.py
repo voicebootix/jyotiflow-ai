@@ -83,7 +83,7 @@ except ImportError:
 
 # CRITICAL FIX: Import core foundation app with all auth endpoints
 try:
-    from core_foundation_enhanced import app as core_foundation_app
+    from core_foundation_enhanced import app as core_foundation_app, auth_router, user_router, admin_router
     CORE_APP_AVAILABLE = True
     logger.info("✅ Core foundation app imported successfully")
 except ImportError:
@@ -279,52 +279,22 @@ def setup_enhanced_middleware(app: FastAPI):
 def setup_enhanced_routes(app: FastAPI):
     """Enhanced route setup for spiritual platform with complete frontend integration"""
     
-        # Include enhanced and original routers
-    enhanced_app.include_router(enhanced_router)
-    enhanced_app.include_router(original_router)
-
-    # BULLETPROOF ROUTE MOUNTING - All approaches combined
-    routes_mounted = 0
-
-    # Approach 1: Try to mount from core foundation app
+    # Mount core foundation routes if available
     if CORE_APP_AVAILABLE:
         try:
-            for route in core_foundation_app.routes:
-                if hasattr(route, 'path') and hasattr(route, 'methods'):
-                    # Skip duplicate routes
-                    if route.path not in ["/", "/health", "/api/health"]:
-                        # Check if route already exists
-                        existing_paths = [r.path for r in enhanced_app.routes if hasattr(r, 'path')]
-                        if route.path not in existing_paths:
-                            enhanced_app.routes.append(route)
-                            routes_mounted += 1
-            logger.info(f"✅ Mounted {routes_mounted} routes from core foundation app")
+            # Include the routers from core foundation
+            enhanced_app.include_router(auth_router)
+            enhanced_app.include_router(user_router)
+            enhanced_app.include_router(admin_router)
+            logger.info("✅ Mounted auth, user, and admin routers from core foundation")
         except Exception as e:
-            logger.error(f"❌ Route mounting failed: {e}")
-
-    # Approach 2: If that didn't work, manually add critical endpoints
-    if routes_mounted == 0 and ENDPOINTS_AVAILABLE:
-        logger.warning("⚠️ Direct route mounting failed, adding endpoints manually...")
-        
-        # Add authentication endpoints
-        enhanced_app.add_api_route("/api/auth/register", register_user, methods=["POST"])
-        enhanced_app.add_api_route("/api/auth/login", login_user, methods=["POST"])
-        
-        # Add user endpoints with authentication
-        enhanced_app.add_api_route("/api/user/profile", get_user_profile, methods=["GET"], dependencies=[Depends(get_current_user)])
-        enhanced_app.add_api_route("/api/user/sessions", get_user_sessions, methods=["GET"], dependencies=[Depends(get_current_user)])
-        enhanced_app.add_api_route("/api/user/credits", get_user_credits, methods=["GET"], dependencies=[Depends(get_current_user)])
-        
-        logger.info("✅ Manually added all critical endpoints")
-
-    # Approach 3: Final fallback - create minimal endpoints
-    if not CORE_APP_AVAILABLE and not ENDPOINTS_AVAILABLE:
-        logger.error("❌ CRITICAL: No core foundation available, adding emergency endpoints...")
-        
+            logger.error(f"❌ Router mounting failed: {e}")
+    
+    # Add emergency endpoints if needed
+    if not CORE_APP_AVAILABLE:
         @enhanced_app.post("/api/auth/login")
         async def emergency_login(credentials: dict):
             """Emergency login endpoint"""
-            # Basic JWT generation for admin
             if credentials.get("email") == "admin@jyotiflow.ai" and credentials.get("password") == "admin123":
                 import jwt
                 from datetime import datetime, timedelta
@@ -339,32 +309,9 @@ def setup_enhanced_routes(app: FastAPI):
                 return {
                     "success": True,
                     "message": "Login successful",
-                    "data": {
-                        "token": token,
-                        "user_email": "admin@jyotiflow.ai",
-                        "role": "admin"
-                    }
+                    "data": {"token": token, "user_email": "admin@jyotiflow.ai", "role": "admin"}
                 }
             return {"success": False, "message": "Invalid credentials"}
-        
-        @enhanced_app.get("/api/user/profile")
-        async def emergency_profile():
-            return {
-                "success": True,
-                "data": {
-                    "email": "admin@jyotiflow.ai",
-                    "role": "admin",
-                    "credits": 999
-                }
-            }
-        
-        @enhanced_app.get("/api/user/sessions")
-        async def emergency_sessions():
-            return {"success": True, "data": {"sessions": []}}
-        
-        @enhanced_app.get("/api/user/credits")
-        async def emergency_credits():
-            return {"success": True, "data": {"credits": 999}}
 
     # Verify what routes are available
     all_routes = [r.path for r in enhanced_app.routes if hasattr(r, 'path')]
@@ -395,7 +342,9 @@ def setup_enhanced_routes(app: FastAPI):
             "auth_endpoints": [r for r in routes if '/auth/' in r['path']],
             "user_endpoints": [r for r in routes if '/user/' in r['path']],
             "admin_endpoints": [r for r in routes if '/admin/' in r['path']],
-            "all_routes": sorted(routes, key=lambda x: x['path'])
+            "all_routes": sorted(routes, key=lambda x: x['path']),
+            "core_app_available": CORE_APP_AVAILABLE,
+            "endpoints_available": ENDPOINTS_AVAILABLE
         }
 
     logger.info("✅ All enhanced API routers mounted successfully")
@@ -435,6 +384,21 @@ def setup_enhanced_routes(app: FastAPI):
     @app.get("/debug/routes")
     async def debug_routes():
         return await verify_route_integration()
+
+    # Add a simple test endpoint
+    @enhanced_app.get("/api/test")
+    async def test_endpoint():
+        return {"message": "Test endpoint working", "status": "success"}
+
+    # Add a simple health check
+    @enhanced_app.get("/health")
+    async def health_check():
+        return {
+            "status": "healthy",
+            "message": "JyotiFlow.ai Enhanced Backend",
+            "version": "5.0.0",
+            "auth_endpoints": "available" if CORE_APP_AVAILABLE else "missing"
+        }
 
 def setup_enhanced_error_handlers(app: FastAPI):
     """তমিল - উন্নত ত্রুটি হ্যান্ডলার সেটআপ"""
@@ -966,17 +930,13 @@ if 'enhanced_app' in globals():
     # Mount core foundation routes if available
     if CORE_APP_AVAILABLE:
         try:
-            routes_mounted = 0
-            for route in core_foundation_app.routes:
-                if hasattr(route, 'path') and hasattr(route, 'methods'):
-                    if route.path not in ["/", "/health", "/api/health"]:
-                        existing_paths = [r.path for r in enhanced_app.routes if hasattr(r, 'path')]
-                        if route.path not in existing_paths:
-                            enhanced_app.routes.append(route)
-                            routes_mounted += 1
-            logger.info(f"✅ Mounted {routes_mounted} routes from core foundation app")
+            # Include the routers from core foundation
+            enhanced_app.include_router(auth_router)
+            enhanced_app.include_router(user_router)
+            enhanced_app.include_router(admin_router)
+            logger.info("✅ Mounted auth, user, and admin routers from core foundation")
         except Exception as e:
-            logger.error(f"❌ Route mounting failed: {e}")
+            logger.error(f"❌ Router mounting failed: {e}")
     
     # Add emergency endpoints if needed
     if not CORE_APP_AVAILABLE:
@@ -1000,6 +960,44 @@ if 'enhanced_app' in globals():
                     "data": {"token": token, "user_email": "admin@jyotiflow.ai", "role": "admin"}
                 }
             return {"success": False, "message": "Invalid credentials"}
+
+    # Add debug endpoint to check routes at runtime
+    @enhanced_app.get("/api/debug/routes")
+    async def debug_all_routes():
+        """Debug endpoint to see all available routes"""
+        routes = []
+        for route in enhanced_app.routes:
+            if hasattr(route, 'path') and hasattr(route, 'methods'):
+                routes.append({
+                    "path": route.path,
+                    "methods": list(route.methods),
+                    "name": route.name if hasattr(route, 'name') else "unknown"
+                })
+        
+        return {
+            "total_routes": len(routes),
+            "auth_endpoints": [r for r in routes if '/auth/' in r['path']],
+            "user_endpoints": [r for r in routes if '/user/' in r['path']],
+            "admin_endpoints": [r for r in routes if '/admin/' in r['path']],
+            "all_routes": sorted(routes, key=lambda x: x['path']),
+            "core_app_available": CORE_APP_AVAILABLE,
+            "endpoints_available": ENDPOINTS_AVAILABLE
+        }
+
+    # Add a simple test endpoint
+    @enhanced_app.get("/api/test")
+    async def test_endpoint():
+        return {"message": "Test endpoint working", "status": "success"}
+
+    # Add a simple health check
+    @enhanced_app.get("/health")
+    async def health_check():
+        return {
+            "status": "healthy",
+            "message": "JyotiFlow.ai Enhanced Backend",
+            "version": "5.0.0",
+            "auth_endpoints": "available" if CORE_APP_AVAILABLE else "missing"
+        }
 
 # Export the enhanced app
 __all__ = [
