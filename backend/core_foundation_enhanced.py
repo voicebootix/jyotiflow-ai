@@ -78,7 +78,7 @@ class EnhancedSettings(BaseSettings):
     cors_origins: str = "*"
 
     # Database Configuration (Preserved)
-    database_url: str = "sqlite:///./jyotiflow_enhanced.db"
+    database_url: str = "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db"
     database_pool_size: int = 20
     database_max_overflow: int = 30
     database_pool_timeout: int = 30
