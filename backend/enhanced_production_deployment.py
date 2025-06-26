@@ -86,6 +86,9 @@ try:
     from core_foundation_enhanced import app as core_foundation_app, auth_router, user_router, admin_router
     CORE_APP_AVAILABLE = True
     logger.info("✅ Core foundation app imported successfully")
+    enhanced_app.include_router(auth_router)
+    enhanced_app.include_router(user_router)
+    enhanced_app.include_router(admin_router)
 except ImportError:
     CORE_APP_AVAILABLE = False
     logger.warning("⚠️ Core foundation app not available - AUTH ENDPOINTS MISSING!")

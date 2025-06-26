@@ -1,18 +1,11 @@
+# This file now only contains business logic helpers. All API endpoints are registered from core_foundation_enhanced.py only.
 import json
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Dict, List, Any, Union, TYPE_CHECKING
+from typing import Optional, Dict, List, Any, Union
 from decimal import Decimal
 
-# FastAPI imports
-from fastapi import APIRouter, HTTPException, Depends, Request, status
-from fastapi.responses import JSONResponse
-from fastapi.security import HTTPAuthorizationCredentials
-import jwt  # JWT token generation
-import bcrypt  # Password hashing
-
-if TYPE_CHECKING:
-    from core_foundation_enhanced import EnhancedJyotiFlowDatabase
+# Only import business logic helpers here. Do not import FastAPI, APIRouter, or endpoint dependencies.
 
 # Import from Core Foundation
 try:
@@ -378,109 +371,6 @@ async def generate_social_content(
 # 🔄 ORIGINAL API ENDPOINTS (Backward Compatibility)
 # তমিল - মূল API এন্ডপয়েন্ট (পিছনের সামঞ্জস্য)
 # =============================================================================
-
-@original_router.post("/auth/register")
-async def register_user(user_data: UserRegistration):
-    """তমিল - User registration (original endpoint)"""
-    try:
-        # Basic registration logic
-        return StandardResponse(
-            success=True,
-            message="User registered successfully",
-            data={"email": user_data.email, "welcome_credits": 3}
-        )
-    except Exception as e:
-        return StandardResponse(
-            success=False,
-            message="Registration failed",
-            data={"error": str(e)}
-        )
-
-@original_router.post("/auth/login")
-async def login_user(login_data: UserLogin):
-    """தமிழ் - User login (original endpoint)"""
-    try:
-        #  - Full authentication logic
-        db = db_manager  # Use existing db_manager
-        
-        #  - Verify user exists
-        user = None
-        user_role = "user"  # Default role
-        
-        # - Temporary admin check (replace with DB later)
-        if login_data.email == "admin@jyotiflow.ai":
-            if login_data.password == "admin123":
-                user = {
-                    "email": login_data.email,
-                    "name": "Admin",
-                    "role": "admin",
-                    "subscription_tier": "elite"
-                }
-                user_role = "admin"
-            else:
-                raise HTTPException(status_code=401, detail="Invalid admin credentials")
-        else:
-            # - Regular user login
-            # TODO: Implement actual database user lookup
-            # For now, accept any user for testing
-            user = {
-                "email": login_data.email,
-                "name": login_data.email.split('@')[0],
-                "role": "user",
-                "subscription_tier": "basic"
-            }
-            user_role = "user"
-        
-        if not user:
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        # JWT - Generate JWT token
-        # - Include essential claims
-        payload = {
-            "email": user["email"],
-            "name": user["name"],
-            "role": user_role,
-            "subscription_tier": user.get("subscription_tier", "basic"),
-            "exp": datetime.utcnow() + timedelta(hours=24),
-            "iat": datetime.utcnow(),
-            "credits": 10 if user_role == "user" else 999999  # Admin unlimited
-        }
-        
-        #  - Secret key (use from settings in production)
-        try:
-            #  - First try from settings
-            secret_key = settings.JWT_SECRET if hasattr(settings, 'JWT_SECRET') else "jyotiflow-secret-key-2025"
-        except:
-            secret_key = "jyotiflow-secret-key-2025"  # Fallback
-        
-        #  - Create token
-        token = jwt.encode(payload, secret_key, algorithm="HS256")
-        
-        #- Complete response data
-        return StandardResponse(
-            success=True,
-            message="Login successful",
-            data={
-                "token": token,
-                "user_email": user["email"],
-                "user_name": user["name"],
-                "role": user_role,
-                "subscription_tier": user.get("subscription_tier", "basic"),
-                "credits": payload["credits"],
-                "avatar_preferences": {},  # Add user preferences if needed
-                "onboarding_completed": True
-            }
-        )
-        
-    except HTTPException:
-        raise  # Re-raise HTTP exceptions
-    except Exception as e:
-        logger.error(f"Login error: {e}")
-        return StandardResponse(
-            success=False,
-            message="Login failed",
-            data={"error": str(e)}
-        )
 
 @original_router.get("/health")
 async def health_check():
