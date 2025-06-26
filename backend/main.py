@@ -13,6 +13,9 @@ import hashlib
 #newly added code
 sys.path.append(str(Path(__file__).parent))
 
+# Import the real app from core_foundation_enhanced.py only
+from core_foundation_enhanced import app
+
 # তমিল - সমস্ত পবিত্র উপাদান আমদানি
 # Import all 5 enhanced artifacts in sacred order
 from core_foundation_enhanced import (
@@ -34,7 +37,6 @@ from enhanced_business_logic import (
 
 try:
     from enhanced_production_deployment import (
-        enhanced_app,
         perform_startup_health_check,
         get_detailed_health_status
     )

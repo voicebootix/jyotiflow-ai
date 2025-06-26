@@ -35,6 +35,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 # Pydantic Models for Validation
 from pydantic import BaseModel, EmailStr, Field, validator, root_validator
@@ -1002,6 +1004,48 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["*"],
 )
+
+# Add advanced production middleware
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=["*"] if settings.debug else settings.allowed_hosts.split(",")
+)
+if not settings.debug:
+    app.add_middleware(HTTPSRedirectMiddleware)
+
+# Update CORS for production
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"] if settings.debug else ["https://jyotiflow-ai-frontend.onrender.com", "https://jyotiflow.ai"],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+
+# Enhanced request logging middleware
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logger.info(f"🕉️ API Request: {request.method} {request.url.path}")
+    response = await call_next(request)
+    logger.info(f"🕉️ Response: {request.method} {request.url.path} - {response.status_code}")
+    return response
+
+# Debug endpoint for route introspection
+@app.get("/api/debug/routes")
+async def debug_routes():
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods),
+                "name": getattr(route, 'name', 'unknown')
+            })
+    return {
+        "total_routes": len(routes),
+        "routes": sorted(routes, key=lambda x: x['path'])
+    }
 
 # =============================================================================
 # 🌐 HOMEPAGE WITH ENHANCED DESIGN
