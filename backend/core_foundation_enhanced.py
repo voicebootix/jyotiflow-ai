@@ -979,6 +979,10 @@ app = FastAPI(
     lifespan=enhanced_app_lifespan
 )
 
+@app.on_event("startup")
+async def startup():
+    await db_manager.initialize_tables()
+
 # Create APIRouter for auth and user endpoints
 from fastapi import APIRouter
 
@@ -1489,226 +1493,34 @@ async def login_user(login_data: UserLogin):
 async def get_user_profile(current_user: dict = Depends(get_current_user)):
     """Get complete user profile with avatar preferences"""
     try:
-        conn = await db_manager.get_connection()
-        try:
-            # Get complete user data
-            if db_manager.is_sqlite:
-                user_row = await conn.execute("""
-                    SELECT id, email, name, phone, credits, role,
-                           birth_date, birth_time, birth_location,
-                           preferred_avatar_style, voice_preference, video_quality_preference,
-                           spiritual_level, timezone, language,
-                           total_sessions, avatar_sessions_count, total_avatar_minutes,
-                           referral_code, created_at, last_login_at
-                    FROM users WHERE email = ?
-                """, (current_user['email'],))
-                user_data = await user_row.fetchone()
-            else:
-                user_data = await conn.fetchrow("""
-                    SELECT id, email, name, phone, credits, role,
-                           birth_date, birth_time, birth_location,
-                           preferred_avatar_style, voice_preference, video_quality_preference,
-                           spiritual_level, timezone, language,
-                           total_sessions, avatar_sessions_count, total_avatar_minutes,
-                           referral_code, created_at, last_login_at
-                    FROM users WHERE email = $1
-                """, current_user['email'])
-            
-            if not user_data:
-                raise HTTPException(status_code=404, detail="User not found")
-            
-            return StandardResponse(
-                success=True,
-                message="Profile retrieved successfully",
-                data={
-                    "id": user_data['id'],
-                    "email": user_data['email'],
-                    "name": user_data['name'],
-                    "role": user_data['role'],
-                    "credits": user_data['credits'],
-                    "spiritual_level": user_data['spiritual_level'],
-                    "profile": {
-                        "phone": user_data['phone'],
-                        "birth_date": user_data['birth_date'],
-                        "birth_time": user_data['birth_time'],
-                        "birth_location": user_data['birth_location'],
-                        "timezone": user_data['timezone'],
-                        "language": user_data['language']
-                    },
-                    "avatar_preferences": {
-                        "style": user_data['preferred_avatar_style'],
-                        "voice": user_data['voice_preference'],
-                        "quality": user_data['video_quality_preference']
-                    },
-                    "stats": {
-                        "total_sessions": user_data['total_sessions'],
-                        "avatar_sessions": user_data['avatar_sessions_count'],
-                        "total_avatar_minutes": user_data['total_avatar_minutes']
-                    },
-                    "referral_code": user_data['referral_code'],
-                    "created_at": user_data['created_at'],
-                    "last_login_at": user_data['last_login_at']
-                }
-            ).dict()
-            
-        finally:
-            await db_manager.release_connection(conn)
-            
+        user = await db_manager.get_user_profile(current_user['id'])
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"success": True, "data": dict(user)}
     except Exception as e:
         logger.error(f"Profile retrieval failed: {e}")
-        return StandardResponse(
-            success=False,
-            message="Failed to retrieve profile",
-            data={"error": str(e)}
-        ).dict()
+        return {"success": False, "message": "Failed to retrieve profile", "data": {"error": str(e)}}
 
 @user_router.get("/sessions")
 async def get_user_sessions(current_user: dict = Depends(get_current_user)):
     """Get user's spiritual sessions"""
     try:
-        conn = await db_manager.get_connection()
-        try:
-            # Get user's sessions
-            if db_manager.is_sqlite:
-                sessions = await conn.execute("""
-                    SELECT id, service_type, question, guidance, credits_used,
-                           avatar_video_url, avatar_duration_seconds,
-                           user_rating, user_feedback, created_at, completed_at
-                    FROM spiritual_sessions 
-                    WHERE user_email = ? 
-                    ORDER BY created_at DESC 
-                    LIMIT 50
-                """, (current_user['email'],))
-                sessions_data = await sessions.fetchall()
-            else:
-                sessions_data = await conn.fetch("""
-                    SELECT id, service_type, question, guidance, credits_used,
-                           avatar_video_url, avatar_duration_seconds,
-                           user_rating, user_feedback, created_at, completed_at
-                    FROM spiritual_sessions 
-                    WHERE user_email = $1 
-                    ORDER BY created_at DESC 
-                    LIMIT 50
-                """, current_user['email'])
-            
-            # Convert to list of dicts
-            sessions_list = []
-            for session in sessions_data:
-                sessions_list.append({
-                    "id": session['id'],
-                    "service_type": session['service_type'],
-                    "question": session['question'],
-                    "guidance": session['guidance'],
-                    "credits_used": session['credits_used'],
-                    "avatar_video_url": session['avatar_video_url'],
-                    "avatar_duration_seconds": session['avatar_duration_seconds'],
-                    "user_rating": session['user_rating'],
-                    "user_feedback": session['user_feedback'],
-                    "created_at": session['created_at'],
-                    "completed_at": session['completed_at']
-                })
-            
-            return StandardResponse(
-                success=True,
-                message="Sessions retrieved successfully",
-                data={
-                    "sessions": sessions_list,
-                    "total_sessions": len(sessions_list),
-                    "user_email": current_user['email']
-                }
-            ).dict()
-            
-        finally:
-            await db_manager.release_connection(conn)
-            
+        sessions = await db_manager.get_user_sessions(current_user['id'])
+        return {"success": True, "data": [dict(s) for s in sessions]}
     except Exception as e:
         logger.error(f"Session retrieval failed: {e}")
-        return StandardResponse(
-            success=False,
-            message="Failed to retrieve sessions",
-            data={"error": str(e)}
-        ).dict()
+        return {"success": False, "message": "Failed to retrieve sessions", "data": {"error": str(e)}}
 
 @user_router.get("/credits")
 async def get_user_credits(current_user: dict = Depends(get_current_user)):
     """Get user's credit balance and transaction history"""
     try:
-        conn = await db_manager.get_connection()
-        try:
-            # Get current credit balance
-            if db_manager.is_sqlite:
-                user_row = await conn.execute("""
-                    SELECT credits, total_sessions, avatar_sessions_count
-                    FROM users WHERE email = ?
-                """, (current_user['email'],))
-                user_data = await user_row.fetchone()
-            else:
-                user_data = await conn.fetchrow("""
-                    SELECT credits, total_sessions, avatar_sessions_count
-                    FROM users WHERE email = $1
-                """, current_user['email'])
-            
-            if not user_data:
-                raise HTTPException(status_code=404, detail="User not found")
-            
-            # Get recent transactions
-            if db_manager.is_sqlite:
-                transactions = await conn.execute("""
-                    SELECT id, transaction_type, amount, credits, description,
-                           package_type, payment_method, status, created_at
-                    FROM user_purchases 
-                    WHERE user_email = ? 
-                    ORDER BY created_at DESC 
-                    LIMIT 20
-                """, (current_user['email'],))
-                transactions_data = await transactions.fetchall()
-            else:
-                transactions_data = await conn.fetch("""
-                    SELECT id, transaction_type, amount, credits, description,
-                           package_type, payment_method, status, created_at
-                    FROM user_purchases 
-                    WHERE user_email = $1 
-                    ORDER BY created_at DESC 
-                    LIMIT 20
-                """, current_user['email'])
-            
-            # Convert to list of dicts
-            transactions_list = []
-            for tx in transactions_data:
-                transactions_list.append({
-                    "id": tx['id'],
-                    "transaction_type": tx['transaction_type'],
-                    "amount": tx['amount'],
-                    "credits": tx['credits'],
-                    "description": tx['description'],
-                    "package_type": tx['package_type'],
-                    "payment_method": tx['payment_method'],
-                    "status": tx['status'],
-                    "created_at": tx['created_at']
-                })
-            
-            return StandardResponse(
-                success=True,
-                message="Credit information retrieved successfully",
-                data={
-                    "current_credits": user_data['credits'],
-                    "total_sessions": user_data['total_sessions'],
-                    "avatar_sessions": user_data['avatar_sessions_count'],
-                    "recent_transactions": transactions_list,
-                    "user_email": current_user['email']
-                }
-            ).dict()
-            
-        finally:
-            await db_manager.release_connection(conn)
-            
+        credits = await db_manager.get_user_credits(current_user['id'])
+        transactions = await db_manager.get_user_credit_transactions(current_user['id'])
+        return {"success": True, "data": {"credits": credits, "transactions": [dict(t) for t in transactions]}}
     except Exception as e:
         logger.error(f"Credit retrieval failed: {e}")
-        return StandardResponse(
-            success=False,
-            message="Failed to retrieve credit information",
-            data={"error": str(e)}
-        ).dict()
+        return {"success": False, "message": "Failed to retrieve credits", "data": {"error": str(e)}}
 
 @admin_router.get("/dashboard")
 async def admin_dashboard(admin_user: dict = Depends(get_admin_user)):
@@ -1740,98 +1552,73 @@ async def admin_dashboard(admin_user: dict = Depends(get_admin_user)):
 
 @admin_router.get("/stats")
 async def admin_stats(admin_user: dict = Depends(get_admin_user)):
-    """Admin statistics endpoint that frontend expects"""
     try:
-        # Get database stats
-        conn = await db_manager.get_connection()
-        try:
-            # Count users
-            if db_manager.is_sqlite:
-                total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
-                active_users = await conn.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at > datetime('now', '-1 hour')")
-                total_sessions = await conn.fetchval("SELECT COUNT(*) FROM spiritual_sessions")
-            else:
-                total_users = await conn.fetchval("SELECT COUNT(*) FROM users")
-                active_users = await conn.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at > NOW() - INTERVAL '1 hour'")
-                total_sessions = await conn.fetchval("SELECT COUNT(*) FROM spiritual_sessions")
-        finally:
-            await db_manager.release_connection(conn)
-
-        return StandardResponse(
-            success=True,
-            message="Admin stats retrieved successfully",
-            data={
-                "total_users": total_users or 0,
-                "active_users": active_users or 0,
-                "total_revenue": 1250.50,  # Mock data for now
-                "daily_revenue": 125.75,   # Mock data for now
-                "total_sessions": total_sessions or 0,
-                "satsangs_completed": 12,  # Mock data
-                "avatar_generations": 45,  # Mock data
-                "live_chat_sessions": 8    # Mock data
+        total_users = await db_manager.get_total_users()
+        active_users = await db_manager.get_active_users()
+        total_sessions = await db_manager.get_total_sessions()
+        total_revenue = await db_manager.get_total_revenue()
+        daily_revenue = await db_manager.get_daily_revenue()
+        satsangs_completed = await db_manager.get_satsangs_completed()
+        avatar_generations = await db_manager.get_avatar_generations()
+        return {
+            "success": True,
+            "message": "Admin stats retrieved successfully",
+            "data": {
+                "total_users": total_users,
+                "active_users": active_users,
+                "total_revenue": float(total_revenue or 0),
+                "daily_revenue": float(daily_revenue or 0),
+                "total_sessions": total_sessions,
+                "satsangs_completed": satsangs_completed,
+                "avatar_generations": avatar_generations
             }
-        ).dict()
-
+        }
     except Exception as e:
         logger.error(f"Admin stats failed: {e}")
-        return StandardResponse(
-            success=False,
-            message="Failed to retrieve admin stats",
-            data={"error": str(e)}
-        ).dict()
+        return {"success": False, "message": "Failed to retrieve admin stats", "data": {"error": str(e)}}
 
 @admin_router.get("/monetization")
 async def admin_monetization(admin_user: dict = Depends(get_admin_user)):
-    """Monetization insights endpoint that frontend expects"""
     try:
-        return StandardResponse(
-            success=True,
-            message="Monetization insights retrieved",
-            data={
-                "revenue_recommendation": "Consider introducing a premium tier with personalized avatar sessions at $29.99/month. Current conversion rate suggests 15% of users would upgrade.",
-                "engagement_insight": "Users who complete 3+ sessions have 85% higher retention. Focus on onboarding and first-session experience.",
-                "product_suggestion": "Add a 'Weekly Wisdom' subscription at $9.99/month for daily spiritual guidance videos."
+        # Example: Calculate revenue growth, user engagement, etc. from real data
+        total_revenue = await db_manager.get_total_revenue()
+        daily_revenue = await db_manager.get_daily_revenue()
+        total_users = await db_manager.get_total_users()
+        active_users = await db_manager.get_active_users()
+        # Add more real analytics as needed
+        return {
+            "success": True,
+            "message": "Monetization insights retrieved",
+            "data": {
+                "total_revenue": float(total_revenue or 0),
+                "daily_revenue": float(daily_revenue or 0),
+                "total_users": total_users,
+                "active_users": active_users
             }
-        ).dict()
-
+        }
     except Exception as e:
         logger.error(f"Monetization insights failed: {e}")
-        return StandardResponse(
-            success=False,
-            message="Failed to retrieve monetization insights",
-            data={"error": str(e)}
-        ).dict()
+        return {"success": False, "message": "Failed to retrieve monetization insights", "data": {"error": str(e)}}
 
 @admin_router.get("/optimization")
 async def admin_optimization(admin_user: dict = Depends(get_admin_user)):
-    """Product optimization endpoint that frontend expects"""
     try:
-        return StandardResponse(
-            success=True,
-            message="Product optimization data retrieved",
-            data={
-                "feature_priorities": [
-                    "Enhanced avatar customization options",
-                    "Mobile app for iOS and Android",
-                    "Group satsang sessions",
-                    "Personalized spiritual journey tracking"
-                ],
-                "ux_improvements": [
-                    "Simplified onboarding flow",
-                    "Better session scheduling interface",
-                    "Improved mobile responsiveness",
-                    "Enhanced search and filtering"
-                ]
+        # Example: Aggregate product/feature usage, session stats, etc.
+        total_sessions = await db_manager.get_total_sessions()
+        avatar_generations = await db_manager.get_avatar_generations()
+        satsangs_completed = await db_manager.get_satsangs_completed()
+        return {
+            "success": True,
+            "message": "Product optimization data retrieved",
+            "data": {
+                "total_sessions": total_sessions,
+                "avatar_generations": avatar_generations,
+                "satsangs_completed": satsangs_completed
             }
-        ).dict()
-
+        }
     except Exception as e:
         logger.error(f"Product optimization failed: {e}")
-        return StandardResponse(
-            success=False,
-            message="Failed to retrieve optimization data",
-            data={"error": str(e)}
-        ).dict()
+        return {"success": False, "message": "Failed to retrieve optimization data", "data": {"error": str(e)}}
 
 # =============================================================================
 # 🔧 ERROR HANDLERS FOR FIXED PLATFORM
@@ -2163,192 +1950,158 @@ class SatsangEventResponse(BaseModel):
 
 class EnhancedJyotiFlowDatabase:
     def __init__(self):
-        self.engine = None  # Add this line
+        self.database_url = os.getenv("DATABASE_URL") or "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db"
+        self.pool = None
 
-    async def initialize_enhanced_tables(self):
-        """Initialize enhanced database tables for JyotiFlow.ai"""
-        try:
-            await self._create_enhanced_schema()
-            logger.info("✅ Enhanced database tables initialized successfully")
-            return True
+    async def connect(self):
+        if not self.pool:
+            self.pool = await asyncpg.create_pool(dsn=self.database_url, min_size=1, max_size=10)
 
-        except Exception as e:
-            logger.error(f"❌ Failed to initialize enhanced tables: {e}")
-            return False
+    async def initialize_tables(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    email TEXT UNIQUE NOT NULL,
+                    password_hash TEXT NOT NULL,
+                    name TEXT,
+                    role TEXT DEFAULT 'user',
+                    credits INT DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    last_login_at TIMESTAMP
+                );
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS sessions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INT REFERENCES users(id),
+                    session_type TEXT,
+                    guidance_text TEXT,
+                    credits_used INT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS credit_transactions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INT REFERENCES users(id),
+                    amount INT,
+                    type TEXT,
+                    timestamp TIMESTAMP DEFAULT NOW()
+                );
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS payments (
+                    id SERIAL PRIMARY KEY,
+                    user_id INT REFERENCES users(id),
+                    amount NUMERIC,
+                    stripe_id TEXT,
+                    status TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS satsang_events (
+                    id SERIAL PRIMARY KEY,
+                    title TEXT,
+                    date TIMESTAMP,
+                    attendees INT DEFAULT 0
+                );
+            """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS avatar_sessions (
+                    id SERIAL PRIMARY KEY,
+                    user_id INT REFERENCES users(id),
+                    video_url TEXT,
+                    duration INT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """)
 
-    async def calculate_total_revenue(self) -> float:
-        """তমিল - Calculate total revenue"""
-        try:
-            conn = await self.get_connection()
-            try:
-                if self.is_sqlite:
-                    table_check = await conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_purchases'")
-                    if not await table_check.fetchone():
-                        return 0.0
-                    
-                    result = await conn.execute("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE status = 'completed'")
-                    total = await result.fetchone()
-                    return float(total[0]) if total else 0.0
-                else:
-                    table_check = await conn.fetchval("SELECT to_regclass('user_purchases')")
-                    if not table_check:
-                        return 0.0
-                        
-                    result = await conn.fetchval("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE status = 'completed'")
-                    return float(result) if result else 0.0
-            finally:
-                await self.release_connection(conn)
-        except Exception as e:
-            logger.error(f"Revenue calculation failed: {e}")
-            return 0.0
+    # --- User Queries ---
+    async def get_total_users(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT COUNT(*) FROM users")
 
-    async def calculate_daily_revenue(self) -> float:
-        """তমিল - Calculate daily revenue"""
-        try:
-            conn = await self.get_connection()
-            try:
-                if self.is_sqlite:
-                    table_check = await conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_purchases'")
-                    if not await table_check.fetchone():
-                        return 0.0
-                        
-                    result = await conn.execute("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE created_at >= DATE('now', '-1 day') AND status = 'completed'")
-                    total = await result.fetchone()
-                    return float(total[0]) if total else 0.0
-                else:
-                    table_check = await conn.fetchval("SELECT to_regclass('user_purchases')")
-                    if not table_check:
-                        return 0.0
-                        
-                    result = await conn.fetchval("SELECT COALESCE(SUM(amount), 0) FROM user_purchases WHERE created_at >= NOW() - INTERVAL '1 day' AND status = 'completed'")
-                    return float(result) if result else 0.0
-            finally:
-                await self.release_connection(conn)
-        except Exception as e:
-            logger.error(f"Daily revenue calculation failed: {e}")
-            return 0.0
-        
-class FestivalDataManager:
-    """Manages festival data from multiple sources"""
-    
-    def __init__(self, db_manager):
-        self.db = db_manager
-        self.cache_duration = timedelta(hours=24)
-        self.last_update = None
-        self.festival_data = {}
-    
-    async def get_festival_for_date(self, date: datetime) -> Optional[str]:
-        """Get festival with caching and fallback"""
-        # Check if cache needs refresh
-        if self._needs_refresh():
-            await self._refresh_festival_data()
-        
-        date_str = date.strftime("%Y-%m-%d")
-        return self.festival_data.get(date_str)
-    
-    async def _refresh_festival_data(self):
-        """Refresh from database, API, or fallback sources"""
-        try:
-            # Try database first
-            db_festivals = await self._load_from_database()
-            if db_festivals:
-                self.festival_data.update(db_festivals)
-            
-            # Try external API if configured
-            if hasattr(self.db.settings, 'panchangam_api_key'):
-                api_festivals = await self._load_from_api()
-                self.festival_data.update(api_festivals)
-            
-            self.last_update = datetime.now(timezone.utc)
-            
-        except Exception as e:
-            logger.error(f"Festival data refresh failed: {e}")       
+    async def get_active_users(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at > NOW() - INTERVAL '1 hour'")
 
-class UserTimezoneManager:
-    """Handles user timezone detection and conversion"""
-    
-    @staticmethod
-    def get_user_timezone(user_data: Dict) -> timezone:
-        """Get user's timezone with fallback to IST"""
-        tz_string = user_data.get('timezone', 'Asia/Kolkata')
-        
-        try:
-            import pytz
-            return pytz.timezone(tz_string)
-        except:
-            # Default to IST for Tamil users
-            return timezone(timedelta(hours=5, minutes=30))
-    
-    @staticmethod
-    def convert_to_user_time(utc_time: datetime, user_tz: timezone) -> datetime:
-        """Convert UTC time to user's local time"""
-        if utc_time.tzinfo is None:
-            utc_time = utc_time.replace(tzinfo=timezone.utc)
-        return utc_time.astimezone(user_tz)
-class PerformanceMonitor:
-    """Monitor and log performance metrics"""
-    
-    def __init__(self):
-        self.metrics = defaultdict(list)
-    
-    @contextmanager
-    def measure(self, operation_name: str):
-        """Context manager to measure operation time"""
-        start_time = time.time()
-        try:
-            yield
-        finally:
-            duration = time.time() - start_time
-            self.metrics[operation_name].append(duration)
-            
-            if duration > 1.0:  # Log slow operations
-                logger.warning(f"Slow operation: {operation_name} took {duration:.2f}s")
-    
-    def get_stats(self) -> Dict:
-        """Get performance statistics"""
-        stats = {}
-        for operation, times in self.metrics.items():
-            stats[operation] = {
-                'count': len(times),
-                'avg': sum(times) / len(times),
-                'max': max(times),
-                'min': min(times)
-            }
-        return stats
+    async def get_user_profile(self, user_id):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchrow("SELECT * FROM users WHERE id=$1", user_id)
 
-# Add indexes for performance
-additional_indexes = """
-# Critical performance indexes
-        CREATE INDEX IF NOT EXISTS idx_sessions_user_email 
-        ON sessions(user_email);
-        
-        CREATE INDEX IF NOT EXISTS idx_sessions_status 
-        ON sessions(status);
-        
-        CREATE INDEX IF NOT EXISTS idx_users_email 
-        ON users(email);
+    async def get_user_by_email(self, email):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchrow("SELECT * FROM users WHERE email=$1", email)
 
-        # Performance indexes for avatar sessions
-        CREATE INDEX IF NOT EXISTS idx_avatar_sessions_user_date 
-        ON avatar_sessions(user_id, created_at DESC);
+    async def create_user(self, email, password_hash, name, role="user"):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchrow(
+                "INSERT INTO users (email, password_hash, name, role, created_at) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+                email, password_hash, name, role, datetime.now(timezone.utc)
+            )
 
-        CREATE INDEX IF NOT EXISTS idx_avatar_sessions_occasion 
-        ON avatar_sessions(auto_detected_occasion);
+    async def update_last_login(self, user_id):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE users SET last_login_at=NOW() WHERE id=$1", user_id)
 
-        -- Festival lookup optimization
-        CREATE INDEX IF NOT EXISTS idx_tamil_festivals_date 
-        ON tamil_festivals(festival_date);
+    # --- Session Queries ---
+    async def get_total_sessions(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT COUNT(*) FROM sessions")
 
-        -- Community events performance
-        CREATE INDEX IF NOT EXISTS idx_community_events_date 
-        ON community_events(event_date, event_status);
+    async def get_user_sessions(self, user_id):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetch("SELECT * FROM sessions WHERE user_id=$1 ORDER BY created_at DESC LIMIT 50", user_id)
 
--- Style templates caching
-CREATE TABLE IF NOT EXISTS style_template_cache (
-    cache_key VARCHAR(100) PRIMARY KEY,
-    template_data JSONB NOT NULL,
-    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP
-);
-"""
+    # --- Credit Queries ---
+    async def get_user_credits(self, user_id):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT credits FROM users WHERE id=$1", user_id)
+
+    async def get_user_credit_transactions(self, user_id):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetch("SELECT * FROM credit_transactions WHERE user_id=$1 ORDER BY timestamp DESC LIMIT 20", user_id)
+
+    # --- Payment Queries ---
+    async def get_total_revenue(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='completed'")
+
+    async def get_daily_revenue(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT COALESCE(SUM(amount),0) FROM payments WHERE status='completed' AND created_at > NOW() - INTERVAL '1 day'")
+
+    # --- Satsang Queries ---
+    async def get_satsangs_completed(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT COUNT(*) FROM satsang_events WHERE date < NOW()")
+
+    # --- Avatar Queries ---
+    async def get_avatar_generations(self):
+        await self.connect()
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval("SELECT COUNT(*) FROM avatar_sessions")
+
+    # --- Analytics/Monetization/Optimization ---
+    # Add more methods as needed for analytics, monetization, etc.
+
+# Export the db_manager instance
+
+# ... existing code ...
 

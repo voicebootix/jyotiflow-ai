@@ -611,7 +611,7 @@ async def revenue_tracker():
             REVENUE_GAUGE.set(float(total_revenue))
             
             # Daily revenue report
-            daily_revenue = await db.calculate_daily_revenue()
+            daily_revenue = await db_manager.calculate_daily_revenue()
             logger.info(f"💰 Daily revenue: ${daily_revenue:.2f}")
             
         except Exception as e:

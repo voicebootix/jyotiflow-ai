@@ -67,7 +67,7 @@ class AutomatedStyleManager:
         }
         
     async def load_style_templates(self):
-        """Load style templates - இந্ত method automatic style load செয্যুম্"""
+        """Load style templates - இந்த method automatic style load செய்யும்"""
         self.style_templates = {
             "daily_guidance": {
                 "clothing_prompt": "wearing simple white cotton kurta with peaceful expression",
@@ -156,7 +156,7 @@ class AutomatedStyleManager:
             self.festival_calendar = {}
     
     def generate_dynamic_prompt(self, style_name: str, festival_name: str = None) -> str:
-        """Dynamic D-ID prompt generation - automatic variety তৈরি செয্યুম্"""
+        """Dynamic D-ID prompt generation - automatic variety செய்யும்"""
         template = self.style_templates.get(style_name, self.style_templates["daily_guidance"])
         
         # Festival-specific automatic overrides
