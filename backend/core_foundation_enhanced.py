@@ -999,9 +999,13 @@ __all__ = ["app", "auth_router", "user_router", "admin_router", "settings", "db_
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if settings.debug else settings.cors_origins.split(","),
+    allow_origins=[
+        "https://jyotiflow-ai-frontend.onrender.com",
+        "https://jyotiflow.ai",
+        "https://www.jyotiflow.ai"
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_methods=["*"],
     allow_headers=["*"],
 )
 
@@ -1013,15 +1017,6 @@ app.add_middleware(
 )
 if not settings.debug:
     app.add_middleware(HTTPSRedirectMiddleware)
-
-# Update CORS for production
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"] if settings.debug else ["https://jyotiflow-ai-frontend.onrender.com", "https://jyotiflow.ai"],
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE"],
-    allow_headers=["*"],
-)
 
 # Enhanced request logging middleware
 @app.middleware("http")
