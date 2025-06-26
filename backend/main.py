@@ -24,15 +24,6 @@ from core_foundation_enhanced import (
     SatsangEvent
 )
 
-from enhanced_api_layer import (
-    enhanced_router,
-    original_router,
-    generate_avatar_video_endpoint,
-    initiate_live_chat,
-    create_satsang,
-    analyze_monetization
-)
-
 from enhanced_business_logic import (
     SpiritualAvatarEngine,
     MonetizationOptimizer, 
