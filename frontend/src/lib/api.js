@@ -7,8 +7,8 @@ const spiritualAPI = {
     const config = {
       headers: {
         'Content-Type': 'application/json',
+        ...(options.headers || {}),
         ...this.getAuthHeaders(),
-        ...options.headers,
       },
       ...options,
     };
@@ -89,10 +89,9 @@ const spiritualAPI = {
       });
       
       const data = await response.json();
-       if (data.success && data.token) {
-      this.setAuthToken(data.token, data.user);
-    }
-
+      if (data.success && data.data && data.data.token) {
+        this.setAuthToken(data.data.token, data.data.user);
+      }
       return data;
     } catch (error) {
       console.error('Login API error:', error);
@@ -111,9 +110,9 @@ const spiritualAPI = {
       });
       
       const data = await response.json();
-      if (data.success && data.token) {
-      this.setAuthToken(data.token, data.user);
-    }
+      if (data.success && data.data && data.data.token) {
+        this.setAuthToken(data.data.token, data.data.user);
+      }
       return data;
     } catch (error) {
       console.error('Register API error:', error);

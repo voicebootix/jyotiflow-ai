@@ -66,13 +66,16 @@ const Login = () => {
         // Use React Router for navigation instead of window.location
         const redirectTo = searchParams.get('redirect');
         if (redirectTo === 'admin') {
+          console.log('Redirecting to /admin (redirect param)');
           navigate('/admin', { replace: true });
         } else if (isAdmin) {
+          console.log('Redirecting to /admin (isAdmin)');
           navigate('/admin', { replace: true });
         } else if (redirectTo) {
-          // If a redirect param is present for user, go there
+          console.log('Redirecting to', redirectTo);
           navigate(redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`, { replace: true });
         } else {
+          console.log('Redirecting to /profile (default)');
           navigate('/profile', { replace: true });
         }
       } else {
