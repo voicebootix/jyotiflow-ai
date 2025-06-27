@@ -69,6 +69,9 @@ const Login = () => {
           navigate('/admin', { replace: true });
         } else if (isAdmin) {
           navigate('/admin', { replace: true });
+        } else if (redirectTo) {
+          // If a redirect param is present for user, go there
+          navigate(redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`, { replace: true });
         } else {
           navigate('/profile', { replace: true });
         }
