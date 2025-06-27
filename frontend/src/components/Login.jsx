@@ -64,11 +64,14 @@ const Login = () => {
         });
 
         // Use React Router for navigation instead of window.location
-        const redirectTo = searchParams.get('redirect') || 
-                          (isAdmin ? 'admin' : 'profile');
-        
-        console.log('Divine redirect to:', redirectTo);
-        navigate(`/${redirectTo}`, { replace: true });
+        const redirectTo = searchParams.get('redirect');
+        if (redirectTo === 'admin') {
+          navigate('/admin', { replace: true });
+        } else if (isAdmin) {
+          navigate('/admin', { replace: true });
+        } else {
+          navigate('/profile', { replace: true });
+        }
       } else {
         setError(result?.message || 'Invalid email or password. Please try again.');
         

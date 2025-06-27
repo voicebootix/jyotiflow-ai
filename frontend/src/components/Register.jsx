@@ -121,13 +121,12 @@ const Register = () => {
 
       // Attempt registration
       const result = await spiritualAPI.register({
-      name: formData.name,
-      email: formData.email,
-      password: formData.password,
-      birthDate: formData.birthDate,
-      birthTime: formData.birthTime,
-      birthLocation: formData.birthLocation,
-      subscribeNewsletter: formData.subscribeNewsletter
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        birth_date: formData.birthDate,
+        birth_time: formData.birthTime,
+        birth_location: formData.birthLocation
       });
       
       if (result && result.success) {
