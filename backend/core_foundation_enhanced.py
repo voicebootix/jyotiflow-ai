@@ -1060,6 +1060,11 @@ auth_router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 user_router = APIRouter(prefix="/api/user", tags=["User"])
 admin_router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
+# Register routers with the main app
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(admin_router)
+
 # Export app for main.py import
 __all__ = ["app", "auth_router", "user_router", "admin_router", "settings", "db_manager", "security_manager", "enhanced_app_lifespan",
            "StandardResponse", "UserLogin", "UserRegistration", "get_current_user", "get_admin_user"]
