@@ -335,7 +335,71 @@ class EnhancedDatabaseManager:
             completed_at TIMESTAMP,
             FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
         );
-        # NEW: Automated avatar styling system
+
+        CREATE TABLE IF NOT EXISTS avatar_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            user_email VARCHAR(255) NOT NULL,
+            avatar_prompt TEXT NOT NULL,
+            voice_script TEXT NOT NULL,
+            avatar_style VARCHAR(50) DEFAULT 'traditional',
+            voice_tone VARCHAR(50) DEFAULT 'compassionate',
+            generation_status VARCHAR(20) DEFAULT 'pending',
+            generation_started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            generation_completed_at TIMESTAMP,
+            video_url TEXT,
+            audio_url TEXT,
+            duration_seconds INTEGER,
+            file_size_mb DECIMAL(10, 2),
+            video_quality VARCHAR(20) DEFAULT 'high',
+            d_id_cost DECIMAL(10, 4),
+            elevenlabs_cost DECIMAL(10, 4),
+            total_cost DECIMAL(10, 4),
+            generation_time_seconds DECIMAL(10, 2),
+            quality_score DECIMAL(3, 2),
+            FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS credit_transactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email VARCHAR(255) NOT NULL,
+            transaction_type VARCHAR(20) NOT NULL,
+            amount INTEGER NOT NULL,
+            balance_before INTEGER DEFAULT 0,
+            balance_after INTEGER DEFAULT 0,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS payments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_email VARCHAR(255) NOT NULL,
+            amount DECIMAL(10, 2) NOT NULL,
+            stripe_session_id TEXT,
+            stripe_payment_intent_id TEXT,
+            status VARCHAR(20) DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS satsang_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title VARCHAR(255) NOT NULL,
+            description TEXT,
+            scheduled_date TIMESTAMP NOT NULL,
+            duration_minutes INTEGER DEFAULT 90,
+            max_attendees INTEGER DEFAULT 1000,
+            is_premium_only BOOLEAN DEFAULT FALSE,
+            stream_url TEXT,
+            agora_channel_name TEXT,
+            recording_url TEXT,
+            status VARCHAR(20) DEFAULT 'scheduled',
+            total_registrations INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- NEW: Automated avatar styling system
         CREATE TABLE IF NOT EXISTS avatar_style_templates (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             style_name VARCHAR(100) NOT NULL,
@@ -347,7 +411,7 @@ class EnhancedDatabaseManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
-        # NEW: Automated festival calendar
+        -- NEW: Automated festival calendar
         CREATE TABLE IF NOT EXISTS automated_festivals (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             festival_name VARCHAR(100) NOT NULL,
@@ -359,7 +423,7 @@ class EnhancedDatabaseManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
-        # NEW: Admin-configurable community events (Phase 2)
+        -- NEW: Admin-configurable community events (Phase 2)
         CREATE TABLE IF NOT EXISTS community_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_name VARCHAR(100) NOT NULL,
@@ -372,10 +436,10 @@ class EnhancedDatabaseManager:
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
-        # Add columns to existing avatar_sessions table for automation
-        ALTER TABLE avatar_sessions ADD COLUMN dynamic_style_prompt TEXT;
-        ALTER TABLE avatar_sessions ADD COLUMN auto_detected_occasion VARCHAR(100);
-        ALTER TABLE avatar_sessions ADD COLUMN cultural_theme VARCHAR(100);
+        -- Add columns to existing avatar_sessions table for automation
+        ALTER TABLE avatar_sessions ADD COLUMN IF NOT EXISTS dynamic_style_prompt TEXT;
+        ALTER TABLE avatar_sessions ADD COLUMN IF NOT EXISTS auto_detected_occasion VARCHAR(100);
+        ALTER TABLE avatar_sessions ADD COLUMN IF NOT EXISTS cultural_theme VARCHAR(100);
         
         """
 
@@ -392,7 +456,11 @@ class EnhancedDatabaseManager:
                 postgresql_schema = enhanced_schema.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
                 postgresql_schema = postgresql_schema.replace("TEXT", "TEXT")
                 postgresql_schema = postgresql_schema.replace("TIMESTAMP DEFAULT CURRENT_TIMESTAMP", "TIMESTAMP DEFAULT NOW()")
-                await conn.execute(postgresql_schema)
+                # Split into individual statements for PostgreSQL
+                statements = [s.strip() for s in postgresql_schema.split(';') if s.strip() and not s.strip().startswith('--')]
+                for statement in statements:
+                    if statement:
+                        await conn.execute(statement)
             logger.info("✅ Enhanced database schema created successfully")
 
         except Exception as e:
