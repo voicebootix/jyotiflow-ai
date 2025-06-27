@@ -2233,3 +2233,8 @@ class EnhancedJyotiFlowDatabase:
 
 # ... existing code ...
 
+# Register routers with the main app (MUST be the last lines in the file)
+app.include_router(auth_router)
+app.include_router(user_router)
+app.include_router(admin_router)
+
