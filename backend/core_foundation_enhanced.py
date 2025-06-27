@@ -1626,6 +1626,9 @@ async def get_user_profile(current_user: dict = Depends(get_current_user)):
             raise HTTPException(status_code=404, detail="User not found")
         return {"success": True, "data": dict(user)}
     except Exception as e:
+        import traceback
+        print("PROFILE ERROR:", e)
+        traceback.print_exc()
         logger.error(f"Profile retrieval failed: {e}")
         return {"success": False, "message": "Failed to retrieve profile", "data": {"error": str(e)}}
 
