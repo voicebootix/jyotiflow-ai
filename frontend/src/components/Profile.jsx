@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
@@ -11,6 +11,7 @@ const Profile = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedService, setSelectedService] = useState(null);
+  const navigate = useNavigate();
 
   // Check if user came from service selection
   useEffect(() => {

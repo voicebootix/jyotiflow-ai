@@ -36,25 +36,38 @@ const AdminDashboard = () => {
       return;
     }
 
-    // Check if user has admin privileges
+    // Pre-check: fetch user profile and verify admin role before calling admin endpoints
+    try {
+      const profile = await spiritualAPI.getUserProfile();
+      console.log('Admin pre-check profile:', profile);
+      if (!profile || !profile.success || !profile.data || profile.data.role !== 'admin') {
+        alert('Access denied. Admin privileges required. (Role check failed)');
+        navigate('/');
+        return;
+      }
+    } catch (err) {
+      console.error('Admin pre-check failed:', err);
+      alert('Failed to verify admin privileges. Please try again.');
+      navigate('/');
+      return;
+    }
+
+    // Check if user has admin privileges via backend endpoint
     try {
       console.log('Checking admin privileges...');
       const adminData = await spiritualAPI.getAdminStats();
       console.log('Admin stats response:', adminData);
-      
       if (adminData && adminData.success) {
         console.log('Admin authentication successful');
         setIsAuthenticated(true);
         loadAdminData();
       } else {
         console.log('Admin authentication failed:', adminData);
-        // Not an admin user
-        alert('Access denied. Admin privileges required.');
+        alert('Access denied. Admin privileges required. (Backend check failed)\n' + (adminData && adminData.message ? adminData.message : ''));
         navigate('/');
       }
     } catch (error) {
       console.error('Admin authentication check failed:', error);
-      // Show more specific error message
       alert(`Admin authentication failed: ${error.message || 'Unknown error'}`);
       navigate('/login?admin=true&redirect=/admin');
     }
