@@ -638,6 +638,19 @@ class EnhancedDatabaseManager:
         finally:
             await self.release_connection(conn)
 
+    async def get_user_profile(self, user_id):
+        """Fetch a user profile by user_id (supports PostgreSQL and SQLite)"""
+        conn = await self.get_connection()
+        try:
+            if self.is_sqlite:
+                result = await conn.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+                user = await result.fetchone()
+                return user
+            else:
+                return await conn.fetchrow("SELECT * FROM users WHERE id=$1", user_id)
+        finally:
+            await self.release_connection(conn)
+
 # Initialize enhanced database manager
 db_manager = EnhancedDatabaseManager()
 
