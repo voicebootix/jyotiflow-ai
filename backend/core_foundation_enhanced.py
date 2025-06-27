@@ -1102,17 +1102,33 @@ async def log_requests(request: Request, call_next):
 # Debug endpoint for route introspection
 @app.get("/api/debug/routes")
 async def debug_routes():
+    """Debug endpoint to show all registered routes"""
     routes = []
     for route in app.routes:
-        if hasattr(route, 'path') and hasattr(route, 'methods'):
-            routes.append({
-                "path": route.path,
-                "methods": list(route.methods),
-                "name": getattr(route, 'name', 'unknown')
-            })
+        if hasattr(route, "methods") and hasattr(route, "path"):
+            for method in route.methods:
+                routes.append({
+                    "method": method,
+                    "path": route.path,
+                    "name": getattr(route, "name", "unnamed")
+                })
+    
     return {
         "total_routes": len(routes),
-        "routes": sorted(routes, key=lambda x: x['path'])
+        "routes": routes,
+        "app_name": "JyotiFlow.ai Enhanced",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+@app.get("/api/debug/unique")
+async def debug_unique():
+    """Unique debug endpoint to confirm file version"""
+    return {
+        "message": "jyotiflow-unique-20240627-v2",
+        "file_version": "core_foundation_enhanced.py",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "auth_routes_should_exist": True,
+        "router_registration": "confirmed"
     }
 
 # =============================================================================
