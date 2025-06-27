@@ -1,4 +1,4 @@
-import axios from 'axios';
+// Removed: import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
@@ -93,7 +93,6 @@ const spiritualAPI = {
       const data = await response.json();
       if (data.success && data.data && data.data.token) {
         this.setAuthToken(data.data.token, data.data.user);
-        localStorage.setItem('token', data.data.token);
       }
       return data;
     } catch (error) {
@@ -166,12 +165,7 @@ const spiritualAPI = {
 
   // User profile methods
   async getUserProfile() {
-    const token = localStorage.getItem('jyotiflow_token');
-    return this.get('/api/user/profile', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    return this.get('/api/user/profile');
   },
 
   async updateUserProfile(profileData) {
@@ -180,22 +174,12 @@ const spiritualAPI = {
 
   // Session history
   async getSessionHistory() {
-    const token = localStorage.getItem('jyotiflow_token');
-    return this.get('/api/user/sessions', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    return this.get('/api/user/sessions');
   },
 
   // Credits and billing
   async getCreditBalance() {
-    const token = localStorage.getItem('jyotiflow_token');
-    return this.get('/api/user/credits', {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    return this.get('/api/user/credits');
   },
   
 // Admin methods - Add these before getDailyWisdom()
