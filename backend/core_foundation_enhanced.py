@@ -734,6 +734,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
             user = dict(user_data)
             user.update({
+                'id': payload.get('user_id'),
                 'avatar_enabled': payload.get('avatar_enabled', True),
                 'live_chat_enabled': payload.get('live_chat_enabled', True),
                 'satsang_access': payload.get('satsang_access', True)
