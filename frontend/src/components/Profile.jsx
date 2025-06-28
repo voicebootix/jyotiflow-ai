@@ -23,9 +23,9 @@ const Profile = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    if (spiritualAPI.isAuthenticated()) {
-    navigate('/login', { replace: true });
-  }
+    if (!spiritualAPI.isAuthenticated()) {
+      navigate('/login', { replace: true });
+    }
     
     loadProfileData();
     spiritualAPI.trackSpiritualEngagement('profile_visit');
