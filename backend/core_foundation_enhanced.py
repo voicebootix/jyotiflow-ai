@@ -651,6 +651,57 @@ class EnhancedDatabaseManager:
         finally:
             await self.release_connection(conn)
 
+    # --- Delegates to EnhancedJyotiFlowDatabase for admin/user stats ---
+    async def get_total_users(self):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_total_users()
+        raise NotImplementedError('get_total_users not implemented')
+
+    async def get_active_users(self):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_active_users()
+        raise NotImplementedError('get_active_users not implemented')
+
+    async def get_total_sessions(self):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_total_sessions()
+        raise NotImplementedError('get_total_sessions not implemented')
+
+    async def get_user_sessions(self, user_id):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_user_sessions(user_id)
+        raise NotImplementedError('get_user_sessions not implemented')
+
+    async def get_user_credits(self, user_id):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_user_credits(user_id)
+        raise NotImplementedError('get_user_credits not implemented')
+
+    async def get_user_credit_transactions(self, user_id):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_user_credit_transactions(user_id)
+        raise NotImplementedError('get_user_credit_transactions not implemented')
+
+    async def get_total_revenue(self):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_total_revenue()
+        raise NotImplementedError('get_total_revenue not implemented')
+
+    async def get_daily_revenue(self):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_daily_revenue()
+        raise NotImplementedError('get_daily_revenue not implemented')
+
+    async def get_satsangs_completed(self):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_satsangs_completed()
+        raise NotImplementedError('get_satsangs_completed not implemented')
+
+    async def get_avatar_generations(self):
+        if hasattr(self, 'enhanced_db'):
+            return await self.enhanced_db.get_avatar_generations()
+        raise NotImplementedError('get_avatar_generations not implemented')
+
 # Initialize enhanced database manager
 db_manager = EnhancedDatabaseManager()
 
@@ -1431,6 +1482,10 @@ async def register_user(user_data: UserRegistration):
             # Get current timestamp
             now = datetime.now(timezone.utc)
             
+            # --- Fix: Ensure birth_date and birth_time are stored as strings ---
+            birth_date = str(user_data.birth_date) if user_data.birth_date else None
+            birth_time = str(user_data.birth_time) if user_data.birth_time else None
+            
             # Insert user with ALL fields
             if db_manager.is_sqlite:
                 await conn.execute("""
@@ -1445,7 +1500,7 @@ async def register_user(user_data: UserRegistration):
                 """, (
                     user_data.email, password_hash, user_data.name, user_data.phone,
                     3, "user",  # 3 welcome credits, user role
-                    user_data.birth_date, user_data.birth_time, user_data.birth_location,
+                    birth_date, birth_time, user_data.birth_location,
                     user_data.preferred_avatar_style or "traditional",
                     user_data.voice_preference or "compassionate",
                     user_data.video_quality_preference or "high",
@@ -1467,7 +1522,7 @@ async def register_user(user_data: UserRegistration):
                 """, 
                     user_data.email, password_hash, user_data.name, user_data.phone,
                     3, "user",
-                    user_data.birth_date, user_data.birth_time, user_data.birth_location,
+                    birth_date, birth_time, user_data.birth_location,
                     user_data.preferred_avatar_style or "traditional",
                     user_data.voice_preference or "compassionate", 
                     user_data.video_quality_preference or "high",
