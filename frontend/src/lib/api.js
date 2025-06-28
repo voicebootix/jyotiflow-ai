@@ -12,6 +12,7 @@ const spiritualAPI = {
         ...(options.headers || {}),
         ...this.getAuthHeaders(),
       },
+      credentials: 'include',
       ...options,
     };
 
