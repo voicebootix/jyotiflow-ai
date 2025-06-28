@@ -653,54 +653,34 @@ class EnhancedDatabaseManager:
 
     # --- Delegates to EnhancedJyotiFlowDatabase for admin/user stats ---
     async def get_total_users(self):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_total_users()
-        raise NotImplementedError('get_total_users not implemented')
+        return await EnhancedJyotiFlowDatabase.get_total_users(self)
 
     async def get_active_users(self):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_active_users()
-        raise NotImplementedError('get_active_users not implemented')
+        return await EnhancedJyotiFlowDatabase.get_active_users(self)
 
     async def get_total_sessions(self):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_total_sessions()
-        raise NotImplementedError('get_total_sessions not implemented')
+        return await EnhancedJyotiFlowDatabase.get_total_sessions(self)
 
     async def get_user_sessions(self, user_id):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_user_sessions(user_id)
-        raise NotImplementedError('get_user_sessions not implemented')
+        return await EnhancedJyotiFlowDatabase.get_user_sessions(self, user_id)
 
     async def get_user_credits(self, user_id):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_user_credits(user_id)
-        raise NotImplementedError('get_user_credits not implemented')
+        return await EnhancedJyotiFlowDatabase.get_user_credits(self, user_id)
 
     async def get_user_credit_transactions(self, user_id):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_user_credit_transactions(user_id)
-        raise NotImplementedError('get_user_credit_transactions not implemented')
+        return await EnhancedJyotiFlowDatabase.get_user_credit_transactions(self, user_id)
 
     async def get_total_revenue(self):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_total_revenue()
-        raise NotImplementedError('get_total_revenue not implemented')
+        return await EnhancedJyotiFlowDatabase.get_total_revenue(self)
 
     async def get_daily_revenue(self):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_daily_revenue()
-        raise NotImplementedError('get_daily_revenue not implemented')
+        return await EnhancedJyotiFlowDatabase.get_daily_revenue(self)
 
     async def get_satsangs_completed(self):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_satsangs_completed()
-        raise NotImplementedError('get_satsangs_completed not implemented')
+        return await EnhancedJyotiFlowDatabase.get_satsangs_completed(self)
 
     async def get_avatar_generations(self):
-        if hasattr(self, 'enhanced_db'):
-            return await self.enhanced_db.get_avatar_generations()
-        raise NotImplementedError('get_avatar_generations not implemented')
+        return await EnhancedJyotiFlowDatabase.get_avatar_generations(self)
 
 # Initialize enhanced database manager
 db_manager = EnhancedDatabaseManager()
