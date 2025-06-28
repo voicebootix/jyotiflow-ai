@@ -474,6 +474,20 @@ class EnhancedJyotiFlowDatabase:
         except Exception:
             return 0
 
+    async def get_user_profile(self, user_id):
+        try:
+            conn = await self.get_connection()
+            try:
+                result = await conn.fetchrow(
+                    "SELECT * FROM users WHERE id = $1", user_id
+                )
+                return dict(result) if result else None
+            finally:
+                await self.release_connection(conn)
+        except Exception as e:
+            logger.error(f"get_user_profile failed: {e}")
+            return None
+
 # =============================================================================
 # 🗄️ ENHANCED DATABASE MANAGER WITH AVATAR TABLES
 # =============================================================================
