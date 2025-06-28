@@ -1457,6 +1457,29 @@ async def health_check():
 async def register_user(user_data: UserRegistration):
     """User registration with complete field handling"""
     try:
+        # Defensive fix: Ensure birth_date and birth_time are always strings
+        birth_date = user_data.birth_date
+        birth_time = user_data.birth_time
+        if birth_date is not None and not isinstance(birth_date, str):
+            try:
+                birth_date = str(birth_date)
+            except Exception as e:
+                logger.error(f"birth_date conversion error: {e}")
+                return StandardResponse(
+                    success=False,
+                    message="Registration failed: Invalid birth_date format. Please use YYYY-MM-DD.",
+                    data={"error": str(e)}
+                ).dict()
+        if birth_time is not None and not isinstance(birth_time, str):
+            try:
+                birth_time = str(birth_time)
+            except Exception as e:
+                logger.error(f"birth_time conversion error: {e}")
+                return StandardResponse(
+                    success=False,
+                    message="Registration failed: Invalid birth_time format. Please use HH:MM:SS.",
+                    data={"error": str(e)}
+                ).dict()
         # Check if user already exists
         conn = await db_manager.get_connection()
         try:
@@ -1481,10 +1504,6 @@ async def register_user(user_data: UserRegistration):
             
             # Get current timestamp
             now = datetime.now(timezone.utc)
-            
-            # --- Fix: Ensure birth_date and birth_time are stored as strings ---
-            birth_date = str(user_data.birth_date) if user_data.birth_date else None
-            birth_time = str(user_data.birth_time) if user_data.birth_time else None
             
             # Insert user with ALL fields
             if db_manager.is_sqlite:
