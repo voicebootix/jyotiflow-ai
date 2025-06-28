@@ -206,7 +206,7 @@ class StandardResponse(BaseModel):
 # 🗄️ ENHANCED DATABASE MANAGER WITH AVATAR TABLES
 # =============================================================================
 
-class EnhancedDatabaseManager:
+class EnhancedDatabaseManager(EnhancedJyotiFlowDatabase):
     """Enhanced database manager with avatar functionality"""
 
     def __init__(self):
