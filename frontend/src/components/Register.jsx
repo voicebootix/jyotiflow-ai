@@ -120,15 +120,11 @@ const Register = () => {
       });
 
       // Attempt registration
-      // Convert birth_date to YYYY-MM-DD and birth_time to HH:MM:SS
-      const formattedBirthDate = formData.birthDate ? new Date(formData.birthDate).toISOString().slice(0, 10) : '';
+      // Use input type='date' and type='time' for correct format
+      const formattedBirthDate = formData.birthDate; // Already YYYY-MM-DD
       let formattedBirthTime = formData.birthTime;
-      if (formData.birthTime && !/^\d{2}:\d{2}:\d{2}$/.test(formData.birthTime)) {
-        // Convert 12-hour or short time to 24-hour HH:MM:SS
-        const d = new Date(`1970-01-01T${formData.birthTime}`);
-        if (!isNaN(d.getTime())) {
-          formattedBirthTime = d.toTimeString().slice(0, 8);
-        }
+      if (formData.birthTime && /^\d{2}:\d{2}$/.test(formData.birthTime)) {
+        formattedBirthTime = formData.birthTime + ':00';
       }
       const result = await spiritualAPI.register({
         name: formData.name,
