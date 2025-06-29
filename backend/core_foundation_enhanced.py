@@ -144,6 +144,12 @@ class EnhancedSettings(BaseSettings):
 # Initialize enhanced settings
 settings = EnhancedSettings()
 
+# Import admin routers for dashboard endpoints
+from routers import (
+    admin_products, admin_subscriptions, admin_credits,
+    admin_analytics, admin_content, admin_settings
+)
+
 # =============================================================================
 # 📊 ENHANCED PYDANTIC MODELS - ALL MODELS WITH AVATAR INTEGRATION
 # =============================================================================
@@ -203,7 +209,7 @@ class StandardResponse(BaseModel):
     performance_metrics: Optional[Dict[str, Any]] = None
 
 # =============================================================================
-# ��️ ENHANCED DATABASE BASE CLASS (MOVED FROM PRODUCTION DEPLOYMENT)
+# ️ ENHANCED DATABASE BASE CLASS (MOVED FROM PRODUCTION DEPLOYMENT)
 # =============================================================================
 class EnhancedJyotiFlowDatabase:
     def __init__(self):
@@ -2083,4 +2089,14 @@ class SatsangEventResponse(BaseModel):
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(admin_router)
+
+# ... existing code ...
+
+app.include_router(admin_products.router, prefix="/api/admin")
+app.include_router(admin_subscriptions.router, prefix="/api/admin")
+app.include_router(admin_credits.router, prefix="/api/admin")
+app.include_router(admin_analytics.router, prefix="/api/admin")
+app.include_router(admin_content.router, prefix="/api/admin")
+app.include_router(admin_settings.router, prefix="/api/admin")
+# ... existing code ...
 
