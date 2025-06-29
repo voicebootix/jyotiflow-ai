@@ -5,7 +5,7 @@ from utils.analytics_utils import calculate_revenue_metrics, generate_ai_recomme
 import uuid
 import random
 
-router = APIRouter(prefix="/api/admin", tags=["Admin Analytics"])
+router = APIRouter(tags=["Admin Analytics"])
 
 @router.get("/analytics")
 async def analytics(db=Depends(get_db)):
