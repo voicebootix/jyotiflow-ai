@@ -24,6 +24,8 @@ const AdminDashboard = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [content, setContent] = useState([]);
 
   useEffect(() => {
     checkAdminAuth();
@@ -102,6 +104,22 @@ const AdminDashboard = () => {
         setProductOptimization(optimization.data);
       } else {
         console.error('Failed to load product optimization:', optimization);
+      }
+
+      // Load users
+      const usersRes = await spiritualAPI.getAdminUsers();
+      if (usersRes && usersRes.success) {
+        setUsers(usersRes.data);
+      } else {
+        setUsers([]);
+      }
+
+      // Load content
+      const contentRes = await spiritualAPI.getAdminContent();
+      if (contentRes && contentRes.success) {
+        setContent(contentRes.data);
+      } else {
+        setContent([]);
       }
 
       // Track admin dashboard access
@@ -354,6 +372,78 @@ const AdminDashboard = () => {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'users' && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">All Users</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Credits</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-4 text-center text-gray-500">No users found.</td>
+                      </tr>
+                    ) : (
+                      users.map((user) => (
+                        <tr key={user.id}>
+                          <td className="px-4 py-2">{user.id}</td>
+                          <td className="px-4 py-2">{user.email}</td>
+                          <td className="px-4 py-2">{user.name}</td>
+                          <td className="px-4 py-2">{user.role}</td>
+                          <td className="px-4 py-2">{user.credits}</td>
+                          <td className="px-4 py-2">{user.created_at ? new Date(user.created_at).toLocaleDateString() : ''}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'content' && (
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">All Content (Satsangs)</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                      <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Scheduled At</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {content.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-4 text-center text-gray-500">No content found.</td>
+                      </tr>
+                    ) : (
+                      content.map((item) => (
+                        <tr key={item.id}>
+                          <td className="px-4 py-2">{item.id}</td>
+                          <td className="px-4 py-2">{item.title}</td>
+                          <td className="px-4 py-2">{item.description}</td>
+                          <td className="px-4 py-2">{item.scheduled_at ? new Date(item.scheduled_at).toLocaleString() : ''}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}

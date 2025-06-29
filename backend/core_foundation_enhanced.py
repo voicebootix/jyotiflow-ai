@@ -1712,6 +1712,43 @@ async def admin_optimization(admin_user: dict = Depends(get_admin_user)):
         logger.error(f"Product optimization failed: {e}")
         return {"success": False, "message": "Failed to retrieve optimization data", "data": {"error": str(e)}}
 
+# --- ADMIN: Get all users ---
+@admin_router.get("/users")
+async def get_all_users(admin_user: dict = Depends(get_admin_user)):
+    """
+    Admin: Get all users
+    """
+    try:
+        users = []
+        conn = await db_manager.get_connection()
+        try:
+            result = await conn.fetch("SELECT id, email, name, role, credits, created_at FROM users ORDER BY created_at DESC")
+            users = [dict(row) for row in result]
+        finally:
+            await db_manager.release_connection(conn)
+        return {"success": True, "data": users}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+# --- ADMIN: Get all content (example: satsangs) ---
+@admin_router.get("/content")
+async def get_all_content(admin_user: dict = Depends(get_admin_user)):
+    """
+    Admin: Get all content (example: satsangs, posts, etc.)
+    """
+    try:
+        content = []
+        conn = await db_manager.get_connection()
+        try:
+            # Example: satsangs table
+            result = await conn.fetch("SELECT id, title, description, scheduled_at FROM satsangs ORDER BY scheduled_at DESC")
+            content = [dict(row) for row in result]
+        finally:
+            await db_manager.release_connection(conn)
+        return {"success": True, "data": content}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
 # =============================================================================
 # 🔧 ERROR HANDLERS FOR FIXED PLATFORM
 # =============================================================================

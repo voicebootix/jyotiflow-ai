@@ -230,7 +230,17 @@ const spiritualAPI = {
 
   async getSpiritualQuote() {
     return this.get('/api/content/spiritual-quote');
-  }
+  },
+
+  // Admin: Get all users
+  async getAdminUsers() {
+    return this.get('/api/admin/users');
+  },
+
+  // Admin: Get all content
+  async getAdminContent() {
+    return this.get('/api/admin/content');
+  },
 };
 
 export default spiritualAPI;
