@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import Loader from '../ui/Loader';
-import Table from '../ui/Table';
+import Table from '../ui/table';
 import ProductForm from './ProductForm';
 
 // தமில - தயாரிப்பு மேலாண்மை
