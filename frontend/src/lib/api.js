@@ -241,6 +241,11 @@ const spiritualAPI = {
   async getAdminContent() {
     return this.get('/api/admin/content');
   },
+
+  // Admin overview (for dashboard)
+  async getAdminOverview() {
+    return this.get('/api/admin/overview');
+  },
 };
 
 export default spiritualAPI;
