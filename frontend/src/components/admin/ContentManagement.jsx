@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import api from '../../lib/api';
 import Loader from '../ui/Loader';
-import Table from '../ui/table';
+import { Table } from '../ui/table';
 
 export default function ContentManagement() {
   const [content, setContent] = useState([]);
