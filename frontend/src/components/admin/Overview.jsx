@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
@@ -32,7 +32,7 @@ export default function Overview() {
   // தமில - API call
   useEffect(() => {
     let mounted = true;
-    api.getAdminOverview()
+    spiritualAPI.getAdminOverview()
       .then(data => { if (mounted) setMetrics(data); })
       .catch(e => setError('தரவு ஏற்ற முடியவில்லை.'))
       .finally(() => setLoading(false));
