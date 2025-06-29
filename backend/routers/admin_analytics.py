@@ -47,14 +47,17 @@ async def get_overview(db=Depends(get_db)):
         {"type": "success", "message": "Revenue up 12% this month"}
     ]
     return {
-        "total_users": total_users or 0,
-        "active_users": active_users or 0,
-        "total_revenue": float(total_revenue or 0),
-        "monthly_revenue": float(monthly_revenue or 0),
-        "growth_rate": growth_rate,
-        "conversion_rate": conversion_rate,
-        "system_health": system_health,
-        "ai_alerts": ai_alerts
+        "success": True,
+        "data": {
+            "total_users": total_users or 0,
+            "active_users": active_users or 0,
+            "total_revenue": float(total_revenue or 0),
+            "monthly_revenue": float(monthly_revenue or 0),
+            "growth_rate": growth_rate,
+            "conversion_rate": conversion_rate,
+            "system_health": system_health,
+            "ai_alerts": ai_alerts
+        }
     }
 
 # தமிழ் - AI நுண்ணறிவு பரிந்துரைகள்
