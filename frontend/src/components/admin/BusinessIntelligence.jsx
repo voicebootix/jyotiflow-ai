@@ -1,6 +1,6 @@
 // தமில - வணிக நுண்ணறிவு
 import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -11,7 +11,7 @@ export default function BusinessIntelligence() {
 
   useEffect(() => {
     let mounted = true;
-    api.getAdminBI()
+    spiritualAPI.getAdminBI()
       .then(data => { if (mounted) setData(data); })
       .catch(e => setError('AI நுண்ணறிவு தரவு ஏற்ற முடியவில்லை.'))
       .finally(() => setLoading(false));

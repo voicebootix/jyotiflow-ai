@@ -1,6 +1,6 @@
 // தமில - உள்ளடக்க மேலாண்மை
 import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { Table } from '../ui/table';
 
@@ -10,7 +10,7 @@ export default function ContentManagement() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.getAdminContent(), api.getAdminSatsangs()])
+    Promise.all([spiritualAPI.getAdminContent(), spiritualAPI.getAdminSatsangs()])
       .then(([content, satsangs]) => {
         setContent(content);
         setSatsangs(satsangs);

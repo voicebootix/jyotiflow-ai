@@ -1,6 +1,6 @@
 // தமில - தயாரிப்பு உருவாக்க/திருத்தம்
 import { useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 
 export default function ProductForm({ product, onClose }) {
   const [form, setForm] = useState(product || {
@@ -20,9 +20,9 @@ export default function ProductForm({ product, onClose }) {
     setError('');
     try {
       if (product) {
-        await api.updateAdminProduct(product.id, form);
+        await spiritualAPI.updateAdminProduct(product.id, form);
       } else {
-        await api.createAdminProduct(form);
+        await spiritualAPI.createAdminProduct(form);
       }
       onClose(true);
     } catch (err) {

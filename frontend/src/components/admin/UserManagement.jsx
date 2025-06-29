@@ -1,6 +1,6 @@
 // தமில - பயனர் மேலாண்மை
 import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { Table } from '../ui/table';
 
@@ -9,7 +9,7 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getAdminUsers().then(setUsers).finally(() => setLoading(false));
+    spiritualAPI.getAdminUsers().then(setUsers).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Loader message="பயனர் தரவு ஏற்றப்படுகிறது..." />;

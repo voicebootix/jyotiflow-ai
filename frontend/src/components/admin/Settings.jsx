@@ -1,6 +1,6 @@
 // தமில - அமைப்புகள்
 import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 
 export default function Settings() {
@@ -8,7 +8,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.getAdminSettings().then(setSettings).finally(() => setLoading(false));
+    spiritualAPI.getAdminSettings().then(setSettings).finally(() => setLoading(false));
   }, []);
 
   if (loading) return <Loader message="அமைப்புகள் ஏற்றப்படுகிறது..." />;

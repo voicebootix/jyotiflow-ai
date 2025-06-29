@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { Table } from '../ui/table';
 import ProductForm from './ProductForm';
@@ -15,7 +15,7 @@ export default function Products() {
 
   function fetchProducts() {
     setLoading(true);
-    api.getAdminProducts().then(data => {
+    spiritualAPI.getAdminProducts().then(data => {
       setProducts(data);
       setLoading(false);
     });
@@ -39,13 +39,13 @@ export default function Products() {
 
   async function handleDelete(productId) {
     if (window.confirm("Are you sure you want to delete this product?")) {
-      await api.deleteAdminProduct(productId);
+      await spiritualAPI.deleteAdminProduct(productId);
       fetchProducts();
     }
   }
 
   async function handleStripeSync() {
-    await api.syncStripeProducts();
+    await spiritualAPI.syncStripeProducts();
     fetchProducts();
   }
 

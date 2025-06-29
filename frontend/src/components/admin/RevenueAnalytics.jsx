@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import api from '../../lib/api';
+import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 
@@ -24,7 +24,7 @@ export default function RevenueAnalytics() {
   // தமில - API call
   useEffect(() => {
     let mounted = true;
-    api.getAdminRevenueAnalytics()
+    spiritualAPI.getAdminRevenueAnalytics()
       .then(data => { if (mounted) setData(data); })
       .catch(e => setError('வருவாய் தரவு ஏற்ற முடியவில்லை.'))
       .finally(() => setLoading(false));
