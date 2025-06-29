@@ -21,8 +21,8 @@ async def create_product(product: ProductCreate, db=Depends(get_db)):
     """, product.sku_code, product.name, product.description, product.price, product.credits_allocated, stripe_product_id, stripe_price_id, product.is_active)
     return dict(row)
 
-# LIST all products
-@router.get("", response_model=List[ProductOut])
+# தமிழ் - தயாரிப்புகள் பட்டியல்
+@router.get("", response_model=List[dict])
 async def list_products(db=Depends(get_db)):
     rows = await db.fetch("SELECT * FROM products ORDER BY created_at DESC")
     return [dict(row) for row in rows]
