@@ -9,7 +9,8 @@ sys.path.append(str(Path(__file__).parent))
 # Import routers
 from routers import (
     admin_products, admin_subscriptions, admin_credits,
-    admin_analytics, admin_content, admin_settings
+    admin_analytics, admin_content, admin_settings,
+    auth, user
 )
 
 # Create FastAPI app
@@ -35,6 +36,8 @@ app.include_router(admin_credits.router, prefix="/api/admin")
 app.include_router(admin_analytics.router, prefix="/api/admin")
 app.include_router(admin_content.router, prefix="/api/admin")
 app.include_router(admin_settings.router, prefix="/api/admin")
+app.include_router(auth.router)
+app.include_router(user.router)
 
 @app.get("/")
 async def root():
