@@ -2,6 +2,7 @@
 import * as React from "react"
 import useEmblaCarousel from "embla-carousel-react";
 import { ArrowLeft, ArrowRight } from "lucide-react"
+import spiritualAPI from '../../lib/api';
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -36,8 +37,8 @@ function Carousel({
 
   const onSelect = React.useCallback((api) => {
     if (!api) return
-    setCanScrollPrev(api.canScrollPrev())
-    setCanScrollNext(api.canScrollNext())
+    setCanScrollPrev(spiritualAPI.canScrollPrev())
+    setCanScrollNext(spiritualAPI.canScrollNext())
   }, [])
 
   const scrollPrev = React.useCallback(() => {
@@ -66,8 +67,8 @@ function Carousel({
   React.useEffect(() => {
     if (!api) return
     onSelect(api)
-    api.on("reInit", onSelect)
-    api.on("select", onSelect)
+    spiritualAPI.on("reInit", onSelect)
+    spiritualAPI.on("select", onSelect)
 
     return () => {
       api?.off("select", onSelect)
