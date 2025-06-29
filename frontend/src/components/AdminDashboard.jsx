@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Users, DollarSign, Calendar, TrendingUp, 
-  BarChart3, Settings, Bell, Download, RefreshCw,
+  BarChart3, Settings as SettingsIcon, Bell, Download, RefreshCw,
   Eye, MessageSquare, Video, Crown
 } from 'lucide-react';
 import spiritualAPI from '../lib/api';
@@ -230,7 +230,7 @@ const AdminDashboard = () => {
                 { id: 'credits', label: 'Credits', icon: DollarSign },
                 { id: 'content', label: 'Content', icon: MessageSquare },
                 { id: 'insights', label: 'AI Insights', icon: TrendingUp },
-                { id: 'settings', label: 'Settings', icon: Settings }
+                { id: 'settings', label: 'Settings', icon: SettingsIcon }
               ].map((tab) => (
                 <button
                   key={tab.id}
