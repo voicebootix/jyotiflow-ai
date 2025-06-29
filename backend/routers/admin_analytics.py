@@ -1,5 +1,8 @@
-from fastapi import APIRouter, Depends
-from ..db import get_db
+from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Dict, Any
+from db import get_db
+from utils.analytics_utils import calculate_revenue_metrics, generate_ai_recommendations
+import uuid
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Analytics"])
 

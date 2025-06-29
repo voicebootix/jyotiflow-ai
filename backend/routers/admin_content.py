@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from ..schemas.content import SocialContentCreate, SocialContentOut, SatsangEventCreate, SatsangEventOut
-from ..db import get_db
+from schemas.content import SocialContentCreate, SocialContentOut, SatsangEventCreate, SatsangEventOut
+from db import get_db
 import uuid
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Content"])

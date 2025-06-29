@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
-from ..schemas.product import ProductCreate, ProductUpdate, ProductOut
-from ..db import get_db
-from ..utils.stripe_utils import create_stripe_product
+from schemas.product import ProductCreate, ProductUpdate, ProductOut
+from db import get_db
+from utils.stripe_utils import create_stripe_product
 import uuid
 
 router = APIRouter(prefix="/api/admin/products", tags=["Admin Products"])
