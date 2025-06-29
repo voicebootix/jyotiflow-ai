@@ -1,7 +1,5 @@
 import { useEffect, useState } from 'react';
 import spiritualAPI from '../../lib/api';
-import Loader from '../ui/Loader';
-import { Table } from '../ui/table';
 import ProductForm from './ProductForm';
 
 // தமில - தயாரிப்பு மேலாண்மை
@@ -49,7 +47,7 @@ export default function Products() {
     fetchProducts();
   }
 
-  if (loading) return <Loader message="தயவு செய்து காத்திருக்கவும்..." />;
+  if (loading) return <div>Loading...</div>;
 
   return (
     <div>
@@ -60,29 +58,39 @@ export default function Products() {
           <button className="bg-purple-700 text-white px-4 py-2 rounded" onClick={handleCreate}>+ Create Product</button>
         </div>
       </div>
-      <Table
-        columns={[
-          { label: 'SKU', key: 'sku_code' },
-          { label: 'Name', key: 'name' },
-          { label: 'Price', key: 'price' },
-          { label: 'Credits', key: 'credits_allocated' },
-          { label: 'Active', key: 'is_active', render: row => row.is_active ? "Yes" : "No" },
-          { label: 'Actions', key: 'actions', render: (row) => (
-            <div>
-              <button className="text-blue-600 mr-2" onClick={() => handleEdit(row)}>Edit</button>
-              <button className="text-red-600" onClick={() => handleDelete(row.id)}>Delete</button>
-            </div>
-          )}
-        ]}
-        data={products}
-      />
+      <table>
+        <thead>
+          <tr>
+            <th>SKU</th>
+            <th>Name</th>
+            <th>Price</th>
+            <th>Credits</th>
+            <th>Active</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {products.map(row => (
+            <tr key={row.id}>
+              <td>{row.sku_code}</td>
+              <td>{row.name}</td>
+              <td>{row.price}</td>
+              <td>{row.credits_allocated}</td>
+              <td>{row.is_active ? "Yes" : "No"}</td>
+              <td>
+                <button onClick={() => handleEdit(row)}>Edit</button>
+                <button onClick={() => handleDelete(row.id)}>Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
       {showForm && (
         <ProductForm
           product={editProduct}
           onClose={handleFormClose}
         />
       )}
-      {/* Add: AI pricing, analytics */}
     </div>
   );
 } 

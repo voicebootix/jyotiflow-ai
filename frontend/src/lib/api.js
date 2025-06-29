@@ -17,27 +17,18 @@ const spiritualAPI = {
     };
 
     try {
-    const response = await fetch(url, config);
-    if (!response.ok) {
-      console.error(`API Error: ${response.status} - ${response.statusText}`);
-      return { 
-        success: false, 
-        message: `Server error: ${response.status}`,
-        status: response.status 
-      };
+      const response = await fetch(url, config);
+      if (!response.ok) {
+        console.error(`API Error: ${response.status} - ${response.statusText}`);
+        return { success: false, message: `Server error: ${response.status}`, status: response.status };
+      }
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('API request failed:', error);
+      return { success: false, message: 'Network connection failed', error: error.message };
     }
-    
-    const data = await response.json();
-    return data;
-  } catch (error) {
-    console.error('API request failed:', error);
-    return { 
-      success: false, 
-      message: 'Network connection failed',
-      error: error.message 
-    };
-  }
-    },
+  },
 
   // GET request
   async get(endpoint) {
@@ -46,10 +37,7 @@ const spiritualAPI = {
 
   // POST request
   async post(endpoint, data) {
-    return this.request(endpoint, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
+    return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
   },
 
   // Platform statistics
@@ -245,6 +233,27 @@ const spiritualAPI = {
   // Admin overview (for dashboard)
   async getAdminOverview() {
     return this.get('/api/admin/overview');
+  },
+
+  // Admin product management methods
+  async createAdminProduct(productData) {
+    return this.post('/api/admin/products', productData);
+  },
+
+  async updateAdminProduct(productId, productData) {
+    return this.post(`/api/admin/products/${productId}`, productData);
+  },
+
+  async deleteAdminProduct(productId) {
+    return this.request(`/api/admin/products/${productId}`, { method: 'DELETE' });
+  },
+
+  async getAdminProducts() {
+    return this.get('/api/admin/products');
+  },
+
+  async syncStripeProducts() {
+    return this.post('/api/admin/stripe/sync-products');
   },
 };
 

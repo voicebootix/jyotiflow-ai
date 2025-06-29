@@ -26,7 +26,7 @@ export default function ProductForm({ product, onClose }) {
       }
       onClose(true);
     } catch (err) {
-      setError('பிழை: ' + (err.message || 'Unknown error'));
+      setError('Error: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
