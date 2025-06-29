@@ -6,8 +6,8 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add backend directory to path
 sys.path.append(str(Path(__file__).parent))
 
-# Import routers
-from routers import (
+# Import routers using absolute import paths for Render
+from backend.routers import (
     admin_products, admin_subscriptions, admin_credits,
     admin_analytics, admin_content, admin_settings,
     auth, user
