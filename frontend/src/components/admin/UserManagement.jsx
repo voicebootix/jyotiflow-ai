@@ -11,7 +11,7 @@ export default function UserManagement() {
   }, []);
 
   if (loading) return <div>Loading...</div>;
-  if (!users || users.length === 0) return <div>No users available.</div>;
+  if (!Array.isArray(users) || users.length === 0) return <div>No users available.</div>;
 
   return (
     <div>
