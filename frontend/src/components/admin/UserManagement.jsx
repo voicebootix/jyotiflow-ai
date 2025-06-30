@@ -7,7 +7,9 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    spiritualAPI.getAdminUsers().then(setUsers).finally(() => setLoading(false));
+    spiritualAPI.getAdminUsers()
+      .then(res => setUsers(res.data || []))
+      .finally(() => setLoading(false));
   }, []);
 
   if (loading) return <div>Loading...</div>;
