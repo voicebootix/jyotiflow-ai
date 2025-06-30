@@ -255,6 +255,26 @@ const spiritualAPI = {
   async syncStripeProducts() {
     return this.post('/api/admin/stripe/sync-products');
   },
+
+  // Admin: Get platform settings
+  async getAdminSettings() {
+    return this.get('/api/admin/platform-settings');
+  },
+
+  // Admin: Get all satsang events
+  async getAdminSatsangs() {
+    return this.get('/api/admin/satsang-events');
+  },
+
+  // Admin: Get revenue analytics
+  async getAdminRevenueAnalytics() {
+    return this.get('/api/admin/revenue-insights');
+  },
+
+  // Admin: Get business intelligence (AI insights)
+  async getAdminBI() {
+    return this.get('/api/admin/ai-insights');
+  },
 };
 
 export default spiritualAPI;
