@@ -2099,7 +2099,7 @@ app.include_router(admin_products.router, prefix="/api/admin")
 app.include_router(admin_subscriptions.router, prefix="/api/admin")
 app.include_router(admin_credits.router, prefix="/api/admin")
 app.include_router(admin_analytics.router, prefix="/api/admin")
-app.include_router(admin_content.router, prefix="/api/admin")
+app.include_router(admin_content.router)
 app.include_router(admin_settings.router, prefix="/api/admin")
 # ... existing code ...
 
