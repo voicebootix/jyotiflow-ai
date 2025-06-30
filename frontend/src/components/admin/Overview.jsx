@@ -49,62 +49,80 @@ export default function Overview() {
   if (error) return <div className="text-red-600">{error}</div>;
   if (!metrics) return <div className="text-gray-600">No data available.</div>;
 
+  // Fallbacks for missing fields
+  const users = metrics.users ?? metrics.total_users ?? 0;
+  const revenue = metrics.revenue ?? metrics.total_revenue ?? 0;
+  const sessions = metrics.sessions ?? 0;
+  const growth = metrics.growth ?? metrics.growth_rate ?? 0;
+  const ai_alerts = Array.isArray(metrics.ai_alerts) ? metrics.ai_alerts : [];
+  const revenue_trend = Array.isArray(metrics.revenue_trend) ? metrics.revenue_trend : [];
+  const funnel = Array.isArray(metrics.funnel) ? metrics.funnel : [];
+  const system_health = metrics.system_health || {};
+
   return (
     <div>
       {/* தமில - Metrics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <MetricCard label="Total Users" value={metrics.users} icon="👥" color="from-purple-700 to-indigo-700" />
-        <MetricCard label="Revenue" value={`$${metrics.revenue}`} icon="💸" color="from-yellow-600 to-yellow-400" />
-        <MetricCard label="Sessions" value={metrics.sessions} icon="🧘" color="from-blue-700 to-blue-400" />
-        <MetricCard label="Growth" value={metrics.growth + '%'} icon="🌱" color="from-green-700 to-green-400" />
+        <MetricCard label="Total Users" value={users} icon="👥" color="from-purple-700 to-indigo-700" />
+        <MetricCard label="Revenue" value={`$${revenue}`} icon="💸" color="from-yellow-600 to-yellow-400" />
+        <MetricCard label="Sessions" value={sessions} icon="🧘" color="from-blue-700 to-blue-400" />
+        <MetricCard label="Growth" value={growth + '%'} icon="🌱" color="from-green-700 to-green-400" />
       </div>
       {/* தமில - AI Alerts */}
-      {metrics.ai_alerts && metrics.ai_alerts.length > 0 && (
+      {ai_alerts.length > 0 && (
         <div className="mb-8">
-          {metrics.ai_alerts.map((msg, i) => <AIAlert key={i} message={msg} />)}
+          {ai_alerts.map((msg, i) => <AIAlert key={i} message={msg.message || JSON.stringify(msg)} />)}
         </div>
       )}
       {/* தமில - Revenue Trend Chart */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-bold mb-4">Revenue Trend</h2>
-        <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={metrics.revenue_trend}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Line type="monotone" dataKey="revenue" stroke="#8b5cf6" strokeWidth={3} />
-          </LineChart>
-        </ResponsiveContainer>
+        {revenue_trend.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={revenue_trend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="revenue" stroke="#8b5cf6" strokeWidth={3} />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-gray-500">No revenue trend data available.</div>
+        )}
       </div>
       {/* தமில - User Acquisition Funnel */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-bold mb-4">User Acquisition Funnel</h2>
-        <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={metrics.funnel}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="stage" />
-            <YAxis />
-            <Tooltip />
-            <Bar dataKey="count" fill="#f59e42" />
-          </BarChart>
-        </ResponsiveContainer>
+        {funnel.length > 0 ? (
+          <ResponsiveContainer width="100%" height={250}>
+            <BarChart data={funnel}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="stage" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="count" fill="#f59e42" />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="text-gray-500">No funnel data available.</div>
+        )}
       </div>
       {/* தமில - System Health */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-bold mb-2">System Health</h3>
           <div className="flex items-center mb-2">
-            <span className="text-green-600 text-2xl mr-2">●</span>
-            <span>API: {metrics.system_health.api === 'healthy' ? 'Healthy' : 'Issue'}</span>
+            <span className={`text-2xl mr-2 ${system_health.api === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>●</span>
+            <span>API: {system_health.api || 'N/A'}</span>
           </div>
           <div className="flex items-center mb-2">
-            <span className="text-green-600 text-2xl mr-2">●</span>
-            <span>Database: {metrics.system_health.db === 'healthy' ? 'Healthy' : 'Issue'}</span>
+            <span className={`text-2xl mr-2 ${system_health.db === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>●</span>
+            <span>Database: {system_health.db || 'N/A'}</span>
           </div>
           <div className="flex items-center">
-            <span className="text-green-600 text-2xl mr-2">●</span>
-            <span>Stripe: {metrics.system_health.stripe === 'healthy' ? 'Healthy' : 'Issue'}</span>
+            <span className={`text-2xl mr-2 ${system_health.stripe === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>●</span>
+            <span>Stripe: {system_health.stripe || 'N/A'}</span>
           </div>
         </div>
         <div className="bg-white rounded-lg shadow p-6 flex flex-col items-center justify-center">
