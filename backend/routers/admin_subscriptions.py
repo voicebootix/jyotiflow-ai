@@ -4,6 +4,7 @@ from schemas.subscription import SubscriptionPlanCreate, SubscriptionPlanUpdate,
 from db import get_db
 from utils.stripe_utils import create_stripe_subscription_plan
 import uuid
+import json
 
 router = APIRouter(prefix="/subscription-plans", tags=["Admin Subscriptions"])
 
@@ -21,7 +22,17 @@ async def create_plan(plan: SubscriptionPlanCreate, db=Depends(get_db)):
 @router.get("", response_model=List[SubscriptionPlanOut])
 async def list_plans(db=Depends(get_db)):
     rows = await db.fetch("SELECT * FROM subscription_plans ORDER BY created_at DESC")
-    return [dict(row) for row in rows]
+    plans = []
+    for row in rows:
+        plan = dict(row)
+        # Fix: features field as dict
+        if isinstance(plan["features"], str):
+            try:
+                plan["features"] = json.loads(plan["features"])
+            except Exception:
+                plan["features"] = {}
+        plans.append(plan)
+    return plans
 
 # UPDATE plan
 @router.put("/{plan_id}", response_model=SubscriptionPlanOut)
