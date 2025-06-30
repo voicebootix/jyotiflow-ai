@@ -301,6 +301,71 @@ class EnhancedJyotiFlowDatabase:
                     )
                 """)
                 
+                # Create subscription_plans table
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS subscription_plans (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name VARCHAR(100) NOT NULL,
+                        description TEXT,
+                        monthly_price DECIMAL(10,2) NOT NULL,
+                        credits_per_month INTEGER NOT NULL,
+                        features JSONB DEFAULT '{}',
+                        stripe_product_id VARCHAR(255),
+                        stripe_price_id VARCHAR(255),
+                        is_active BOOLEAN DEFAULT true,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                
+                # Create user_subscriptions table
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS user_subscriptions (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        user_id INTEGER REFERENCES users(id),
+                        plan_id UUID REFERENCES subscription_plans(id),
+                        status VARCHAR(50) DEFAULT 'active',
+                        start_date TIMESTAMP DEFAULT NOW(),
+                        end_date TIMESTAMP,
+                        stripe_subscription_id VARCHAR(255),
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                
+                # Create credit_packages table
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS credit_packages (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name VARCHAR(100) NOT NULL,
+                        credits_amount INTEGER NOT NULL,
+                        price DECIMAL(10,2) NOT NULL,
+                        bonus_credits INTEGER DEFAULT 0,
+                        stripe_product_id VARCHAR(255),
+                        stripe_price_id VARCHAR(255),
+                        is_active BOOLEAN DEFAULT true,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                
+                # Create products table
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS products (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        sku_code VARCHAR(50) UNIQUE NOT NULL,
+                        name VARCHAR(200) NOT NULL,
+                        description TEXT,
+                        price DECIMAL(10,2) NOT NULL,
+                        credits_allocated INTEGER DEFAULT 0,
+                        stripe_product_id VARCHAR(255),
+                        stripe_price_id VARCHAR(255),
+                        is_active BOOLEAN DEFAULT true,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                
                 logger.info("✅ Enhanced database schema created successfully")
                 return True
             finally:
@@ -892,6 +957,9 @@ async def _initialize_enhanced_sample_data():
 
             await _create_sample_satsang_event(conn)
 
+            # Create sample subscription plans
+            await _create_sample_subscription_plans(conn)
+
         finally:
             await db_manager.release_connection(conn)
 
@@ -979,6 +1047,46 @@ async def _create_sample_satsang_event(conn):
 
     except Exception as e:
         logger.debug(f"Sample satsang creation skipped: {e}")
+
+async def _create_sample_subscription_plans(conn):
+    """Create sample subscription plans"""
+    try:
+        sample_plans = [
+            {
+                "name": "Free",
+                "description": "Basic spiritual guidance with text responses",
+                "monthly_price": 0.00,
+                "credits_per_month": 3,
+                "features": {"text_guidance": True, "avatar_video": False, "live_chat": False, "satsang_access": False}
+            },
+            {
+                "name": "Premium",
+                "description": "Premium monthly plan with avatar videos and live chat",
+                "monthly_price": 499.00,
+                "credits_per_month": 100,
+                "features": {"text_guidance": True, "avatar_video": True, "live_chat": True, "satsang_access": True}
+            },
+            {
+                "name": "Elite",
+                "description": "Elite plan with extended sessions and personal consultations",
+                "monthly_price": 999.00,
+                "credits_per_month": 250,
+                "features": {"text_guidance": True, "avatar_video": True, "live_chat": True, "satsang_access": True, "personal_consultation": True}
+            }
+        ]
+
+        for plan_data in sample_plans:
+            plan_exists = await conn.fetchval("SELECT 1 FROM subscription_plans WHERE name = $1", plan_data["name"])
+            if not plan_exists:
+                await conn.execute("""
+                    INSERT INTO subscription_plans (name, description, monthly_price, credits_per_month, features, is_active)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                """, plan_data["name"], plan_data["description"], plan_data["monthly_price"], 
+                     plan_data["credits_per_month"], plan_data["features"], True)
+                logger.info(f"📦 Sample subscription plan created: {plan_data['name']}")
+
+    except Exception as e:
+        logger.debug(f"Sample subscription plans creation skipped: {e}")
 
 app_lifespan = enhanced_app_lifespan
 

@@ -266,6 +266,11 @@ const spiritualAPI = {
     return this.get('/api/admin/satsang-events');
   },
 
+  // Admin: Get subscription plans
+  async getAdminSubscriptionPlans() {
+    return this.get('/api/admin/subscription-plans');
+  },
+
   // Admin: Get revenue analytics
   async getAdminRevenueAnalytics() {
     return this.get('/api/admin/revenue-insights');
