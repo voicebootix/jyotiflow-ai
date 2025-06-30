@@ -3,6 +3,7 @@ from typing import List
 from schemas.content import SocialContentCreate, SocialContentOut, SatsangEventCreate, SatsangEventOut
 from db import get_db
 import uuid
+from core_foundation_enhanced import get_admin_user
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Content"])
 
@@ -38,6 +39,6 @@ async def create_satsang_event(event: SatsangEventCreate, db=Depends(get_db)):
     return dict(row)
 
 @router.get("/users")
-async def get_admin_users(db=Depends(get_db)):
+async def get_admin_users(db=Depends(get_db), admin_user: dict = Depends(get_admin_user)):
     rows = await db.fetch("SELECT id, email, full_name, role, credits, created_at FROM users ORDER BY created_at DESC")
     return [dict(row) for row in rows] 
