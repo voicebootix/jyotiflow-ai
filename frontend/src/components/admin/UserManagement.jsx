@@ -14,7 +14,7 @@ export default function UserManagement() {
     ])
     .then(([usersRes, plansRes]) => {
       setUsers(usersRes.data || []);
-      setSubscriptionPlans(plansRes || []);
+      setSubscriptionPlans(plansRes?.data || []);
     })
     .finally(() => setLoading(false));
   }, []);
