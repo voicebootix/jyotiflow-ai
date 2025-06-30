@@ -20,7 +20,7 @@ export default function BusinessIntelligence() {
 
   if (loading) return <Loader message="AI நுண்ணறிவு தரவு ஏற்றப்படுகிறது..." />;
   if (error) return <div className="text-red-600">{error}</div>;
-  if (!data) return <div className="text-gray-600">No data available.</div>;
+  if (!data || typeof data !== 'object') return <div className="text-gray-600">No data available.</div>;
 
   return (
     <div>
