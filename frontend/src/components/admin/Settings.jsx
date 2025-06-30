@@ -12,6 +12,7 @@ export default function Settings() {
   }, []);
 
   if (loading) return <Loader message="அமைப்புகள் ஏற்றப்படுகிறது..." />;
+  if (!settings) return <div className="text-gray-600">No settings available.</div>;
 
   return (
     <div>

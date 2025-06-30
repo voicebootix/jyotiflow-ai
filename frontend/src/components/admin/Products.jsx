@@ -48,6 +48,7 @@ export default function Products() {
   }
 
   if (loading) return <div>Loading...</div>;
+  if (!products || products.length === 0) return <div>No products available.</div>;
 
   return (
     <div>

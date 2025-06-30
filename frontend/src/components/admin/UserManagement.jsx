@@ -13,6 +13,7 @@ export default function UserManagement() {
   }, []);
 
   if (loading) return <Loader message="பயனர் தரவு ஏற்றப்படுகிறது..." />;
+  if (!users || users.length === 0) return <div>No users available.</div>;
 
   return (
     <div>

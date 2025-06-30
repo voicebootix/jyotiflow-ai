@@ -19,6 +19,8 @@ export default function ContentManagement() {
   }, []);
 
   if (loading) return <Loader message="உள்ளடக்க தரவு ஏற்றப்படுகிறது..." />;
+  if (!content || content.length === 0) return <div>No content available.</div>;
+  if (!satsangs || satsangs.length === 0) return <div>No satsangs available.</div>;
 
   return (
     <div>
