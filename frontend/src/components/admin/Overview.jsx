@@ -33,7 +33,13 @@ export default function Overview() {
   useEffect(() => {
     let mounted = true;
     spiritualAPI.getAdminOverview()
-      .then(data => { if (mounted) setMetrics(data); })
+      .then(response => {
+        if (mounted && response && response.success && response.data) {
+          setMetrics(response.data);
+        } else {
+          setError('No data available.');
+        }
+      })
       .catch(e => setError('தரவு ஏற்ற முடியவில்லை.'))
       .finally(() => setLoading(false));
     return () => { mounted = false; };
