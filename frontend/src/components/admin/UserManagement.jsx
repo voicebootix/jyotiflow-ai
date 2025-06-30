@@ -15,6 +15,7 @@ export default function UserManagement() {
     .then(([usersRes, plansRes]) => {
       setUsers(usersRes.data || []);
       setSubscriptionPlans(plansRes?.data || []);
+      console.log('subscriptionPlans:', plansRes?.data || []); // Debug log
     })
     .finally(() => setLoading(false));
   }, []);
@@ -26,26 +27,32 @@ export default function UserManagement() {
       <h2 className="text-2xl font-bold mb-6">User & Subscription Management</h2>
       
       {/* Subscription Plans */}
-      <div className="mb-8">
-        <h3 className="text-xl font-semibold mb-4">Subscription Plans</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {subscriptionPlans.map(plan => (
-            <div key={plan.id} className="border rounded-lg p-4 bg-white shadow">
-              <h4 className="font-bold text-lg">{plan.name}</h4>
-              <p className="text-gray-600 text-sm mb-2">{plan.description}</p>
-              <div className="text-2xl font-bold text-green-600">₹{plan.monthly_price}</div>
-              <div className="text-sm text-gray-500">{plan.credits_per_month} credits/month</div>
-              <div className="mt-2">
-                {plan.features && Object.entries(plan.features).map(([feature, enabled]) => (
-                  <div key={feature} className={`text-xs ${enabled ? 'text-green-600' : 'text-gray-400'}`}>
-                    {enabled ? '✓' : '✗'} {feature.replace('_', ' ')}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <section className="mt-8">
+        <h2 className="text-xl font-bold mb-2">Subscription Plans</h2>
+        {subscriptionPlans.length === 0 ? (
+          <div className="text-gray-500">No subscription plans found.</div>
+        ) : (
+          <ul className="space-y-4">
+            {subscriptionPlans.map(plan => (
+              <li key={plan.id} className="border p-4 rounded">
+                <div className="font-semibold">{plan.name} <span className="text-sm text-gray-500">(₹{plan.monthly_price})</span></div>
+                <div className="text-gray-700 mb-1">{plan.description}</div>
+                <div className="text-xs text-gray-600 mb-1">Credits/month: {plan.credits_per_month}</div>
+                <div className="mt-2">
+                  <span className="font-medium">Features:</span>
+                  <ul className="ml-4 list-disc">
+                    {plan.features && Object.entries(plan.features).map(([feature, enabled]) => (
+                      <li key={feature} className={enabled ? 'text-green-600' : 'text-gray-400'}>
+                        {enabled ? '✓' : '✗'} {feature.replace('_', ' ')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       {/* Users Table */}
       <div>
