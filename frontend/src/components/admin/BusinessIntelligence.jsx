@@ -20,7 +20,12 @@ export default function BusinessIntelligence() {
 
   if (loading) return <Loader message="AI நுண்ணறிவு தரவு ஏற்றப்படுகிறது..." />;
   if (error) return <div className="text-red-600">{error}</div>;
-  if (!data || typeof data !== 'object') return <div className="text-gray-600">No data available.</div>;
+  if (!data || typeof data !== 'object' || Object.keys(data).length === 0) return <div className="text-gray-600">No data available.</div>;
+
+  // Fallbacks for arrays
+  const recommendations = Array.isArray(data.recommendations) ? data.recommendations : [];
+  const ab_tests = Array.isArray(data.ab_tests) ? data.ab_tests : [];
+  const market_analysis = Array.isArray(data.market_analysis) ? data.market_analysis : [];
 
   return (
     <div>
@@ -29,7 +34,7 @@ export default function BusinessIntelligence() {
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h3 className="font-bold mb-2">AI Recommendations</h3>
         <ul className="list-disc pl-6">
-          {data.recommendations.map((rec, i) => (
+          {recommendations.map((rec, i) => (
             <li key={i} className="mb-2">{rec.title} — <span className="text-gray-500">{rec.impact_estimate}</span>
               <div className="text-sm text-gray-700">{rec.description}</div>
             </li>
@@ -40,7 +45,7 @@ export default function BusinessIntelligence() {
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h3 className="font-bold mb-2">A/B Test Results</h3>
         <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={data.ab_tests}>
+          <BarChart data={ab_tests}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="experiment_name" />
             <YAxis />
@@ -54,7 +59,7 @@ export default function BusinessIntelligence() {
       <div className="bg-white rounded-lg shadow p-6">
         <h3 className="font-bold mb-2">Market Analysis</h3>
         <ul className="list-disc pl-6">
-          {data.market_analysis.map((item, i) => (
+          {market_analysis.map((item, i) => (
             <li key={i}>{item}</li>
           ))}
         </ul>

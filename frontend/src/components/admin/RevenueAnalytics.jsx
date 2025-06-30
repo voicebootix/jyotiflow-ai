@@ -33,7 +33,13 @@ export default function RevenueAnalytics() {
 
   if (loading) return <Loader message="வருவாய் தரவு ஏற்றப்படுகிறது..." />;
   if (error) return <div className="text-red-600">{error}</div>;
-  if (!data || typeof data !== 'object') return <div className="text-gray-600">No data available.</div>;
+  if (!data || typeof data !== 'object' || Object.keys(data).length === 0) return <div className="text-gray-600">No data available.</div>;
+
+  // Fallbacks for arrays
+  const revenue_trend = Array.isArray(data.revenue_trend) ? data.revenue_trend : [];
+  const revenue_breakdown = Array.isArray(data.revenue_breakdown) ? data.revenue_breakdown : [];
+  const cohort_analysis = Array.isArray(data.cohort_analysis) ? data.cohort_analysis : [];
+  const revenue_forecast = Array.isArray(data.revenue_forecast) ? data.revenue_forecast : [];
 
   return (
     <div>
@@ -48,7 +54,7 @@ export default function RevenueAnalytics() {
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-bold mb-4">Revenue Trend (Monthly)</h2>
         <ResponsiveContainer width="100%" height={300}>
-          <LineChart data={data.revenue_trend}>
+          <LineChart data={revenue_trend}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />
             <YAxis />
@@ -63,7 +69,7 @@ export default function RevenueAnalytics() {
         <ResponsiveContainer width="100%" height={250}>
           <PieChart>
             <Pie
-              data={data.revenue_breakdown}
+              data={revenue_breakdown}
               dataKey="value"
               nameKey="type"
               cx="50%"
@@ -71,7 +77,7 @@ export default function RevenueAnalytics() {
               outerRadius={80}
               label
             >
-              {data.revenue_breakdown.map((entry, index) => (
+              {revenue_breakdown.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>
@@ -84,7 +90,7 @@ export default function RevenueAnalytics() {
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-bold mb-4">Cohort Retention Analysis</h2>
         <ResponsiveContainer width="100%" height={250}>
-          <BarChart data={data.cohort_analysis}>
+          <BarChart data={cohort_analysis}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="cohort" />
             <YAxis />
@@ -108,7 +114,7 @@ export default function RevenueAnalytics() {
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-bold mb-4">Revenue Forecast (AI)</h2>
         <ResponsiveContainer width="100%" height={250}>
-          <LineChart data={data.revenue_forecast}>
+          <LineChart data={revenue_forecast}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="month" />
             <YAxis />
