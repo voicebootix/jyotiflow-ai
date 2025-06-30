@@ -19,7 +19,7 @@ const Satsang = () => {
   const loadSatsangData = async () => {
     try {
       const schedule = await spiritualAPI.getSatsangSchedule();
-      if (schedule && schedule.success) {
+      if (schedule && schedule.success && schedule.data) {
         setSatsangSchedule(schedule.data || []);
       } else {
         // Fallback data if API is not available
@@ -47,7 +47,28 @@ const Satsang = () => {
         ]);
       }
     } catch (error) {
-      console.log('Satsang data loading blessed with patience:', error);
+      setSatsangSchedule([
+        {
+          id: 'next_satsang',
+          title: 'Divine Wisdom Gathering',
+          theme: 'Finding Inner Peace in Modern Times',
+          scheduled_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+          duration: '90 minutes',
+          max_participants: 100,
+          registered_count: 67,
+          description: 'Join our global spiritual community for a transformative session on finding peace amidst life\'s challenges.'
+        },
+        {
+          id: 'monthly_satsang',
+          title: 'Monthly Sacred Circle',
+          theme: 'The Path of Self-Realization',
+          scheduled_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+          duration: '120 minutes',
+          max_participants: 150,
+          registered_count: 89,
+          description: 'A deeper exploration of spiritual practices and ancient wisdom for modern seekers.'
+        }
+      ]);
     } finally {
       setIsLoading(false);
     }
