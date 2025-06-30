@@ -35,4 +35,9 @@ async def create_satsang_event(event: SatsangEventCreate, db=Depends(get_db)):
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
     """, event.title, event.description, event.event_date, event.duration_minutes, event.max_attendees, event.zoom_link, event.status)
-    return dict(row) 
+    return dict(row)
+
+@router.get("/users")
+async def get_admin_users(db=Depends(get_db)):
+    rows = await db.fetch("SELECT id, email, full_name, role, credits, created_at FROM users ORDER BY created_at DESC")
+    return [dict(row) for row in rows] 
