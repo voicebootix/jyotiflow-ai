@@ -7,6 +7,7 @@ import RevenueAnalytics from './admin/RevenueAnalytics';
 import ContentManagement from './admin/ContentManagement';
 import BusinessIntelligence from './admin/BusinessIntelligence';
 import Settings from './admin/Settings';
+import UserManagement from './admin/UserManagement';
 import spiritualAPI from '../lib/api';
 
 const AdminDashboard = () => {
@@ -27,6 +28,17 @@ const AdminDashboard = () => {
   if (loading) {
     return <div>Loading divine administration...</div>;
   }
+
+  // Tab labels and keys
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'products', label: 'Products' },
+    { key: 'revenue', label: 'Revenue' },
+    { key: 'content', label: 'Content' },
+    { key: 'insights', label: 'Insights' },
+    { key: 'settings', label: 'Settings' },
+    { key: 'users', label: 'Users' },
+  ];
 
   return (
     <div className="pt-16 min-h-screen bg-gray-50">
@@ -57,6 +69,20 @@ const AdminDashboard = () => {
           </div>
         </div>
       </div>
+      {/* Tab Navigation */}
+      <div className="max-w-7xl mx-auto px-4 pt-6">
+        <div className="flex space-x-2 border-b border-gray-200 mb-8">
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 font-medium rounded-t-lg focus:outline-none transition-colors duration-200 ${activeTab === tab.key ? 'bg-white text-purple-800 border-x border-t border-gray-200 -mb-px' : 'text-gray-600 hover:text-purple-700'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div className="max-w-7xl mx-auto px-4 py-8">
         {activeTab === 'overview' && <Overview adminStats={adminStats} />}
         {activeTab === 'products' && <Products />}
@@ -64,6 +90,7 @@ const AdminDashboard = () => {
         {activeTab === 'content' && <ContentManagement />}
         {activeTab === 'insights' && <BusinessIntelligence />}
         {activeTab === 'settings' && <Settings />}
+        {activeTab === 'users' && <UserManagement />}
       </div>
     </div>
   );
