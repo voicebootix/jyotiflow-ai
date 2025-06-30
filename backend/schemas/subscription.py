@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional, Any
 import uuid
+from datetime import datetime
 
 # சந்தா திட்டம் உருவாக்கம் - Subscription Plan Creation Schema
 class SubscriptionPlanCreate(BaseModel):
@@ -31,4 +32,5 @@ class SubscriptionPlanOut(BaseModel):
     stripe_product_id: Optional[str]  # Stripe தயாரிப்பு ID
     stripe_price_id: Optional[str]  # Stripe விலை ID
     is_active: bool  # செயலில் உள்ளதா
-    created_at: Optional[str]  # உருவாக்கப்பட்ட நேரம் 
+    created_at: Optional[datetime]  # உருவாக்கப்பட்ட நேரம்
+    updated_at: Optional[datetime]  # புதுப்பிக்கப்பட்ட நேரம் 
