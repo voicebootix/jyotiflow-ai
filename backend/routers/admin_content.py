@@ -3,7 +3,7 @@ from typing import List
 from schemas.content import SocialContentCreate, SocialContentOut, SatsangEventCreate, SatsangEventOut
 from db import get_db
 import uuid
-from core_foundation_enhanced import get_admin_user
+from deps import get_admin_user
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Content"])
 

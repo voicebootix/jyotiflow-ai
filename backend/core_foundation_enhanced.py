@@ -150,6 +150,9 @@ from routers import (
     admin_analytics, admin_content, admin_settings
 )
 
+# Import dependency functions from deps.py
+from deps import get_current_user, get_admin_user
+
 # =============================================================================
 # 📊 ENHANCED PYDANTIC MODELS - ALL MODELS WITH AVATAR INTEGRATION
 # =============================================================================
