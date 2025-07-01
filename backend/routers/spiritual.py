@@ -8,6 +8,44 @@ router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 PROKERALA_API_KEY = os.getenv("PROKERALA_API_KEY", "your-prokerala-api-key")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
 
+@router.post("/birth-chart")
+async def get_birth_chart(request: Request):
+    data = await request.json()
+    birth_details = data.get("birth_details")
+    if not birth_details:
+        raise HTTPException(status_code=400, detail="Missing birth details")
+
+    date = birth_details.get("date")
+    time = birth_details.get("time")
+    # location string: "jaffna,srilanka" → use static lat/lon for demo
+    latitude = "9.66845"   # Jaffna latitude
+    longitude = "80.00742" # Jaffna longitude
+    timezone = "Asia/Colombo"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            params = {
+                "date": date,
+                "time": time,
+                "latitude": latitude,
+                "longitude": longitude,
+                "timezone": timezone
+            }
+            prokerala_resp = await client.get(
+                "https://api.prokerala.com/v2/astrology/birth-details",
+                headers={"Authorization": f"Bearer {PROKERALA_API_KEY}"},
+                params=params
+            )
+            prokerala_resp.raise_for_status()
+            birth_chart_data = prokerala_resp.json()
+    except Exception as e:
+        return {"success": False, "message": f"Prokerala API error: {str(e)}"}
+
+    return {
+        "success": True,
+        "birth_chart": birth_chart_data
+    }
+
 @router.post("/guidance")
 async def get_spiritual_guidance(request: Request):
     data = await request.json()
@@ -17,13 +55,29 @@ async def get_spiritual_guidance(request: Request):
     if not user_question or not birth_details:
         raise HTTPException(status_code=400, detail="Missing question or birth details")
 
+    # Extract date, time, location (split location into latitude, longitude, timezone if needed)
+    date = birth_details.get("date")
+    time = birth_details.get("time")
+    location = birth_details.get("location")
+    # For demo: use dummy values for lat/lon/timezone (replace with real geocoding if needed)
+    latitude = "9.66845"  # Jaffna latitude
+    longitude = "80.00742"  # Jaffna longitude
+    timezone = "Asia/Colombo"
+
     # 1. Prokerala API call (astrology info)
     try:
         async with httpx.AsyncClient() as client:
-            prokerala_resp = await client.post(
+            params = {
+                "date": date,
+                "time": time,
+                "latitude": latitude,
+                "longitude": longitude,
+                "timezone": timezone
+            }
+            prokerala_resp = await client.get(
                 "https://api.prokerala.com/v2/astrology/birth-details",
                 headers={"Authorization": f"Bearer {PROKERALA_API_KEY}"},
-                json=birth_details
+                params=params
             )
             prokerala_resp.raise_for_status()
             prokerala_data = prokerala_resp.json()
