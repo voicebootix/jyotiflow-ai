@@ -485,7 +485,7 @@ class EnhancedJyotiFlowDatabase:
         try:
             conn = await self.get_connection()
             try:
-                result = await conn.fetchval("SELECT credits FROM users WHERE email = $1", user_id)
+                result = await conn.fetchval("SELECT credits FROM users WHERE id = $1", user_id)
                 return result or 0
             finally:
                 await self.release_connection(conn)
