@@ -21,7 +21,7 @@ async def get_spiritual_guidance(request: Request):
     try:
         async with httpx.AsyncClient() as client:
             prokerala_resp = await client.post(
-                "https://api.prokerala.com/v2/astrology/horoscope",
+                "https://api.prokerala.com/v2/astrology/birth-details",
                 headers={"Authorization": f"Bearer {PROKERALA_API_KEY}"},
                 json=birth_details
             )
