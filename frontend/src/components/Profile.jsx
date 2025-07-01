@@ -48,7 +48,7 @@ const Profile = () => {
       // Load credit balance
       const credits = await spiritualAPI.getCreditBalance();
       if (credits && credits.success) {
-        setCreditBalance(credits.data.balance || 0);
+        setCreditBalance(credits.data.credits || 0);
       }
     } catch (error) {
       console.log('Profile data loading blessed with patience:', error);
