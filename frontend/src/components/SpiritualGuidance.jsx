@@ -81,28 +81,25 @@ const SpiritualGuidance = () => {
         question_length: formData.question.length
       });
 
-      // Start session with backend
-      const sessionData = {
-        service_type: selectedService,
+      // Change here: use submitSpiritualQuestion instead of startSession
+      const sessionResult = await spiritualAPI.submitSpiritualQuestion({
+        question: formData.question,
         birth_details: {
           date: formData.birthDate,
           time: formData.birthTime,
           location: formData.birthLocation
-        },
-        question: formData.question
-      };
+        }
+      });
 
-      const sessionResult = await spiritualAPI.startSession(sessionData);
-      
       if (sessionResult && sessionResult.success) {
-        setGuidance(sessionResult.data);
+        setGuidance(sessionResult);
 
         // For premium/elite users, generate avatar video
         if ((selectedService === 'premium' || selectedService === 'elite') && spiritualAPI.isAuthenticated()) {
           try {
             const avatarResult = await spiritualAPI.generateAvatarVideo(
               sessionResult.data.guidance_text,
-              sessionData.birth_details
+              sessionResult.data.birth_details
             );
             
             if (avatarResult && avatarResult.success) {
