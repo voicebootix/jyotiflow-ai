@@ -6,6 +6,7 @@ import openai
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
 PROKERALA_API_KEY = os.getenv("PROKERALA_API_KEY", "your-prokerala-api-key")
+print("DEBUG: PROKERALA_API_KEY =", PROKERALA_API_KEY)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
 
 @router.post("/birth-chart")
