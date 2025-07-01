@@ -16,26 +16,28 @@ async def get_birth_chart(request: Request):
     if not birth_details:
         raise HTTPException(status_code=400, detail="Missing birth details")
 
-    date = birth_details.get("date")
-    time = birth_details.get("time")
+    date = birth_details.get("date")  # "1988-03-02"
+    time = birth_details.get("time")  # "05:00"
     # location string: "jaffna,srilanka" → use static lat/lon for demo
     latitude = "9.66845"   # Jaffna latitude
     longitude = "80.00742" # Jaffna longitude
-    timezone = "Asia/Colombo"
+
+    # Combine date and time to ISO format
+    datetime_str = f"{date}T{time}:00+05:30"
+    coordinates = f"{latitude},{longitude}"
+
+    payload = {
+        "datetime": datetime_str,
+        "coordinates": coordinates,
+        "ayanamsa": 1
+    }
 
     try:
         async with httpx.AsyncClient() as client:
-            params = {
-                "date": date,
-                "time": time,
-                "latitude": latitude,
-                "longitude": longitude,
-                "timezone": timezone
-            }
-            prokerala_resp = await client.get(
+            prokerala_resp = await client.post(
                 "https://api.prokerala.com/v2/astrology/birth-details",
                 headers={"Authorization": f"Bearer {PROKERALA_API_KEY}"},
-                params=params
+                json=payload
             )
             prokerala_resp.raise_for_status()
             birth_chart_data = prokerala_resp.json()
