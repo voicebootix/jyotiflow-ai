@@ -3,6 +3,7 @@ import time
 from fastapi import APIRouter, Request, HTTPException
 import httpx
 import openai
+from fastapi.middleware.cors import CORSMiddleware
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
