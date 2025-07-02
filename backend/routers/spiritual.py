@@ -137,7 +137,7 @@ async def get_spiritual_guidance(request: Request):
     try:
         openai.api_key = OPENAI_API_KEY
         prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in Tamil."
-        openai_resp = openai.ChatCompletion.create(
+        openai_resp = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a spiritual guru."},
