@@ -1128,14 +1128,16 @@ __all__ = ["app", "auth_router", "user_router", "admin_router", "settings", "db_
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://jyotiflow-ai-frontend.onrender.com",
-        "https://jyotiflow.ai",
-        "https://www.jyotiflow.ai"
+        "https://jyotiflow-ai-frontend.onrender.com",  # Production frontend
+        "https://jyotiflow.ai",                      # Main domain
+        "https://www.jyotiflow.ai",                  # www domain
+        "http://localhost:5173"                      # Local development
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# ⚠️ Tamil: credentials (cookies/token) அனுப்பும் போது, allow_origins-ல் '*' (wildcard) இருக்கக்கூடாது. அதனால் மேலே domain-ஐ மட்டும் add செய்துள்ளோம்.
 
 # Add advanced production middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
