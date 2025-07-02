@@ -2218,3 +2218,6 @@ from routers import content
 app.include_router(content.router)
 # ... existing code ...
 
+from routers.spiritual import router as spiritual_router
+app.include_router(spiritual_router)
+
