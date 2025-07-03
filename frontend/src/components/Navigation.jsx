@@ -107,27 +107,27 @@ const Navigation = () => {
       </div>
       {/* Nav Items */}
       <div className="flex-1 flex items-center space-x-2">
-        <button className="px-4 py-2 rounded-full font-semibold bg-yellow-500 text-black hover:bg-yellow-600 transition-all">
+        <Link to="/" className="px-4 py-2 rounded-full font-semibold bg-yellow-500 text-black hover:bg-yellow-600 transition-all">
           🏠 Home
-        </button>
-        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+        </Link>
+        <Link to="/spiritual-guidance" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
           🕉️ Spiritual Guidance
-        </button>
-        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+        </Link>
+        <Link to="/live-chat" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
           🗨️ Live Chat
-        </button>
-        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+        </Link>
+        <Link to="/satsang" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
           🙏 Satsang
-        </button>
-        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+        </Link>
+        <Link to="/about/swamiji" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
           About Swamiji
-        </button>
-        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+        </Link>
+        <Link to="/login" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
           Sign In
-        </button>
-        <button className="ml-2 px-6 py-2 rounded-full font-bold bg-gradient-to-r from-orange-400 to-red-500 text-white hover:from-orange-500 hover:to-red-600 transition-all">
+        </Link>
+        <Link to="/register" className="ml-2 px-6 py-2 rounded-full font-bold bg-gradient-to-r from-orange-400 to-red-500 text-white hover:from-orange-500 hover:to-red-600 transition-all">
           Join Sacred Journey
-        </button>
+        </Link>
       </div>
       {/* Language Selector */}
       <div style={{ marginLeft: 'auto', marginRight: 16 }}>
