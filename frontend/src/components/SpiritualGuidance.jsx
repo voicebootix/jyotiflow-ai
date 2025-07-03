@@ -16,6 +16,8 @@ const SpiritualGuidance = () => {
     birthLocation: '',
     question: ''
   });
+  const [credits, setCredits] = useState(0);
+  const [loadingCredits, setLoadingCredits] = useState(true);
 
   useEffect(() => {
     // Track page visit
@@ -24,7 +26,18 @@ const SpiritualGuidance = () => {
     });
   }, [selectedService]);
 
-// Authentication check
+  useEffect(() => {
+    if (spiritualAPI.isAuthenticated()) {
+      spiritualAPI.getCreditBalance().then(res => {
+        if (res.success) setCredits(res.data.credits);
+        setLoadingCredits(false);
+      });
+    } else {
+      setLoadingCredits(false);
+    }
+  }, []);
+
+  // Authentication check
   useEffect(() => {
    // if (!spiritualAPI.isAuthenticated()) {
       // Redirect to login with current service
@@ -161,6 +174,13 @@ const SpiritualGuidance = () => {
 
   const currentService = services[selectedService];
 
+  const sessionTypes = [
+    { key: 'clarity', name: 'Clarity Plus', price: 29 },
+    { key: 'love', name: 'AstroLove', price: 39 },
+    { key: 'premium', name: 'Premium', price: 59 },
+    { key: 'elite', name: 'Elite', price: 99 }
+  ];
+
   return (
     <div className="pt-16 min-h-screen">
       {/* Header */}
@@ -189,18 +209,24 @@ const SpiritualGuidance = () => {
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="text-2xl font-bold text-white mb-6 text-center">Choose Your Guidance Path</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {Object.entries(services).map(([key, service]) => (
+            {sessionTypes.map(session => (
               <button
-                key={key}
-                onClick={() => setSelectedService(key)}
+                key={session.key}
+                onClick={() => setSelectedService(session.key)}
                 className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                  selectedService === key
+                  selectedService === session.key
                     ? 'border-yellow-400 bg-yellow-400 bg-opacity-20'
                     : 'border-gray-600 bg-gray-800 hover:border-gray-400'
                 }`}
+                disabled={loadingCredits || (spiritualAPI.isAuthenticated() && credits < session.price)}
+                title={spiritualAPI.isAuthenticated() && credits < session.price ? 'Insufficient credits' : ''}
               >
-                <div className="text-2xl mb-2">{service.icon}</div>
-                <div className="text-white font-semibold text-sm">{service.name}</div>
+                <div className="text-2xl mb-2">{services[session.key].icon}</div>
+                <div className="text-white font-semibold text-sm">{services[session.key].name}</div>
+                <div className="text-yellow-300 font-bold mt-2">${session.price}</div>
+                {spiritualAPI.isAuthenticated() && credits < session.price && (
+                  <div className="text-red-400 text-xs mt-1">Insufficient credits</div>
+                )}
               </button>
             ))}
           </div>
