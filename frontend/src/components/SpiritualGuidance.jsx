@@ -69,6 +69,10 @@ const SpiritualGuidance = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!spiritualAPI.isAuthenticated()) {
+      navigate('/login');
+      return;
+    }
     setIsLoading(true);
     setGuidance(null);
     setAvatarVideo(null);
