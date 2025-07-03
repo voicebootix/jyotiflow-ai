@@ -92,7 +92,10 @@ const SpiritualGuidance = () => {
       });
 
       if (sessionResult && sessionResult.success) {
-        setGuidance(sessionResult);
+        setGuidance({
+          guidance: sessionResult.guidance,
+          astrology: sessionResult.astrology
+        });
 
         // For premium/elite users, generate avatar video
         if ((selectedService === 'premium' || selectedService === 'elite') && spiritualAPI.isAuthenticated()) {
@@ -112,14 +115,14 @@ const SpiritualGuidance = () => {
         }
       } else {
         setGuidance({
-          guidance_text: "Divine guidance is temporarily unavailable. Please try again in a few moments.",
+          guidance: "Divine guidance is temporarily unavailable. Please try again in a few moments.",
           session_id: null
         });
       }
     } catch (error) {
       console.error('Guidance request encountered divine turbulence:', error);
       setGuidance({
-        guidance_text: "The divine servers are currently in meditation. Please try again shortly.",
+        guidance: "The divine servers are currently in meditation. Please try again shortly.",
         session_id: null
       });
     } finally {
@@ -302,10 +305,15 @@ const SpiritualGuidance = () => {
               <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
                 🕉️ Divine Guidance Received
               </h2>
-              
               <div className="prose prose-lg max-w-none text-gray-700 mb-8">
-                {guidance.guidance_text}
+                {guidance.guidance}
               </div>
+              {guidance.astrology && (
+                <div className="mb-8 p-4 bg-gray-100 rounded-lg">
+                  <div><b>நட்சத்திரம்:</b> {guidance.astrology.data?.nakshatra?.name}</div>
+                  <div><b>சந்திர ராசி:</b> {guidance.astrology.data?.chandra_rasi?.name}</div>
+                </div>
+              )}
 
               {/* Avatar Video */}
               {avatarVideo && (
