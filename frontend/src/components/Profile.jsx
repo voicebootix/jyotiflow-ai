@@ -11,14 +11,24 @@ const Profile = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedService, setSelectedService] = useState(null);
+  const [services, setServices] = useState([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [creditPackages, setCreditPackages] = useState([]);
+  const [packagesLoading, setPackagesLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Check if user came from service selection
+  // Check if user came from service selection or tab parameter
   useEffect(() => {
     const serviceFromUrl = searchParams.get('service');
+    const tabFromUrl = searchParams.get('tab');
+    
     if (serviceFromUrl) {
       setSelectedService(serviceFromUrl);
       setActiveTab('services');
+    }
+    
+    if (tabFromUrl && ['overview', 'services', 'sessions', 'credits', 'settings'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
     }
   }, [searchParams]);
 
@@ -50,8 +60,20 @@ const Profile = () => {
       if (credits && credits.success) {
         setCreditBalance(credits.data.credits || 0);
       }
+
+      // Load services
+      const servicesData = await spiritualAPI.request('/api/admin/service-types');
+      setServices(servicesData);
+      setServicesLoading(false);
+
+      // Load credit packages
+      const packagesData = await spiritualAPI.request('/api/admin/credit-packages');
+      setCreditPackages(packagesData);
+      setPackagesLoading(false);
     } catch (error) {
       console.log('Profile data loading blessed with patience:', error);
+      setServicesLoading(false);
+      setPackagesLoading(false);
     } finally {
       setIsLoading(false);
     }
@@ -265,65 +287,61 @@ const Profile = () => {
                   </div>
                 )}
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  {[
-                    {
-                      id: 'clarity',
-                      name: 'Clarity Plus',
-                      icon: '🔮',
-                      color: 'blue',
-                      price: '$29',
-                      description: 'Deep spiritual insights and life guidance'
-                    },
-                    {
-                      id: 'love',
-                      name: 'AstroLove',
-                      icon: '💕',
-                      color: 'pink',
-                      price: '$39',
-                      description: 'Relationship and love compatibility analysis'
-                    },
-                    {
-                      id: 'premium',
-                      name: 'Premium',
-                      icon: '🌟',
-                      color: 'yellow',
-                      price: '$59',
-                      description: 'Comprehensive spiritual consultation'
-                    },
-                    {
-                      id: 'elite',
-                      name: 'Elite',
-                      icon: '👑',
-                      color: 'purple',
-                      price: '$99',
-                      description: 'Ultimate spiritual transformation package'
-                    }
-                  ].map((service) => (
-                    <div 
-                      key={service.id}
-                      className={`sacred-card p-6 border-2 ${
-                        selectedService === service.id 
-                          ? 'border-yellow-400 bg-yellow-50' 
-                          : 'border-gray-200'
-                      }`}
-                    >
-                      <div className="text-center mb-4">
-                        <div className="text-4xl mb-2">{service.icon}</div>
-                        <h3 className="text-xl font-bold text-gray-800">{service.name}</h3>
-                        <p className="text-gray-600 text-sm">{service.description}</p>
-                        <div className="text-2xl font-bold text-gray-800 mt-2">{service.price}</div>
-                      </div>
+                {servicesLoading ? (
+                  <div className="text-center py-8">
+                    <div className="text-4xl mb-4">🔄</div>
+                    <p className="text-gray-600">சேவைகள் ஏற்றப்படுகிறது...</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-6">
+                    {services.filter(s => s.enabled).map((service) => {
+                      const hasEnoughCredits = creditBalance >= service.credits_required;
                       
-                      <Link 
-                        to={`/spiritual-guidance?service=${service.id}`}
-                        className="w-full divine-button block text-center"
-                      >
-                        Start {service.name} Session
-                      </Link>
-                    </div>
-                  ))}
-                </div>
+                      return (
+                        <div 
+                          key={service.id}
+                          className={`sacred-card p-6 border-2 ${
+                            selectedService === service.name 
+                              ? 'border-yellow-400 bg-yellow-50' 
+                              : hasEnoughCredits
+                                ? 'border-gray-200'
+                                : 'border-red-200 bg-red-50'
+                          }`}
+                        >
+                          <div className="text-center mb-4">
+                            <div className="text-4xl mb-2">
+                              {service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮'}
+                            </div>
+                            <h3 className="text-xl font-bold text-gray-800">{service.name}</h3>
+                            <p className="text-gray-600 text-sm">{service.description}</p>
+                            <div className="text-2xl font-bold text-gray-800 mt-2">${service.price_usd}</div>
+                            <div className="text-sm text-gray-500">{service.credits_required} கிரெடிட்ஸ்</div>
+                            <div className="text-sm text-gray-500">{service.duration_minutes} நிமிடம்</div>
+                          </div>
+                          
+                          {hasEnoughCredits ? (
+                            <Link 
+                              to={`/spiritual-guidance?service=${service.name}`}
+                              className="w-full divine-button block text-center"
+                            >
+                              Start {service.name} Session
+                            </Link>
+                          ) : (
+                            <div className="text-center">
+                              <div className="text-red-600 text-sm mb-2">போதுமான கிரெடிட்ஸ் இல்லை</div>
+                              <Link 
+                                to="/profile?tab=credits"
+                                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors block text-center"
+                              >
+                                Buy Credits
+                              </Link>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -398,39 +416,46 @@ const Profile = () => {
               </div>
 
               {/* Credit Packages */}
-              <div className="grid md:grid-cols-3 gap-6">
-                {[
-                  { credits: 50, price: 25, bonus: 0 },
-                  { credits: 100, price: 45, bonus: 10, popular: true },
-                  { credits: 200, price: 80, bonus: 30 }
-                ].map((package_, index) => (
-                  <div 
-                    key={index}
-                    className={`sacred-card p-6 text-center ${
-                      package_.popular ? 'ring-2 ring-yellow-400' : ''
-                    }`}
-                  >
-                    {package_.popular && (
-                      <div className="bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
-                        BEST VALUE
+              {packagesLoading ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-4">🔄</div>
+                  <p className="text-gray-600">கிரெடிட் தொகுப்புகள் ஏற்றப்படுகிறது...</p>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-3 gap-6">
+                  {creditPackages.filter(pkg => pkg.enabled).map((creditPkg, index) => (
+                    <div 
+                      key={creditPkg.id}
+                      className={`sacred-card p-6 text-center ${
+                        index === 1 ? 'ring-2 ring-yellow-400' : ''
+                      }`}
+                    >
+                      {index === 1 && (
+                        <div className="bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
+                          BEST VALUE
+                        </div>
+                      )}
+                      <div className="text-3xl mb-3">💎</div>
+                      <div className="text-2xl font-bold text-gray-800 mb-2">
+                        {creditPkg.credits_amount + creditPkg.bonus_credits} கிரெடிட்ஸ்
                       </div>
-                    )}
-                    <div className="text-3xl mb-3">💎</div>
-                    <div className="text-2xl font-bold text-gray-800 mb-2">
-                      {package_.credits + package_.bonus} Credits
+                      <div className="text-gray-600 mb-4">${creditPkg.price_usd}</div>
+                      {creditPkg.bonus_credits > 0 && (
+                        <div className="text-green-600 text-sm mb-4">
+                          +{creditPkg.bonus_credits} போனஸ் கிரெடிட்ஸ்
+                        </div>
+                      )}
+                      <div className="text-gray-500 text-xs mb-4">{creditPkg.description}</div>
+                      <button 
+                        onClick={() => spiritualAPI.purchaseCredits(creditPkg.credits_amount)}
+                        className="divine-button w-full"
+                      >
+                        வாங்கு
+                      </button>
                     </div>
-                    <div className="text-gray-600 mb-4">${package_.price}</div>
-                    {package_.bonus > 0 && (
-                      <div className="text-green-600 text-sm mb-4">
-                        +{package_.bonus} Bonus Credits
-                      </div>
-                    )}
-                    <button className="divine-button w-full">
-                      Purchase
-                    </button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
