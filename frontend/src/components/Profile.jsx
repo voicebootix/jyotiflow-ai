@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play, LogOut } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const Profile = () => {
@@ -77,6 +77,11 @@ const Profile = () => {
     });
   };
 
+  const handleLogout = () => {
+    spiritualAPI.logout();
+    navigate('/', { replace: true });
+  };
+
   if (isLoading) {
     return (
       <div className="pt-16 min-h-screen flex items-center justify-center">
@@ -112,7 +117,7 @@ const Profile = () => {
   return (
     <div className="pt-16 min-h-screen">
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16">
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16 relative">
         <div className="max-w-4xl mx-auto px-4">
           <Link 
             to="/" 
@@ -121,6 +126,13 @@ const Profile = () => {
             <ArrowLeft size={20} className="mr-2" />
             Back to Home
           </Link>
+          {/* Logout button top right */}
+          <button
+            onClick={handleLogout}
+            className="absolute top-6 right-6 bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full flex items-center shadow-lg z-10"
+          >
+            <LogOut size={18} className="mr-2" /> Logout
+          </button>
           
           <div className="flex flex-col md:flex-row items-center md:items-start space-y-4 md:space-y-0 md:space-x-6">
             <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center">

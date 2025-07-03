@@ -119,12 +119,28 @@ const Navigation = () => {
         <Link to="/satsang" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
           🙏 Satsang
         </Link>
-        <Link to="/about/swamiji" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-          About Swamiji
-        </Link>
-        <Link to="/login" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-          Sign In
-        </Link>
+        {isAuthenticated && (
+          <Link to="/profile" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+            👤 Profile
+          </Link>
+        )}
+        {/* User dropdown or Sign In */}
+        {isAuthenticated ? (
+          <div className="relative group">
+            <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all flex items-center">
+              <span className="mr-2">{userProfile?.name || 'User'}</span>
+              <ChevronDown size={16} />
+            </button>
+            <div className="absolute right-0 mt-2 w-40 bg-white text-black rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity z-50">
+              <Link to="/profile" className="block px-4 py-2 hover:bg-gray-100">Profile</Link>
+              <button onClick={handleLogout} className="block w-full text-left px-4 py-2 hover:bg-gray-100">Logout</button>
+            </div>
+          </div>
+        ) : (
+          <Link to="/login" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+            Sign In
+          </Link>
+        )}
         <Link to="/register" className="ml-2 px-6 py-2 rounded-full font-bold bg-gradient-to-r from-orange-400 to-red-500 text-white hover:from-orange-500 hover:to-red-600 transition-all">
           Join Sacred Journey
         </Link>
