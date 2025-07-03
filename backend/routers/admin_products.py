@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Body
 from typing import List
 from schemas.product import ProductCreate, ProductUpdate, ProductOut
 from db import get_db
@@ -101,4 +101,81 @@ async def get_credit_packages(db=Depends(get_db)):
         ]
     except Exception as e:
         logger.error(f"Error fetching credit packages: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch credit packages") 
+        raise HTTPException(status_code=500, detail="Failed to fetch credit packages")
+
+@router.get("/donations")
+async def get_donations(db=Depends(get_db)):
+    """Get all enabled donation options"""
+    try:
+        result = await db.fetch("SELECT * FROM donations WHERE enabled=TRUE ORDER BY price_usd")
+        return [
+            {
+                "id": str(row["id"]),
+                "name": row["name"],
+                "tamil_name": row.get("tamil_name", ""),
+                "description": row["description"],
+                "price_usd": float(row["price_usd"]),
+                "icon": row.get("icon", ""),
+                "enabled": row["enabled"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None
+            }
+            for row in result
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching donations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch donations")
+
+@router.post("/donations")
+async def create_donation(donation: dict = Body(...), db=Depends(get_db)):
+    """Create a new donation option"""
+    try:
+        await db.execute(
+            """
+            INSERT INTO donations (name, tamil_name, description, price_usd, icon, enabled, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+            """,
+            donation.get("name"),
+            donation.get("tamil_name"),
+            donation.get("description"),
+            float(donation.get("price_usd", 0)),
+            donation.get("icon", ""),
+            donation.get("enabled", True)
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error creating donation: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create donation")
+
+@router.put("/donations/{donation_id}")
+async def update_donation(donation_id: str, donation: dict = Body(...), db=Depends(get_db)):
+    """Update an existing donation option"""
+    try:
+        await db.execute(
+            """
+            UPDATE donations SET name=$1, tamil_name=$2, description=$3, price_usd=$4, icon=$5, enabled=$6 WHERE id=$7
+            """,
+            donation.get("name"),
+            donation.get("tamil_name"),
+            donation.get("description"),
+            float(donation.get("price_usd", 0)),
+            donation.get("icon", ""),
+            donation.get("enabled", True),
+            donation_id
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error updating donation: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update donation")
+
+@router.delete("/donations/{donation_id}")
+async def delete_donation(donation_id: str, db=Depends(get_db)):
+    """Disable (soft delete) a donation option"""
+    try:
+        await db.execute(
+            "UPDATE donations SET enabled=FALSE WHERE id=$1",
+            donation_id
+        )
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error deleting donation: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete donation") 

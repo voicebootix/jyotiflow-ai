@@ -2140,13 +2140,20 @@ class SocialContent(BaseModel):
 # Database alias for backward compatibility
 EnhancedJyotiFlowDatabase = EnhancedDatabaseManager
 
+# Add helper function to fetch service info from DB
+def get_service_type_from_db(service_type: str, db):
+    """Fetch service/pricing info from service_types table dynamically"""
+    row = db.fetchrow('SELECT * FROM service_types WHERE name=$1 AND enabled=TRUE', service_type)
+    if not row:
+        raise Exception(f"Service type '{service_type}' not found or not enabled.")
+    return row
+
 # Service pricing and credits configuration
-SKUS: Dict[str, dict] = {
-    'clarity': {'price': 9, 'credits': 1, 'name': 'Clarity Plus'},
-    'love': {'price': 19, 'credits': 3, 'name': 'AstroLove Whisper'},
-    'premium': {'price': 39, 'credits': 6, 'name': 'R3 Live Premium'},
-    'elite': {'price': 149, 'credits': 12, 'name': 'Daily AstroCoach'}
-}
+async def get_service_type_from_db(service_type: str, db):
+       row = await db.fetchrow('SELECT * FROM service_types WHERE name=$1 AND enabled=TRUE', service_type)
+       if not row:
+           raise Exception(f"Service type '{service_type}' not found or not enabled.")
+       return row
 
 # Additional Pydantic models for API consistency
 class SessionRequest(BaseModel):

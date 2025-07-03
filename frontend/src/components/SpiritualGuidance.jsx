@@ -22,17 +22,11 @@ const SpiritualGuidance = () => {
   const [servicesLoading, setServicesLoading] = useState(true);
   const [selectedDonations, setSelectedDonations] = useState([]);
   const [donationTotal, setDonationTotal] = useState(0);
+  const [donationOptions, setDonationOptions] = useState([]);
+  const [donationsLoading, setDonationsLoading] = useState(true);
   const [creditPackages, setCreditPackages] = useState([]);
   const [selectedCreditPackage, setSelectedCreditPackage] = useState(null);
   const [packagesLoading, setPackagesLoading] = useState(true);
-
-  const donationOptions = [
-    { id: 'flowers', name: 'மலர்கள்', tamilName: 'மலர்கள்', price: 5, icon: '🌸', description: 'புனித மலர்கள் சமர்ப்பிப்பு' },
-    { id: 'lamp', name: 'விளக்கு', tamilName: 'விளக்கு', price: 10, icon: '🕯️', description: 'தீபாராதனை' },
-    { id: 'prasadam', name: 'பிரசாதம்', tamilName: 'பிரசாதம்', price: 15, icon: '🍯', description: 'புனித பிரசாதம்' },
-    { id: 'temple', name: 'கோவில்', tamilName: 'கோவில்', price: 25, icon: '🕉️', description: 'கோவில் பராமரிப்பு' },
-    { id: 'superchat', name: 'சூப்பர் சாட்', tamilName: 'சூப்பர் சாட்', price: 50, icon: '💬', description: 'முன்னுரிமை செய்தி' }
-  ];
 
   useEffect(() => {
     // Track page visit
@@ -62,6 +56,12 @@ const SpiritualGuidance = () => {
     spiritualAPI.request('/api/admin/products/credit-packages').then(data => {
       setCreditPackages(Array.isArray(data) ? data : []);
       setPackagesLoading(false);
+    });
+
+    // Fetch donation options
+    spiritualAPI.request('/api/admin/products/donations').then(data => {
+      setDonationOptions(Array.isArray(data) ? data : []);
+      setDonationsLoading(false);
     });
   }, []);
 
@@ -181,7 +181,7 @@ const SpiritualGuidance = () => {
       
       const total = newDonations.reduce((sum, id) => {
         const donation = donationOptions.find(d => d.id === id);
-        return sum + (donation ? donation.price : 0);
+        return sum + (donation ? donation.price_usd : 0);
       }, 0);
       
       setDonationTotal(total);
@@ -251,24 +251,28 @@ const SpiritualGuidance = () => {
       <div className="py-6 bg-black bg-opacity-30">
         <div className="max-w-4xl mx-auto px-4">
           <h3 className="text-xl font-bold text-white mb-4 text-center">தானம் செய்யுங்கள் (விருப்பமானது)</h3>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-            {donationOptions.map(donation => (
-              <button
-                key={donation.id}
-                onClick={() => handleDonationToggle(donation.id)}
-                className={`p-3 rounded-lg border-2 transition-all duration-300 ${
-                  selectedDonations.includes(donation.id)
-                    ? 'border-green-400 bg-green-400 bg-opacity-20'
-                    : 'border-gray-600 bg-gray-800 hover:border-gray-400'
-                }`}
-              >
-                <div className="text-2xl mb-1">{donation.icon}</div>
-                <div className="text-white font-semibold text-xs">{donation.tamilName}</div>
-                <div className="text-green-300 font-bold text-sm">${donation.price}</div>
-                <div className="text-gray-400 text-xs">{donation.description}</div>
-              </button>
-            ))}
-          </div>
+          {donationsLoading ? (
+            <div className="text-white text-center">தானங்கள் ஏற்றப்படுகிறது...</div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {donationOptions.filter(donation => donation.enabled).map(donation => (
+                <button
+                  key={donation.id}
+                  onClick={() => handleDonationToggle(donation.id)}
+                  className={`p-3 rounded-lg border-2 transition-all duration-300 ${
+                    selectedDonations.includes(donation.id)
+                      ? 'border-green-400 bg-green-400 bg-opacity-20'
+                      : 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="text-2xl mb-1">{donation.icon}</div>
+                  <div className="text-white font-semibold text-xs">{donation.tamil_name || donation.name}</div>
+                  <div className="text-green-300 font-bold text-sm">${donation.price_usd}</div>
+                  <div className="text-gray-400 text-xs">{donation.description}</div>
+                </button>
+              ))}
+            </div>
+          )}
           {donationTotal > 0 && (
             <div className="text-center mt-4">
               <div className="text-white text-lg">
