@@ -145,7 +145,8 @@ const spiritualAPI = {
 
   // Spiritual guidance methods
   async submitSpiritualQuestion(questionData) {
-    return this.post('/api/spiritual/guidance', questionData);
+    const language = localStorage.getItem('jyotiflow_language') || 'en';
+    return this.post('/api/spiritual/guidance', { ...questionData, language });
   },
 
   async getSpiritualResponse(sessionId) {

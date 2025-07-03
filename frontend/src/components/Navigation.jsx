@@ -10,6 +10,7 @@ const Navigation = () => {
   const [showAboutDropdown, setShowAboutDropdown] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const [language, setLanguage] = useState(localStorage.getItem('jyotiflow_language') || 'en');
 
   useEffect(() => {
     checkAuthStatus();
@@ -26,6 +27,10 @@ const Navigation = () => {
       window.removeEventListener('auth-state-changed', handleAuthChange);
     };
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem('jyotiflow_language', language);
+  }, [language]);
 
   const checkAuthStatus = async () => {
   try {
@@ -66,6 +71,12 @@ const Navigation = () => {
       localStorage.removeItem('jyotiflow_user');
       navigate('/', { replace: true });
     }
+  };
+
+  const handleLanguageChange = (e) => {
+    setLanguage(e.target.value);
+    localStorage.setItem('jyotiflow_language', e.target.value);
+    window.location.reload(); // reload to apply language everywhere
   };
 
   const navItems = [
@@ -196,6 +207,14 @@ const Navigation = () => {
             >
               {isOpen ? <X size={24} /> : <Menu size={24} />}
             </button>
+          </div>
+
+          <div style={{ marginLeft: 'auto', marginRight: 16 }}>
+            <select value={language} onChange={handleLanguageChange} style={{ padding: 4, borderRadius: 4 }}>
+              <option value="en">English</option>
+              <option value="ta">தமிழ்</option>
+              <option value="hi">हिन्दी</option>
+            </select>
           </div>
         </div>
       </div>

@@ -95,6 +95,7 @@ async def get_spiritual_guidance(request: Request):
     data = await request.json()
     user_question = data.get("question")
     birth_details = data.get("birth_details")
+    language = data.get("language", "ta")  # Default to Tamil if not provided
 
     if not user_question or not birth_details:
         raise HTTPException(status_code=400, detail="Missing question or birth details")
@@ -136,7 +137,7 @@ async def get_spiritual_guidance(request: Request):
     # 2. OpenAI API call (generate guidance)
     try:
         openai.api_key = OPENAI_API_KEY
-        prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in Tamil."
+        prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in {language}."
         openai_resp = openai.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=[
