@@ -11,7 +11,6 @@ const Navigation = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [language, setLanguage] = useState(localStorage.getItem('jyotiflow_language') || 'en');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     checkAuthStatus();
@@ -100,97 +99,44 @@ const Navigation = () => {
   };
 
   return (
-    <nav className="w-full bg-black text-white shadow-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto flex items-center px-4 py-2">
-        {/* Logo */}
-        <div className="flex items-center mr-4">
-          <img src="/favicon.ico" alt="JyotiFlow Logo" className="h-8 w-8 mr-2" />
-          <span className="font-bold text-xl">JyotiFlow.ai</span>
-        </div>
-        {/* Desktop Nav */}
-        <div className="hidden md:flex flex-1 items-center space-x-2">
-          <button className="px-4 py-2 rounded-full font-semibold bg-yellow-500 text-black hover:bg-yellow-600 transition-all">
-            🏠 Home
-          </button>
-          <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            🕉️ Spiritual Guidance
-          </button>
-          <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            🗨️ Live Chat
-          </button>
-          <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            🙏 Satsang
-          </button>
-          <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            About Swamiji
-          </button>
-          <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            Sign In
-          </button>
-          <button className="ml-2 px-6 py-2 rounded-full font-bold bg-gradient-to-r from-orange-400 to-red-500 text-white hover:from-orange-500 hover:to-red-600 transition-all">
-            Join Sacred Journey
-          </button>
-        </div>
-        {/* Language Selector (Desktop) */}
-        <div className="hidden md:flex ml-auto">
-          <select
-            value={language}
-            onChange={handleLanguageChange}
-            className="min-w-[110px] px-3 py-1 rounded-md bg-gray-900 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-            style={{ appearance: 'none', fontWeight: 500 }}
-          >
-            <option value="en">English</option>
-            <option value="ta">தமிழ்</option>
-            <option value="hi">हिन्दी</option>
-          </select>
-        </div>
-        {/* Mobile Hamburger */}
-        <div className="md:hidden ml-auto flex items-center">
-          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="focus:outline-none">
-            <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-        </div>
+    <nav className="w-full bg-black text-white shadow-md sticky top-0 z-50 flex items-center px-4 py-2">
+      {/* Logo */}
+      <div className="flex items-center mr-4">
+        <img src="/favicon.ico" alt="JyotiFlow Logo" className="h-8 w-8 mr-2" />
+        <span className="font-bold text-xl">JyotiFlow.ai</span>
       </div>
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden bg-black px-4 pb-4 pt-2 space-y-2 flex flex-col">
-          <button className="w-full text-left px-4 py-2 rounded-full font-semibold bg-yellow-500 text-black hover:bg-yellow-600 transition-all">
-            🏠 Home
-          </button>
-          <button className="w-full text-left px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            🕉️ Spiritual Guidance
-          </button>
-          <button className="w-full text-left px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            🗨️ Live Chat
-          </button>
-          <button className="w-full text-left px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            🙏 Satsang
-          </button>
-          <button className="w-full text-left px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            About Swamiji
-          </button>
-          <button className="w-full text-left px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-            Sign In
-          </button>
-          <button className="w-full text-left mt-2 px-6 py-2 rounded-full font-bold bg-gradient-to-r from-orange-400 to-red-500 text-white hover:from-orange-500 hover:to-red-600 transition-all">
-            Join Sacred Journey
-          </button>
-          <div className="w-full mt-2">
-            <select
-              value={language}
-              onChange={handleLanguageChange}
-              className="w-full px-3 py-2 rounded-md bg-gray-900 text-white border border-gray-700 focus:outline-none focus:ring-2 focus:ring-yellow-400"
-              style={{ appearance: 'none', fontWeight: 500 }}
-            >
-              <option value="en">English</option>
-              <option value="ta">தமிழ்</option>
-              <option value="hi">हिन्दी</option>
-            </select>
-          </div>
-        </div>
-      )}
+      {/* Nav Items */}
+      <div className="flex-1 flex items-center space-x-2">
+        <button className="px-4 py-2 rounded-full font-semibold bg-yellow-500 text-black hover:bg-yellow-600 transition-all">
+          🏠 Home
+        </button>
+        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+          🕉️ Spiritual Guidance
+        </button>
+        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+          🗨️ Live Chat
+        </button>
+        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+          🙏 Satsang
+        </button>
+        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+          About Swamiji
+        </button>
+        <button className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+          Sign In
+        </button>
+        <button className="ml-2 px-6 py-2 rounded-full font-bold bg-gradient-to-r from-orange-400 to-red-500 text-white hover:from-orange-500 hover:to-red-600 transition-all">
+          Join Sacred Journey
+        </button>
+      </div>
+      {/* Language Selector */}
+      <div style={{ marginLeft: 'auto', marginRight: 16 }}>
+        <select value={language} onChange={handleLanguageChange} style={{ padding: 4, borderRadius: 4, minWidth: 90 }}>
+          <option value="en">English</option>
+          <option value="ta">தமிழ்</option>
+          <option value="hi">हिन्दी</option>
+        </select>
+      </div>
     </nav>
   );
 };
