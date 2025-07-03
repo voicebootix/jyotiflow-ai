@@ -62,13 +62,13 @@ const Profile = () => {
       }
 
       // Load services
-      const servicesData = await spiritualAPI.request('/api/admin/service-types');
-      setServices(servicesData);
+      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
+      setServices(Array.isArray(servicesData) ? servicesData : []);
       setServicesLoading(false);
 
       // Load credit packages
-      const packagesData = await spiritualAPI.request('/api/admin/credit-packages');
-      setCreditPackages(packagesData);
+      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
+      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
       setPackagesLoading(false);
     } catch (error) {
       console.log('Profile data loading blessed with patience:', error);
@@ -294,7 +294,7 @@ const Profile = () => {
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-2 gap-6">
-                    {services.filter(s => s.enabled).map((service) => {
+                    {(Array.isArray(services) ? services : []).filter(s => s.enabled).map((service) => {
                       const hasEnoughCredits = creditBalance >= service.credits_required;
                       
                       return (
@@ -423,7 +423,7 @@ const Profile = () => {
                 </div>
               ) : (
                 <div className="grid md:grid-cols-3 gap-6">
-                  {creditPackages.filter(pkg => pkg.enabled).map((creditPkg, index) => (
+                  {(Array.isArray(creditPackages) ? creditPackages : []).filter(pkg => pkg.enabled).map((creditPkg, index) => (
                     <div 
                       key={creditPkg.id}
                       className={`sacred-card p-6 text-center ${

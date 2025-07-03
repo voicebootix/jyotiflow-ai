@@ -53,14 +53,14 @@ const SpiritualGuidance = () => {
   }, []);
 
   useEffect(() => {
-    spiritualAPI.request('/api/admin/service-types').then(data => {
-      setServices(data);
+    spiritualAPI.request('/api/admin/products/service-types').then(data => {
+      setServices(Array.isArray(data) ? data : []);
       setServicesLoading(false);
     });
     
     // Fetch credit packages
-    spiritualAPI.request('/api/admin/credit-packages').then(data => {
-      setCreditPackages(data);
+    spiritualAPI.request('/api/admin/products/credit-packages').then(data => {
+      setCreditPackages(Array.isArray(data) ? data : []);
       setPackagesLoading(false);
     });
   }, []);
@@ -222,7 +222,7 @@ const SpiritualGuidance = () => {
             <div className="text-white text-center">கிரெடிட் தொகுப்புகள் ஏற்றப்படுகிறது...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {creditPackages.filter(pkg => pkg.enabled).map(creditPkg => (
+                              {(Array.isArray(creditPackages) ? creditPackages : []).filter(pkg => pkg.enabled).map(creditPkg => (
                   <button
                     key={creditPkg.id}
                     onClick={() => setSelectedCreditPackage(creditPkg)}
@@ -299,7 +299,7 @@ const SpiritualGuidance = () => {
           <h2 className="text-2xl font-bold text-white mb-6 text-center">Choose Your Guidance Path</h2>
           {servicesLoading ? <div className="text-white">சேவைகள் ஏற்றப்படுகிறது...</div> : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {services.filter(s => s.enabled).map(service => {
+              {(Array.isArray(services) ? services : []).filter(s => s.enabled).map(service => {
                 const hasEnoughCredits = spiritualAPI.isAuthenticated() && credits >= service.credits_required;
                 const canSelect = spiritualAPI.isAuthenticated() && hasEnoughCredits;
                 
