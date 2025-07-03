@@ -18,6 +18,21 @@ const SpiritualGuidance = () => {
   });
   const [credits, setCredits] = useState(0);
   const [loadingCredits, setLoadingCredits] = useState(true);
+  const [services, setServices] = useState([]);
+  const [servicesLoading, setServicesLoading] = useState(true);
+  const [selectedDonations, setSelectedDonations] = useState([]);
+  const [donationTotal, setDonationTotal] = useState(0);
+  const [creditPackages, setCreditPackages] = useState([]);
+  const [selectedCreditPackage, setSelectedCreditPackage] = useState(null);
+  const [packagesLoading, setPackagesLoading] = useState(true);
+
+  const donationOptions = [
+    { id: 'flowers', name: 'மலர்கள்', tamilName: 'மலர்கள்', price: 5, icon: '🌸', description: 'புனித மலர்கள் சமர்ப்பிப்பு' },
+    { id: 'lamp', name: 'விளக்கு', tamilName: 'விளக்கு', price: 10, icon: '🕯️', description: 'தீபாராதனை' },
+    { id: 'prasadam', name: 'பிரசாதம்', tamilName: 'பிரசாதம்', price: 15, icon: '🍯', description: 'புனித பிரசாதம்' },
+    { id: 'temple', name: 'கோவில்', tamilName: 'கோவில்', price: 25, icon: '🕉️', description: 'கோவில் பராமரிப்பு' },
+    { id: 'superchat', name: 'சூப்பர் சாட்', tamilName: 'சூப்பர் சாட்', price: 50, icon: '💬', description: 'முன்னுரிமை செய்தி' }
+  ];
 
   useEffect(() => {
     // Track page visit
@@ -37,6 +52,19 @@ const SpiritualGuidance = () => {
     }
   }, []);
 
+  useEffect(() => {
+    spiritualAPI.request('/api/admin/service-types').then(data => {
+      setServices(data);
+      setServicesLoading(false);
+    });
+    
+    // Fetch credit packages
+    spiritualAPI.request('/api/admin/credit-packages').then(data => {
+      setCreditPackages(data);
+      setPackagesLoading(false);
+    });
+  }, []);
+
   // Authentication check
   useEffect(() => {
    // if (!spiritualAPI.isAuthenticated()) {
@@ -46,33 +74,6 @@ const SpiritualGuidance = () => {
    // }
   }, [navigate, selectedService]);
   
-  const services = {
-    clarity: {
-      name: 'Clarity Plus',
-      description: 'Essential spiritual guidance for life\'s questions',
-      icon: '🔮',
-      color: 'from-blue-500 to-purple-600'
-    },
-    love: {
-      name: 'AstroLove',
-      description: 'Divine guidance for relationships and love',
-      icon: '💕',
-      color: 'from-pink-500 to-red-500'
-    },
-    premium: {
-      name: 'Premium',
-      description: 'Advanced spiritual guidance with avatar videos',
-      icon: '🌟',
-      color: 'from-yellow-500 to-orange-500'
-    },
-    elite: {
-      name: 'Elite',
-      description: 'Complete spiritual transformation journey',
-      icon: '👑',
-      color: 'from-purple-500 to-indigo-600'
-    }
-  };
-
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
@@ -172,14 +173,23 @@ const SpiritualGuidance = () => {
     checkStatus();
   };
 
-  const currentService = services[selectedService];
+  const handleDonationToggle = (donationId) => {
+    setSelectedDonations(prev => {
+      const newDonations = prev.includes(donationId) 
+        ? prev.filter(id => id !== donationId)
+        : [...prev, donationId];
+      
+      const total = newDonations.reduce((sum, id) => {
+        const donation = donationOptions.find(d => d.id === id);
+        return sum + (donation ? donation.price : 0);
+      }, 0);
+      
+      setDonationTotal(total);
+      return newDonations;
+    });
+  };
 
-  const sessionTypes = [
-    { key: 'clarity', name: 'Clarity Plus', price: 29 },
-    { key: 'love', name: 'AstroLove', price: 39 },
-    { key: 'premium', name: 'Premium', price: 59 },
-    { key: 'elite', name: 'Elite', price: 99 }
-  ];
+  const currentService = services.find(s => s.name === selectedService) || { name: 'Clarity Plus', icon: '🔮' };
 
   return (
     <div className="pt-16 min-h-screen">
@@ -204,32 +214,127 @@ const SpiritualGuidance = () => {
         </div>
       </div>
 
+      {/* Credit Packages */}
+      <div className="py-6 bg-black bg-opacity-20">
+        <div className="max-w-4xl mx-auto px-4">
+          <h3 className="text-xl font-bold text-white mb-4 text-center">கிரெடிட் தொகுப்புகள்</h3>
+          {packagesLoading ? (
+            <div className="text-white text-center">கிரெடிட் தொகுப்புகள் ஏற்றப்படுகிறது...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {creditPackages.filter(pkg => pkg.enabled).map(package => (
+                <button
+                  key={package.id}
+                  onClick={() => setSelectedCreditPackage(package)}
+                  className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                    selectedCreditPackage?.id === package.id
+                      ? 'border-blue-400 bg-blue-400 bg-opacity-20'
+                      : 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                  }`}
+                >
+                  <div className="text-2xl mb-2">🪙</div>
+                  <div className="text-white font-semibold text-lg">{package.name}</div>
+                  <div className="text-blue-300 font-bold text-xl">${package.price_usd}</div>
+                  <div className="text-white text-sm">{package.credits_amount} கிரெடிட்ஸ்</div>
+                  {package.bonus_credits > 0 && (
+                    <div className="text-green-400 text-sm">+{package.bonus_credits} போனஸ்!</div>
+                  )}
+                  <div className="text-gray-400 text-xs mt-2">{package.description}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Donation Options */}
+      <div className="py-6 bg-black bg-opacity-30">
+        <div className="max-w-4xl mx-auto px-4">
+          <h3 className="text-xl font-bold text-white mb-4 text-center">தானம் செய்யுங்கள் (விருப்பமானது)</h3>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+            {donationOptions.map(donation => (
+              <button
+                key={donation.id}
+                onClick={() => handleDonationToggle(donation.id)}
+                className={`p-3 rounded-lg border-2 transition-all duration-300 ${
+                  selectedDonations.includes(donation.id)
+                    ? 'border-green-400 bg-green-400 bg-opacity-20'
+                    : 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                }`}
+              >
+                <div className="text-2xl mb-1">{donation.icon}</div>
+                <div className="text-white font-semibold text-xs">{donation.tamilName}</div>
+                <div className="text-green-300 font-bold text-sm">${donation.price}</div>
+                <div className="text-gray-400 text-xs">{donation.description}</div>
+              </button>
+            ))}
+          </div>
+          {donationTotal > 0 && (
+            <div className="text-center mt-4">
+              <div className="text-white text-lg">
+                மொத்த தானம்: <span className="text-green-400 font-bold">${donationTotal}</span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Credit Balance Display */}
+      <div className="py-4 bg-black bg-opacity-40">
+        <div className="max-w-4xl mx-auto px-4 text-center">
+          <div className="text-white text-lg">
+            உங்கள் கிரெடிட் இருப்பு: <span className="text-yellow-400 font-bold text-xl">{credits}</span>
+          </div>
+          {!spiritualAPI.isAuthenticated() && (
+            <div className="text-red-400 text-sm mt-2">
+              சேவைகளைப் பயன்படுத்த <Link to="/login" className="text-blue-400 underline">உள்நுழையுங்கள்</Link>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Service Selection */}
       <div className="py-8 bg-black bg-opacity-50">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="text-2xl font-bold text-white mb-6 text-center">Choose Your Guidance Path</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {sessionTypes.map(session => (
-              <button
-                key={session.key}
-                onClick={() => setSelectedService(session.key)}
-                className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                  selectedService === session.key
-                    ? 'border-yellow-400 bg-yellow-400 bg-opacity-20'
-                    : 'border-gray-600 bg-gray-800 hover:border-gray-400'
-                }`}
-                disabled={loadingCredits || (spiritualAPI.isAuthenticated() && credits < session.price)}
-                title={spiritualAPI.isAuthenticated() && credits < session.price ? 'Insufficient credits' : ''}
-              >
-                <div className="text-2xl mb-2">{services[session.key].icon}</div>
-                <div className="text-white font-semibold text-sm">{services[session.key].name}</div>
-                <div className="text-yellow-300 font-bold mt-2">${session.price}</div>
-                {spiritualAPI.isAuthenticated() && credits < session.price && (
-                  <div className="text-red-400 text-xs mt-1">Insufficient credits</div>
-                )}
-              </button>
-            ))}
-          </div>
+          {servicesLoading ? <div className="text-white">சேவைகள் ஏற்றப்படுகிறது...</div> : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {services.filter(s => s.enabled).map(service => {
+                const hasEnoughCredits = spiritualAPI.isAuthenticated() && credits >= service.credits_required;
+                const canSelect = spiritualAPI.isAuthenticated() && hasEnoughCredits;
+                
+                return (
+                  <button
+                    key={service.id}
+                    onClick={() => canSelect ? setSelectedService(service.name) : null}
+                    disabled={!canSelect}
+                    className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                      selectedService === service.name
+                        ? 'border-yellow-400 bg-yellow-400 bg-opacity-20'
+                        : canSelect
+                          ? 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                          : 'border-red-600 bg-red-900 bg-opacity-50 cursor-not-allowed'
+                    }`}
+                    title={!spiritualAPI.isAuthenticated() ? 'உள்நுழைய வேண்டும்' : !hasEnoughCredits ? 'போதுமான கிரெடிட்ஸ் இல்லை' : ''}
+                  >
+                    <div className="text-2xl mb-2">{service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮'}</div>
+                    <div className="text-white font-semibold text-sm">{service.name}</div>
+                    <div className="text-yellow-300 font-bold mt-2">${service.price_usd}</div>
+                    <div className="text-gray-400 text-xs">{service.credits_required} கிரெடிட்ஸ்</div>
+                    <div className="text-gray-400 text-xs">{service.duration_minutes} நிமிடம்</div>
+                    <div className="text-gray-500 text-xs mt-1">{service.description}</div>
+                    
+                    {!spiritualAPI.isAuthenticated() && (
+                      <div className="text-red-400 text-xs mt-2">உள்நுழைய வேண்டும்</div>
+                    )}
+                    {spiritualAPI.isAuthenticated() && !hasEnoughCredits && (
+                      <div className="text-red-400 text-xs mt-2">போதுமான கிரெடிட்ஸ் இல்லை</div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 

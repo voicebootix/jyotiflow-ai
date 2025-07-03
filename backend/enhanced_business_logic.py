@@ -967,13 +967,12 @@ class EnhancedSessionProcessor:
     ) -> Dict:
         """তমিল - সম্পূর্ণ আধ্যাত্মিক সেশন প্রক্রিয়া করুন"""
         try:
-            from core_foundation_enhanced import SKUS
-            
             # Validate service type exists
-            if session_type not in SKUS:
-                raise ValueError(f"Invalid service type: {session_type}")
-                
-            credits_needed = SKUS[session_type]['credits']
+            row = await self.db.fetchrow('SELECT * FROM service_types WHERE name=$1 AND enabled=TRUE', session_type)
+            if not row:
+                raise HTTPException(status_code=400, detail='Invalid or disabled service type')
+            credits_needed = row['credits_required']
+            price = row['price_usd']
             
             # Critical: Check if user has enough credits
             if user.credits < credits_needed:
@@ -1005,7 +1004,7 @@ class EnhancedSessionProcessor:
                     guidance_text, video_metadata, user.id
                 )
             
-                # CRITICAL: Atomic credit deduction and session creation
+            # CRITICAL: Atomic credit deduction and session creation
             conn = await self.db.get_connection()
             try:
                 if self.db.is_sqlite:
@@ -1022,7 +1021,7 @@ class EnhancedSessionProcessor:
                                             avatar_video_url, credits_used, original_price, status, created_at)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?)
                     """, (session_id, user.email, session_type, query, guidance_text, 
-                        avatar_video_url, credits_needed, SKUS[session_type]['price'], 
+                        avatar_video_url, credits_needed, price, 
                         datetime.now(timezone.utc).isoformat()))
                     await conn.commit()
                 else:
@@ -1038,47 +1037,9 @@ class EnhancedSessionProcessor:
                                                 avatar_video_url, credits_used, original_price, status, created_at)
                             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', NOW())
                         """, session_id, user.email, session_type, query, guidance_text, 
-                            avatar_video_url, credits_needed, SKUS[session_type]['price'])
+                            avatar_video_url, credits_needed, price)
             finally:
                 await self.db.release_connection(conn)
-
-                # CRITICAL: Atomic credit deduction and session creation
-                conn = await self.db.get_connection()
-                try:
-                    if self.db.is_sqlite:
-                        await conn.execute("BEGIN TRANSACTION")
-                        # Deduct credits from user
-                        await conn.execute(
-                            "UPDATE users SET credits = credits - ?, total_credits_used = total_credits_used + ? WHERE email = ?",
-                            (credits_needed, credits_needed, user.email)
-                        )
-                        # Create session record
-                        session_id = str(uuid.uuid4())
-                        await conn.execute("""
-                            INSERT INTO sessions (id, user_email, service_type, question, guidance_text,
-                                                avatar_video_url, credits_used, original_price, status, created_at) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', ?)
-                        """, (session_id, user.email, session_type, query, guidance_text,
-                            avatar_video_url, credits_needed, SKUS[session_type]['price'],
-                            datetime.now(timezone.utc).isoformat()))
-                        await conn.commit()
-                    else:
-                        # PostgreSQL transaction
-                        async with conn.transaction():
-                            await conn.execute(
-                                "UPDATE users SET credits = credits - $1, total_credits_used = total_credits_used + $1 WHERE email = $2",
-                                credits_needed, user.email
-                            )
-                            session_id = str(uuid.uuid4())
-                            await conn.execute("""
-                                INSERT INTO sessions (id, user_email, service_type, question, guidance_text,
-                                                    avatar_video_url, credits_used, original_price, status, created_at) 
-                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', NOW())
-                            """, session_id, user.email, session_type, query, guidance_text,
-                                avatar_video_url, credits_needed, SKUS[session_type]['price'])
-                                
-                finally:
-                    await self.db.release_connection(conn)
             
             # Track analytics for optimization
             await self._track_session_analytics(user, session_type, session_id)

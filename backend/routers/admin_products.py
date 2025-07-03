@@ -4,6 +4,9 @@ from schemas.product import ProductCreate, ProductUpdate, ProductOut
 from db import get_db
 from utils.stripe_utils import create_stripe_product
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/products", tags=["Admin Products"])
 
@@ -76,4 +79,26 @@ async def sync_stripe_products(db=Depends(get_db)):
     for row in rows:
         stripe_product_id, stripe_price_id = await create_stripe_product(row["name"], row["price"])
         await db.execute("UPDATE products SET stripe_product_id=$1, stripe_price_id=$2 WHERE id=$3", stripe_product_id, stripe_price_id, row["id"])
-    return {"success": True, "message": "Stripe sync complete"} 
+    return {"success": True, "message": "Stripe sync complete"}
+
+@router.get("/credit-packages")
+async def get_credit_packages(db=Depends(get_db)):
+    """Get all credit packages"""
+    try:
+        result = await db.fetch("SELECT * FROM credit_packages ORDER BY price_usd")
+        return [
+            {
+                "id": str(row["id"]),
+                "name": row["name"],
+                "description": row["description"],
+                "price_usd": float(row["price_usd"]),
+                "credits_amount": row["credits_amount"],
+                "bonus_credits": row["bonus_credits"],
+                "enabled": row["enabled"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None
+            }
+            for row in result
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching credit packages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch credit packages") 
