@@ -79,12 +79,11 @@ const Navigation = () => {
     window.location.reload();
   };
 
-  const navItems = [
-    { path: '/', label: '🏠 Home', icon: '🏠' },
-    { path: '/spiritual-guidance', label: '🕉️ Spiritual Guidance', icon: '🕉️' },
-    { path: '/live-chat', label: '📹 Live Chat', icon: '📹' },
-    { path: '/satsang', label: '🙏 Satsang', icon: '🙏' },
-    { path: '/profile', label: '👤 Profile', icon: '👤', authRequired: true }
+  const navLinks = [
+    { to: '/', label: '🏠 Home' },
+    { to: '/spiritual-guidance', label: '🕉️ Spiritual Guidance' },
+    { to: '/live-chat', label: '🗨️ Live Chat' },
+    { to: '/satsang', label: '🙏 Satsang' },
   ];
 
   const aboutItems = [
@@ -107,20 +106,17 @@ const Navigation = () => {
       </div>
       {/* Nav Items */}
       <div className="flex-1 flex items-center space-x-2">
-        <Link to="/" className="px-4 py-2 rounded-full font-semibold bg-yellow-500 text-black hover:bg-yellow-600 transition-all">
-          🏠 Home
-        </Link>
-        <Link to="/spiritual-guidance" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-          🕉️ Spiritual Guidance
-        </Link>
-        <Link to="/live-chat" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-          🗨️ Live Chat
-        </Link>
-        <Link to="/satsang" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
-          🙏 Satsang
-        </Link>
+        {navLinks.map(link => (
+          <Link
+            key={link.to}
+            to={link.to}
+            className={`px-4 py-2 rounded-full font-semibold transition-all ${location.pathname === link.to ? 'bg-yellow-500 text-black' : 'hover:bg-gray-800'}`}
+          >
+            {link.label}
+          </Link>
+        ))}
         {isAuthenticated && (
-          <Link to="/profile" className="px-4 py-2 rounded-full font-semibold hover:bg-gray-800 transition-all">
+          <Link to="/profile" className={`px-4 py-2 rounded-full font-semibold transition-all ${location.pathname === '/profile' ? 'bg-yellow-500 text-black' : 'hover:bg-gray-800'}`}>
             👤 Profile
           </Link>
         )}
