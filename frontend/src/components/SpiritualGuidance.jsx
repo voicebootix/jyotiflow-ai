@@ -222,26 +222,26 @@ const SpiritualGuidance = () => {
             <div className="text-white text-center">கிரெடிட் தொகுப்புகள் ஏற்றப்படுகிறது...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {creditPackages.filter(pkg => pkg.enabled).map(package => (
-                <button
-                  key={package.id}
-                  onClick={() => setSelectedCreditPackage(package)}
-                  className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                    selectedCreditPackage?.id === package.id
-                      ? 'border-blue-400 bg-blue-400 bg-opacity-20'
-                      : 'border-gray-600 bg-gray-800 hover:border-gray-400'
-                  }`}
-                >
-                  <div className="text-2xl mb-2">🪙</div>
-                  <div className="text-white font-semibold text-lg">{package.name}</div>
-                  <div className="text-blue-300 font-bold text-xl">${package.price_usd}</div>
-                  <div className="text-white text-sm">{package.credits_amount} கிரெடிட்ஸ்</div>
-                  {package.bonus_credits > 0 && (
-                    <div className="text-green-400 text-sm">+{package.bonus_credits} போனஸ்!</div>
-                  )}
-                  <div className="text-gray-400 text-xs mt-2">{package.description}</div>
-                </button>
-              ))}
+                              {creditPackages.filter(pkg => pkg.enabled).map(creditPkg => (
+                  <button
+                    key={creditPkg.id}
+                    onClick={() => setSelectedCreditPackage(creditPkg)}
+                    className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                      selectedCreditPackage?.id === creditPkg.id
+                        ? 'border-blue-400 bg-blue-400 bg-opacity-20'
+                        : 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">🪙</div>
+                    <div className="text-white font-semibold text-lg">{creditPkg.name}</div>
+                    <div className="text-blue-300 font-bold text-xl">${creditPkg.price_usd}</div>
+                    <div className="text-white text-sm">{creditPkg.credits_amount} கிரெடிட்ஸ்</div>
+                    {creditPkg.bonus_credits > 0 && (
+                      <div className="text-green-400 text-sm">+{creditPkg.bonus_credits} போனஸ்!</div>
+                    )}
+                    <div className="text-gray-400 text-xs mt-2">{creditPkg.description}</div>
+                  </button>
+                ))}
             </div>
           )}
         </div>
