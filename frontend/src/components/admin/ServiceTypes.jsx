@@ -39,8 +39,10 @@ const ServiceTypes = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    console.log('DEBUG editingId:', editingId, typeof editingId);
     try {
-      if (editingId) {
+      // Only call update if editingId is a non-empty string and not 'service-types'
+      if (editingId && typeof editingId === 'string' && editingId !== 'service-types') {
         await spiritualAPI.updateServiceType(editingId, formData);
       } else {
         // Explicitly map only the required fields for backend
