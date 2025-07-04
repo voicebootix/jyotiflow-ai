@@ -195,7 +195,7 @@ const ServiceTypes = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {serviceTypes.map((service) => (
+              {serviceTypes.filter(service => service.is_active).map((service) => (
                 <tr key={service.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
