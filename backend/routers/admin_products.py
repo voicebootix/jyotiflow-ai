@@ -214,13 +214,13 @@ async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)
     """Create a new service type"""
     try:
         # Handle both 'enabled' and 'is_active' fields for compatibility
-        is_active = service_type.get("is_active", service_type.get("enabled", True))
+        enabled = service_type.get("enabled", service_type.get("is_active", True))
         
         await db.execute(
             """
             INSERT INTO service_types (name, display_name, description, credits_required, duration_minutes, 
                                      price_usd, service_category, avatar_video_enabled, live_chat_enabled, 
-                                     icon, color_gradient, is_active, created_at)
+                                     icon, color_gradient, enabled, created_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
             """,
             service_type.get("name"),
@@ -234,7 +234,7 @@ async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)
             service_type.get("live_chat_enabled", False),
             service_type.get("icon", "🔮"),
             service_type.get("color_gradient", "from-purple-500 to-indigo-600"),
-            is_active
+            enabled
         )
         return {"success": True}
     except Exception as e:
@@ -246,14 +246,14 @@ async def update_service_type(service_type_id: str, service_type: dict = Body(..
     """Update an existing service type"""
     try:
         # Handle both 'enabled' and 'is_active' fields for compatibility
-        is_active = service_type.get("is_active", service_type.get("enabled", True))
+        enabled = service_type.get("enabled", service_type.get("is_active", True))
         
         await db.execute(
             """
             UPDATE service_types SET name=$1, display_name=$2, description=$3, credits_required=$4, 
                                    duration_minutes=$5, price_usd=$6, service_category=$7, 
                                    avatar_video_enabled=$8, live_chat_enabled=$9, icon=$10, 
-                                   color_gradient=$11, is_active=$12, updated_at=NOW()
+                                   color_gradient=$11, enabled=$12, updated_at=NOW()
             WHERE id=$13
             """,
             service_type.get("name"),
@@ -267,7 +267,7 @@ async def update_service_type(service_type_id: str, service_type: dict = Body(..
             service_type.get("live_chat_enabled", False),
             service_type.get("icon", "🔮"),
             service_type.get("color_gradient", "from-purple-500 to-indigo-600"),
-            is_active,
+            enabled,
             service_type_id
         )
         return {"success": True}
