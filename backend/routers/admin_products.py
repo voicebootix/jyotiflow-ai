@@ -45,6 +45,7 @@ async def get_service_types(db=Depends(get_db)):
             "duration_minutes": row["duration_minutes"],
             "price_usd": float(row["price_usd"]),
             "enabled": row["enabled"],
+            "is_active": row["enabled"],
             "service_category": row["service_category"],
             "avatar_video_enabled": row["avatar_video_enabled"],
             "live_chat_enabled": row["live_chat_enabled"],
