@@ -88,12 +88,14 @@ async def update_service_type(service_type_id: int, service_type: dict = Body(..
     return {"success": True}
 
 @router.delete("/service-types/{service_type_id}")
-async def delete_service_type(service_type_id: str, db=Depends(get_db)):
+async def delete_service_type(service_type_id: int, db=Depends(get_db)):
     print("SERVICE TYPE DELETE CALLED")
-    await db.execute(
+    result = await db.execute(
         "UPDATE service_types SET enabled=FALSE WHERE id=$1",
-        service_type_id
+        int(service_type_id)
     )
+    if result == "UPDATE 0":
+        return {"success": False, "error": "Service type not found"}, 404
     return {"success": True}
 
 # --- PRODUCT ENDPOINTS (must be below service-types endpoints) ---
