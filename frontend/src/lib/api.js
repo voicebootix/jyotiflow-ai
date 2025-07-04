@@ -292,9 +292,9 @@ const spiritualAPI = {
   },
 
   async updateServiceType(serviceTypeId, serviceTypeData) {
-    return this.request(`/api/admin/products/service-types/${serviceTypeId}`, { 
-      method: 'PUT', 
-      body: JSON.stringify(serviceTypeData) 
+    return this.request(`/api/admin/products/service-types/${serviceTypeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(serviceTypeData)
     });
   },
 
