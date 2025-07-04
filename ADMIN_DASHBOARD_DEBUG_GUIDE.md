@@ -284,3 +284,91 @@ FCM_SERVER_KEY=your_firebase_server_key
 
 **API keys/testing credentials சேர்த்ததும், இந்த code-ஐ உங்கள் project-ல் பயன்படுத்தலாம்.  
 இன்னும் UI/logic-ல் customization/automation (reminder, schedule, etc.) வேண்டும் என்றால், சொல்லுங்கள்!** 
+
+---
+
+## **இந்த error** (uuid_parsing, path: product_id, input: "service-types")  
+அதாவது, **POST /api/admin/products/service-types** endpoint-க்கு செல்லும் போது,  
+**POST /api/admin/products/{product_id}** (update) endpoint-க்கு தவறாக call ஆகிறது.
+
+---
+
+## **சரியான காரணம்:**
+- **spiritualAPI.createServiceType** function-ல், path சரியாக `/api/admin/products/service-types`-க்கு call ஆக வேண்டும்.
+- ஆனால், உங்கள் spiritualAPI.js-ல் create/update logic overlap ஆகி இருக்கலாம், அல்லது frontend-ல் update/create logic mix ஆகி இருக்கலாம்.
+
+---
+
+## **Fix: ServiceTypes.jsx-ல் create/update clearly split செய்ய வேண்டும்**
+
+### **1. Create/Update API Call Split**
+- **Create:** `spiritualAPI.createServiceType(payload)` → `/api/admin/products/service-types` (POST)
+- **Update:** `spiritualAPI.updateServiceType(editingId, formData)` → `/api/admin/products/service-types/{id}` (PUT)
+
+### **2. API.js-ல் function mapping சரிபார்க்கவும்**
+- `createServiceType` → POST `/api/admin/products/service-types`
+- `updateServiceType` → PUT `/api/admin/products/service-types/{id}`
+
+---
+
+## **Step-by-step Fix**
+
+### **A. api.js-ல் சரியான function mapping:**
+```js
+// api.js
+async createServiceType(data) {
+  return this.post('/api/admin/products/service-types', data);
+},
+async updateServiceType(id, data) {
+  return this.request(`/api/admin/products/service-types/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data)
+  });
+},
+```
+
+### **B. ServiceTypes.jsx-ல் handleSubmit:**
+```js
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  try {
+    if (editingId) {
+      // UPDATE
+      await spiritualAPI.updateServiceType(editingId, formData);
+    } else {
+      // CREATE
+      const payload = {
+        ...formData,
+        price: formData.price_usd,
+        credits_allocated: formData.credits_required,
+      };
+      delete payload.price_usd;
+      delete payload.credits_required;
+      await spiritualAPI.createServiceType(payload);
+    }
+    fetchServiceTypes();
+    resetForm();
+  } catch (error) {
+    console.error('Error saving service type:', error);
+  }
+};
+```
+
+---
+
+## **C. Double-check:**
+- **spiritualAPI.createServiceType** must only call `/api/admin/products/service-types` (not `/api/admin/products/{id}`)
+- **spiritualAPI.updateServiceType** must only call `/api/admin/products/service-types/{id}`
+
+---
+
+## **Summary (தமிழில்):**
+- **Create** பண்ணும் போது, `/api/admin/products/service-types`-க்கு மட்டும் POST செய்ய வேண்டும்.
+- **Update** பண்ணும் போது, `/api/admin/products/service-types/{id}`-க்கு PUT செய்ய வேண்டும்.
+- இப்போது update API-க்கு தவறாக create data போகிறது, அதனால் UUID error.
+
+---
+
+**spiritualAPI.js-ல் createServiceType, updateServiceType function-ஐ இப்படி split செய்து, ServiceTypes.jsx-ல் handleSubmit logic-ஐ மேலே சொன்ன மாதிரி மாற்றினால், இந்த UUID error போய்விடும்!**
+
+**உங்கள் api.js-ல் இந்த function-ஐ மாற்ற வேண்டுமா? அல்லது code snippet அனுப்பினால், நேரடி code-fix செய்து தருகிறேன்!** 
