@@ -43,14 +43,21 @@ const ServiceTypes = () => {
       if (editingId) {
         await spiritualAPI.updateServiceType(editingId, formData);
       } else {
-        // Map frontend fields to backend expected fields
+        // Explicitly map only the required fields for backend
         const payload = {
-          ...formData,
+          name: formData.name,
+          display_name: formData.display_name,
+          description: formData.description,
           price: formData.price_usd,
           credits_allocated: formData.credits_required,
+          duration_minutes: formData.duration_minutes,
+          service_category: formData.service_category,
+          avatar_video_enabled: formData.avatar_video_enabled,
+          live_chat_enabled: formData.live_chat_enabled,
+          icon: formData.icon,
+          color_gradient: formData.color_gradient,
+          is_active: formData.is_active
         };
-        delete payload.price_usd;
-        delete payload.credits_required;
         await spiritualAPI.createServiceType(payload);
       }
       fetchServiceTypes();
