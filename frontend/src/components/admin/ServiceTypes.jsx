@@ -105,7 +105,7 @@ const ServiceTypes = () => {
       color_gradient: 'from-purple-500 to-indigo-600',
       is_active: true
     });
-    setEditingId(null);
+    setEditingId(null); // Always reset editingId
     setShowForm(false);
   };
 
@@ -129,7 +129,10 @@ const ServiceTypes = () => {
           <p className="text-gray-600">Manage dynamic service offerings and pricing</p>
         </div>
         <button
-          onClick={() => setShowForm(true)}
+          onClick={() => {
+            setShowForm(true);
+            setEditingId(null); // Always reset editingId for new service
+          }}
           className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
         >
           <Plus size={16} />
