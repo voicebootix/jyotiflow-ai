@@ -181,7 +181,7 @@ async def delete_service_type(service_type_id: str, db=Depends(get_db)):
     """Disable (soft delete) a service type"""
     try:
         await db.execute(
-            "UPDATE service_types SET is_active=FALSE WHERE id=$1",
+            "UPDATE service_types SET enabled=FALSE WHERE id=$1",
             service_type_id
         )
         return {"success": True}
