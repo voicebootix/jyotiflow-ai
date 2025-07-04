@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Body, Depends
 from db import get_db
+import uuid
 
 router = APIRouter(prefix="/api/admin/products", tags=["Admin Products"])
 
