@@ -41,24 +41,22 @@ const ServiceTypes = () => {
     e.preventDefault();
     console.log('DEBUG editingId:', editingId, typeof editingId);
     try {
-      // Only call update if editingId is a non-empty string and not 'service-types'
       if (editingId && typeof editingId === 'string' && editingId !== 'service-types') {
         await spiritualAPI.updateServiceType(editingId, formData);
       } else {
-        // Explicitly map only the required fields for backend
+        // Map only the DB fields for backend
         const payload = {
           name: formData.name,
           display_name: formData.display_name,
           description: formData.description,
-          price: formData.price_usd,
-          credits_allocated: formData.credits_required,
+          credits_required: formData.credits_required,
           duration_minutes: formData.duration_minutes,
+          price_usd: formData.price_usd,
           service_category: formData.service_category,
           avatar_video_enabled: formData.avatar_video_enabled,
           live_chat_enabled: formData.live_chat_enabled,
           icon: formData.icon,
-          color_gradient: formData.color_gradient,
-          is_active: formData.is_active
+          color_gradient: formData.color_gradient
         };
         await spiritualAPI.createServiceType(payload);
       }
