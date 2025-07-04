@@ -43,7 +43,15 @@ const ServiceTypes = () => {
       if (editingId) {
         await spiritualAPI.updateServiceType(editingId, formData);
       } else {
-        await spiritualAPI.createServiceType(formData);
+        // Map frontend fields to backend expected fields
+        const payload = {
+          ...formData,
+          price: formData.price_usd,
+          credits_allocated: formData.credits_required,
+        };
+        delete payload.price_usd;
+        delete payload.credits_required;
+        await spiritualAPI.createServiceType(payload);
       }
       fetchServiceTypes();
       resetForm();
