@@ -4,6 +4,7 @@ from routers.spiritual import router as spiritual_router
 from routers.sessions import router as sessions_router
 from routers.credits import router as credits_router
 from routers.notification import router as notification_router
+from routers.admin_products import router as admin_products_router
 from dotenv import load_dotenv
 
 # --- CORS Middleware (English & Tamil) ---
@@ -15,6 +16,7 @@ app.include_router(spiritual_router)
 app.include_router(sessions_router)
 app.include_router(credits_router)
 app.include_router(notification_router)
+app.include_router(admin_products_router)  # This enables /api/admin/products/* endpoints
 
 load_dotenv()
 
