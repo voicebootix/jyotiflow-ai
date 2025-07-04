@@ -44,7 +44,7 @@ const ServiceTypes = () => {
       if (editingId && typeof editingId === 'string' && editingId !== 'service-types') {
         await spiritualAPI.updateServiceType(editingId, formData);
       } else {
-        // Map only the DB fields for backend
+        // Map only the DB fields for backend, add both enabled and is_active for compatibility
         const payload = {
           name: formData.name,
           display_name: formData.display_name,
@@ -52,7 +52,8 @@ const ServiceTypes = () => {
           credits_required: formData.credits_required,
           duration_minutes: formData.duration_minutes,
           price_usd: formData.price_usd,
-          service_category: formData.service_category,
+          enabled: formData.is_active,
+          is_active: formData.is_active,
           avatar_video_enabled: formData.avatar_video_enabled,
           live_chat_enabled: formData.live_chat_enabled,
           icon: formData.icon,
