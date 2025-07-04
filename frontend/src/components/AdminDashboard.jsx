@@ -9,6 +9,8 @@ import BusinessIntelligence from './admin/BusinessIntelligence';
 import Settings from './admin/Settings';
 import UserManagement from './admin/UserManagement';
 import Donations from './admin/Donations';
+import ServiceTypes from './admin/ServiceTypes';
+import PricingConfig from './admin/PricingConfig';
 import spiritualAPI from '../lib/api';
 
 const AdminDashboard = () => {
@@ -40,6 +42,8 @@ const AdminDashboard = () => {
     { key: 'settings', label: 'Settings' },
     { key: 'users', label: 'Users' },
     { key: 'donations', label: 'Donations' },
+    { key: 'serviceTypes', label: 'Service Types' },
+    { key: 'pricing', label: 'Pricing' },
   ];
 
   return (
@@ -94,6 +98,8 @@ const AdminDashboard = () => {
         {activeTab === 'settings' && <Settings />}
         {activeTab === 'users' && <UserManagement />}
         {activeTab === 'donations' && <Donations />}
+        {activeTab === 'serviceTypes' && <ServiceTypes />}
+        {activeTab === 'pricing' && <PricingConfig />}
       </div>
     </div>
   );

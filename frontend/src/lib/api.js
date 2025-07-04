@@ -281,6 +281,62 @@ const spiritualAPI = {
   async getAdminBI() {
     return this.get('/api/admin/ai-insights');
   },
+
+  // Service Types Management
+  async getServiceTypes() {
+    return this.get('/api/admin/products/service-types');
+  },
+
+  async createServiceType(serviceTypeData) {
+    return this.post('/api/admin/products/service-types', serviceTypeData);
+  },
+
+  async updateServiceType(serviceTypeId, serviceTypeData) {
+    return this.request(`/api/admin/products/service-types/${serviceTypeId}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(serviceTypeData) 
+    });
+  },
+
+  async deleteServiceType(serviceTypeId) {
+    return this.request(`/api/admin/products/service-types/${serviceTypeId}`, { method: 'DELETE' });
+  },
+
+  // Pricing Configuration Management
+  async getPricingConfig() {
+    return this.get('/api/admin/products/pricing-config');
+  },
+
+  async createPricingConfig(configData) {
+    return this.post('/api/admin/products/pricing-config', configData);
+  },
+
+  async updatePricingConfig(configKey, configData) {
+    return this.request(`/api/admin/products/pricing-config/${configKey}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(configData) 
+    });
+  },
+
+  // Donations Management
+  async getDonations() {
+    return this.get('/api/admin/products/donations');
+  },
+
+  async createDonation(donationData) {
+    return this.post('/api/admin/products/donations', donationData);
+  },
+
+  async updateDonation(donationId, donationData) {
+    return this.request(`/api/admin/products/donations/${donationId}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(donationData) 
+    });
+  },
+
+  async deleteDonation(donationId) {
+    return this.request(`/api/admin/products/donations/${donationId}`, { method: 'DELETE' });
+  },
 };
 
 export default spiritualAPI;

@@ -301,6 +301,57 @@ class EnhancedJyotiFlowDatabase:
                     )
                 """)
                 
+                # Create service_types table for dynamic service management
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS service_types (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name VARCHAR(100) NOT NULL,
+                        display_name VARCHAR(200) NOT NULL,
+                        description TEXT,
+                        credits_required INTEGER NOT NULL,
+                        duration_minutes INTEGER DEFAULT 5,
+                        price_usd DECIMAL(10,2) NOT NULL,
+                        is_active BOOLEAN DEFAULT true,
+                        service_category VARCHAR(50) DEFAULT 'guidance',
+                        avatar_video_enabled BOOLEAN DEFAULT false,
+                        live_chat_enabled BOOLEAN DEFAULT false,
+                        icon VARCHAR(50) DEFAULT '🔮',
+                        color_gradient VARCHAR(100) DEFAULT 'from-purple-500 to-indigo-600',
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                
+                # Create pricing_config table for dynamic pricing variables
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS pricing_config (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        config_key VARCHAR(100) UNIQUE NOT NULL,
+                        config_value TEXT NOT NULL,
+                        config_type VARCHAR(50) DEFAULT 'string',
+                        description TEXT,
+                        is_active BOOLEAN DEFAULT true,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                
+                # Create donations table for offering system
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS donations (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        name VARCHAR(100) NOT NULL,
+                        tamil_name VARCHAR(100),
+                        description TEXT,
+                        price_usd DECIMAL(10,2) NOT NULL,
+                        icon VARCHAR(50) DEFAULT '🪔',
+                        category VARCHAR(50) DEFAULT 'offering',
+                        enabled BOOLEAN DEFAULT true,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                
                 # Create subscription_plans table
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS subscription_plans (
@@ -339,11 +390,11 @@ class EnhancedJyotiFlowDatabase:
                         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
                         name VARCHAR(100) NOT NULL,
                         credits_amount INTEGER NOT NULL,
-                        price DECIMAL(10,2) NOT NULL,
+                        price_usd DECIMAL(10,2) NOT NULL,
                         bonus_credits INTEGER DEFAULT 0,
                         stripe_product_id VARCHAR(255),
                         stripe_price_id VARCHAR(255),
-                        is_active BOOLEAN DEFAULT true,
+                        enabled BOOLEAN DEFAULT true,
                         created_at TIMESTAMP DEFAULT NOW(),
                         updated_at TIMESTAMP DEFAULT NOW()
                     )
