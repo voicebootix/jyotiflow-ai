@@ -57,10 +57,10 @@ async def get_service_types(db=Depends(get_db)):
     ]
 
 @router.put("/service-types/{service_type_id}")
-async def update_service_type(service_type_id: str, service_type: dict = Body(...), db=Depends(get_db)):
+async def update_service_type(service_type_id: int, service_type: dict = Body(...), db=Depends(get_db)):
     print("SERVICE TYPE PUT CALLED")
     enabled = service_type.get("enabled", service_type.get("is_active", True))
-    await db.execute(
+    result = await db.execute(
         """
         UPDATE service_types SET name=$1, display_name=$2, description=$3, credits_required=$4, 
                                duration_minutes=$5, price_usd=$6, service_category=$7, 
@@ -80,8 +80,11 @@ async def update_service_type(service_type_id: str, service_type: dict = Body(..
         service_type.get("icon", "🔮"),
         service_type.get("color_gradient", "from-purple-500 to-indigo-600"),
         enabled,
-        service_type_id
+        int(service_type_id)
     )
+    # Optionally, check if any row was updated and return 404 if not
+    if result == "UPDATE 0":
+        return {"success": False, "error": "Service type not found"}, 404
     return {"success": True}
 
 @router.delete("/service-types/{service_type_id}")
