@@ -2,7 +2,8 @@ import os
 from aiosmtplib import send as smtp_send
 from email.message import EmailMessage
 from twilio.rest import Client as TwilioClient
-import httpx
+import firebase_admin
+from firebase_admin import credentials, messaging
 
 # Email (SMTP/SendGrid)
 async def send_email(to, subject, body):
@@ -32,13 +33,20 @@ def send_whatsapp(to, message):
     from_ = os.getenv("TWILIO_WHATSAPP_NUMBER")
     client.messages.create(body=message, from_=from_, to=f"whatsapp:{to}")
 
-# Push Notification (FCM)
-async def send_push_notification(device_token, title, body):
-    server_key = os.getenv("FCM_SERVER_KEY")
-    headers = {"Authorization": f"key={server_key}", "Content-Type": "application/json"}
-    payload = {
-        "to": device_token,
-        "notification": {"title": title, "body": body}
-    }
-    async with httpx.AsyncClient() as client:
-        await client.post("https://fcm.googleapis.com/fcm/send", json=payload, headers=headers) 
+# Push Notification (FCM via Firebase Admin)
+def send_push_notification(device_token, title, body):
+    # Initialize Firebase Admin SDK if not already done
+    if not firebase_admin._apps:
+        cred = credentials.Certificate(os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY_PATH"))
+        firebase_admin.initialize_app(cred)
+    
+    message = messaging.Message(
+        notification=messaging.Notification(
+            title=title,
+            body=body
+        ),
+        token=device_token,
+    )
+    
+    response = messaging.send(message)
+    return response 

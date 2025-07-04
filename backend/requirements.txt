@@ -10,7 +10,7 @@ asyncpg==0.29.0
 psycopg2-binary==2.9.9
 aiosqlite==0.19.0
 
-# தமিழ் - Authentication and security
+# தமிழ் - Authentication and security
 PyJWT==2.8.0
 bcrypt==4.1.2
 python-multipart==0.0.6
@@ -26,7 +26,7 @@ aiohttp==3.9.1  # For async HTTP requests to external APIs
 httpx==0.25.2
 requests==2.31.0
 
-# தমিল - Data validation and serialization
+# தமில - Data validation and serialization
 pydantic[email]==2.5.0
 
 # তমিল - Environment variables
@@ -38,7 +38,7 @@ python-dateutil==2.8.2
 # তমিল - Logging and monitoring
 structlog==23.2.0
 
-# তমিল - Development and testing dependencies
+# தமில - Development and testing dependencies
 pytest==7.4.3
 pytest-asyncio==0.21.1
 
@@ -51,10 +51,10 @@ alembic==1.13.0
 # তমিল - Optional: Caching
 redis==5.0.1
 
-# তমিল - Optional: Email functionality
+# தமில - Optional: Email functionality
 aiosmtplib==3.0.1
 
-# তমিল - Optional: File handling
+# தமில - Optional: File handling
 aiofiles==23.2.1
 
 # তমিল - Optional: Image processing (for future features)
@@ -94,8 +94,11 @@ celery==5.3.4
 # তমিল - Optional: Monitoring and health checks
 prometheus-client==0.19.0
 
-# 🙏🏼 All dependencies for Swami Jyotirananthan's REAL AI digital ashram
+# 🕉️ NEW: Notification System Dependencies
+twilio==8.10.0  # For SMS and WhatsApp notifications
+firebase-admin==6.2.0  # For push notifications (FCM)
 
+# 🙏🏼 All dependencies for Swami Jyotirananthan's REAL AI digital ashram
 
 psutil==5.9.6
 scikit-learn==1.3.2

@@ -9,6 +9,25 @@ services:
         value: 3.11.0
       - key: PORT
         value: 8000
+      # 🕉️ Notification System Environment Variables
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"  # Replace with your SMTP host
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        value: "noreply@jyotiflow.ai"  # Replace with your email
+      - key: SMTP_PASS
+        value: "your-smtp-password"  # Replace with your password
+      - key: TWILIO_ACCOUNT_SID
+        value: "your-twilio-account-sid"  # Replace with your Twilio SID
+      - key: TWILIO_AUTH_TOKEN
+        value: "your-twilio-auth-token"  # Replace with your Twilio token
+      - key: TWILIO_SMS_NUMBER
+        value: "+1234567890"  # Replace with your Twilio SMS number
+      - key: TWILIO_WHATSAPP_NUMBER
+        value: "whatsapp:+1234567890"  # Replace with your Twilio WhatsApp number
+      - key: FIREBASE_SERVICE_ACCOUNT_KEY_PATH
+        value: "path/to/firebase-service-account.json"  # Replace with your Firebase key path
     healthCheckPath: /health
 
   - type: web

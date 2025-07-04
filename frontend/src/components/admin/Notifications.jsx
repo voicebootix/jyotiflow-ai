@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import spiritualAPI from '../../lib/api';
 import Input from '../ui/input.jsx';
-import Label from '../ui/label.jsx';
+import { Label } from '../ui/label.jsx';
 import Loader from '../ui/Loader.jsx';
 
 const channelOptions = [
