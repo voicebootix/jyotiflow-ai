@@ -12,6 +12,7 @@ import Donations from './admin/Donations';
 import ServiceTypes from './admin/ServiceTypes';
 import PricingConfig from './admin/PricingConfig';
 import spiritualAPI from '../lib/api';
+import SocialContentManagement from './admin/SocialContentManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -93,7 +94,7 @@ const AdminDashboard = () => {
         {activeTab === 'overview' && <Overview adminStats={adminStats} />}
         {activeTab === 'products' && <Products />}
         {activeTab === 'revenue' && <RevenueAnalytics />}
-        {activeTab === 'content' && <ContentManagement />}
+        {activeTab === 'content' && <SocialContentManagement />}
         {activeTab === 'insights' && <BusinessIntelligence />}
         {activeTab === 'settings' && <Settings />}
         {activeTab === 'users' && <UserManagement />}

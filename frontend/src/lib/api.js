@@ -337,6 +337,26 @@ const spiritualAPI = {
   async deleteDonation(donationId) {
     return this.request(`/api/admin/products/donations/${donationId}`, { method: 'DELETE' });
   },
+
+  // Admin: Social Content Management
+  async getAdminSocialContent() {
+    return this.get('/api/admin/social-content');
+  },
+
+  async createAdminSocialContent(contentData) {
+    return this.post('/api/admin/social-content/schedule', contentData);
+  },
+
+  async updateAdminSocialContent(contentId, contentData) {
+    return this.request(`/api/admin/social-content/${contentId}`, {
+      method: 'PUT',
+      body: JSON.stringify(contentData)
+    });
+  },
+
+  async deleteAdminSocialContent(contentId) {
+    return this.request(`/api/admin/social-content/${contentId}`, { method: 'DELETE' });
+  },
 };
 
 export default spiritualAPI;
