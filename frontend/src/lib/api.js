@@ -357,6 +357,11 @@ const spiritualAPI = {
   async deleteAdminSocialContent(contentId) {
     return this.request(`/api/admin/social-content/${contentId}`, { method: 'DELETE' });
   },
+
+  // Notification/Follow-up
+  async sendFollowupNotification({ channel, to, subject, message, device_token }) {
+    return this.post('/api/notify/followup', { channel, to, subject, message, device_token });
+  },
 };
 
 export default spiritualAPI;
