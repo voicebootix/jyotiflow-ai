@@ -42,7 +42,23 @@ const ServiceTypes = () => {
     console.log('DEBUG editingId:', editingId, typeof editingId);
     try {
       if (editingId && typeof editingId === 'string' && editingId !== 'service-types') {
-        await spiritualAPI.updateServiceType(editingId, formData);
+        // For updates, send the same payload structure
+        const updatePayload = {
+          name: formData.name,
+          display_name: formData.display_name,
+          description: formData.description,
+          credits_required: formData.credits_required,
+          duration_minutes: formData.duration_minutes,
+          price_usd: formData.price_usd,
+          service_category: formData.service_category,
+          enabled: formData.is_active,
+          is_active: formData.is_active,
+          avatar_video_enabled: formData.avatar_video_enabled,
+          live_chat_enabled: formData.live_chat_enabled,
+          icon: formData.icon,
+          color_gradient: formData.color_gradient
+        };
+        await spiritualAPI.updateServiceType(editingId, updatePayload);
       } else {
         // Map only the DB fields for backend, add both enabled and is_active for compatibility
         const payload = {
@@ -52,6 +68,7 @@ const ServiceTypes = () => {
           credits_required: formData.credits_required,
           duration_minutes: formData.duration_minutes,
           price_usd: formData.price_usd,
+          service_category: formData.service_category,
           enabled: formData.is_active,
           is_active: formData.is_active,
           avatar_video_enabled: formData.avatar_video_enabled,
@@ -336,7 +353,21 @@ const ServiceTypes = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Service Category</label>
+                  <select
+                    name="service_category"
+                    value={formData.service_category}
+                    onChange={handleInputChange}
+                    className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-purple-500 focus:border-purple-500"
+                  >
+                    <option value="guidance">Spiritual Guidance</option>
+                    <option value="astrology">Astrology</option>
+                    <option value="meditation">Meditation</option>
+                    <option value="healing">Healing</option>
+                  </select>
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700">Icon</label>
                   <input
