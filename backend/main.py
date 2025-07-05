@@ -16,7 +16,7 @@ app.include_router(spiritual_router)
 app.include_router(sessions_router)
 app.include_router(credits_router)
 app.include_router(notification_router)
-app.include_router(admin_products_router)  # This enables /api/admin/products/* endpoints
+app.include_router(admin_products_router, prefix="/api/admin/products")  # This enables /api/admin/products/* endpoints
 
 load_dotenv()
 
