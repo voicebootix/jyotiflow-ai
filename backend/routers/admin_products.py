@@ -121,7 +121,7 @@ async def create_pricing_config(config: dict = Body(...), db=Depends(get_db)):
     print("PRICING CONFIG POST CALLED")
     await db.execute(
         """
-        INSERT INTO pricing_config (config_key, config_value, config_type, description, is_active, created_at)
+        INSERT INTO pricing_config (config_key, config_value, config_type, description, is_active, updated_at)
         VALUES ($1, $2, $3, $4, $5, NOW())
         """,
         config.get("config_key"),
