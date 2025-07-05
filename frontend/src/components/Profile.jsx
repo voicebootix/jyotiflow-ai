@@ -440,7 +440,7 @@ const Profile = () => {
                         {creditPkg.name}
                       </div>
                       <div className="text-gray-600 mb-2">
-                        {creditPkg.credits_amount + creditPkg.bonus_credits} கிரெடிட்ஸ்
+                        {creditPkg.credits_amount} கிரெடிட்ஸ்
                       </div>
                       <div className="text-gray-600 mb-4">${creditPkg.price_usd}</div>
                       {creditPkg.bonus_credits > 0 && (
