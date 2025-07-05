@@ -106,9 +106,9 @@ async def get_pricing_config(db=Depends(get_db)):
     return [
         {
             "id": str(row["id"]),
-            "config_key": row["config_key"],
-            "config_value": row["config_value"],
-            "config_type": row["config_type"],
+            "config_key": row["config_key"] if "config_key" in row else row.get("key"),
+            "config_value": row.get("config_value") or row.get("value"),
+            "config_type": row.get("config_type") or row.get("type"),
             "description": row["description"],
             "is_active": row["is_active"],
             "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
