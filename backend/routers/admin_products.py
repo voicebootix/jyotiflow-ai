@@ -121,12 +121,12 @@ async def create_pricing_config(config: dict = Body(...), db=Depends(get_db)):
     print("PRICING CONFIG POST CALLED")
     await db.execute(
         """
-        INSERT INTO pricing_config (config_key, config_value, config_type, description, is_active, updated_at)
+        INSERT INTO pricing_config (key, value, type, description, is_active, updated_at)
         VALUES ($1, $2, $3, $4, $5, NOW())
         """,
-        config.get("config_key"),
-        config.get("config_value"),
-        config.get("config_type", "string"),
+        config.get("config_key") or config.get("key"),
+        config.get("config_value") or config.get("value"),
+        config.get("config_type") or config.get("type"),
         config.get("description"),
         config.get("is_active", True)
     )
@@ -137,12 +137,12 @@ async def update_pricing_config(config_key: str, config: dict = Body(...), db=De
     print("PRICING CONFIG PUT CALLED")
     result = await db.execute(
         """
-        UPDATE pricing_config SET config_value=$1, config_type=$2, description=$3, 
+        UPDATE pricing_config SET value=$1, type=$2, description=$3, 
                                  is_active=$4, updated_at=NOW()
-        WHERE config_key=$5
+        WHERE key=$5
         """,
-        config.get("config_value"),
-        config.get("config_type", "string"),
+        config.get("config_value") or config.get("value"),
+        config.get("config_type") or config.get("type"),
         config.get("description"),
         config.get("is_active", True),
         config_key
