@@ -102,11 +102,11 @@ async def delete_service_type(service_type_id: int, db=Depends(get_db)):
 @router.get("/pricing-config")
 async def get_pricing_config(db=Depends(get_db)):
     print("PRICING CONFIG GET CALLED")
-    result = await db.fetch("SELECT * FROM pricing_config ORDER BY config_key")
+    result = await db.fetch("SELECT * FROM pricing_config ORDER BY id ASC")
     return [
         {
             "id": str(row["id"]),
-            "config_key": row["config_key"] if "config_key" in row else row.get("key"),
+            "config_key": row.get("config_key") or row.get("key"),
             "config_value": row.get("config_value") or row.get("value"),
             "config_type": row.get("config_type") or row.get("type"),
             "description": row["description"],
