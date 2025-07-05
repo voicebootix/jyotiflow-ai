@@ -437,6 +437,9 @@ const Profile = () => {
                       )}
                       <div className="text-3xl mb-3">💎</div>
                       <div className="text-2xl font-bold text-gray-800 mb-2">
+                        {creditPkg.name}
+                      </div>
+                      <div className="text-gray-600 mb-2">
                         {creditPkg.credits_amount + creditPkg.bonus_credits} கிரெடிட்ஸ்
                       </div>
                       <div className="text-gray-600 mb-4">${creditPkg.price_usd}</div>
