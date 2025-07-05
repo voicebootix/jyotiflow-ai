@@ -111,7 +111,7 @@ async def get_pricing_config(db=Depends(get_db)):
             "config_type": row["config_type"],
             "description": row["description"],
             "is_active": row["is_active"],
-            "created_at": row["created_at"].isoformat() if row["created_at"] else None
+            "updated_at": row["updated_at"].isoformat() if row["updated_at"] else None
         }
         for row in result
     ]
