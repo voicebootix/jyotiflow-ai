@@ -28,6 +28,90 @@ from core_foundation_enhanced import (
 )
 
 # =============================================================================
+# 🌟 SERVICE MANAGEMENT FUNCTIONS
+# তমিল - சேவை மேலாண்மை செயல்பாடுகள்
+# =============================================================================
+
+# Backward compatibility mapping for existing hardcoded service names
+SERVICE_NAME_MAPPING = {
+    # Legacy service names to database service names
+    "clarity": "தொட்டக்க தொகுப்பு",
+    "love": "பிரபல தொகுப்பு", 
+    "premium": "மாஸ்டர் தொகுப்பு",
+    "elite": "மாஸ்டர் தொகுப்பு",
+    "quick_blessing": "தொட்டக்க தொகுப்பு",
+    "spiritual_guidance": "பிரபல தொகுப்பு",
+    "premium_consultation": "மாஸ்டர் தொகுப்பு",
+    "elite_session": "மாஸ்டர் தொகுப்பு"
+}
+
+async def get_service_by_name(service_name: str, db_manager: EnhancedJyotiFlowDatabase) -> Optional[Dict]:
+    """
+    Fetch service details from database by name
+    Replaces hardcoded SKUS dictionary with database-driven approach
+    Includes backward compatibility for legacy service names
+    """
+    try:
+        # Check if service_name is a legacy name and map it
+        mapped_name = SERVICE_NAME_MAPPING.get(service_name, service_name)
+        
+        query = """
+            SELECT id, name, description, credits_required, price_usd, 
+                   enabled, created_at, updated_at
+            FROM service_types 
+            WHERE name = $1 AND enabled = TRUE
+        """
+        row = await db_manager.fetchrow(query, mapped_name)
+        
+        if row:
+            return {
+                'id': row['id'],
+                'name': row['name'],
+                'description': row['description'],
+                'credits_required': row['credits_required'],
+                'price_usd': float(row['price_usd']) if row['price_usd'] else 0.0,
+                'enabled': row['enabled'],
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
+            }
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching service by name '{service_name}': {e}")
+        return None
+
+async def get_all_enabled_services(db_manager: EnhancedJyotiFlowDatabase) -> List[Dict]:
+    """
+    Fetch all enabled services from database
+    Replaces hardcoded service lists with database-driven approach
+    """
+    try:
+        query = """
+            SELECT id, name, description, credits_required, price_usd, 
+                   enabled, created_at, updated_at
+            FROM service_types 
+            WHERE enabled = TRUE
+            ORDER BY credits_required ASC
+        """
+        rows = await db_manager.fetch(query)
+        
+        services = []
+        for row in rows:
+            services.append({
+                'id': row['id'],
+                'name': row['name'],
+                'description': row['description'],
+                'credits_required': row['credits_required'],
+                'price_usd': float(row['price_usd']) if row['price_usd'] else 0.0,
+                'enabled': row['enabled'],
+                'created_at': row['created_at'],
+                'updated_at': row['updated_at']
+            })
+        return services
+    except Exception as e:
+        logger.error(f"Error fetching all enabled services: {e}")
+        return []
+
+# =============================================================================
 # 🌟 SPIRITUAL GUIDANCE ENUMS & CONSTANTS
 # তমিল - আধ্যাত্মিক পথনির্দেশনা গণনা এবং ধ্রুবক
 # =============================================================================
@@ -114,10 +198,21 @@ class AutomatedStyleManager:
         content_type = session_context.get('content_type', '')
         service_type = session_context.get('service_type', 'clarity')
         
+        # Database-driven service type detection
         if 'satsang' in content_type.lower() or 'community' in content_type.lower():
             return "satsang_traditional"
-        elif service_type in ['premium', 'elite']:
-            return "premium_consultation"
+        elif service_type:
+            # Fetch service details from database to determine intensity
+            service_details = await get_service_by_name(service_type, self.db)
+            if service_details:
+                # Use service credits_required to determine intensity
+                credits_required = service_details.get('credits_required', 0)
+                if credits_required >= 50:  # High-value services
+                    return "premium_consultation"
+                elif credits_required >= 20:  # Medium-value services
+                    return "satsang_traditional"
+                else:  # Low-value services
+                    return "daily_guidance"
         elif 'social' in content_type.lower():
             return "social_media_modern"
         else:
@@ -728,19 +823,47 @@ class MonetizationOptimizer:
     async def _analyze_price_elasticity(self, analytics: Dict) -> Dict:
         """তমিল - মূল্য স্থিতিস্থাপকতা বিশ্লেষণ"""
         try:
-            # Simulate price changes and demand response
-            elasticity_data = {
-                "quick_blessing": {"current_price": 5, "elasticity": -0.8, "optimal_range": "4-7"},
-                "spiritual_guidance": {"current_price": 15, "elasticity": -1.2, "optimal_range": "12-18"},
-                "premium_consultation": {"current_price": 50, "elasticity": -0.6, "optimal_range": "45-65"},
-                "elite_session": {"current_price": 100, "elasticity": -0.4, "optimal_range": "90-120"}
-            }
+            # Fetch all enabled services from database
+            services = await get_all_enabled_services(self.db)
+            
+            elasticity_data = {}
+            for service in services:
+                service_name = service['name']
+                current_price = service['price_usd']
+                credits_required = service['credits_required']
+                
+                # Calculate elasticity based on service characteristics
+                if credits_required >= 50:
+                    elasticity = -0.4  # High-value services are less price sensitive
+                    optimal_range = f"{current_price * 0.9:.0f}-{current_price * 1.3:.0f}"
+                elif credits_required >= 25:
+                    elasticity = -0.6  # Medium-high value services
+                    optimal_range = f"{current_price * 0.85:.0f}-{current_price * 1.25:.0f}"
+                elif credits_required >= 10:
+                    elasticity = -1.2  # Medium value services are more price sensitive
+                    optimal_range = f"{current_price * 0.8:.0f}-{current_price * 1.2:.0f}"
+                else:
+                    elasticity = -0.8  # Low value services
+                    optimal_range = f"{current_price * 0.75:.0f}-{current_price * 1.15:.0f}"
+                
+                elasticity_data[service_name] = {
+                    "current_price": current_price,
+                    "elasticity": elasticity,
+                    "optimal_range": optimal_range,
+                    "credits_required": credits_required
+                }
             
             return elasticity_data
             
         except Exception as e:
             logger.error(f"Price elasticity analysis failed: {e}")
-            return {}
+            # Fallback to hardcoded data for backward compatibility
+            return {
+                "quick_blessing": {"current_price": 5, "elasticity": -0.8, "optimal_range": "4-7"},
+                "spiritual_guidance": {"current_price": 15, "elasticity": -1.2, "optimal_range": "12-18"},
+                "premium_consultation": {"current_price": 50, "elasticity": -0.6, "optimal_range": "45-65"},
+                "elite_session": {"current_price": 100, "elasticity": -0.4, "optimal_range": "90-120"}
+            }
     
     async def _generate_ai_recommendations(
         self, 
@@ -1078,13 +1201,34 @@ class EnhancedSessionProcessor:
     
     async def _determine_session_intensity(self, session_type: str) -> SessionIntensity:
         """তমিল - সেশনের তীব্রতা নির্ধারণ করুন"""
-        intensity_mapping = {
-            "quick_blessing": SessionIntensity.GENTLE,
-            "spiritual_guidance": SessionIntensity.MODERATE,
-            "premium_consultation": SessionIntensity.DEEP,
-            "elite_session": SessionIntensity.TRANSFORMATIVE
-        }
-        return intensity_mapping.get(session_type, SessionIntensity.MODERATE)
+        try:
+            # Fetch service details from database
+            service_details = await get_service_by_name(session_type, self.db)
+            if service_details:
+                credits_required = service_details.get('credits_required', 0)
+                
+                # Determine intensity based on credits required
+                if credits_required >= 50:
+                    return SessionIntensity.TRANSFORMATIVE  # High-value services
+                elif credits_required >= 25:
+                    return SessionIntensity.DEEP  # Medium-high value services
+                elif credits_required >= 10:
+                    return SessionIntensity.MODERATE  # Medium value services
+                else:
+                    return SessionIntensity.GENTLE  # Low value services
+            
+            # Fallback to hardcoded mapping for backward compatibility
+            intensity_mapping = {
+                "quick_blessing": SessionIntensity.GENTLE,
+                "spiritual_guidance": SessionIntensity.MODERATE,
+                "premium_consultation": SessionIntensity.DEEP,
+                "elite_session": SessionIntensity.TRANSFORMATIVE
+            }
+            return intensity_mapping.get(session_type, SessionIntensity.MODERATE)
+            
+        except Exception as e:
+            logger.error(f"Error determining session intensity for '{session_type}': {e}")
+            return SessionIntensity.MODERATE  # Default fallback
     
     async def _select_emotional_tone(self, user: SpiritualUser, query: str) -> AvatarEmotion:
         """তমিল - আবেগময় টোন নির্বাচন করুন"""
@@ -1102,6 +1246,9 @@ class EnhancedSessionProcessor:
 
 # Export all classes
 __all__ = [
+    "SERVICE_NAME_MAPPING",
+    "get_service_by_name",
+    "get_all_enabled_services", 
     "SpiritualAvatarEngine", 
     "MonetizationOptimizer", 
     "SatsangManager",

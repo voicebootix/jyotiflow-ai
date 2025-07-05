@@ -87,6 +87,20 @@ const SpiritualGuidance = () => {
       navigate('/login');
       return;
     }
+
+    // Get selected service details
+    const selectedServiceDetails = services.find(s => s.name === selectedService);
+    if (!selectedServiceDetails) {
+      alert('Please select a valid service');
+      return;
+    }
+
+    // Check if user has enough credits
+    if (credits < selectedServiceDetails.credits_required) {
+      alert(`Insufficient credits. Required: ${selectedServiceDetails.credits_required}, Available: ${credits}`);
+      return;
+    }
+
     setIsLoading(true);
     setGuidance(null);
     setAvatarVideo(null);
@@ -99,8 +113,9 @@ const SpiritualGuidance = () => {
         question_length: formData.question.length
       });
 
-      // Change here: use submitSpiritualQuestion instead of startSession
-      const sessionResult = await spiritualAPI.submitSpiritualQuestion({
+      // Start session with credit deduction
+      const sessionResult = await spiritualAPI.startSession({
+        service_type: selectedService,
         question: formData.question,
         birth_details: {
           date: formData.birthDate,
@@ -110,9 +125,13 @@ const SpiritualGuidance = () => {
       });
 
       if (sessionResult && sessionResult.success) {
+        // Update local credits after successful session
+        setCredits(prevCredits => prevCredits - selectedServiceDetails.credits_required);
+        
         setGuidance({
-          guidance: sessionResult.guidance,
-          astrology: sessionResult.astrology
+          guidance: sessionResult.data.guidance,
+          astrology: sessionResult.data.astrology,
+          session_id: sessionResult.data.session_id
         });
 
         // For premium/elite users, generate avatar video
