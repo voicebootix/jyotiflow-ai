@@ -94,7 +94,7 @@ const CreditPackages = () => {
               ) : (
                 <>
                   <td className="px-4 py-2 border">{pkg.name}</td>
-                  <td className="px-4 py-2 border">{pkg.credits_amount}</td>
+                  <td className="px-4 py-2 border">{pkg.name} ({pkg.credits_amount})</td>
                   <td className="px-4 py-2 border">{pkg.bonus_credits}</td>
                   <td className="px-4 py-2 border">${pkg.price_usd}</td>
                   <td className="px-4 py-2 border">{pkg.enabled ? 'Active' : 'Inactive'}</td>
