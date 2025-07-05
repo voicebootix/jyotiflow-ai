@@ -21,7 +21,8 @@ const PricingConfig = () => {
   const fetchPricingConfig = async () => {
     try {
       const response = await spiritualAPI.getPricingConfig();
-      setPricingConfig(Array.isArray(response) ? response : []);
+      // Fix: support { success, data } or array
+      setPricingConfig(Array.isArray(response?.data) ? response.data : Array.isArray(response) ? response : []);
     } catch (error) {
       console.error('Error fetching pricing config:', error);
     } finally {
