@@ -27,6 +27,7 @@ const SpiritualGuidance = () => {
   const [creditPackages, setCreditPackages] = useState([]);
   const [selectedCreditPackage, setSelectedCreditPackage] = useState(null);
   const [packagesLoading, setPackagesLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState('');
 
   useEffect(() => {
     // Track page visit
@@ -209,6 +210,18 @@ const SpiritualGuidance = () => {
   };
 
   const currentService = services.find(s => s.name === selectedService) || { name: 'Clarity Plus', icon: '🔮' };
+  const CATEGORY_LABELS = {
+    '': 'அனைத்தும்',
+    'guidance': 'வழிகாட்டுதல்',
+    'consultation': 'ஆலோசனை',
+    'premium': 'பிரீமியம்',
+  };
+  const CATEGORY_DESCRIPTIONS = {
+    'guidance': 'Quick spiritual insights',
+    'consultation': 'Live interaction with AI Swami',
+    'premium': 'Comprehensive readings',
+  };
+  const categories = Array.from(new Set((services || []).map(s => s.service_category).filter(cat => ['guidance','consultation','premium'].includes(cat))));
 
   return (
     <div className="pt-16 min-h-screen">
@@ -316,46 +329,66 @@ const SpiritualGuidance = () => {
         </div>
       </div>
 
+      {/* Category Filter */}
+      <div className="mb-6 flex flex-col items-center">
+        <select
+          value={selectedCategory}
+          onChange={e => setSelectedCategory(e.target.value)}
+          className="px-4 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-2"
+        >
+          <option value="">{CATEGORY_LABELS['']}</option>
+          {categories.map(cat => (
+            <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+          ))}
+        </select>
+        {selectedCategory && CATEGORY_DESCRIPTIONS[selectedCategory] && (
+          <div className="text-sm text-gray-600 mt-1">{CATEGORY_DESCRIPTIONS[selectedCategory]}</div>
+        )}
+      </div>
+
       {/* Service Selection */}
       <div className="py-8 bg-black bg-opacity-50">
         <div className="max-w-4xl mx-auto px-4">
           <h2 className="text-2xl font-bold text-white mb-6 text-center">Choose Your Guidance Path</h2>
           {servicesLoading ? <div className="text-white">சேவைகள் ஏற்றப்படுகிறது...</div> : (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {(Array.isArray(services) ? services : []).filter(s => s.enabled).map(service => {
-                const hasEnoughCredits = spiritualAPI.isAuthenticated() && credits >= service.credits_required;
-                const canSelect = spiritualAPI.isAuthenticated() && hasEnoughCredits;
-                
-                return (
-                  <button
-                    key={service.id}
-                    onClick={() => canSelect ? setSelectedService(service.name) : null}
-                    disabled={!canSelect}
-                    className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                      selectedService === service.name
-                        ? 'border-yellow-400 bg-yellow-400 bg-opacity-20'
-                        : canSelect
-                          ? 'border-gray-600 bg-gray-800 hover:border-gray-400'
-                          : 'border-red-600 bg-red-900 bg-opacity-50 cursor-not-allowed'
-                    }`}
-                    title={!spiritualAPI.isAuthenticated() ? 'உள்நுழைய வேண்டும்' : !hasEnoughCredits ? 'போதுமான கிரெடிட்ஸ் இல்லை' : ''}
-                  >
-                    <div className="text-2xl mb-2">{service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮'}</div>
-                    <div className="text-white font-semibold text-sm">{service.name}</div>
-                    <div className="text-yellow-300 font-bold mt-2">${service.price_usd}</div>
-                    <div className="text-gray-400 text-xs">{service.credits_required} கிரெடிட்ஸ்</div>
-                    <div className="text-gray-400 text-xs">{service.duration_minutes} நிமிடம்</div>
-                    <div className="text-gray-500 text-xs mt-1">{service.description}</div>
-                    
-                    {!spiritualAPI.isAuthenticated() && (
-                      <div className="text-red-400 text-xs mt-2">உள்நுழைய வேண்டும்</div>
-                    )}
-                    {spiritualAPI.isAuthenticated() && !hasEnoughCredits && (
-                      <div className="text-red-400 text-xs mt-2">போதுமான கிரெடிட்ஸ் இல்லை</div>
-                    )}
-                  </button>
-                );
-              })}
+              {(Array.isArray(services) ? services : [])
+                .filter(s => s.enabled)
+                .filter(s => !selectedCategory || s.service_category === selectedCategory)
+                .map(service => {
+                  const hasEnoughCredits = spiritualAPI.isAuthenticated() && credits >= service.credits_required;
+                  const canSelect = spiritualAPI.isAuthenticated() && hasEnoughCredits;
+                  
+                  return (
+                    <button
+                      key={service.id}
+                      onClick={() => canSelect ? setSelectedService(service.name) : null}
+                      disabled={!canSelect}
+                      className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                        selectedService === service.name
+                          ? 'border-yellow-400 bg-yellow-400 bg-opacity-20'
+                          : canSelect
+                            ? 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                            : 'border-red-600 bg-red-900 bg-opacity-50 cursor-not-allowed'
+                      }`}
+                      title={!spiritualAPI.isAuthenticated() ? 'உள்நுழைய வேண்டும்' : !hasEnoughCredits ? 'போதுமான கிரெடிட்ஸ் இல்லை' : ''}
+                    >
+                      <div className="text-2xl mb-2">{service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮'}</div>
+                      <div className="text-white font-semibold text-sm">{service.name}</div>
+                      <div className="text-yellow-300 font-bold mt-2">${service.price_usd}</div>
+                      <div className="text-gray-400 text-xs">{service.credits_required} கிரெடிட்ஸ்</div>
+                      <div className="text-gray-400 text-xs">{service.duration_minutes} நிமிடம்</div>
+                      <div className="text-gray-500 text-xs mt-1">{service.description}</div>
+                      
+                      {!spiritualAPI.isAuthenticated() && (
+                        <div className="text-red-400 text-xs mt-2">உள்நுழைய வேண்டும்</div>
+                      )}
+                      {spiritualAPI.isAuthenticated() && !hasEnoughCredits && (
+                        <div className="text-red-400 text-xs mt-2">போதுமான கிரெடிட்ஸ் இல்லை</div>
+                      )}
+                    </button>
+                  );
+                })}
             </div>
           )}
         </div>
