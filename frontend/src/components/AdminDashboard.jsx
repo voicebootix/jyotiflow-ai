@@ -14,6 +14,7 @@ import PricingConfig from './admin/PricingConfig';
 import spiritualAPI from '../lib/api';
 import SocialContentManagement from './admin/SocialContentManagement';
 import Notifications from './admin/Notifications';
+import CreditPackages from './admin/CreditPackages';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -47,6 +48,7 @@ const AdminDashboard = () => {
     { key: 'serviceTypes', label: 'Service Types' },
     { key: 'pricing', label: 'Pricing' },
     { key: 'notifications', label: 'Notifications' },
+    { key: 'creditPackages', label: 'Credit Packages' },
   ];
 
   return (
@@ -104,6 +106,7 @@ const AdminDashboard = () => {
         {activeTab === 'serviceTypes' && <ServiceTypes />}
         {activeTab === 'pricing' && <PricingConfig />}
         {activeTab === 'notifications' && <Notifications />}
+        {activeTab === 'creditPackages' && <CreditPackages />}
       </div>
     </div>
   );
