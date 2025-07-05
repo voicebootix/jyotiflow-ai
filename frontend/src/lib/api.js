@@ -338,6 +338,26 @@ const spiritualAPI = {
     return this.request(`/api/admin/products/donations/${donationId}`, { method: 'DELETE' });
   },
 
+  // Credit Packages Management
+  async getCreditPackages() {
+    return this.get('/api/admin/products/credit-packages');
+  },
+
+  async createCreditPackage(packageData) {
+    return this.post('/api/admin/products/credit-packages', packageData);
+  },
+
+  async updateCreditPackage(packageId, packageData) {
+    return this.request(`/api/admin/products/credit-packages/${packageId}`, { 
+      method: 'PUT', 
+      body: JSON.stringify(packageData) 
+    });
+  },
+
+  async deleteCreditPackage(packageId) {
+    return this.request(`/api/admin/products/credit-packages/${packageId}`, { method: 'DELETE' });
+  },
+
   // Admin: Social Content Management
   async getAdminSocialContent() {
     return this.get('/api/admin/social-content');
