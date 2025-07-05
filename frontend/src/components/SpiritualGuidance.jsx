@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Loader, Play, Mail, MessageSquare, Phone } from 'lucide-react';
+import { ArrowLeft, Send, Play, Mail, MessageSquare, Phone } from 'lucide-react';
+
 import spiritualAPI from '../lib/api';
 
 const SpiritualGuidance = () => {
@@ -542,7 +543,7 @@ const SpiritualGuidance = () => {
               >
                 {isLoading ? (
                   <>
-                    <Loader className="animate-spin" size={20} />
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                     <span>Receiving Divine Guidance...</span>
                   </>
                 ) : (
@@ -593,7 +594,7 @@ const SpiritualGuidance = () => {
                       </video>
                     ) : (
                       <div className="text-center">
-                        <Loader className="animate-spin mx-auto mb-4" size={40} />
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-white mr-2"></div>
                         <p className="text-gray-600">Your personalized avatar video is being prepared...</p>
                       </div>
                     )}
@@ -643,7 +644,7 @@ const SpiritualGuidance = () => {
                           }`}
                         >
                           {followUpLoading ? (
-                            <Loader className="animate-spin mx-auto" size={16} />
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                           ) : followUpStatus.email ? (
                             '✅ Sent'
                           ) : (
@@ -674,7 +675,7 @@ const SpiritualGuidance = () => {
                           }`}
                         >
                           {followUpLoading ? (
-                            <Loader className="animate-spin mx-auto" size={16} />
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                           ) : followUpStatus.sms ? (
                             '✅ Sent'
                           ) : credits < 1 ? (
@@ -707,7 +708,7 @@ const SpiritualGuidance = () => {
                           }`}
                         >
                           {followUpLoading ? (
-                            <Loader className="animate-spin mx-auto" size={16} />
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
                           ) : followUpStatus.whatsapp ? (
                             '✅ Sent'
                           ) : credits < 2 ? (

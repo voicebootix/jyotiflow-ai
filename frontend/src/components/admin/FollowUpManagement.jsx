@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog';
 import { Switch } from '../ui/switch';
 import { Alert, AlertDescription } from '../ui/alert';
-import { Loader } from '../ui/Loader';
+import Loader from '../ui/Loader';
 import spiritualAPI from '../../lib/api';
 
 const FollowUpManagement = () => {
