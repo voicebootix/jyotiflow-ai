@@ -331,16 +331,25 @@ const SpiritualGuidance = () => {
 
       {/* Category Filter */}
       <div className="mb-6 flex flex-col items-center">
-        <select
-          value={selectedCategory}
-          onChange={e => setSelectedCategory(e.target.value)}
-          className="px-4 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-yellow-500 mb-2"
-        >
-          <option value="">{CATEGORY_LABELS['']}</option>
+        <div className="flex gap-2 mb-2">
+          <button
+            type="button"
+            className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 ${selectedCategory === '' ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-yellow-100'}`}
+            onClick={() => setSelectedCategory('')}
+          >
+            {CATEGORY_LABELS['']}
+          </button>
           {categories.map(cat => (
-            <option key={cat} value={cat}>{CATEGORY_LABELS[cat] || cat}</option>
+            <button
+              key={cat}
+              type="button"
+              className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors duration-200 ${selectedCategory === cat ? 'bg-yellow-400 text-black border-yellow-400' : 'bg-gray-100 text-gray-700 border-gray-300 hover:bg-yellow-100'}`}
+              onClick={() => setSelectedCategory(cat)}
+            >
+              {CATEGORY_LABELS[cat] || cat}
+            </button>
           ))}
-        </select>
+        </div>
         {selectedCategory && CATEGORY_DESCRIPTIONS[selectedCategory] && (
           <div className="text-sm text-gray-600 mt-1">{CATEGORY_DESCRIPTIONS[selectedCategory]}</div>
         )}
