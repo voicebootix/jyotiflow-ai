@@ -15,6 +15,7 @@ import spiritualAPI from '../lib/api';
 import SocialContentManagement from './admin/SocialContentManagement';
 import Notifications from './admin/Notifications';
 import CreditPackages from './admin/CreditPackages';
+import FollowUpManagement from './admin/FollowUpManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -49,6 +50,7 @@ const AdminDashboard = () => {
     { key: 'pricing', label: 'Pricing' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
+    { key: 'followup', label: 'Follow-ups' },
   ];
 
   return (
@@ -82,12 +84,12 @@ const AdminDashboard = () => {
       </div>
       {/* Tab Navigation */}
       <div className="max-w-7xl mx-auto px-4 pt-6">
-        <div className="flex space-x-2 border-b border-gray-200 mb-8">
+        <div className="flex space-x-2 border-b border-gray-200 mb-8 overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`px-4 py-2 font-medium rounded-t-lg focus:outline-none transition-colors duration-200 ${activeTab === tab.key ? 'bg-white text-purple-800 border-x border-t border-gray-200 -mb-px' : 'text-gray-600 hover:text-purple-700'}`}
+              className={`px-4 py-2 font-medium rounded-t-lg focus:outline-none transition-colors duration-200 whitespace-nowrap ${activeTab === tab.key ? 'bg-white text-purple-800 border-x border-t border-gray-200 -mb-px' : 'text-gray-600 hover:text-purple-700'}`}
             >
               {tab.label}
             </button>
@@ -107,6 +109,7 @@ const AdminDashboard = () => {
         {activeTab === 'pricing' && <PricingConfig />}
         {activeTab === 'notifications' && <Notifications />}
         {activeTab === 'creditPackages' && <CreditPackages />}
+        {activeTab === 'followup' && <FollowUpManagement />}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import os
 from datetime import datetime, timezone
 import uuid
 from typing import Dict, Any
+import asyncio
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
@@ -22,6 +23,49 @@ def get_user_id_from_token(request: Request) -> str:
         return payload["user_id"]
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
+
+async def schedule_session_followup(session_id: str, user_email: str, service_type: str, db):
+    """Schedule automatic follow-up after session completion"""
+    try:
+        # Import here to avoid circular imports
+        from utils.followup_service import FollowUpService
+        from schemas.followup import FollowUpRequest, FollowUpChannel
+        
+        followup_service = FollowUpService(db)
+        
+        # Get default session follow-up template
+        conn = await db.get_connection()
+        try:
+            if hasattr(db, 'is_sqlite') and db.is_sqlite:
+                template = await conn.fetchrow("""
+                    SELECT id FROM follow_up_templates 
+                    WHERE template_type = 'session_followup' AND is_active = 1 
+                    ORDER BY created_at ASC LIMIT 1
+                """)
+            else:
+                template = await conn.fetchrow("""
+                    SELECT id FROM follow_up_templates 
+                    WHERE template_type = 'session_followup' AND is_active = TRUE 
+                    ORDER BY created_at ASC LIMIT 1
+                """)
+        finally:
+            await db.release_connection(conn)
+        
+        if template:
+            # Schedule follow-up
+            request = FollowUpRequest(
+                user_email=user_email,
+                session_id=session_id,
+                template_id=template['id'],
+                channel=FollowUpChannel.EMAIL
+            )
+            
+            # Schedule asynchronously to not block session response
+            asyncio.create_task(followup_service.schedule_followup(request))
+            
+    except Exception as e:
+        # Log error but don't fail the session
+        print(f"Failed to schedule follow-up for session {session_id}: {e}")
 
 @router.post("/start")
 async def start_session(request: Request, session_data: Dict[str, Any], db=Depends(get_db)):
@@ -79,6 +123,9 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     
     # Generate guidance (placeholder - replace with actual AI guidance)
     guidance_text = f"Divine guidance for your question: {session_data.get('question', '')}"
+    
+    # Schedule automatic follow-up (non-blocking)
+    asyncio.create_task(schedule_session_followup(session_id, user["email"], service_type, db))
     
     return {
         "success": True,

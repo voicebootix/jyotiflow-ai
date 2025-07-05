@@ -5,6 +5,7 @@ from routers.sessions import router as sessions_router
 from routers.credits import router as credits_router
 from routers.notification import router as notification_router
 from routers.admin_products import router as admin_products_router
+from routers.followup import router as followup_router
 from dotenv import load_dotenv
 
 # --- CORS Middleware (English & Tamil) ---
@@ -17,6 +18,7 @@ app.include_router(sessions_router)
 app.include_router(credits_router)
 app.include_router(notification_router)
 app.include_router(admin_products_router)  # Revert: No prefix, endpoints at root as before
+app.include_router(followup_router)
 
 load_dotenv()
 

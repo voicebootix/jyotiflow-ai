@@ -297,6 +297,11 @@ class EnhancedJyotiFlowDatabase:
                         credits_used INTEGER DEFAULT 0,
                         original_price DECIMAL(10,2),
                         status VARCHAR(50) DEFAULT 'completed',
+                        follow_up_sent BOOLEAN DEFAULT FALSE,
+                        follow_up_count INTEGER DEFAULT 0,
+                        follow_up_email_sent BOOLEAN DEFAULT FALSE,
+                        follow_up_sms_sent BOOLEAN DEFAULT FALSE,
+                        follow_up_whatsapp_sent BOOLEAN DEFAULT FALSE,
                         created_at TIMESTAMP DEFAULT NOW()
                     )
                 """)

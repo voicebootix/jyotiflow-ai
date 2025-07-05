@@ -1,80 +1,81 @@
 import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Loader, Play } from 'lucide-react';
+import { ArrowLeft, Send, Loader, Play, Mail, MessageSquare, Phone } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const SpiritualGuidance = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [selectedService, setSelectedService] = useState(searchParams.get('service') || 'clarity');
-  const [isLoading, setIsLoading] = useState(false);
-  const [guidance, setGuidance] = useState(null);
-  const [avatarVideo, setAvatarVideo] = useState(null);
+  const [selectedService, setSelectedService] = useState('');
   const [formData, setFormData] = useState({
     birthDate: '',
     birthTime: '',
     birthLocation: '',
     question: ''
   });
-  const [credits, setCredits] = useState(0);
-  const [loadingCredits, setLoadingCredits] = useState(true);
+  const [guidance, setGuidance] = useState(null);
+  const [avatarVideo, setAvatarVideo] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
   const [services, setServices] = useState([]);
   const [servicesLoading, setServicesLoading] = useState(true);
-  const [selectedDonations, setSelectedDonations] = useState([]);
-  const [donationTotal, setDonationTotal] = useState(0);
+  const [credits, setCredits] = useState(0);
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [creditPackages, setCreditPackages] = useState([]);
+  const [packagesLoading, setPackagesLoading] = useState(true);
+  const [selectedCreditPackage, setSelectedCreditPackage] = useState(null);
   const [donationOptions, setDonationOptions] = useState([]);
   const [donationsLoading, setDonationsLoading] = useState(true);
-  const [creditPackages, setCreditPackages] = useState([]);
-  const [selectedCreditPackage, setSelectedCreditPackage] = useState(null);
-  const [packagesLoading, setPackagesLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState('');
-
-  useEffect(() => {
-    // Track page visit
-    spiritualAPI.trackSpiritualEngagement('spiritual_guidance_visit', {
-      service: selectedService
-    });
-  }, [selectedService]);
-
-  useEffect(() => {
-    if (spiritualAPI.isAuthenticated()) {
-      spiritualAPI.getCreditBalance().then(res => {
-        if (res.success) setCredits(res.data.credits);
-        setLoadingCredits(false);
-      });
-    } else {
-      setLoadingCredits(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    spiritualAPI.request('/api/admin/products/service-types').then(data => {
-      setServices(Array.isArray(data) ? data : []);
-      setServicesLoading(false);
-    });
-    
-    // Fetch credit packages
-    spiritualAPI.request('/api/admin/products/credit-packages').then(data => {
-      setCreditPackages(Array.isArray(data) ? data : []);
-      setPackagesLoading(false);
-    });
-
-    // Fetch donation options
-    spiritualAPI.request('/api/admin/products/donations').then(data => {
-      setDonationOptions(Array.isArray(data) ? data : []);
-      setDonationsLoading(false);
-    });
-  }, []);
-
-  // Authentication check
-  useEffect(() => {
-   // if (!spiritualAPI.isAuthenticated()) {
-      // Redirect to login with current service
-     // navigate(`/login?service=${selectedService}&redirect=spiritual-guidance`);
-     // return;
-   // }
-  }, [navigate, selectedService]);
+  const [selectedDonations, setSelectedDonations] = useState([]);
+  const [donationTotal, setDonationTotal] = useState(0);
   
+  // Follow-up options state
+  const [showFollowUpOptions, setShowFollowUpOptions] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const [followUpLoading, setFollowUpLoading] = useState(false);
+  const [followUpStatus, setFollowUpStatus] = useState({});
+
+  useEffect(() => {
+    const serviceFromUrl = searchParams.get('service');
+    if (serviceFromUrl) {
+      setSelectedService(serviceFromUrl);
+    }
+    
+    loadData();
+    spiritualAPI.trackSpiritualEngagement('spiritual_guidance_visit');
+  }, [searchParams]);
+
+  const loadData = async () => {
+    try {
+      // Load services
+      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
+      setServices(Array.isArray(servicesData) ? servicesData : []);
+      setServicesLoading(false);
+
+      // Load credit packages
+      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
+      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
+      setPackagesLoading(false);
+
+      // Load donation options
+      const donationsData = await spiritualAPI.request('/api/admin/products/donations');
+      setDonationOptions(Array.isArray(donationsData) ? donationsData : []);
+      setDonationsLoading(false);
+
+      // Load user credits if authenticated
+      if (spiritualAPI.isAuthenticated()) {
+        const creditsData = await spiritualAPI.getCreditBalance();
+        if (creditsData && creditsData.success) {
+          setCredits(creditsData.data.credits || 0);
+        }
+      }
+    } catch (error) {
+      console.log('Data loading blessed with patience:', error);
+      setServicesLoading(false);
+      setPackagesLoading(false);
+      setDonationsLoading(false);
+    }
+  };
+
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
@@ -135,6 +136,9 @@ const SpiritualGuidance = () => {
           session_id: sessionResult.data.session_id
         });
 
+        // Set current session ID for follow-up options
+        setCurrentSessionId(sessionResult.data.session_id);
+
         // For premium/elite users, generate avatar video
         if ((selectedService === 'premium' || selectedService === 'elite') && spiritualAPI.isAuthenticated()) {
           try {
@@ -166,6 +170,62 @@ const SpiritualGuidance = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Follow-up functions
+  const handleFollowUp = async (channel) => {
+    if (!currentSessionId) return;
+
+    setFollowUpLoading(true);
+    try {
+      let result;
+      
+      switch (channel) {
+        case 'email':
+          result = await spiritualAPI.request(`/api/followup/email/${currentSessionId}`, {
+            method: 'POST'
+          });
+          break;
+        case 'sms':
+          result = await spiritualAPI.request(`/api/followup/sms/${currentSessionId}`, {
+            method: 'POST'
+          });
+          break;
+        case 'whatsapp':
+          result = await spiritualAPI.request(`/api/followup/whatsapp/${currentSessionId}`, {
+            method: 'POST'
+          });
+          break;
+        default:
+          return;
+      }
+
+      if (result && result.success) {
+        // Update credits if charged
+        if (result.credits_charged > 0) {
+          setCredits(prevCredits => prevCredits - result.credits_charged);
+        }
+        
+        // Update follow-up status
+        setFollowUpStatus(prev => ({
+          ...prev,
+          [channel]: true
+        }));
+
+        alert(`${channel.toUpperCase()} follow-up sent successfully!`);
+      } else {
+        alert(result?.message || 'Failed to send follow-up');
+      }
+    } catch (error) {
+      console.error('Follow-up error:', error);
+      alert('Failed to send follow-up. Please try again.');
+    } finally {
+      setFollowUpLoading(false);
+    }
+  };
+
+  const showFollowUpOptionsAfterSession = () => {
+    setShowFollowUpOptions(true);
   };
 
   const pollAvatarStatus = async (sessionId) => {
@@ -371,7 +431,7 @@ const SpiritualGuidance = () => {
                   return (
                     <button
                       key={service.id}
-                      onClick={() => canSelect ? setSelectedService(service.name) : null}
+                      onClick={() => canSelect && setSelectedService(service.name)}
                       disabled={!canSelect}
                       className={`p-4 rounded-lg border-2 transition-all duration-300 ${
                         selectedService === service.name
@@ -541,12 +601,141 @@ const SpiritualGuidance = () => {
                 </div>
               )}
 
+              {/* Follow-up Options */}
+              {!showFollowUpOptions && (
+                <div className="mt-8 text-center">
+                  <button
+                    onClick={showFollowUpOptionsAfterSession}
+                    className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors"
+                  >
+                    📧 Get Follow-up Messages
+                  </button>
+                </div>
+              )}
+
+              {/* Follow-up Options Display */}
+              {showFollowUpOptions && (
+                <div className="mt-8 p-6 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border-2 border-green-200">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">
+                    📧 Follow-up Options
+                  </h3>
+                  <p className="text-gray-600 text-center mb-6">
+                    Choose how you'd like to receive follow-up messages about your spiritual journey
+                  </p>
+                  
+                  <div className="grid md:grid-cols-3 gap-4">
+                    {/* Email Option - Free */}
+                    <div className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                      followUpStatus.email ? 'border-green-500 bg-green-100' : 'border-gray-300 bg-white hover:border-green-400'
+                    }`}>
+                      <div className="text-center">
+                        <Mail className="mx-auto mb-2 text-green-600" size={32} />
+                        <h4 className="font-semibold text-gray-800 mb-2">Email Follow-up</h4>
+                        <p className="text-sm text-gray-600 mb-3">Receive insights via email</p>
+                        <div className="text-green-600 font-bold mb-3">FREE</div>
+                        <button
+                          onClick={() => handleFollowUp('email')}
+                          disabled={followUpLoading || followUpStatus.email}
+                          className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
+                            followUpStatus.email
+                              ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                              : 'bg-green-600 hover:bg-green-700 text-white'
+                          }`}
+                        >
+                          {followUpLoading ? (
+                            <Loader className="animate-spin mx-auto" size={16} />
+                          ) : followUpStatus.email ? (
+                            '✅ Sent'
+                          ) : (
+                            'Send Email'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* SMS Option - 1 Credit */}
+                    <div className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                      followUpStatus.sms ? 'border-blue-500 bg-blue-100' : 'border-gray-300 bg-white hover:border-blue-400'
+                    }`}>
+                      <div className="text-center">
+                        <MessageSquare className="mx-auto mb-2 text-blue-600" size={32} />
+                        <h4 className="font-semibold text-gray-800 mb-2">SMS Follow-up</h4>
+                        <p className="text-sm text-gray-600 mb-3">Get guidance via SMS</p>
+                        <div className="text-blue-600 font-bold mb-3">1 Credit</div>
+                        <button
+                          onClick={() => handleFollowUp('sms')}
+                          disabled={followUpLoading || followUpStatus.sms || credits < 1}
+                          className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
+                            followUpStatus.sms
+                              ? 'bg-blue-100 text-blue-700 cursor-not-allowed'
+                              : credits < 1
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                          }`}
+                        >
+                          {followUpLoading ? (
+                            <Loader className="animate-spin mx-auto" size={16} />
+                          ) : followUpStatus.sms ? (
+                            '✅ Sent'
+                          ) : credits < 1 ? (
+                            'Insufficient Credits'
+                          ) : (
+                            'Send SMS'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* WhatsApp Option - 2 Credits */}
+                    <div className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                      followUpStatus.whatsapp ? 'border-green-500 bg-green-100' : 'border-gray-300 bg-white hover:border-green-400'
+                    }`}>
+                      <div className="text-center">
+                        <Phone className="mx-auto mb-2 text-green-600" size={32} />
+                        <h4 className="font-semibold text-gray-800 mb-2">WhatsApp Follow-up</h4>
+                        <p className="text-sm text-gray-600 mb-3">Receive guidance on WhatsApp</p>
+                        <div className="text-green-600 font-bold mb-3">2 Credits</div>
+                        <button
+                          onClick={() => handleFollowUp('whatsapp')}
+                          disabled={followUpLoading || followUpStatus.whatsapp || credits < 2}
+                          className={`w-full px-4 py-2 rounded-lg font-semibold transition-colors ${
+                            followUpStatus.whatsapp
+                              ? 'bg-green-100 text-green-700 cursor-not-allowed'
+                              : credits < 2
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                                : 'bg-green-600 hover:bg-green-700 text-white'
+                          }`}
+                        >
+                          {followUpLoading ? (
+                            <Loader className="animate-spin mx-auto" size={16} />
+                          ) : followUpStatus.whatsapp ? (
+                            '✅ Sent'
+                          ) : credits < 2 ? (
+                            'Insufficient Credits'
+                          ) : (
+                            'Send WhatsApp'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-center mt-4">
+                    <p className="text-sm text-gray-500">
+                      Available Credits: <span className="font-bold text-yellow-600">{credits}</span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Actions */}
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
                 <button
                   onClick={() => {
                     setGuidance(null);
                     setAvatarVideo(null);
+                    setShowFollowUpOptions(false);
+                    setFollowUpStatus({});
                     setFormData({
                       birthDate: '',
                       birthTime: '',
