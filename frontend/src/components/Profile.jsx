@@ -456,10 +456,6 @@ const Profile = () => {
                   ))}
                 </div>
               )}
-              {/* Debug: Show raw API data */}
-              <pre style={{color: 'red', fontSize: '12px', background: '#fffbe6', padding: '8px', borderRadius: '6px', marginTop: '16px'}}>
-                {JSON.stringify(creditPackages, null, 2)}
-              </pre>
             </div>
           )}
 
