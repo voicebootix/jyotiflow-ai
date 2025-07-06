@@ -92,12 +92,18 @@ const spiritualAPI = {
 
   async register(userData) {
     try {
+      // Map 'name' to 'full_name' for backend compatibility
+      const payload = {
+        ...userData,
+        full_name: userData.name || userData.full_name || '',
+      };
+      delete payload.name;
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(userData)
+        body: JSON.stringify(payload)
       });
       
       const data = await response.json();
