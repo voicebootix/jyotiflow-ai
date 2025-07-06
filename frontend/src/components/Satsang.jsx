@@ -9,9 +9,11 @@ const Satsang = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [registeredEvents, setRegisteredEvents] = useState(new Set());
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [topDonors, setTopDonors] = useState([]);
 
   useEffect(() => {
     loadSatsangData();
+    loadTopDonors();
     setIsAuthenticated(spiritualAPI.isAuthenticated());
     spiritualAPI.trackSpiritualEngagement('satsang_visit');
   }, []);
@@ -71,6 +73,17 @@ const Satsang = () => {
       ]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadTopDonors = async () => {
+    try {
+      const result = await spiritualAPI.getMonthlyTopDonors();
+      if (result && result.success) {
+        setTopDonors(result.top_donors || []);
+      }
+    } catch (error) {
+      console.log('🕉️ Top donors loading blessed with patience:', error);
     }
   };
 
@@ -268,6 +281,47 @@ const Satsang = () => {
           )}
         </div>
       </div>
+
+      {/* Top Donors Section */}
+      {topDonors.length > 0 && (
+        <div className="py-16 px-4 bg-gradient-to-br from-green-900 to-emerald-800">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-3xl font-bold text-center text-white mb-12">
+              <span className="divine-text">🪔 இந்த மாதத்தின் முன்னணி தானதர்கள்</span>
+            </h2>
+            
+            <div className="sacred-card p-8">
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {topDonors.slice(0, 6).map((donor, index) => (
+                  <div key={donor.email} className="text-center p-6 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border-2 border-green-200">
+                    <div className="text-4xl mb-3">
+                      {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : '🪔'}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-800 mb-2">
+                      {donor.name || 'Anonymous Seeker'}
+                    </h3>
+                    <div className="text-2xl font-bold text-green-600 mb-2">
+                      ${donor.total_donated.toFixed(2)}
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      {donor.donation_count} தானங்கள்
+                    </p>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="text-center mt-8">
+                <p className="text-gray-700 text-lg mb-4">
+                  🙏 இந்த தானதர்களின் புண்ணிய செயல்கள் நமது சமூகத்தை வளர்க்கின்றன
+                </p>
+                <p className="text-gray-600">
+                  Their generous contributions support our spiritual mission and help spread divine wisdom worldwide
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Community Benefits */}
       <div className="py-16 px-4">

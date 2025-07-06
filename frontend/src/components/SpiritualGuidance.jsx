@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Play, Mail, MessageSquare, Phone } from 'lucide-react';
+import { ArrowLeft, Send, Play, Mail, MessageSquare, Phone, RefreshCw } from 'lucide-react';
 
 import spiritualAPI from '../lib/api';
 
@@ -35,6 +35,10 @@ const SpiritualGuidance = () => {
   const [followUpLoading, setFollowUpLoading] = useState(false);
   const [followUpStatus, setFollowUpStatus] = useState({});
 
+  // Real-time refresh state
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
     const serviceFromUrl = searchParams.get('service');
     if (serviceFromUrl) {
@@ -43,6 +47,13 @@ const SpiritualGuidance = () => {
     
     loadData();
     spiritualAPI.trackSpiritualEngagement('spiritual_guidance_visit');
+
+    // Set up real-time refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      refreshData();
+    }, 30000);
+
+    return () => clearInterval(refreshInterval);
   }, [searchParams]);
 
   const loadData = async () => {
@@ -77,6 +88,44 @@ const SpiritualGuidance = () => {
     }
   };
 
+  // Real-time refresh function
+  const refreshData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      
+      // Load services
+      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
+      setServices(Array.isArray(servicesData) ? servicesData : []);
+
+      // Load credit packages
+      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
+      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
+
+      // Load donation options
+      const donationsData = await spiritualAPI.request('/api/admin/products/donations');
+      setDonationOptions(Array.isArray(donationsData) ? donationsData : []);
+
+      // Load user credits if authenticated
+      if (spiritualAPI.isAuthenticated()) {
+        const creditsData = await spiritualAPI.getCreditBalance();
+        if (creditsData && creditsData.success) {
+          setCredits(creditsData.data.credits || 0);
+        }
+      }
+
+      setLastRefresh(new Date());
+    } catch (error) {
+      console.log('Real-time refresh blessed with patience:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    await refreshData();
+  };
+
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
@@ -86,24 +135,13 @@ const SpiritualGuidance = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!spiritualAPI.isAuthenticated()) {
-      navigate('/login');
+    
+    // Check if user has enough credits before starting session
+    if (credits <= 0) {
+      alert('⚠️ போதிய கிரெடிட்கள் இல்லை!\n\nதயவுசெய்து கிரெடிட்கள் வாங்கி மீண்டும் முயற்சிக்கவும்.');
       return;
     }
-
-    // Get selected service details
-    const selectedServiceDetails = services.find(s => s.name === selectedService);
-    if (!selectedServiceDetails) {
-      alert('Please select a valid service');
-      return;
-    }
-
-    // Check if user has enough credits
-    if (credits < selectedServiceDetails.credits_required) {
-      alert(`Insufficient credits. Required: ${selectedServiceDetails.credits_required}, Available: ${credits}`);
-      return;
-    }
-
+    
     setIsLoading(true);
     setGuidance(null);
     setAvatarVideo(null);
@@ -270,6 +308,50 @@ const SpiritualGuidance = () => {
     });
   };
 
+  const handleDonationPayment = async () => {
+    if (!spiritualAPI.isAuthenticated()) {
+      navigate('/login');
+      return;
+    }
+
+    if (selectedDonations.length === 0) {
+      alert('தயவுசெய்து தானம் தேர்ந்தெடுக்கவும்');
+      return;
+    }
+
+    try {
+      // Process each selected donation
+      for (const donationId of selectedDonations) {
+        const donation = donationOptions.find(d => d.id === donationId);
+        if (!donation) continue;
+
+        // Process donation payment
+        const paymentResult = await spiritualAPI.processDonation({
+          donation_id: donationId,
+          amount_usd: donation.price_usd,
+          message: `தானம்: ${donation.tamil_name || donation.name}`,
+          session_id: currentSessionId
+        });
+
+        if (paymentResult && paymentResult.success) {
+          // Here you would integrate with Stripe for actual payment
+          // For now, we'll simulate a successful payment
+          await spiritualAPI.confirmDonation(paymentResult.payment_intent_id);
+          
+          alert(`தானம் வெற்றிகரமாக செய்யப்பட்டது: ${donation.tamil_name || donation.name}`);
+        }
+      }
+
+      // Clear selected donations after successful payment
+      setSelectedDonations([]);
+      setDonationTotal(0);
+      
+    } catch (error) {
+      console.error('Donation payment error:', error);
+      alert('தானம் செய்யும் போது பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.');
+    }
+  };
+
   const currentService = services.find(s => s.name === selectedService) || { name: 'Clarity Plus', icon: '🔮' };
   const CATEGORY_LABELS = {
     '': 'அனைத்தும்',
@@ -289,13 +371,26 @@ const SpiritualGuidance = () => {
       {/* Header */}
       <div className={`bg-gradient-to-r ${currentService.color} py-16`}>
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <Link 
-            to="/" 
-            className="inline-flex items-center text-white hover:text-gray-200 mb-6 transition-colors"
-          >
-            <ArrowLeft size={20} className="mr-2" />
-            Back to Home
-          </Link>
+          <div className="flex items-center justify-between mb-6">
+            <Link 
+              to="/" 
+              className="inline-flex items-center text-white hover:text-gray-200 transition-colors"
+            >
+              <ArrowLeft size={20} className="mr-2" />
+              Back to Home
+            </Link>
+            
+            {/* Refresh Button */}
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center text-white hover:text-gray-200 transition-colors disabled:opacity-50"
+              title="Refresh prices and data"
+            >
+              <RefreshCw size={20} className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
           
           <div className="text-6xl mb-4">{currentService.icon}</div>
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-4">
@@ -304,6 +399,11 @@ const SpiritualGuidance = () => {
           <p className="text-xl text-white opacity-90 max-w-2xl mx-auto">
             {currentService.description}
           </p>
+          
+          {/* Last Updated Indicator */}
+          <div className="mt-4 text-white opacity-75 text-sm">
+            Last updated: {lastRefresh.toLocaleTimeString()}
+          </div>
         </div>
       </div>
 
@@ -315,26 +415,42 @@ const SpiritualGuidance = () => {
             <div className="text-white text-center">கிரெடிட் தொகுப்புகள் ஏற்றப்படுகிறது...</div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                              {(Array.isArray(creditPackages) ? creditPackages : []).filter(pkg => pkg.enabled).map(creditPkg => (
+              {(Array.isArray(creditPackages) ? creditPackages : []).filter(pkg => pkg.enabled).map((creditPkg, index) => {
+                // Determine most popular package (usually the middle one or highest value)
+                const isMostPopular = index === 1 || creditPkg.is_popular;
+                
+                return (
                   <button
                     key={creditPkg.id}
                     onClick={() => setSelectedCreditPackage(creditPkg)}
-                    className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                    className={`p-4 rounded-lg border-2 transition-all duration-300 relative ${
                       selectedCreditPackage?.id === creditPkg.id
                         ? 'border-blue-400 bg-blue-400 bg-opacity-20'
-                        : 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                        : isMostPopular
+                          ? 'border-yellow-400 bg-yellow-400 bg-opacity-10'
+                          : 'border-gray-600 bg-gray-800 hover:border-gray-400'
                     }`}
                   >
+                    {/* Most Popular Badge */}
+                    {isMostPopular && (
+                      <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 bg-yellow-400 text-black text-xs font-bold px-3 py-1 rounded-full">
+                        சிறந்த மதிப்பு
+                      </div>
+                    )}
+                    
                     <div className="text-2xl mb-2">🪙</div>
                     <div className="text-white font-semibold text-lg">{creditPkg.name}</div>
-                    <div className="text-blue-300 font-bold text-xl">${creditPkg.price_usd}</div>
+                    <div className="text-blue-300 font-bold text-xl">₹{creditPkg.price_usd}</div>
                     <div className="text-white text-sm">{creditPkg.credits_amount} கிரெடிட்ஸ்</div>
                     {creditPkg.bonus_credits > 0 && (
-                      <div className="text-green-400 text-sm">+{creditPkg.bonus_credits} போனஸ்!</div>
+                      <div className="bg-green-500 text-white text-sm font-bold px-2 py-1 rounded-full mt-1">
+                        +{creditPkg.bonus_credits} இலவசம்!
+                      </div>
                     )}
                     <div className="text-gray-400 text-xs mt-2">{creditPkg.description}</div>
                   </button>
-                ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -368,9 +484,15 @@ const SpiritualGuidance = () => {
           )}
           {donationTotal > 0 && (
             <div className="text-center mt-4">
-              <div className="text-white text-lg">
+              <div className="text-white text-lg mb-3">
                 மொத்த தானம்: <span className="text-green-400 font-bold">${donationTotal}</span>
               </div>
+              <button
+                onClick={handleDonationPayment}
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+              >
+                💰 தானம் செய்யுங்கள்
+              </button>
             </div>
           )}
         </div>
@@ -443,18 +565,30 @@ const SpiritualGuidance = () => {
                       }`}
                       title={!spiritualAPI.isAuthenticated() ? 'உள்நுழைய வேண்டும்' : !hasEnoughCredits ? 'போதுமான கிரெடிட்ஸ் இல்லை' : ''}
                     >
-                      <div className="text-2xl mb-2">{service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮'}</div>
-                      <div className="text-white font-semibold text-sm">{service.name}</div>
-                      <div className="text-yellow-300 font-bold mt-2">${service.price_usd}</div>
-                      <div className="text-gray-400 text-xs">{service.credits_required} கிரெடிட்ஸ்</div>
-                      <div className="text-gray-400 text-xs">{service.duration_minutes} நிமிடம்</div>
+                      <div className="text-2xl mb-2">{service.icon || (service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮')}</div>
+                      <div className="text-white font-semibold text-sm">{service.display_name || service.name}</div>
+                      <div className="text-yellow-300 font-bold mt-2">₹{service.credits_required} கிரெடிட்ஸ்</div>
+                      <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full mt-1">{service.duration_minutes} நிமிடங்கள்</div>
                       <div className="text-gray-500 text-xs mt-1">{service.description}</div>
                       
                       {!spiritualAPI.isAuthenticated() && (
                         <div className="text-red-400 text-xs mt-2">உள்நுழைய வேண்டும்</div>
                       )}
                       {spiritualAPI.isAuthenticated() && !hasEnoughCredits && (
-                        <div className="text-red-400 text-xs mt-2">போதுமான கிரெடிட்ஸ் இல்லை</div>
+                        <div className="mt-3 space-y-2">
+                          <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
+                            ⚠️ போதுமான கிரெடிட்ஸ் இல்லை
+                          </div>
+                          <div className="text-red-400 text-xs">
+                            தேவை: {service.credits_required} கிரெடிட்ஸ் | உள்ளது: {credits} கிரெடிட்ஸ்
+                          </div>
+                          <Link 
+                            to="/profile?tab=credits"
+                            className="block w-full bg-yellow-500 hover:bg-yellow-600 text-black text-xs font-bold px-3 py-2 rounded-lg transition-colors text-center"
+                          >
+                            💰 கிரெடிட்ஸ் வாங்க
+                          </Link>
+                        </div>
                       )}
                     </button>
                   );

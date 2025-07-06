@@ -20,6 +20,7 @@ export default function RevenueAnalytics() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [donationData, setDonationData] = useState(null);
 
   // தமில - API call
   useEffect(() => {
@@ -28,6 +29,12 @@ export default function RevenueAnalytics() {
       .then(data => { if (mounted) setData(data); })
       .catch(e => setError('வருவாய் தரவு ஏற்ற முடியவில்லை.'))
       .finally(() => setLoading(false));
+    
+    // Load donation analytics
+    spiritualAPI.getDonationAnalytics()
+      .then(donationData => { if (mounted) setDonationData(donationData); })
+      .catch(e => console.log('Donation analytics loading blessed with patience:', e));
+    
     return () => { mounted = false; };
   }, []);
 
@@ -50,6 +57,33 @@ export default function RevenueAnalytics() {
         <MetricCard label="CLV" value={`$${data.clv}`} icon="🌱" color="from-green-700 to-green-400" />
         <MetricCard label="Churn Rate" value={data.churn + '%'} icon="🔄" color="from-red-700 to-red-400" />
       </div>
+
+      {/* தமில - Donation Revenue Metrics */}
+      {donationData && (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <MetricCard label="மாத தான வருவாய்" value={`$${donationData.monthly_revenue || 0}`} icon="🪔" color="from-green-600 to-emerald-400" />
+          <MetricCard label="மொத்த தானங்கள்" value={donationData.total_donations || 0} icon="🙏" color="from-purple-600 to-pink-400" />
+          <MetricCard label="சராசரி தானம்" value={`$${donationData.average_donation || 0}`} icon="💰" color="from-orange-600 to-yellow-400" />
+          <MetricCard label="இந்த மாத தானதர்கள்" value={donationData.monthly_donors || 0} icon="👥" color="from-indigo-600 to-blue-400" />
+        </div>
+      )}
+
+      {/* தமில - Donation Revenue Chart */}
+      {donationData && donationData.monthly_trend && (
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-xl font-bold mb-4">🪔 தான வருவாய் போக்கு (Monthly)</h2>
+          <ResponsiveContainer width="100%" height={300}>
+            <LineChart data={donationData.monthly_trend}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="month" />
+              <YAxis />
+              <Tooltip />
+              <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* தமில - Revenue Trend Chart */}
       <div className="bg-white rounded-lg shadow p-6 mb-8">
         <h2 className="text-xl font-bold mb-4">Revenue Trend (Monthly)</h2>

@@ -282,6 +282,23 @@ const spiritualAPI = {
     return this.get('/api/admin/ai-insights');
   },
 
+  // AI Pricing Recommendations
+  async getAIPricingRecommendations() {
+    return this.get('/api/admin/ai-pricing-recommendations');
+  },
+
+  async approveAIRecommendation(recommendationId) {
+    return this.post(`/api/admin/ai-pricing-recommendations/${recommendationId}/approve`);
+  },
+
+  async rejectAIRecommendation(recommendationId) {
+    return this.post(`/api/admin/ai-pricing-recommendations/${recommendationId}/reject`);
+  },
+
+  async triggerDailyAnalysis() {
+    return this.post('/api/admin/trigger-daily-analysis');
+  },
+
   // Service Types Management
   async getServiceTypes() {
     return this.get('/api/admin/products/service-types');
@@ -338,24 +355,38 @@ const spiritualAPI = {
     return this.request(`/api/admin/products/donations/${donationId}`, { method: 'DELETE' });
   },
 
-  // Credit Packages Management
+  // Donation Payment Processing
+  async processDonation(donationData) {
+    return this.post('/api/donations/process', donationData);
+  },
+
+  async confirmDonation(paymentIntentId) {
+    return this.post('/api/donations/confirm', { payment_intent_id: paymentIntentId });
+  },
+
+  async getDonationHistory() {
+    return this.get('/api/donations/history');
+  },
+
+  async getDonationAnalytics() {
+    return this.get('/api/donations/analytics');
+  },
+
+  async getSessionTotalDonations(sessionId) {
+    return this.get(`/api/donations/session-total/${sessionId}`);
+  },
+
+  async getMonthlyTopDonors() {
+    return this.get('/api/donations/top-donors/monthly');
+  },
+
+  // Credit Packages
   async getCreditPackages() {
-    return this.get('/api/admin/products/credit-packages');
+    return this.get('/api/credits/packages');
   },
 
-  async createCreditPackage(packageData) {
-    return this.post('/api/admin/products/credit-packages', packageData);
-  },
-
-  async updateCreditPackage(packageId, packageData) {
-    return this.request(`/api/admin/products/credit-packages/${packageId}`, { 
-      method: 'PUT', 
-      body: JSON.stringify(packageData) 
-    });
-  },
-
-  async deleteCreditPackage(packageId) {
-    return this.request(`/api/admin/products/credit-packages/${packageId}`, { method: 'DELETE' });
+  async purchaseCredits(packageId) {
+    return this.post('/api/credits/purchase', { package_id: packageId });
   },
 
   // Admin: Social Content Management

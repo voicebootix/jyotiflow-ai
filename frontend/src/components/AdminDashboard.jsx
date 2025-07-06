@@ -21,16 +21,64 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [adminStats, setAdminStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [creditPackages, setCreditPackages] = useState([]);
 
   useEffect(() => {
     const fetchAdminData = async () => {
-      setLoading(true);
-      const stats = await spiritualAPI.getAdminStats();
-      setAdminStats(stats.data || {});
-      setLoading(false);
+      try {
+        setLoading(true);
+        
+        // Fetch admin statistics
+        const stats = await spiritualAPI.request('/api/admin/analytics/overview');
+        if (stats) setAdminStats(stats);
+        
+        // Fetch credit packages for price management
+        const packages = await spiritualAPI.request('/api/admin/products/credit-packages');
+        if (packages) setCreditPackages(Array.isArray(packages) ? packages : []);
+        
+      } catch (error) {
+        console.error('Admin data fetch error:', error);
+      } finally {
+        setLoading(false);
+      }
     };
     fetchAdminData();
   }, []);
+
+  const handlePriceChange = async (packageId, newPrice) => {
+    try {
+      const result = await spiritualAPI.request(`/api/admin/products/credit-packages/${packageId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ price_usd: newPrice })
+      });
+      
+      if (result && result.success) {
+        // Immediately update local state to reflect price change
+        setCreditPackages(prevPackages => 
+          prevPackages.map(pkg => 
+            pkg.id === packageId 
+              ? { ...pkg, price_usd: newPrice }
+              : pkg
+          )
+        );
+        
+        // Show success message
+        alert(`✅ விலை வெற்றிகரமாக மாற்றப்பட்டது!\n\nபுதிய விலை: $${newPrice}`);
+        
+        // Track price change for analytics
+        await spiritualAPI.trackSpiritualEngagement('admin_price_change', {
+          package_id: packageId,
+          old_price: creditPackages.find(p => p.id === packageId)?.price_usd,
+          new_price: newPrice
+        });
+      } else {
+        alert('விலை மாற்றம் தோல்வி. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.');
+      }
+    } catch (error) {
+      console.error('Price change error:', error);
+      alert('விலை மாற்றம் தோல்வி - தயவுசெய்து மீண்டும் முயற்சிக்கவும்.');
+    }
+  };
 
   if (loading) {
     return <div>Loading divine administration...</div>;
@@ -97,7 +145,95 @@ const AdminDashboard = () => {
         </div>
       </div>
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {activeTab === 'overview' && <Overview adminStats={adminStats} />}
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            {/* Quick Stats */}
+            <div className="grid md:grid-cols-4 gap-6">
+              <div className="sacred-card p-6 text-center">
+                <div className="text-3xl mb-2">👥</div>
+                <div className="text-2xl font-bold text-gray-800">{adminStats.total_users || 0}</div>
+                <div className="text-gray-600">Total Users</div>
+              </div>
+              <div className="sacred-card p-6 text-center">
+                <div className="text-3xl mb-2">💰</div>
+                <div className="text-2xl font-bold text-gray-800">${adminStats.total_revenue || 0}</div>
+                <div className="text-gray-600">Total Revenue</div>
+              </div>
+              <div className="sacred-card p-6 text-center">
+                <div className="text-3xl mb-2">🕉️</div>
+                <div className="text-2xl font-bold text-gray-800">{adminStats.total_sessions || 0}</div>
+                <div className="text-gray-600">Total Sessions</div>
+              </div>
+              <div className="sacred-card p-6 text-center">
+                <div className="text-3xl mb-2">💝</div>
+                <div className="text-2xl font-bold text-gray-800">${adminStats.total_donations || 0}</div>
+                <div className="text-gray-600">Total Donations</div>
+              </div>
+            </div>
+
+            {/* Credit Package Management */}
+            <div className="sacred-card p-8">
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">
+                💰 கிரெடிட் பேக்கேஜ் விலை மேலாண்மை
+              </h2>
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {creditPackages.map((pkg) => (
+                  <div key={pkg.id} className="border rounded-lg p-4 bg-gray-50">
+                    <div className="flex justify-between items-center mb-3">
+                      <h3 className="font-semibold text-gray-800">{pkg.name}</h3>
+                      <span className="text-sm text-gray-500">ID: {pkg.id}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">கிரெடிட்கள்:</span>
+                        <span className="font-semibold">{pkg.credits}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">போனஸ்:</span>
+                        <span className="font-semibold text-green-600">{pkg.bonus_credits || 0}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">தற்போதைய விலை:</span>
+                        <span className="font-semibold text-blue-600">${pkg.price_usd}</span>
+                      </div>
+                      <div className="mt-3">
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="புதிய விலை"
+                          className="w-full px-3 py-2 border rounded-md text-sm"
+                          onKeyPress={(e) => {
+                            if (e.key === 'Enter') {
+                              const newPrice = parseFloat(e.target.value);
+                              if (newPrice >= 0) {
+                                handlePriceChange(pkg.id, newPrice);
+                                e.target.value = '';
+                              }
+                            }
+                          }}
+                        />
+                        <button
+                          onClick={() => {
+                            const input = document.querySelector(`input[placeholder="புதிய விலை"]`);
+                            const newPrice = parseFloat(input.value);
+                            if (newPrice >= 0) {
+                              handlePriceChange(pkg.id, newPrice);
+                              input.value = '';
+                            }
+                          }}
+                          className="w-full mt-2 bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-md text-sm transition-colors"
+                        >
+                          விலை மாற்று
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
         {activeTab === 'products' && <Products />}
         {activeTab === 'revenue' && <RevenueAnalytics />}
         {activeTab === 'content' && <SocialContentManagement />}

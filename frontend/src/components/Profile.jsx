@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play, LogOut } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play, LogOut, RefreshCw } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const Profile = () => {
@@ -8,6 +8,7 @@ const Profile = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
   const [creditBalance, setCreditBalance] = useState(0);
+  const [donationHistory, setDonationHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedService, setSelectedService] = useState(null);
@@ -15,7 +16,12 @@ const Profile = () => {
   const [servicesLoading, setServicesLoading] = useState(true);
   const [creditPackages, setCreditPackages] = useState([]);
   const [packagesLoading, setPackagesLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState(false);
   const navigate = useNavigate();
+
+  // Real-time refresh state
+  const [lastRefresh, setLastRefresh] = useState(new Date());
+  const [refreshing, setRefreshing] = useState(false);
 
   // Check if user came from service selection or tab parameter
   useEffect(() => {
@@ -32,6 +38,58 @@ const Profile = () => {
     }
   }, [searchParams]);
 
+  const loadCreditPackages = async () => {
+    try {
+      const result = await spiritualAPI.getCreditPackages();
+      if (result && result.success) {
+        setCreditPackages(result.packages || []);
+      }
+    } catch (error) {
+      console.log('Credit packages loading blessed with patience:', error);
+    }
+  };
+
+  const purchaseCredits = async (packageId) => {
+    setPurchasing(true);
+    try {
+      const result = await spiritualAPI.purchaseCredits(packageId);
+      if (result && result.success) {
+        const { credits_purchased, bonus_credits, total_credits } = result.data;
+        
+        // Show success message with bonus details
+        if (bonus_credits > 0) {
+          alert(`✅ வெற்றிகரமாக ${total_credits} கிரெடிட்கள் வாங்கப்பட்டன!\n\n📦 ${credits_purchased} அடிப்படை + ${bonus_credits} போனஸ் = ${total_credits} மொத்தம்`);
+        } else {
+          alert(`✅ வெற்றிகரமாக ${total_credits} கிரெடிட்கள் வாங்கப்பட்டன!`);
+        }
+        
+        // Immediately update user profile with new credits
+        const profile = await spiritualAPI.getUserProfile();
+        if (profile && profile.success) {
+          setUserProfile(profile.data);
+        }
+        
+        // Refresh credit packages to show updated pricing if needed
+        loadCreditPackages();
+        
+        // Track purchase for analytics
+        await spiritualAPI.trackSpiritualEngagement('credit_purchase', {
+          package_id: packageId,
+          credits_purchased: credits_purchased,
+          bonus_credits: bonus_credits,
+          total_credits: total_credits
+        });
+      } else {
+        alert('கிரெடிட் வாங்குதல் தோல்வி. தயவுசெய்து மீண்டும் முயற்சிக்கவும்.');
+      }
+    } catch (error) {
+      console.error('Credit purchase error:', error);
+      alert('கிரெடிட் வாங்குதல் தோல்வி - தயவுசெய்து மீண்டும் முயற்சிக்கவும்.');
+    } finally {
+      setPurchasing(false);
+    }
+  };
+
   useEffect(() => {
     if (!spiritualAPI.isAuthenticated()) {
       navigate('/login', { replace: true });
@@ -39,6 +97,13 @@ const Profile = () => {
     
     loadProfileData();
     spiritualAPI.trackSpiritualEngagement('profile_visit');
+
+    // Set up real-time refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      refreshData();
+    }, 30000);
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   const loadProfileData = async () => {
@@ -67,8 +132,10 @@ const Profile = () => {
       setServicesLoading(false);
 
       // Load credit packages
-      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
-      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
+      const packagesResult = await spiritualAPI.getCreditPackages();
+      if (packagesResult && packagesResult.success) {
+        setCreditPackages(packagesResult.packages || []);
+      }
       setPackagesLoading(false);
     } catch (error) {
       console.log('Profile data loading blessed with patience:', error);
@@ -77,6 +144,38 @@ const Profile = () => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Real-time refresh function
+  const refreshData = useCallback(async () => {
+    try {
+      setRefreshing(true);
+      
+      // Load credit balance
+      const credits = await spiritualAPI.getCreditBalance();
+      if (credits && credits.success) {
+        setCreditBalance(credits.data.credits || 0);
+      }
+
+      // Load services
+      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
+      setServices(Array.isArray(servicesData) ? servicesData : []);
+
+      // Load credit packages
+      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
+      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
+
+      setLastRefresh(new Date());
+    } catch (error) {
+      console.log('Real-time refresh blessed with patience:', error);
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    await refreshData();
   };
 
   const getSubscriptionBadge = (tier) => {
@@ -141,13 +240,27 @@ const Profile = () => {
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16 relative">
         <div className="max-w-4xl mx-auto px-4">
-          <Link 
-            to="/" 
-            className="inline-flex items-center text-white hover:text-gray-200 mb-6 transition-colors"
-          >
-            <ArrowLeft size={20} className="mr-2" />
-            Back to Home
-          </Link>
+          <div className="flex items-center justify-between mb-6">
+            <Link 
+              to="/" 
+              className="inline-flex items-center text-white hover:text-gray-200 transition-colors"
+            >
+              <ArrowLeft size={20} className="mr-2" />
+              Back to Home
+            </Link>
+            
+            {/* Refresh Button */}
+            <button
+              onClick={handleManualRefresh}
+              disabled={refreshing}
+              className="inline-flex items-center text-white hover:text-gray-200 transition-colors disabled:opacity-50"
+              title="Refresh prices and data"
+            >
+              <RefreshCw size={20} className={`mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
+          
           {/* Logout button top right */}
           <button
             onClick={handleLogout}
@@ -174,6 +287,11 @@ const Profile = () => {
                 <span className="text-white opacity-75 text-sm">
                   Member since {formatDate(userProfile.created_at || new Date())}
                 </span>
+              </div>
+              
+              {/* Last Updated Indicator */}
+              <div className="text-white opacity-75 text-xs mt-2">
+                Last updated: {lastRefresh.toLocaleTimeString()}
               </div>
             </div>
           </div>
@@ -310,13 +428,12 @@ const Profile = () => {
                         >
                           <div className="text-center mb-4">
                             <div className="text-4xl mb-2">
-                              {service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮'}
+                              {service.icon || (service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮')}
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800">{service.name}</h3>
+                            <h3 className="text-xl font-bold text-gray-800">{service.display_name || service.name}</h3>
                             <p className="text-gray-600 text-sm">{service.description}</p>
-                            <div className="text-2xl font-bold text-gray-800 mt-2">${service.price_usd}</div>
-                            <div className="text-sm text-gray-500">{service.credits_required} கிரெடிட்ஸ்</div>
-                            <div className="text-sm text-gray-500">{service.duration_minutes} நிமிடம்</div>
+                            <div className="text-2xl font-bold text-gray-800 mt-2">₹{service.credits_required} கிரெடிட்ஸ்</div>
+                            <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full mt-1">{service.duration_minutes} நிமிடங்கள்</div>
                           </div>
                           
                           {hasEnoughCredits ? (
@@ -327,13 +444,18 @@ const Profile = () => {
                               Start {service.name} Session
                             </Link>
                           ) : (
-                            <div className="text-center">
-                              <div className="text-red-600 text-sm mb-2">போதுமான கிரெடிட்ஸ் இல்லை</div>
+                            <div className="text-center space-y-3">
+                              <div className="bg-red-500 text-white text-sm px-3 py-1 rounded-full font-semibold">
+                                ⚠️ போதுமான கிரெடிட்ஸ் இல்லை
+                              </div>
+                              <div className="text-red-600 text-xs">
+                                தேவை: {service.credits_required} கிரெடிட்ஸ் | உள்ளது: {creditBalance} கிரெடிட்ஸ்
+                              </div>
                               <Link 
                                 to="/profile?tab=credits"
-                                className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors block text-center"
+                                className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold px-4 py-2 rounded-lg transition-colors block text-center"
                               >
-                                Buy Credits
+                                💰 கிரெடிட்ஸ் வாங்க
                               </Link>
                             </div>
                           )}
@@ -397,68 +519,48 @@ const Profile = () => {
           )}
 
           {activeTab === 'credits' && (
-            <div className="space-y-8">
-              {/* Credit Balance */}
-              <div className="sacred-card p-8 text-center">
-                <div className="text-6xl mb-4">⭐</div>
-                <h2 className="text-3xl font-bold text-gray-800 mb-2">
-                  {creditBalance} Credits Available
-                </h2>
-                <p className="text-gray-600 mb-6">
-                  Use credits for premium guidance sessions and special features
-                </p>
-                <button 
-                  onClick={() => spiritualAPI.purchaseCredits(100)}
-                  className="divine-button"
-                >
-                  Purchase More Credits
-                </button>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">Credit Management</h2>
+              
+              {/* Current Credits */}
+              <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white rounded-lg p-6 mb-8">
+                <div className="text-center">
+                  <div className="text-4xl font-bold mb-2">{userProfile?.credits || 0}</div>
+                  <div className="text-lg">Available Credits</div>
+                </div>
               </div>
 
               {/* Credit Packages */}
-              {packagesLoading ? (
-                <div className="text-center py-8">
-                  <div className="text-4xl mb-4">🔄</div>
-                  <p className="text-gray-600">கிரெடிட் தொகுப்புகள் ஏற்றப்படுகிறது...</p>
-                </div>
-              ) : (
-                <div className="grid md:grid-cols-3 gap-6">
-                  {(Array.isArray(creditPackages) ? creditPackages : []).filter(pkg => pkg.enabled).map((creditPkg, index) => (
-                    <div 
-                      key={creditPkg.id}
-                      className={`sacred-card p-6 text-center ${
-                        index === 1 ? 'ring-2 ring-yellow-400' : ''
-                      }`}
-                    >
-                      {index === 1 && (
-                        <div className="bg-yellow-400 text-black text-xs font-bold px-2 py-1 rounded-full inline-block mb-3">
-                          BEST VALUE
-                        </div>
-                      )}
-                      <div className="text-3xl mb-3">💎</div>
-                      <div className="text-2xl font-bold text-gray-800 mb-2">
-                        {creditPkg.name}
+              <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {creditPackages.map((pkg) => (
+                  <div key={pkg.id} className="bg-white rounded-lg shadow-lg p-6 border-2 border-gray-200 hover:border-yellow-400 transition-all">
+                    <div className="text-center">
+                      <h3 className="text-xl font-bold text-gray-800 mb-2">{pkg.name}</h3>
+                      <div className="text-3xl font-bold text-green-600 mb-2">
+                        {pkg.credits + (pkg.bonus_credits || 0)} Credits
                       </div>
-                      <div className="text-gray-600 mb-2">
-                        {creditPkg.credits_amount} கிரெடிட்ஸ்
+                      <div className="text-sm text-gray-600 mb-2">
+                        {pkg.credits} base + {pkg.bonus_credits || 0} bonus
                       </div>
-                      <div className="text-gray-600 mb-4">${creditPkg.price_usd}</div>
-                      {creditPkg.bonus_credits > 0 && (
-                        <div className="text-green-600 text-sm mb-4">
-                          +{creditPkg.bonus_credits} போனஸ் கிரெடிட்ஸ்
-                        </div>
-                      )}
-                      <div className="text-gray-500 text-xs mb-4">{creditPkg.description}</div>
-                      <button 
-                        onClick={() => spiritualAPI.purchaseCredits(creditPkg.credits_amount)}
-                        className="divine-button w-full"
+                      <div className="text-2xl font-bold text-gray-800 mb-4">${pkg.price_usd}</div>
+                      <p className="text-sm text-gray-600 mb-4">{pkg.description}</p>
+                      <button
+                        onClick={() => purchaseCredits(pkg.id)}
+                        disabled={purchasing}
+                        className="w-full bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50"
                       >
-                        வாங்கு
+                        {purchasing ? 'Processing...' : 'Purchase'}
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-8 text-center">
+                <p className="text-gray-600">
+                  💡 Larger packages include bonus credits for better value!
+                </p>
+              </div>
             </div>
           )}
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Video, Clock, Users, Star } from 'lucide-react';
+import { ArrowLeft, Video, Clock, Users, Star, X } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const LiveChat = () => {
@@ -9,11 +9,38 @@ const LiveChat = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [chatSession, setChatSession] = useState(null);
+  const [showDonationPopup, setShowDonationPopup] = useState(false);
+  const [donationOptions, setDonationOptions] = useState([]);
+  const [donationsLoading, setDonationsLoading] = useState(false);
+  const [selectedDonation, setSelectedDonation] = useState(null);
+  const [donationPaying, setDonationPaying] = useState(false);
+  const [showFlowerAnimation, setShowFlowerAnimation] = useState(false);
+  const [sessionTotalDonations, setSessionTotalDonations] = useState(0);
 
   useEffect(() => {
     checkAuthAndSubscription();
     spiritualAPI.trackSpiritualEngagement('live_chat_visit');
   }, []);
+
+  // Fetch donation options when chatSession becomes active
+  useEffect(() => {
+    if (chatSession) {
+      setDonationsLoading(true);
+      spiritualAPI.getDonations().then((data) => {
+        setDonationOptions(Array.isArray(data) ? data.filter(d => d.enabled) : []);
+        setDonationsLoading(false);
+      });
+    }
+  }, [chatSession]);
+
+  // Fetch total donations for session when chatSession is active
+  useEffect(() => {
+    if (chatSession && chatSession.session_id) {
+      spiritualAPI.getSessionTotalDonations(chatSession.session_id).then((res) => {
+        if (res && res.success) setSessionTotalDonations(res.total_donations || 0);
+      });
+    }
+  }, [chatSession]);
 
   const checkAuthAndSubscription = async () => {
     if (spiritualAPI.isAuthenticated()) {
@@ -62,6 +89,42 @@ const LiveChat = () => {
   };
 
   const hasRequiredSubscription = userProfile?.subscription_tier === 'premium' || userProfile?.subscription_tier === 'elite';
+
+  // Donation payment handler
+  const handleDonationPayment = async () => {
+    if (!selectedDonation) return;
+    setDonationPaying(true);
+    try {
+      const paymentResult = await spiritualAPI.processDonation({
+        donation_id: selectedDonation.id,
+        amount_usd: selectedDonation.price_usd,
+        message: `LiveChat Donation: ${selectedDonation.tamil_name || selectedDonation.name}`,
+        session_id: chatSession?.session_id
+      });
+      if (paymentResult && paymentResult.success) {
+        await spiritualAPI.confirmDonation(paymentResult.payment_intent_id);
+        // Show flower animation and thank you message
+        setShowFlowerAnimation(true);
+        setShowDonationPopup(false);
+        setSelectedDonation(null);
+        
+        // Update session total donations without interrupting the session
+        if (chatSession?.session_id) {
+          spiritualAPI.getSessionTotalDonations(chatSession.session_id).then((res) => {
+            if (res && res.success) setSessionTotalDonations(res.total_donations || 0);
+          });
+        }
+        
+        setTimeout(() => {
+          setShowFlowerAnimation(false);
+        }, 3500);
+      }
+    } catch (error) {
+      alert('தானம் செய்யும் போது பிழை ஏற்பட்டது. மீண்டும் முயற்சிக்கவும்.');
+    } finally {
+      setDonationPaying(false);
+    }
+  };
 
   return (
     <div className="pt-16 min-h-screen">
@@ -304,6 +367,111 @@ const LiveChat = () => {
           </div>
         </div>
       </div>
+
+      {chatSession && (
+        <>
+          {/* Floating Donation Button */}
+          <button
+            className="fixed bottom-8 right-8 z-50 bg-yellow-500 hover:bg-yellow-600 text-white px-6 py-3 rounded-full shadow-lg flex items-center text-lg font-bold animate-bounce"
+            onClick={() => setShowDonationPopup(true)}
+            style={{ boxShadow: '0 4px 24px rgba(0,0,0,0.15)' }}
+          >
+            <span className="text-2xl mr-2">🪔</span> தானம் செய்யுங்கள்
+          </button>
+
+          {/* Donation Popup Modal */}
+          {showDonationPopup && (
+            <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-2xl p-8 w-full max-w-md relative">
+                <button
+                  className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
+                  onClick={() => setShowDonationPopup(false)}
+                >
+                  <X size={24} />
+                </button>
+                <h3 className="text-xl font-bold mb-4 text-center">தானம் செய்யுங்கள்</h3>
+                {donationsLoading ? (
+                  <div className="text-center text-gray-600">தானங்கள் ஏற்றப்படுகிறது...</div>
+                ) : (
+                  <div className="space-y-4">
+                    {donationOptions.length === 0 && (
+                      <div className="text-center text-gray-500">தற்போது தானங்கள் இல்லை</div>
+                    )}
+                    {donationOptions.map((donation) => (
+                      <button
+                        key={donation.id}
+                        onClick={() => setSelectedDonation(donation)}
+                        className={`w-full flex items-center gap-3 p-3 rounded-lg border-2 transition-all duration-200 ${
+                          selectedDonation?.id === donation.id
+                            ? 'border-green-500 bg-green-50'
+                            : 'border-gray-200 hover:border-yellow-400'
+                        }`}
+                        disabled={donationPaying}
+                      >
+                        <span className="text-2xl">{donation.icon}</span>
+                        <span className="flex-1 text-left">
+                          <span className="block font-semibold text-gray-800">{donation.tamil_name || donation.name}</span>
+                          <span className="block text-xs text-gray-500">{donation.description}</span>
+                        </span>
+                        <span className="text-green-600 font-bold">${donation.price_usd}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {selectedDonation && (
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={handleDonationPayment}
+                      disabled={donationPaying}
+                      className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-semibold transition-colors disabled:opacity-50"
+                    >
+                      {donationPaying ? 'தானம் செயல்படுகிறது...' : `🪔 ${selectedDonation.tamil_name || selectedDonation.name} - $${selectedDonation.price_usd} தானம் செய்யுங்கள்`}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Flower Animation Overlay */}
+          {showFlowerAnimation && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center pointer-events-none">
+              {/* Falling flowers */}
+              {[...Array(12)].map((_, i) => (
+                <span
+                  key={i}
+                  className={`flower-fall absolute text-4xl select-none pointer-events-none`}
+                  style={{
+                    left: `${8 + i * 7}%`,
+                    animationDelay: `${i * 0.2}s`,
+                  }}
+                >🌸</span>
+              ))}
+              {/* Thank you message */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white bg-opacity-90 rounded-xl shadow-lg px-8 py-6 flex flex-col items-center">
+                <div className="text-5xl mb-2">🌸</div>
+                <div className="text-2xl font-bold text-pink-700 mb-1">நன்றி!</div>
+                <div className="text-lg text-gray-700">உங்கள் அர்ப்பணிப்பு ஏற்றுக்கொள்ளப்பட்டது</div>
+              </div>
+              <style>{`
+                .flower-fall {
+                  animation: flower-fall 2.8s linear forwards;
+                  top: -60px;
+                }
+                @keyframes flower-fall {
+                  0% { transform: translateY(0) rotate(0deg) scale(1); opacity: 1; }
+                  80% { opacity: 1; }
+                  100% { transform: translateY(90vh) rotate(360deg) scale(1.2); opacity: 0.7; }
+                }
+              `}</style>
+            </div>
+          )}
+          {/* Session Summary - Total Donations */}
+          <div className="fixed bottom-8 left-8 z-40 bg-white bg-opacity-90 rounded-lg shadow-lg px-6 py-3 flex items-center gap-2 text-lg font-bold text-green-700 border-2 border-green-200">
+            <span>🪔</span> மொத்த தானம்: <span className="text-green-800">${sessionTotalDonations.toFixed(2)}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 };

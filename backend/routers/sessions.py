@@ -73,7 +73,11 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     user_id = get_user_id_from_token(request)
     
     # Get user details
-    user = await db.fetchrow("SELECT id, email, credits FROM users WHERE id=$1", user_id)
+    if hasattr(db, 'is_sqlite') and db.is_sqlite:
+        user = await db.fetchrow("SELECT id, email, credits FROM users WHERE id=?", user_id)
+    else:
+        user = await db.fetchrow("SELECT id, email, credits FROM users WHERE id=$1", user_id)
+    
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
@@ -82,10 +86,17 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     if not service_type:
         raise HTTPException(status_code=400, detail="Service type is required")
     
-    service = await db.fetchrow(
-        "SELECT id, name, credits_required, price_usd FROM service_types WHERE name=$1 AND enabled=TRUE",
-        service_type
-    )
+    if hasattr(db, 'is_sqlite') and db.is_sqlite:
+        service = await db.fetchrow(
+            "SELECT id, name, credits_required, price_usd FROM service_types WHERE name=? AND enabled=1",
+            service_type
+        )
+    else:
+        service = await db.fetchrow(
+            "SELECT id, name, credits_required, price_usd FROM service_types WHERE name=$1 AND enabled=TRUE",
+            service_type
+        )
+    
     if not service:
         raise HTTPException(status_code=400, detail="Invalid or disabled service type")
     
@@ -93,33 +104,58 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     if user["credits"] < service["credits_required"]:
         raise HTTPException(
             status_code=402, 
-            detail=f"Insufficient credits. Required: {service['credits_required']}, Available: {user['credits']}"
+            detail=f"போதிய கிரெடிட்கள் இல்லை. தேவை: {service['credits_required']}, கிடைக்கும்: {user['credits']}"
         )
     
     # Start transaction for atomic credit deduction and session creation
-    async with db.transaction():
-        # Deduct credits
-        await db.execute(
-            "UPDATE users SET credits = credits - $1 WHERE id = $2",
-            service["credits_required"], user_id
-        )
-        
-        # Create session record
-        session_id = str(uuid.uuid4())
-        await db.execute("""
-            INSERT INTO sessions (id, user_email, service_type, question, guidance, 
-                                avatar_video_url, credits_used, original_price, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', NOW())
-        """, (
-            session_id, 
-            user["email"], 
-            service_type, 
-            session_data.get("question", ""),
-            "Divine guidance will be provided...",  # Placeholder guidance
-            None,  # avatar_video_url
-            service["credits_required"],
-            service["price_usd"]
-        ))
+    if hasattr(db, 'is_sqlite') and db.is_sqlite:
+        async with db.transaction():
+            # Deduct credits
+            await db.execute(
+                "UPDATE users SET credits = credits - ? WHERE id = ?",
+                service["credits_required"], user_id
+            )
+            
+            # Create session record
+            session_id = str(uuid.uuid4())
+            await db.execute("""
+                INSERT INTO sessions (id, user_email, service_type, question, guidance, 
+                                    avatar_video_url, credits_used, original_price, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'completed', CURRENT_TIMESTAMP)
+            """, (
+                session_id, 
+                user["email"], 
+                service_type, 
+                session_data.get("question", ""),
+                "Divine guidance will be provided...",  # Placeholder guidance
+                None,  # avatar_video_url
+                service["credits_required"],
+                service["price_usd"]
+            ))
+    else:
+        async with db.transaction():
+            # Deduct credits
+            await db.execute(
+                "UPDATE users SET credits = credits - $1 WHERE id = $2",
+                service["credits_required"], user_id
+            )
+            
+            # Create session record
+            session_id = str(uuid.uuid4())
+            await db.execute("""
+                INSERT INTO sessions (id, user_email, service_type, question, guidance, 
+                                    avatar_video_url, credits_used, original_price, status, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', NOW())
+            """, (
+                session_id, 
+                user["email"], 
+                service_type, 
+                session_data.get("question", ""),
+                "Divine guidance will be provided...",  # Placeholder guidance
+                None,  # avatar_video_url
+                service["credits_required"],
+                service["price_usd"]
+            ))
     
     # Generate guidance (placeholder - replace with actual AI guidance)
     guidance_text = f"Divine guidance for your question: {session_data.get('question', '')}"

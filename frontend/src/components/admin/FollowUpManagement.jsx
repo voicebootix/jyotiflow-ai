@@ -34,14 +34,14 @@ const FollowUpManagement = () => {
     subject: '',
     content: '',
     tamil_content: '',
-    credits_cost: 5,
+    credits_cost: 0,
     is_active: true
   });
   
   // Settings form state
   const [settingsForm, setSettingsForm] = useState({
     auto_followup_enabled: true,
-    default_credits_cost: 5,
+    default_credits_cost: 0,
     max_followups_per_session: 3,
     min_interval_hours: 24,
     max_interval_days: 30,
@@ -106,7 +106,7 @@ const FollowUpManagement = () => {
           subject: '',
           content: '',
           tamil_content: '',
-          credits_cost: 5,
+          credits_cost: settingsForm.default_credits_cost || 0,
           is_active: true
         });
         loadData();

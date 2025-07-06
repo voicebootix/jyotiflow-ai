@@ -28,6 +28,13 @@ services:
         value: "whatsapp:+1234567890"  # Replace with your Twilio WhatsApp number
       - key: FIREBASE_SERVICE_ACCOUNT_KEY_PATH
         value: "path/to/firebase-service-account.json"  # Replace with your Firebase key path
+      # 🤖 AI Scheduler Environment Variables
+      - key: ENABLE_AI_SCHEDULER
+        value: "true"  # Enable daily AI analysis at 2 AM IST
+      - key: AI_SCHEDULER_TIMEZONE
+        value: "Asia/Kolkata"  # IST timezone for scheduling
+      - key: AI_ANALYSIS_INTERVAL_HOURS
+        value: "24"  # Run analysis every 24 hours
     healthCheckPath: /health
 
   - type: web

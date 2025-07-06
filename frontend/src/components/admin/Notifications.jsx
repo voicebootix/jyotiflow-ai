@@ -12,7 +12,7 @@ const channelOptions = [
 export default function Notifications() {
   const [channel, setChannel] = useState('email');
   const [to, setTo] = useState('');
-  const [subject, setSubject] = useState('JyotiFlow.ai Notification');
+  const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [deviceToken, setDeviceToken] = useState('');
   const [loading, setLoading] = useState(false);

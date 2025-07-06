@@ -48,17 +48,43 @@ async def login(form: LoginForm, db=Depends(get_db)):
 # தமிழ் - பதிவு
 @router.post("/register")
 async def register(form: RegisterForm, db=Depends(get_db)):
-    exists = await db.fetchval("SELECT 1 FROM users WHERE email=$1", form.email)
-    if exists:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    password_hash = bcrypt.hashpw(form.password.encode(), bcrypt.gensalt()).decode()
-    user_id = uuid.uuid4()
-    await db.execute("""
-        INSERT INTO users (id, email, password_hash, full_name, created_at)
-        VALUES ($1, $2, $3, $4, NOW())
-    """, user_id, form.email, password_hash, form.full_name)
-    token = await create_jwt_token(user_id, form.email)
-    return {"access_token": token, "user": {"id": str(user_id), "email": form.email, "full_name": form.full_name}}
+    try:
+        exists = await db.fetchval("SELECT 1 FROM users WHERE email=$1", form.email)
+        if exists:
+            raise HTTPException(status_code=400, detail="இந்த மின்னஞ்சல் ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது")
+        
+        password_hash = bcrypt.hashpw(form.password.encode(), bcrypt.gensalt()).decode()
+        user_id = uuid.uuid4()
+        
+        # Give new users 5 free credits
+        free_credits = 5
+        
+        if hasattr(db, 'is_sqlite') and db.is_sqlite:
+            await db.execute("""
+                INSERT INTO users (id, email, password_hash, full_name, credits, created_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            """, str(user_id), form.email, password_hash, form.full_name, free_credits)
+        else:
+            await db.execute("""
+                INSERT INTO users (id, email, password_hash, full_name, credits, created_at)
+                VALUES ($1, $2, $3, $4, $5, NOW())
+            """, user_id, form.email, password_hash, form.full_name, free_credits)
+        
+        token = await create_jwt_token(user_id, form.email)
+        return {
+            "access_token": token, 
+            "user": {
+                "id": str(user_id), 
+                "email": form.email, 
+                "full_name": form.full_name,
+                "credits": free_credits
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Registration error: {e}")
+        raise HTTPException(status_code=500, detail="பதிவு தோல்வி - தயவுசெய்து மீண்டும் முயற்சிக்கவும்")
 
 # தமிழ் - வெளியேறு
 @router.post("/logout")
