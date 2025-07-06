@@ -110,20 +110,24 @@ const Profile = () => {
     try {
       // Load user profile
       const profile = await spiritualAPI.getUserProfile();
-      if (profile && profile.success) {
-        setUserProfile(profile.data);
+      if (profile && profile.id) {
+        setUserProfile(profile);
       }
 
       // Load session history
       const history = await spiritualAPI.getSessionHistory();
-      if (history && history.success) {
-        setSessionHistory(history.data || []);
+      if (history && Array.isArray(history)) {
+        setSessionHistory(history);
+      } else if (history && history.success && Array.isArray(history.data)) {
+        setSessionHistory(history.data);
       }
 
       // Load credit balance
       const credits = await spiritualAPI.getCreditBalance();
-      if (credits && credits.success) {
-        setCreditBalance(credits.data.credits || 0);
+      if (credits && credits.data && typeof credits.data.credits === 'number') {
+        setCreditBalance(credits.data.credits);
+      } else if (typeof credits === 'number') {
+        setCreditBalance(credits);
       }
 
       // Load services
