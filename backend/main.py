@@ -8,6 +8,7 @@ import os
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
+import db
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
@@ -39,6 +40,10 @@ async def startup_event():
             max_size=20,
             command_timeout=60
         )
+        
+        # Set the pool in the db module for all routers to use
+        db.set_db_pool(db_pool)
+        
         print("✅ Database connection pool initialized")
         
         # Test database connection

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Body, Request
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import stripe
 from datetime import datetime, timezone
 import os
@@ -7,7 +7,6 @@ import uuid
 
 from db import get_db
 from deps import get_current_user
-from schemas.user import User
 
 router = APIRouter(prefix="/api/donations", tags=["donations"])
 
@@ -78,7 +77,7 @@ async def process_donation(request: Request, db=Depends(get_db)):
 @router.post("/confirm")
 async def confirm_donation(
     payment_intent_id: str = Body(..., embed=True),
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db = Depends(get_db)
 ):
     """Confirm a donation payment"""
@@ -94,7 +93,7 @@ async def confirm_donation(
             UPDATE donation_transactions 
             SET status = $1, completed_at = NOW(), updated_at = NOW()
             WHERE stripe_payment_intent_id = $2 AND user_id = $3
-        """, "completed", payment_intent_id, current_user.id)
+        """, "completed", payment_intent_id, current_user["id"])
         
         if result == "UPDATE 0":
             raise HTTPException(status_code=404, detail="Transaction not found")
@@ -129,7 +128,7 @@ async def confirm_donation(
 
 @router.get("/history")
 async def get_donation_history(
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db = Depends(get_db)
 ):
     """Get user's donation history"""
@@ -141,7 +140,7 @@ async def get_donation_history(
             WHERE dt.user_id = $1
             ORDER BY dt.created_at DESC
             LIMIT 50
-        """, current_user.id)
+        """, current_user["id"])
         
         return {
             "success": True,
@@ -168,11 +167,11 @@ async def get_donation_history(
 
 @router.get("/analytics")
 async def get_donation_analytics(
-    current_user: User = Depends(get_current_user),
+    current_user: Dict[str, Any] = Depends(get_current_user),
     db = Depends(get_db)
 ):
     """Get donation analytics for admin"""
-    if not current_user.is_admin:
+    if not current_user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Admin access required")
     
     try:
