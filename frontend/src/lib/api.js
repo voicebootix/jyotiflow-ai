@@ -78,12 +78,14 @@ const spiritualAPI = {
         },
         body: JSON.stringify({ email, password })
       });
-      
       const data = await response.json();
-      if (data.success && data.data && data.data.token) {
-        this.setAuthToken(data.data.token, data.data.user);
+      // Check for access_token to determine success
+      if (data.access_token && data.user) {
+        this.setAuthToken(data.access_token, data.user);
+        return { success: true, user: data.user, token: data.access_token };
+      } else {
+        return { success: false, message: data.detail || 'Invalid credentials' };
       }
-      return data;
     } catch (error) {
       console.error('Login API error:', error);
       return { success: false, message: 'Network error' };
