@@ -110,11 +110,11 @@ async def get_credit_packages(db=Depends(get_db)):
     try:
         if hasattr(db, 'is_sqlite') and db.is_sqlite:
             packages = await db.fetch(
-                "SELECT id, name, credits, price_usd, bonus_credits, description FROM credit_packages WHERE enabled = 1 ORDER BY credits ASC"
+                "SELECT id, name, credits_amount, price_usd, bonus_credits, enabled, created_at, updated_at FROM credit_packages WHERE enabled = 1 ORDER BY credits_amount ASC"
             )
         else:
             packages = await db.fetch(
-                "SELECT id, name, credits, price_usd, bonus_credits, description FROM credit_packages WHERE enabled = TRUE ORDER BY credits ASC"
+                "SELECT id, name, credits_amount, price_usd, bonus_credits, enabled, created_at, updated_at FROM credit_packages WHERE enabled = TRUE ORDER BY credits_amount ASC"
             )
         return {"success": True, "packages": packages}
     except Exception as e:
