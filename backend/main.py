@@ -21,7 +21,7 @@ db_pool = None
 # --- CORS Middleware (English & Tamil) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure properly for production
+    allow_origins=["https://jyotiflow-ai-frontend.onrender.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
