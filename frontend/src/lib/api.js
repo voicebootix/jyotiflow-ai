@@ -79,10 +79,17 @@ const spiritualAPI = {
         body: JSON.stringify({ email, password })
       });
       const data = await response.json();
+      
       // Check for access_token to determine success
       if (data.access_token && data.user) {
-        this.setAuthToken(data.access_token, data.user);
-        return { success: true, user: data.user, token: data.access_token };
+        // Set admin role if admin email
+        const user = {
+          ...data.user,
+          role: this.isAdminEmail(email) ? 'admin' : (data.user.role || 'user')
+        };
+        
+        this.setAuthToken(data.access_token, user);
+        return { success: true, user: user, token: data.access_token };
       } else {
         return { success: false, message: data.detail || 'Invalid credentials' };
       }
@@ -90,6 +97,18 @@ const spiritualAPI = {
       console.error('Login API error:', error);
       return { success: false, message: 'Network error' };
     }
+  },
+
+  // Helper method to check if email is admin
+  isAdminEmail(email) {
+    const adminEmails = ['admin@jyotiflow.ai', 'admin@gmail.com'];
+    return adminEmails.includes(email.toLowerCase());
+  },
+
+  // Helper method to check if current user is admin
+  isCurrentUserAdmin() {
+    const user = JSON.parse(localStorage.getItem('jyotiflow_user') || '{}');
+    return user.role === 'admin' || this.isAdminEmail(user.email || '');
   },
 
   async register(userData) {
