@@ -1,15 +1,25 @@
 """
-Enhanced Spiritual Guidance Router with RAG Integration
-Seamlessly integrates with existing JyotiFlow spiritual guidance system
+Enhanced Spiritual Guidance Router with Dynamic Pricing Integration
 """
 
-import os
+import asyncio
 import json
 import logging
-from typing import Dict, List, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Query
-from pydantic import BaseModel, Field
+import os
 from datetime import datetime
+from typing import Dict, Any, List, Optional
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
+from pydantic import BaseModel, Field
+import sqlite3
+
+# Try to import dynamic pricing system
+try:
+    from .dynamic_comprehensive_pricing import DynamicComprehensivePricing, auto_update_comprehensive_pricing
+    DYNAMIC_PRICING_AVAILABLE = True
+except ImportError:
+    DYNAMIC_PRICING_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Dynamic pricing system not available - using fixed pricing")
 
 # Try to import enhanced RAG system
 try:
@@ -73,6 +83,22 @@ class ServiceConfigurationRequest(BaseModel):
     analysis_depth: str = Field("standard", description="Analysis depth level")
     specialized_prompts: Dict[str, Any] = Field(default_factory=dict, description="Specialized prompts configuration")
     response_behavior: Dict[str, Any] = Field(default_factory=dict, description="Response behavior configuration")
+
+class ComprehensiveReadingRequest(BaseModel):
+    birth_date: str = Field(..., description="Birth date in YYYY-MM-DD format")
+    birth_time: str = Field(..., description="Birth time in HH:MM format")
+    birth_location: str = Field(..., description="Birth location")
+    focus_areas: List[str] = Field(default=["general"], description="Areas of focus")
+    
+class ComprehensiveReadingResponse(BaseModel):
+    session_id: str
+    current_price: float
+    estimated_duration: int
+    service_configuration: Dict[str, Any]
+    pricing_rationale: str
+    reading_preview: Dict[str, Any]
+    success: bool
+    message: str
 
 # Initialize enhanced router
 enhanced_router = APIRouter(prefix="/api/spiritual/enhanced", tags=["Enhanced Spiritual Guidance"])
@@ -468,6 +494,185 @@ async def get_available_persona_modes():
         ]
     }
 
+@enhanced_router.post("/comprehensive-reading", response_model=ComprehensiveReadingResponse)
+async def get_comprehensive_reading(
+    request: ComprehensiveReadingRequest,
+    background_tasks: BackgroundTasks,
+    db: sqlite3.Connection = Depends(get_db)
+):
+    """
+    Get comprehensive 30-minute life reading with DYNAMIC PRICING
+    """
+    try:
+        # Initialize dynamic pricing engine or use fallback
+        if DYNAMIC_PRICING_AVAILABLE:
+            pricing_engine = DynamicComprehensivePricing()
+            pricing_info = await pricing_engine.calculate_comprehensive_reading_price()
+            current_price = pricing_info["current_price"]
+        else:
+            # Fallback to fixed pricing
+            current_price = 12
+            pricing_info = {
+                "current_price": 12,
+                "pricing_rationale": "Fixed pricing - dynamic system not available",
+                "demand_factor": 1.0,
+                "cost_breakdown": {"total_operational_cost": 8.5},
+                "ai_recommendation": {"recommended_price": 12, "confidence": 0.5}
+            }
+        
+        # Check if user has sufficient credits (this would be implemented with user auth)
+        # For now, we'll proceed with the pricing calculation
+        
+        # Get service configuration with dynamic pricing
+        service_config = await get_comprehensive_service_config(current_price)
+        
+        # Generate preview of the reading
+        reading_preview = await generate_reading_preview(
+            request.birth_date, 
+            request.birth_time, 
+            request.birth_location
+        )
+        
+        # Create session with dynamic pricing
+        session_id = await create_comprehensive_session(
+            request, 
+            current_price, 
+            service_config, 
+            db
+        )
+        
+        # Schedule automatic price update in background
+        background_tasks.add_task(auto_update_comprehensive_pricing)
+        
+        return ComprehensiveReadingResponse(
+            session_id=session_id,
+            current_price=current_price,
+            estimated_duration=service_config["duration_minutes"],
+            service_configuration=service_config,
+            pricing_rationale=pricing_info["pricing_rationale"],
+            reading_preview=reading_preview,
+            success=True,
+            message=f"Comprehensive reading session created. Current price: {current_price} credits"
+        )
+        
+    except Exception as e:
+        logger.error(f"Comprehensive reading error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_comprehensive_service_config(current_price: float) -> Dict[str, Any]:
+    """Get service configuration with dynamic pricing"""
+    return {
+        "service_type": "comprehensive_life_reading_30min",
+        "duration_minutes": 30,
+        "credits_required": current_price,  # DYNAMIC PRICING!
+        "knowledge_domains": [
+            "classical_astrology",
+            "tamil_spiritual_literature", 
+            "relationship_astrology",
+            "career_astrology",
+            "health_astrology",
+            "remedial_measures"
+        ],
+        "persona_mode": "comprehensive_life_master",
+        "analysis_sections": [
+            "birth_chart_analysis",
+            "planetary_positions",
+            "house_analysis", 
+            "dasha_predictions",
+            "life_path_guidance",
+            "relationship_insights",
+            "career_guidance",
+            "health_indicators",
+            "remedial_measures"
+        ],
+        "includes_birth_chart": True,
+        "includes_remedies": True,
+        "includes_predictions": True,
+        "pricing_model": "dynamic_market_based"
+    }
+
+async def create_comprehensive_session(
+    request: ComprehensiveReadingRequest,
+    current_price: float,
+    service_config: Dict[str, Any],
+    db: sqlite3.Connection
+) -> str:
+    """Create session with dynamic pricing"""
+    cursor = db.cursor()
+    
+    session_id = f"comprehensive_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+    
+    # Store session with dynamic pricing
+    cursor.execute("""
+        INSERT INTO sessions 
+        (session_id, service_type, credits_required, birth_date, birth_time, birth_location, 
+         focus_areas, service_configuration, pricing_rationale, created_at, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'active')
+    """, (
+        session_id,
+        service_config["service_type"],
+        current_price,  # Dynamic price
+        request.birth_date,
+        request.birth_time,
+        request.birth_location,
+        ",".join(request.focus_areas),
+        json.dumps(service_config),
+        f"Dynamic pricing: {current_price} credits",
+        
+    ))
+    
+    db.commit()
+    return session_id
+
+# Database dependency
+def get_db():
+    """Get database connection dependency"""
+    db_path = "backend/jyotiflow.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
+
+async def generate_reading_preview(birth_date: str, birth_time: str, birth_location: str) -> Dict[str, Any]:
+    """Generate a preview of the comprehensive reading"""
+    try:
+        # Simple preview generation - in a real implementation this would use actual astrology calculations
+        return {
+            "chart_summary": f"Birth chart for {birth_date} at {birth_time} in {birth_location}",
+            "key_highlights": [
+                "Planetary positions indicate strong spiritual inclination",
+                "Favorable period for major life decisions approaching",
+                "Relationships sector shows positive developments"
+            ],
+            "analysis_sections": [
+                "Complete birth chart analysis",
+                "Planetary strength assessment", 
+                "Dasha periods and predictions",
+                "Relationship compatibility insights",
+                "Career and financial prospects",
+                "Health and wellness guidance",
+                "Spiritual development path",
+                "Personalized remedies and mantras"
+            ],
+            "estimated_reading_time": "30 minutes",
+            "included_features": [
+                "Detailed birth chart visualization",
+                "Personalized gemstone recommendations",
+                "Custom mantra prescriptions",
+                "Favorable timing suggestions"
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Preview generation error: {e}")
+        return {
+            "chart_summary": "Preview generation in progress...",
+            "key_highlights": ["Comprehensive analysis being prepared"],
+            "analysis_sections": ["Full reading available after booking"],
+            "estimated_reading_time": "30 minutes",
+            "included_features": ["Complete spiritual guidance package"]
+        }
+
 # Health check endpoint
 @enhanced_router.get("/health")
 async def health_check():
@@ -514,6 +719,98 @@ async def integrate_with_existing_spiritual_guidance(request: EnhancedSpiritualG
             "knowledge_sources": [],
             "persona_mode": "general"
         }
+
+@enhanced_router.get("/pricing/comprehensive")
+async def get_comprehensive_pricing():
+    """Get current comprehensive reading pricing information"""
+    try:
+        if not DYNAMIC_PRICING_AVAILABLE:
+            return {
+                "current_price": 12,
+                "recommended_price": 12,
+                "price_change_needed": False,
+                "demand_factor": 1.0,
+                "cost_breakdown": {"total_operational_cost": 8.5},
+                "ai_recommendation": {"recommended_price": 12, "confidence": 0.5},
+                "pricing_rationale": "Fixed pricing - dynamic system not available",
+                "last_updated": datetime.now().isoformat(),
+                "next_review": datetime.now().isoformat()
+            }
+        
+        pricing_engine = DynamicComprehensivePricing()
+        pricing_info = await pricing_engine.get_current_price_info()
+        new_calculation = await pricing_engine.calculate_comprehensive_reading_price()
+        
+        return {
+            "current_price": pricing_info.get("current_price", 12),
+            "recommended_price": new_calculation["current_price"],
+            "price_change_needed": abs(pricing_info.get("current_price", 12) - new_calculation["current_price"]) > 1,
+            "demand_factor": new_calculation["demand_factor"],
+            "cost_breakdown": new_calculation["cost_breakdown"],
+            "ai_recommendation": new_calculation["ai_recommendation"],
+            "pricing_rationale": new_calculation["pricing_rationale"],
+            "last_updated": pricing_info.get("last_updated", datetime.now().isoformat()),
+            "next_review": new_calculation["next_review"]
+        }
+    except Exception as e:
+        logger.error(f"Pricing info error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@enhanced_router.post("/pricing/comprehensive/update")
+async def update_comprehensive_pricing():
+    """Manually trigger comprehensive reading price update"""
+    try:
+        if not DYNAMIC_PRICING_AVAILABLE:
+            return {
+                "success": False,
+                "message": "Dynamic pricing system not available",
+                "new_price": 12,
+                "pricing_rationale": "Fixed pricing mode",
+                "updated_at": datetime.now().isoformat()
+            }
+        
+        updated_pricing = await auto_update_comprehensive_pricing()
+        
+        return {
+            "success": True,
+            "message": "Pricing updated successfully",
+            "new_price": updated_pricing["current_price"],
+            "pricing_rationale": updated_pricing["pricing_rationale"],
+            "updated_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Pricing update error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@enhanced_router.get("/pricing/dashboard")
+async def get_pricing_dashboard():
+    """Get comprehensive pricing dashboard data for admin"""
+    try:
+        if not DYNAMIC_PRICING_AVAILABLE:
+            return {
+                "success": False,
+                "message": "Dynamic pricing system not available",
+                "data": {
+                    "current_pricing": {"current_price": 12},
+                    "recommended_pricing": {"current_price": 12},
+                    "price_change_needed": False,
+                    "market_conditions": {"demand_factor": 1.0}
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        from .dynamic_comprehensive_pricing import get_pricing_dashboard_data
+        
+        dashboard_data = await get_pricing_dashboard_data()
+        
+        return {
+            "success": True,
+            "data": dashboard_data,
+            "timestamp": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Dashboard data error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # Export router for inclusion in main app
 router = enhanced_router
