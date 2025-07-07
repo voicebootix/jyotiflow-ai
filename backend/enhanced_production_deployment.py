@@ -953,6 +953,14 @@ if 'enhanced_app' in globals():
     except Exception as e:
         logger.error(f"❌ Avatar router mounting failed: {e}")
     
+    # Include social media marketing router
+    try:
+        from routers.social_media_marketing_router import social_marketing_router
+        enhanced_app.include_router(social_marketing_router)
+        logger.info("✅ Social media marketing router mounted successfully")
+    except Exception as e:
+        logger.error(f"❌ Social media marketing router mounting failed: {e}")
+    
     # Mount core foundation routes if available
     if CORE_APP_AVAILABLE:
         try:
