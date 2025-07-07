@@ -4,7 +4,7 @@ import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
 import { Alert, AlertDescription } from './ui/alert';
-import { Loader } from './ui/Loader';
+import Loader from './ui/Loader';
 import { Calendar, Clock, Mail, MessageSquare, Smartphone, Bell } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
