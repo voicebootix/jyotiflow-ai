@@ -198,10 +198,10 @@ async def get_avatar_status(
 
 @avatar_router.post("/generate-with-guidance")
 async def generate_avatar_with_spiritual_guidance(
-    question: str = Field(..., min_length=10, description="Spiritual question"),
-    service_type: str = Field(..., description="Service type"),
-    avatar_style: str = Field(default="traditional", description="Avatar style"),
-    voice_tone: str = Field(default="compassionate", description="Voice tone"),
+    question: str,
+    service_type: str,
+    avatar_style: str = "traditional",
+    voice_tone: str = "compassionate",
     birth_details: Optional[Dict[str, Any]] = None,
     current_user: dict = Depends(get_current_user)
 ):
