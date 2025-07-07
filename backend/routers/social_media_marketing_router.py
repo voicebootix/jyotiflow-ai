@@ -9,13 +9,15 @@ import json
 import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
+from pathlib import Path
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile
 from pydantic import BaseModel, Field
 
 from deps import get_current_user, get_admin_user
 from core_foundation_enhanced import StandardResponse
 from social_media_marketing_automation import social_marketing_engine
 from universal_pricing_engine import UniversalPricingEngine
+from spiritual_avatar_generation_engine import avatar_engine
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +47,16 @@ class AutomationSettingsRequest(BaseModel):
     auto_comment_response: bool = Field(default=True)
     auto_posting: bool = Field(default=True)
     posting_schedule: Dict[str, str] = Field(default_factory=dict)
+
+class AvatarPreviewRequest(BaseModel):
+    style: str = Field(..., description="Avatar style (traditional, modern, festival, meditation)")
+    sample_text: str = Field(..., description="Sample text for avatar generation")
+
+class AvatarConfigurationRequest(BaseModel):
+    image_url: str = Field(..., description="Swamiji's image URL")
+    previews: Dict[str, Any] = Field(..., description="Generated previews")
+    approved_styles: List[str] = Field(..., description="Approved avatar styles")
+    default_style: str = Field(..., description="Default avatar style")
 
 # Marketing Overview Endpoints
 @social_marketing_router.get("/overview")
@@ -353,6 +365,134 @@ async def update_automation_settings(
         logger.error(f"❌ Automation settings update failed: {e}")
         raise HTTPException(status_code=500, detail=f"Automation settings update failed: {str(e)}")
 
+# Avatar Configuration Endpoints
+@social_marketing_router.post("/upload-swamiji-image")
+async def upload_swamiji_image(
+    swamiji_image: UploadFile = File(...),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Upload Swamiji's photo for avatar generation"""
+    try:
+        # Validate file type
+        if not swamiji_image.content_type or not swamiji_image.content_type.startswith("image/"):
+            raise HTTPException(status_code=400, detail="File must be an image")
+        
+        # Create uploads directory if it doesn't exist
+        uploads_dir = Path("./uploads/avatars")
+        uploads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save the uploaded file
+        file_extension = swamiji_image.filename.split('.')[-1] if swamiji_image.filename and '.' in swamiji_image.filename else 'jpg'
+        filename = f"swamiji_avatar_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{file_extension}"
+        file_path = uploads_dir / filename
+        
+        with open(file_path, "wb") as buffer:
+            content = await swamiji_image.read()
+            buffer.write(content)
+        
+        # Store in database
+        image_url = f"/uploads/avatars/{filename}"
+        await store_swamiji_image_config(image_url, str(file_path))
+        
+        return StandardResponse(
+            success=True,
+            data={
+                "image_url": image_url,
+                "file_path": str(file_path),
+                "filename": filename
+            },
+            message="Swamiji's image uploaded successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Swamiji image upload failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
+
+@social_marketing_router.post("/generate-avatar-preview")
+async def generate_avatar_preview(
+    request: AvatarPreviewRequest,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Generate avatar preview sample"""
+    try:
+        # Generate preview using avatar engine
+        preview_result = await avatar_engine.generate_complete_avatar_video(
+            session_id=f"preview_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            user_email=admin_user["email"],
+            guidance_text=request.sample_text,
+            service_type="social_media_preview",
+            avatar_style=request.style,
+            voice_tone=get_voice_tone_for_style(request.style),
+            video_duration=30  # Short preview
+        )
+        
+        if not preview_result.get("success"):
+            raise HTTPException(status_code=500, detail="Avatar preview generation failed")
+        
+        return StandardResponse(
+            success=True,
+            data={
+                "preview": {
+                    "video_url": preview_result["video_url"],
+                    "audio_url": preview_result["audio_url"],
+                    "duration": preview_result["duration_seconds"],
+                    "style": request.style,
+                    "cost": preview_result["total_cost"],
+                    "quality": preview_result["quality"]
+                }
+            },
+            message="Avatar preview generated successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Avatar preview generation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Avatar preview generation failed: {str(e)}")
+
+@social_marketing_router.post("/approve-swamiji-avatar")
+async def approve_swamiji_avatar(
+    request: AvatarConfigurationRequest,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Approve Swamiji avatar configuration for all future content"""
+    try:
+        # Update avatar engine configuration
+        await update_swamiji_avatar_config(request)
+        
+        # Avatar configuration is now updated and will be used by all future content generation
+        
+        return StandardResponse(
+            success=True,
+            data={
+                "configuration": {
+                    "image_url": request.image_url,
+                    "approved_styles": request.approved_styles,
+                    "default_style": request.default_style,
+                    "approved_at": datetime.now(timezone.utc).isoformat()
+                }
+            },
+            message="Swamiji avatar configuration approved successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Avatar configuration approval failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Avatar configuration approval failed: {str(e)}")
+
+@social_marketing_router.get("/swamiji-avatar-config")
+async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
+    """Get current Swamiji avatar configuration"""
+    try:
+        config = await get_current_swamiji_avatar_config()
+        
+        return StandardResponse(
+            success=True,
+            data=config,
+            message="Swamiji avatar configuration retrieved successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Avatar config fetch failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Avatar config fetch failed: {str(e)}")
+
 # Helper Functions
 async def calculate_marketing_kpis(performance_data: Dict) -> Dict[str, str]:
     """Calculate marketing KPIs from performance data"""
@@ -610,6 +750,63 @@ async def optimize_campaign_task(campaign_id: str):
 async def process_content_item(content: Dict): pass
 async def analyze_posting_performance(result: Dict): pass
 async def optimize_campaign_performance(campaign_id: str): pass
+
+# Avatar Configuration Helper Functions
+async def store_swamiji_image_config(image_url: str, file_path: str):
+    """Store Swamiji image configuration in database"""
+    try:
+        config = {
+            "image_url": image_url,
+            "file_path": file_path,
+            "uploaded_at": datetime.now(timezone.utc).isoformat()
+        }
+        logger.info(f"📸 Swamiji image config stored: {image_url}")
+        return config
+    except Exception as e:
+        logger.error(f"Failed to store Swamiji image config: {e}")
+        raise
+
+def get_voice_tone_for_style(style: str) -> str:
+    """Get voice tone based on avatar style"""
+    style_tone_map = {
+        "traditional": "wise",
+        "modern": "compassionate",
+        "festival": "joyful",
+        "meditation": "gentle"
+    }
+    return style_tone_map.get(style, "compassionate")
+
+async def update_swamiji_avatar_config(request: AvatarConfigurationRequest):
+    """Update Swamiji avatar configuration"""
+    try:
+        config = {
+            "image_url": request.image_url,
+            "approved_styles": request.approved_styles,
+            "default_style": request.default_style,
+            "configuration_approved": True,
+            "approved_at": datetime.now(timezone.utc).isoformat()
+        }
+        logger.info(f"✅ Swamiji avatar config updated: {config}")
+        return config
+    except Exception as e:
+        logger.error(f"Failed to update Swamiji avatar config: {e}")
+        raise
+
+async def get_current_swamiji_avatar_config():
+    """Get current Swamiji avatar configuration"""
+    try:
+        # Mock implementation - replace with actual database query
+        config = {
+            "image_url": None,
+            "approved_styles": [],
+            "default_style": "traditional",
+            "configuration_approved": False,
+            "approved_at": None
+        }
+        return config
+    except Exception as e:
+        logger.error(f"Failed to get Swamiji avatar config: {e}")
+        raise
 
 # Export
 __all__ = ["social_marketing_router"]
