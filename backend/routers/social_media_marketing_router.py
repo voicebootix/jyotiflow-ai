@@ -613,3 +613,6 @@ async def optimize_campaign_performance(campaign_id: str): pass
 
 # Export
 __all__ = ["social_marketing_router"]
+
+# Also export as 'router' for compatibility with main.py imports
+router = social_marketing_router

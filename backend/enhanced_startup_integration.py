@@ -4,8 +4,9 @@ Integrates RAG system with existing FastAPI application
 """
 
 import os
-import sqlite3
+import json
 import logging
+import asyncpg
 from typing import Optional, Dict, Any
 
 # Setup logging
@@ -16,7 +17,7 @@ class EnhancedJyotiFlowStartup:
     """Handles startup integration for enhanced features"""
     
     def __init__(self):
-        self.db_path = "backend/jyotiflow.db"
+        self.database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
         self.knowledge_seeded = False
         self.rag_initialized = False
         
@@ -47,15 +48,17 @@ class EnhancedJyotiFlowStartup:
     async def _ensure_database_tables(self):
         """Ensure enhanced database tables exist"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            conn = await asyncpg.connect(self.database_url)
             
             # Check if rag_knowledge_base table exists
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='rag_knowledge_base'")
-            if not cursor.fetchone():
+            table_exists = await conn.fetchval(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'rag_knowledge_base')"
+            )
+            
+            if not table_exists:
                 logger.info("Creating enhanced database tables...")
                 
-                # Create tables (simplified for SQLite)
+                # Create tables for PostgreSQL
                 tables = [
                     '''CREATE TABLE rag_knowledge_base (
                         id TEXT PRIMARY KEY,
@@ -83,14 +86,13 @@ class EnhancedJyotiFlowStartup:
                 ]
                 
                 for table_sql in tables:
-                    cursor.execute(table_sql)
+                    await conn.execute(table_sql)
                 
-                conn.commit()
                 logger.info("✅ Enhanced database tables created")
             else:
                 logger.info("✅ Enhanced database tables already exist")
             
-            conn.close()
+            await conn.close()
             
         except Exception as e:
             logger.error(f"Database table creation error: {e}")
@@ -99,27 +101,24 @@ class EnhancedJyotiFlowStartup:
     async def _ensure_knowledge_base(self):
         """Ensure knowledge base is populated"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            conn = await asyncpg.connect(self.database_url)
             
             # Check knowledge count
-            cursor.execute("SELECT COUNT(*) FROM rag_knowledge_base")
-            count = cursor.fetchone()[0]
+            count = await conn.fetchval("SELECT COUNT(*) FROM rag_knowledge_base")
             
             if count == 0:
                 logger.info("🧠 Knowledge base empty, seeding with spiritual wisdom...")
                 
-                # Import and run SQLite seeder
-                from sqlite_knowledge_seeder import run_sqlite_knowledge_seeding
-                count = run_sqlite_knowledge_seeding()
-                
-                logger.info(f"✅ Knowledge base seeded with {count} pieces")
-                self.knowledge_seeded = True
+                # For now, we'll skip the SQLite seeder and just log that knowledge base is empty
+                # In a full implementation, you would create a PostgreSQL version of the seeder
+                logger.info("⚠️ Knowledge base seeding not implemented for PostgreSQL yet")
+                logger.info("✅ System will work without knowledge base in fallback mode")
+                self.knowledge_seeded = False
             else:
                 logger.info(f"✅ Knowledge base already contains {count} pieces")
                 self.knowledge_seeded = True
             
-            conn.close()
+            await conn.close()
             
         except Exception as e:
             logger.error(f"Knowledge base seeding error: {e}")
@@ -150,8 +149,7 @@ class EnhancedJyotiFlowStartup:
     async def _ensure_service_configurations(self):
         """Ensure default service configurations exist"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
+            conn = await asyncpg.connect(self.database_url)
             
             # Define default service configurations
             default_services = [
@@ -201,19 +199,23 @@ class EnhancedJyotiFlowStartup:
             
             # Insert default configurations
             for service in default_services:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO service_configuration_cache (
+                await conn.execute("""
+                    INSERT INTO service_configuration_cache (
                         service_name, configuration, persona_config, knowledge_domains, cached_at
-                    ) VALUES (?, ?, ?, ?, datetime('now'))
+                    ) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+                    ON CONFLICT (service_name) DO UPDATE SET
+                        configuration = EXCLUDED.configuration,
+                        persona_config = EXCLUDED.persona_config,
+                        knowledge_domains = EXCLUDED.knowledge_domains,
+                        cached_at = CURRENT_TIMESTAMP
                 """, (
                     service["service_name"],
-                    str(service["configuration"]),  # Convert to string for SQLite
-                    str(service["persona_config"]),
+                    json.dumps(service["configuration"]),  # Convert to JSON for PostgreSQL
+                    json.dumps(service["persona_config"]),
                     service["knowledge_domains"]
                 ))
             
-            conn.commit()
-            conn.close()
+            await conn.close()
             
             logger.info(f"✅ Service configurations created for {len(default_services)} services")
             
@@ -229,7 +231,7 @@ class EnhancedJyotiFlowStartup:
             "knowledge_base_seeded": self.knowledge_seeded,
             "rag_system_initialized": self.rag_initialized,
             "openai_available": bool(os.getenv("OPENAI_API_KEY")),
-            "database_path": self.db_path,
+            "database_path": self.database_url,
             "system_ready": self.knowledge_seeded and self.rag_initialized
         }
 

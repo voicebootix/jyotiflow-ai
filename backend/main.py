@@ -47,6 +47,12 @@ except ImportError:
     LIVECHAT_AVAILABLE = False
     print("⚠️ Live chat router not available")
 
+# Import database initialization
+from init_database import initialize_jyotiflow_database
+
+# Import enhanced startup integration
+from enhanced_startup_integration import initialize_enhanced_jyotiflow
+
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
@@ -87,6 +93,17 @@ async def startup_event():
         async with db_pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         print("✅ Database connection test successful")
+        
+        # Initialize database tables automatically
+        try:
+            print("🔄 Initializing database tables...")
+            success = await initialize_jyotiflow_database()
+            if success:
+                print("✅ Database tables initialized successfully")
+            else:
+                print("⚠️ Database table initialization had issues but will continue")
+        except Exception as e:
+            print(f"⚠️ Database table initialization failed: {e}")
         
         # Initialize enhanced system if available
         if ENHANCED_ROUTER_AVAILABLE:

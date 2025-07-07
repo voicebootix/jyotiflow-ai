@@ -11,6 +11,7 @@ from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
 import sqlite3
+import asyncpg
 
 # Try to import dynamic pricing system
 try:
@@ -108,14 +109,14 @@ class ComprehensiveReadingResponse(BaseModel):
 enhanced_router = APIRouter(prefix="/api/spiritual/enhanced", tags=["Enhanced Spiritual Guidance"])
 
 # Database dependency
-def get_db():
+async def get_db():
     """Get database connection dependency"""
-    db_path = "backend/jyotiflow.db"
-    conn = sqlite3.connect(db_path)
+    database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+    conn = await asyncpg.connect(database_url)
     try:
         yield conn
     finally:
-        conn.close()
+        await conn.close()
 
 class EnhancedSpiritualGuidanceEngine:
     """
@@ -512,7 +513,7 @@ async def get_available_persona_modes():
 async def get_comprehensive_reading(
     request: ComprehensiveReadingRequest,
     background_tasks: BackgroundTasks,
-    db: sqlite3.Connection = Depends(get_db)
+    db: asyncpg.Connection = Depends(get_db)
 ):
     """
     Get comprehensive 30-minute life reading with DYNAMIC PRICING
@@ -609,19 +610,17 @@ async def create_comprehensive_session(
     request: ComprehensiveReadingRequest,
     current_price: float,
     service_config: Dict[str, Any],
-    db: sqlite3.Connection
+    db: asyncpg.Connection
 ) -> str:
     """Create session with dynamic pricing"""
-    cursor = db.cursor()
-    
     session_id = f"comprehensive_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     
     # Store session with dynamic pricing
-    cursor.execute("""
+    await db.execute("""
         INSERT INTO sessions 
         (session_id, service_type, credits_required, birth_date, birth_time, birth_location, 
          focus_areas, service_configuration, pricing_rationale, created_at, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), 'active')
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, 'active')
     """, (
         session_id,
         service_config["service_type"],
@@ -631,11 +630,9 @@ async def create_comprehensive_session(
         request.birth_location,
         ",".join(request.focus_areas),
         json.dumps(service_config),
-        f"Dynamic pricing: {current_price} credits",
-        
+        f"Dynamic pricing: {current_price} credits"
     ))
     
-    db.commit()
     return session_id
 
 async def generate_reading_preview(birth_date: str, birth_time: str, birth_location: str) -> Dict[str, Any]:

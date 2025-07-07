@@ -82,8 +82,21 @@ const Navigation = () => {
   const navLinks = [
     { to: '/', label: '🏠 Home' },
     { to: '/spiritual-guidance', label: '🕉️ Spiritual Guidance' },
+    { to: '/avatar-generation', label: '🎭 Avatar Generation' },
     { to: '/live-chat', label: '🗨️ Live Chat' },
     { to: '/satsang', label: '🙏 Satsang' },
+    { to: '/birth-chart', label: '📊 Birth Chart' },
+    { to: '/personalized-remedies', label: '💊 Remedies' },
+    { to: '/follow-up-center', label: '📧 Follow-ups' },
+  ];
+
+  const adminLinks = [
+    { to: '/admin', label: '👑 Admin' },
+    { to: '/admin/overview', label: '📊 Overview' },
+    { to: '/admin/users', label: '👥 Users' },
+    { to: '/admin/analytics', label: '📈 Analytics' },
+    { to: '/admin/social-marketing', label: '📱 Social Media' },
+    { to: '/admin/pricing', label: '💰 Pricing' },
   ];
 
   const aboutItems = [
@@ -127,9 +140,22 @@ const Navigation = () => {
               <span className="mr-2">{userProfile?.name || 'User'}</span>
               <ChevronDown size={16} />
             </button>
-            <div className="absolute right-0 mt-2 w-40 bg-white text-black rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity z-50">
-              <Link to="/profile" className="block px-4 py-2 hover:bg-gray-100">Profile</Link>
-              <button onClick={handleLogout} className="block w-full text-left px-4 py-2 hover:bg-gray-100">Logout</button>
+            <div className="absolute right-0 mt-2 w-48 bg-white text-black rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity z-50">
+              <Link to="/profile" className="block px-4 py-2 hover:bg-gray-100">👤 Profile</Link>
+              <Link to="/follow-up-center" className="block px-4 py-2 hover:bg-gray-100">📧 Follow-ups</Link>
+              {userProfile?.role === 'admin' && (
+                <>
+                  <div className="border-t border-gray-200 my-1"></div>
+                  <div className="px-4 py-1 text-xs font-semibold text-gray-500 uppercase">Admin</div>
+                  <Link to="/admin" className="block px-4 py-2 hover:bg-gray-100">👑 Dashboard</Link>
+                  <Link to="/admin/users" className="block px-4 py-2 hover:bg-gray-100">👥 Users</Link>
+                  <Link to="/admin/analytics" className="block px-4 py-2 hover:bg-gray-100">📈 Analytics</Link>
+                  <Link to="/admin/social-marketing" className="block px-4 py-2 hover:bg-gray-100">📱 Social Media</Link>
+                  <Link to="/admin/pricing" className="block px-4 py-2 hover:bg-gray-100">💰 Pricing</Link>
+                </>
+              )}
+              <div className="border-t border-gray-200 my-1"></div>
+              <button onClick={handleLogout} className="block w-full text-left px-4 py-2 hover:bg-gray-100 text-red-600">🚪 Logout</button>
             </div>
           </div>
         ) : (

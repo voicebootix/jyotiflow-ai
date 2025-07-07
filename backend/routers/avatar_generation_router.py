@@ -397,3 +397,6 @@ async def deduct_user_credits(user_email: str, service_type: str):
 
 # Export router
 __all__ = ["avatar_router"]
+
+# Also export as 'router' for compatibility with main.py imports
+router = avatar_router
