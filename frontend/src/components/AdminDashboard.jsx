@@ -4,18 +4,14 @@ import { ArrowLeft, RefreshCw, Download } from 'lucide-react';
 import Overview from './admin/Overview';
 import Products from './admin/Products';
 import RevenueAnalytics from './admin/RevenueAnalytics';
-import ContentManagement from './admin/ContentManagement';
-import BusinessIntelligence from './admin/BusinessIntelligence';
 import Settings from './admin/Settings';
 import UserManagement from './admin/UserManagement';
 import Donations from './admin/Donations';
 import ServiceTypes from './admin/ServiceTypes';
-import PricingConfig from './admin/PricingConfig';
 import spiritualAPI from '../lib/api';
 import SocialContentManagement from './admin/SocialContentManagement';
 import Notifications from './admin/Notifications';
 import CreditPackages from './admin/CreditPackages';
-import FollowUpManagement from './admin/FollowUpManagement';
 import AdminPricingDashboard from './AdminPricingDashboard';
 import SocialMediaMarketing from './admin/SocialMediaMarketing';
 
@@ -86,22 +82,19 @@ const AdminDashboard = () => {
     return <div>Loading divine administration...</div>;
   }
 
-  // Tab labels and keys
+  // Tab labels and keys - Cleaned up from 15 to 12 tabs
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'products', label: 'Products' },
     { key: 'revenue', label: 'Revenue' },
     { key: 'content', label: 'Content' },
-    { key: 'insights', label: 'Insights' },
     { key: 'settings', label: 'Settings' },
     { key: 'users', label: 'Users' },
     { key: 'donations', label: 'Donations' },
     { key: 'serviceTypes', label: 'Service Types' },
-    { key: 'pricing', label: 'Pricing' },
-    { key: 'comprehensivePricing', label: 'Smart Pricing' },
+    { key: 'pricing', label: 'Smart Pricing' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
-    { key: 'followup', label: 'Follow-ups' },
     { key: 'socialMarketing', label: 'Social Media Marketing' },
   ];
 
@@ -241,16 +234,13 @@ const AdminDashboard = () => {
         {activeTab === 'products' && <Products />}
         {activeTab === 'revenue' && <RevenueAnalytics />}
         {activeTab === 'content' && <SocialContentManagement />}
-        {activeTab === 'insights' && <BusinessIntelligence />}
         {activeTab === 'settings' && <Settings />}
         {activeTab === 'users' && <UserManagement />}
         {activeTab === 'donations' && <Donations />}
         {activeTab === 'serviceTypes' && <ServiceTypes />}
-        {activeTab === 'pricing' && <PricingConfig />}
-        {activeTab === 'comprehensivePricing' && <AdminPricingDashboard />}
+        {activeTab === 'pricing' && <AdminPricingDashboard />}
         {activeTab === 'notifications' && <Notifications />}
         {activeTab === 'creditPackages' && <CreditPackages />}
-        {activeTab === 'followup' && <FollowUpManagement />}
         {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
       </div>
     </div>

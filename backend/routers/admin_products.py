@@ -4,6 +4,52 @@ import uuid
 
 router = APIRouter(prefix="/api/admin/products", tags=["Admin Products"])
 
+# --- ROOT PRODUCTS ENDPOINT ---
+@router.get("/")
+async def get_products(db=Depends(get_db)):
+    """Root endpoint for Products tab - returns all products/services"""
+    try:
+        # Get all service types
+        service_types = await db.fetch("SELECT * FROM service_types WHERE enabled=TRUE ORDER BY name")
+        
+        # Get all credit packages  
+        credit_packages = await db.fetch("SELECT * FROM credit_packages WHERE enabled=TRUE ORDER BY credits_amount")
+        
+        # Format as products list
+        products = []
+        
+        # Add service types as products
+        for row in service_types:
+            products.append({
+                "id": str(row["id"]),
+                "sku_code": f"SVC_{row['name'].upper()}",
+                "name": row["display_name"] or row["name"],
+                "price": float(row["price_usd"]),
+                "credits_allocated": row["credits_required"],
+                "is_active": row["enabled"],
+                "type": "service",
+                "category": row["service_category"]
+            })
+        
+        # Add credit packages as products
+        for row in credit_packages:
+            products.append({
+                "id": str(row["id"]),
+                "sku_code": f"CREDITS_{row['credits_amount']}",
+                "name": row["name"],
+                "price": float(row["price_usd"]),
+                "credits_allocated": row["credits_amount"],
+                "is_active": row["enabled"],
+                "type": "credit_package",
+                "category": "credits"
+            })
+        
+        return products
+        
+    except Exception as e:
+        print(f"Products endpoint error: {e}")
+        return []
+
 # --- SERVICE TYPES ENDPOINTS (with real DB logic) ---
 @router.post("/service-types")
 async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)):

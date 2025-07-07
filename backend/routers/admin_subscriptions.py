@@ -6,7 +6,7 @@ from utils.stripe_utils import create_stripe_subscription_plan
 import uuid
 import json
 
-router = APIRouter(prefix="/subscription-plans", tags=["Admin Subscriptions"])
+router = APIRouter(prefix="/api/admin/subscription-plans", tags=["Admin Subscriptions"])
 
 # CREATE new subscription plan
 @router.post("", response_model=SubscriptionPlanOut)
