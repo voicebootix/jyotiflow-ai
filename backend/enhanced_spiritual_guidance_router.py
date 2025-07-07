@@ -14,7 +14,7 @@ import sqlite3
 
 # Try to import dynamic pricing system
 try:
-    from .dynamic_comprehensive_pricing import (
+    from dynamic_comprehensive_pricing import (
         DynamicComprehensivePricing, 
         generate_pricing_recommendations,
         apply_admin_approved_pricing
@@ -106,6 +106,16 @@ class ComprehensiveReadingResponse(BaseModel):
 
 # Initialize enhanced router
 enhanced_router = APIRouter(prefix="/api/spiritual/enhanced", tags=["Enhanced Spiritual Guidance"])
+
+# Database dependency
+def get_db():
+    """Get database connection dependency"""
+    db_path = "backend/jyotiflow.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 class EnhancedSpiritualGuidanceEngine:
     """
@@ -628,16 +638,6 @@ async def create_comprehensive_session(
     db.commit()
     return session_id
 
-# Database dependency
-def get_db():
-    """Get database connection dependency"""
-    db_path = "backend/jyotiflow.db"
-    conn = sqlite3.connect(db_path)
-    try:
-        yield conn
-    finally:
-        conn.close()
-
 async def generate_reading_preview(birth_date: str, birth_time: str, birth_location: str) -> Dict[str, Any]:
     """Generate a preview of the comprehensive reading"""
     try:
@@ -825,7 +825,7 @@ async def get_pricing_dashboard():
                 "timestamp": datetime.now().isoformat()
             }
         
-        from .dynamic_comprehensive_pricing import get_pricing_dashboard_data
+        from dynamic_comprehensive_pricing import get_pricing_dashboard_data
         
         dashboard_data = await get_pricing_dashboard_data()
         
