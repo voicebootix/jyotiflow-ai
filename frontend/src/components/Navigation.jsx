@@ -38,12 +38,28 @@ const Navigation = () => {
       setIsAuthenticated(true);
       try {
         const profile = await spiritualAPI.getUserProfile();
+        console.log('🔍 User profile loaded:', profile); // Debug log
         if (profile && profile.success) {
           setUserProfile(profile.data);
+          console.log('👤 User role:', profile.data?.role); // Debug log
+        } else {
+          // Fallback: try to get user from localStorage
+          const storedUser = localStorage.getItem('jyotiflow_user');
+          if (storedUser) {
+            const user = JSON.parse(storedUser);
+            setUserProfile(user);
+            console.log('👤 Fallback user role:', user?.role); // Debug log
+          }
         }
       } catch (profileError) {
         console.log('🕉️ Profile loading blessed with patience:', profileError);
-        // Still keep user authenticated even if profile fails
+        // Fallback: try to get user from localStorage
+        const storedUser = localStorage.getItem('jyotiflow_user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          setUserProfile(user);
+          console.log('👤 Fallback user role (error case):', user?.role); // Debug log
+        }
       }
     } else {
       setIsAuthenticated(false);
@@ -131,6 +147,11 @@ const Navigation = () => {
         {isAuthenticated && (
           <Link to="/profile" className={`px-4 py-2 rounded-full font-semibold transition-all ${location.pathname === '/profile' ? 'bg-yellow-500 text-black' : 'hover:bg-gray-800'}`}>
             👤 Profile
+          </Link>
+        )}
+        {isAuthenticated && userProfile?.role === 'admin' && (
+          <Link to="/admin" className={`px-4 py-2 rounded-full font-semibold transition-all ${location.pathname === '/admin' ? 'bg-yellow-500 text-black' : 'hover:bg-gray-800'}`}>
+            👑 Admin
           </Link>
         )}
         {/* User dropdown or Sign In */}

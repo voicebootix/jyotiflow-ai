@@ -45,6 +45,12 @@ import SocialContentManagement from './components/admin/SocialContentManagement'
 import SocialMediaMarketing from './components/admin/SocialMediaMarketing';
 import BusinessIntelligence from './components/admin/BusinessIntelligence';
 
+// Import debug component
+import AdminRoleTest from './components/AdminRoleTest';
+
+// Import admin redirect component
+import AdminRedirect from './components/AdminRedirect';
+
 // Import API client
 import spiritualAPI from './lib/api';
 
@@ -90,6 +96,9 @@ function App() {
 
           {/* Navigation */}
           <Navigation />    
+          
+          {/* Admin Redirect - automatically redirects admin users */}
+          <AdminRedirect />
           
           {/* Main Content */}
           <main className="relative z-10">
@@ -248,6 +257,9 @@ function App() {
                   <BusinessIntelligence />
                 </ProtectedRoute>
               } />
+              
+              {/* Temporary debug route */}
+              <Route path="/debug-admin" element={<AdminRoleTest />} />
             </Routes>
           </main>
         </div>
