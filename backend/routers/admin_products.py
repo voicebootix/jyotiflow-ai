@@ -13,8 +13,10 @@ async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)
         """
         INSERT INTO service_types (name, display_name, description, credits_required, duration_minutes, 
                                  price_usd, service_category, avatar_video_enabled, live_chat_enabled, 
-                                 icon, color_gradient, enabled, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+                                 icon, color_gradient, enabled, dynamic_pricing_enabled, knowledge_domains,
+                                 persona_modes, comprehensive_reading_enabled, birth_chart_enabled,
+                                 remedies_enabled, voice_enabled, video_enabled, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, NOW())
         """,
         service_type.get("name"),
         service_type.get("display_name"),
@@ -27,7 +29,15 @@ async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)
         service_type.get("live_chat_enabled", False),
         service_type.get("icon", "🔮"),
         service_type.get("color_gradient", "from-purple-500 to-indigo-600"),
-        enabled
+        enabled,
+        service_type.get("dynamic_pricing_enabled", False),
+        service_type.get("knowledge_domains", []),
+        service_type.get("persona_modes", []),
+        service_type.get("comprehensive_reading_enabled", False),
+        service_type.get("birth_chart_enabled", False),
+        service_type.get("remedies_enabled", False),
+        service_type.get("voice_enabled", False),
+        service_type.get("video_enabled", False)
     )
     return {"success": True}
 
@@ -51,7 +61,16 @@ async def get_service_types(db=Depends(get_db)):
             "live_chat_enabled": row["live_chat_enabled"],
             "icon": row["icon"],
             "color_gradient": row["color_gradient"],
-            "created_at": row["created_at"].isoformat() if row["created_at"] else None
+            "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+            # Enhanced fields
+            "dynamic_pricing_enabled": row.get("dynamic_pricing_enabled", False),
+            "knowledge_domains": row.get("knowledge_domains", []),
+            "persona_modes": row.get("persona_modes", []),
+            "comprehensive_reading_enabled": row.get("comprehensive_reading_enabled", False),
+            "birth_chart_enabled": row.get("birth_chart_enabled", False),
+            "remedies_enabled": row.get("remedies_enabled", False),
+            "voice_enabled": row.get("voice_enabled", False),
+            "video_enabled": row.get("video_enabled", False)
         }
         for row in result
     ]
@@ -65,8 +84,11 @@ async def update_service_type(service_type_id: int, service_type: dict = Body(..
         UPDATE service_types SET name=$1, display_name=$2, description=$3, credits_required=$4, 
                                duration_minutes=$5, price_usd=$6, service_category=$7, 
                                avatar_video_enabled=$8, live_chat_enabled=$9, icon=$10, 
-                               color_gradient=$11, enabled=$12, updated_at=NOW()
-        WHERE id=$13
+                               color_gradient=$11, enabled=$12, dynamic_pricing_enabled=$13,
+                               knowledge_domains=$14, persona_modes=$15, comprehensive_reading_enabled=$16,
+                               birth_chart_enabled=$17, remedies_enabled=$18, voice_enabled=$19,
+                               video_enabled=$20, updated_at=NOW()
+        WHERE id=$21
         """,
         service_type.get("name"),
         service_type.get("display_name"),
@@ -80,6 +102,14 @@ async def update_service_type(service_type_id: int, service_type: dict = Body(..
         service_type.get("icon", "🔮"),
         service_type.get("color_gradient", "from-purple-500 to-indigo-600"),
         enabled,
+        service_type.get("dynamic_pricing_enabled", False),
+        service_type.get("knowledge_domains", []),
+        service_type.get("persona_modes", []),
+        service_type.get("comprehensive_reading_enabled", False),
+        service_type.get("birth_chart_enabled", False),
+        service_type.get("remedies_enabled", False),
+        service_type.get("voice_enabled", False),
+        service_type.get("video_enabled", False),
         int(service_type_id)
     )
     # Optionally, check if any row was updated and return 404 if not

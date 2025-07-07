@@ -5,279 +5,72 @@
 
 import spiritualAPI from './api.js';
 
-const enhancedAPI = {
-  // Inherit all existing API methods
-  ...spiritualAPI,
-
-  // Enhanced Spiritual Guidance Endpoints
-  async getEnhancedGuidance(request) {
-    return this.post('/api/spiritual/enhanced/guidance', request);
-  },
-
-  async getEnhancedSystemHealth() {
-    return this.get('/api/spiritual/enhanced/health');
-  },
-
-  async getKnowledgeDomains() {
-    return this.get('/api/spiritual/enhanced/knowledge-domains');
-  },
-
-  async getPersonaModes() {
-    return this.get('/api/spiritual/enhanced/persona-modes');
-  },
-
-  async configureService(serviceConfig) {
-    return this.post('/api/spiritual/enhanced/configure-service', serviceConfig);
-  },
-
-  // DYNAMIC PRICING ENDPOINTS - ADMIN
-  async getPricingOverview() {
-    return this.get('/api/admin/pricing/overview');
-  },
-
-  async getPricingAnalytics() {
-    return this.get('/api/admin/pricing/analytics');
-  },
-
-  async generatePricingRecommendation() {
-    return this.post('/api/admin/pricing/trigger-recommendation');
-  },
-
-  async applyAdminPricing(approvedPrice, adminNotes = '') {
-    return this.post('/api/admin/pricing/apply-pricing', {
-      approved_price: approvedPrice,
-      admin_notes: adminNotes
-    });
-  },
-
-  async setPricingOverride(overrideData) {
-    return this.post('/api/admin/pricing/override', overrideData);
-  },
-
-  async getPricingAlerts() {
-    return this.get('/api/admin/pricing/alerts');
-  },
-
-  async getPricingSystemHealth() {
-    return this.get('/api/admin/pricing/health');
-  },
-
-  // DYNAMIC PRICING ENDPOINTS - PUBLIC
-  async getComprehensivePricing() {
-    return this.get('/api/spiritual/enhanced/pricing/comprehensive');
-  },
-
-  async generateComprehensivePricingRecommendation() {
-    return this.post('/api/spiritual/enhanced/pricing/comprehensive/recommend');
-  },
-
-  async getPricingDashboard() {
-    return this.get('/api/spiritual/enhanced/pricing/dashboard');
-  },
-
-  // ENHANCED COMPREHENSIVE READING WITH DYNAMIC PRICING
-  async requestComprehensiveReadingWithPricing(request) {
-    return this.post('/api/spiritual/enhanced/comprehensive-reading', {
-      birth_date: request.birthDate,
-      birth_time: request.birthTime,
-      birth_location: request.birthLocation,
-      focus_areas: request.focusAreas || ['general']
-    });
-  },
-
-  // Real-time Birth Chart Generation
-  async generateBirthChart(birthDetails) {
-    return this.post('/api/spiritual/enhanced/birth-chart', {
-      birth_date: birthDetails.date,
-      birth_time: birthDetails.time,
-      birth_location: birthDetails.location,
-      include_divisional_charts: true,
-      include_dasha_predictions: true,
-      include_transit_analysis: true
-    });
-  },
-
-  async getBirthChartAnalysis(chartId) {
-    return this.get(`/api/spiritual/enhanced/birth-chart/${chartId}/analysis`);
-  },
-
-  async getTransitPredictions(chartId) {
-    return this.get(`/api/spiritual/enhanced/birth-chart/${chartId}/transits`);
-  },
-
-  async getDashaPredictions(chartId) {
-    return this.get(`/api/spiritual/enhanced/birth-chart/${chartId}/dashas`);
-  },
-
-  // Enhanced Service Management
-  async getEnhancedServices() {
-    return this.get('/api/spiritual/enhanced/services');
-  },
-
-  async createEnhancedService(serviceData) {
-    return this.post('/api/spiritual/enhanced/services', serviceData);
-  },
-
-  async updateEnhancedService(serviceId, serviceData) {
-    return this.request(`/api/spiritual/enhanced/services/${serviceId}`, {
-      method: 'PUT',
-      body: JSON.stringify(serviceData)
-    });
-  },
-
-  // Knowledge Base Management
-  async getKnowledgeBase() {
-    return this.get('/api/spiritual/enhanced/knowledge-base');
-  },
-
-  async addKnowledgePiece(knowledgeData) {
-    return this.post('/api/spiritual/enhanced/knowledge-base', knowledgeData);
-  },
-
-  async updateKnowledgePiece(knowledgeId, knowledgeData) {
-    return this.request(`/api/spiritual/enhanced/knowledge-base/${knowledgeId}`, {
-      method: 'PUT',
-      body: JSON.stringify(knowledgeData)
-    });
-  },
-
-  async deleteKnowledgePiece(knowledgeId) {
-    return this.request(`/api/spiritual/enhanced/knowledge-base/${knowledgeId}`, {
-      method: 'DELETE'
-    });
-  },
-
-  // Enhanced Analytics
-  async getEnhancedAnalytics() {
-    return this.get('/api/spiritual/enhanced/analytics');
-  },
-
-  async getKnowledgeEffectiveness() {
-    return this.get('/api/spiritual/enhanced/knowledge-effectiveness');
-  },
-
-  async getPersonaPerformance() {
-    return this.get('/api/spiritual/enhanced/persona-performance');
-  },
-
-  // Real-time Features
-  async subscribeToRealTimeUpdates(callback) {
-    // WebSocket connection for real-time updates
-    const ws = new WebSocket(`${this.getWebSocketUrl()}/spiritual/enhanced/realtime`);
-    
-    ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      callback(data);
-    };
-
-    ws.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    return ws;
-  },
-
-  // Astrological Calculations
-  async calculatePlanetaryPositions(birthDetails) {
-    return this.post('/api/spiritual/enhanced/astro-calc/planetary-positions', birthDetails);
-  },
-
-  async calculateHouseCusps(birthDetails) {
-    return this.post('/api/spiritual/enhanced/astro-calc/house-cusps', birthDetails);
-  },
-
-  async calculateAshtakavarga(birthDetails) {
-    return this.post('/api/spiritual/enhanced/astro-calc/ashtakavarga', birthDetails);
-  },
-
-  async calculateDivisionalCharts(birthDetails) {
-    return this.post('/api/spiritual/enhanced/astro-calc/divisional-charts', birthDetails);
-  },
-
-  // Enhanced Remedies
-  async getPersonalizedRemedies(chartAnalysis) {
-    return this.post('/api/spiritual/enhanced/remedies/personalized', chartAnalysis);
-  },
-
-  async getMantraRecommendations(planetaryConditions) {
-    return this.post('/api/spiritual/enhanced/remedies/mantras', planetaryConditions);
-  },
-
-  async getGemstoneRecommendations(birthChart) {
-    return this.post('/api/spiritual/enhanced/remedies/gemstones', birthChart);
-  },
-
-  async getCharityRecommendations(karmaAnalysis) {
-    return this.post('/api/spiritual/enhanced/remedies/charity', karmaAnalysis);
-  },
-
-  // Performance Optimization
-  async preloadKnowledgeCache(domains) {
-    return this.post('/api/spiritual/enhanced/cache/preload', { domains });
-  },
-
-  async clearKnowledgeCache() {
-    return this.post('/api/spiritual/enhanced/cache/clear');
-  },
-
-  async getSystemPerformance() {
-    return this.get('/api/spiritual/enhanced/performance');
-  },
-
-  // Integration Testing
-  async testEnhancedIntegration() {
-    return this.get('/api/spiritual/enhanced/test-integration');
-  },
-
-  async runSystemHealthCheck() {
-    return this.get('/api/spiritual/enhanced/health-check');
-  },
-
-  // Utility Methods
-  getWebSocketUrl() {
-    const baseUrl = this.API_BASE_URL || 'https://jyotiflow-ai.onrender.com';
-    return baseUrl.replace('http', 'ws');
-  },
-
-  // 30-Minute Comprehensive Reading (LEGACY - FIXED PRICING)
-  async requestComprehensiveReading(request) {
-    return this.post('/api/spiritual/enhanced/guidance', {
-      ...request,
-      service_type: 'comprehensive_life_reading_30min',
-      analysis_depth: 'comprehensive_30_minute',
-      knowledge_domains: [
-        'classical_astrology',
-        'tamil_spiritual_literature', 
-        'health_astrology',
-        'career_astrology',
-        'relationship_astrology',
-        'remedial_measures'
-      ],
-      persona_mode: 'comprehensive_life_master',
-      include_birth_chart: true,
-      include_remedies: true,
-      include_predictions: true
-    });
-  },
-
-  // Enhanced Error Handling
-  async handleEnhancedError(error) {
-    console.error('Enhanced API Error:', error);
-    
-    // Track error for analytics
-    await this.trackSpiritualEngagement('enhanced_api_error', {
-      error_type: error.name,
-      error_message: error.message,
-      timestamp: new Date().toISOString()
-    });
-
-    // Return graceful error response
-    return {
-      success: false,
-      error: error.message,
-      fallback_available: true
-    };
+// Enhanced API client for JyotiFlow dynamic pricing and comprehensive readings
+class EnhancedAPI {
+  constructor() {
+    this.baseURL = 'http://localhost:8000/api/spiritual/enhanced';
   }
-};
 
-export default enhancedAPI;
+  // Dynamic Pricing endpoints - these are unique and not duplicated
+  async getCurrentPricing(serviceType = 'comprehensive') {
+    const response = await fetch(`${this.baseURL}/pricing/${serviceType}`);
+    if (!response.ok) throw new Error('Failed to fetch pricing');
+    return response.json();
+  }
+
+  async generatePricingRecommendation(serviceType = 'comprehensive') {
+    const response = await fetch(`${this.baseURL}/pricing/${serviceType}/recommend`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    if (!response.ok) throw new Error('Failed to generate pricing recommendation');
+    return response.json();
+  }
+
+  async applyPricingRecommendation(serviceType, recommendationId, adminNotes = '') {
+    const response = await fetch(`${this.baseURL}/pricing/${serviceType}/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recommendation_id: recommendationId, admin_notes: adminNotes })
+    });
+    if (!response.ok) throw new Error('Failed to apply pricing recommendation');
+    return response.json();
+  }
+
+  async getPricingHistory(serviceType = 'comprehensive', limit = 50) {
+    const response = await fetch(`${this.baseURL}/pricing/${serviceType}/history?limit=${limit}`);
+    if (!response.ok) throw new Error('Failed to fetch pricing history');
+    return response.json();
+  }
+
+  async getPricingAnalytics(serviceType = 'comprehensive') {
+    const response = await fetch(`${this.baseURL}/pricing/${serviceType}/analytics`);
+    if (!response.ok) throw new Error('Failed to fetch pricing analytics');
+    return response.json();
+  }
+
+  // Comprehensive Reading - Main service endpoint
+  async getComprehensiveReading(requestData) {
+    const response = await fetch(`${this.baseURL}/comprehensive-reading`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestData)
+    });
+    if (!response.ok) throw new Error('Failed to get comprehensive reading');
+    return response.json();
+  }
+
+  // Integration helper - check if service exists in regular ServiceTypes
+  async validateEnhancedService(serviceId) {
+    try {
+      // Use existing API to check if service exists
+      const services = await spiritualAPI.getServiceTypes();
+      return services.find(s => s.id === serviceId && s.comprehensive_reading_enabled);
+    } catch (error) {
+      console.error('Error validating enhanced service:', error);
+      return null;
+    }
+  }
+}
+
+export default new EnhancedAPI();

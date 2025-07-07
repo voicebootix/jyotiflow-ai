@@ -19,8 +19,28 @@ const ServiceTypes = () => {
     live_chat_enabled: false,
     icon: '🔮',
     color_gradient: 'from-purple-500 to-indigo-600',
-    is_active: true
+    is_active: true,
+    // Enhanced features for comprehensive reading
+    dynamic_pricing_enabled: false,
+    knowledge_domains: [],
+    persona_modes: [],
+    comprehensive_reading_enabled: false,
+    birth_chart_enabled: false,
+    remedies_enabled: false,
+    voice_enabled: false,
+    video_enabled: false
   });
+
+  const knowledgeDomainsOptions = [
+    'vedic_astrology', 'western_astrology', 'tarot', 'numerology', 
+    'palmistry', 'meditation', 'chakra_healing', 'gemstones', 
+    'mantras', 'vastu_shastra', 'spiritual_guidance', 'life_coaching'
+  ];
+
+  const personaModesOptions = [
+    'traditional_guru', 'modern_advisor', 'compassionate_healer', 
+    'practical_guide', 'mystical_sage', 'scientific_astrologer'
+  ];
 
   useEffect(() => {
     fetchServiceTypes();
@@ -56,7 +76,16 @@ const ServiceTypes = () => {
           avatar_video_enabled: Boolean(formData.avatar_video_enabled),
           live_chat_enabled: Boolean(formData.live_chat_enabled),
           icon: formData.icon,
-          color_gradient: formData.color_gradient
+          color_gradient: formData.color_gradient,
+          // Enhanced features
+          dynamic_pricing_enabled: Boolean(formData.dynamic_pricing_enabled),
+          knowledge_domains: formData.knowledge_domains,
+          persona_modes: formData.persona_modes,
+          comprehensive_reading_enabled: Boolean(formData.comprehensive_reading_enabled),
+          birth_chart_enabled: Boolean(formData.birth_chart_enabled),
+          remedies_enabled: Boolean(formData.remedies_enabled),
+          voice_enabled: Boolean(formData.voice_enabled),
+          video_enabled: Boolean(formData.video_enabled)
         };
         await spiritualAPI.updateServiceType(editingId, updatePayload);
       } else {
@@ -74,7 +103,16 @@ const ServiceTypes = () => {
           avatar_video_enabled: Boolean(formData.avatar_video_enabled),
           live_chat_enabled: Boolean(formData.live_chat_enabled),
           icon: formData.icon,
-          color_gradient: formData.color_gradient
+          color_gradient: formData.color_gradient,
+          // Enhanced features
+          dynamic_pricing_enabled: Boolean(formData.dynamic_pricing_enabled),
+          knowledge_domains: formData.knowledge_domains,
+          persona_modes: formData.persona_modes,
+          comprehensive_reading_enabled: Boolean(formData.comprehensive_reading_enabled),
+          birth_chart_enabled: Boolean(formData.birth_chart_enabled),
+          remedies_enabled: Boolean(formData.remedies_enabled),
+          voice_enabled: Boolean(formData.voice_enabled),
+          video_enabled: Boolean(formData.video_enabled)
         };
         await spiritualAPI.createServiceType(payload);
       }
@@ -99,7 +137,16 @@ const ServiceTypes = () => {
       live_chat_enabled: serviceType.live_chat_enabled,
       icon: serviceType.icon,
       color_gradient: serviceType.color_gradient,
-      is_active: serviceType.is_active
+      is_active: serviceType.is_active,
+      // Enhanced features
+      dynamic_pricing_enabled: serviceType.dynamic_pricing_enabled || false,
+      knowledge_domains: serviceType.knowledge_domains || [],
+      persona_modes: serviceType.persona_modes || [],
+      comprehensive_reading_enabled: serviceType.comprehensive_reading_enabled || false,
+      birth_chart_enabled: serviceType.birth_chart_enabled || false,
+      remedies_enabled: serviceType.remedies_enabled || false,
+      voice_enabled: serviceType.voice_enabled || false,
+      video_enabled: serviceType.video_enabled || false
     });
     setShowForm(true);
   };
@@ -128,9 +175,18 @@ const ServiceTypes = () => {
       live_chat_enabled: false,
       icon: '🔮',
       color_gradient: 'from-purple-500 to-indigo-600',
-      is_active: true
+      is_active: true,
+      // Enhanced features
+      dynamic_pricing_enabled: false,
+      knowledge_domains: [],
+      persona_modes: [],
+      comprehensive_reading_enabled: false,
+      birth_chart_enabled: false,
+      remedies_enabled: false,
+      voice_enabled: false,
+      video_enabled: false
     });
-    setEditingId(null); // Always reset editingId
+    setEditingId(null);
     setShowForm(false);
   };
 
@@ -139,6 +195,24 @@ const ServiceTypes = () => {
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : type === 'number' ? parseFloat(value) : value
+    }));
+  };
+
+  const handleKnowledgeDomainToggle = (domain) => {
+    setFormData(prev => ({
+      ...prev,
+      knowledge_domains: prev.knowledge_domains.includes(domain)
+        ? prev.knowledge_domains.filter(d => d !== domain)
+        : [...prev.knowledge_domains, domain]
+    }));
+  };
+
+  const handlePersonaModeToggle = (mode) => {
+    setFormData(prev => ({
+      ...prev,
+      persona_modes: prev.persona_modes.includes(mode)
+        ? prev.persona_modes.filter(m => m !== mode)
+        : [...prev.persona_modes, mode]
     }));
   };
 
@@ -187,6 +261,9 @@ const ServiceTypes = () => {
                   Features
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Enhanced
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -227,6 +304,25 @@ const ServiceTypes = () => {
                       {service.live_chat_enabled && (
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                           Live Chat
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    <div className="flex space-x-1">
+                      {service.dynamic_pricing_enabled && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          Smart Price
+                        </span>
+                      )}
+                      {service.comprehensive_reading_enabled && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800">
+                          Comprehensive
+                        </span>
+                      )}
+                      {service.birth_chart_enabled && (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Birth Chart
                         </span>
                       )}
                     </div>
@@ -399,7 +495,7 @@ const ServiceTypes = () => {
                     onChange={handleInputChange}
                     className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                   />
-                  <span className="ml-2 text-sm text-gray-700">Avatar Video Enabled</span>
+                  <span className="ml-2 text-sm text-gray-700">Avatar Video</span>
                 </label>
                 <label className="flex items-center">
                   <input
@@ -409,7 +505,7 @@ const ServiceTypes = () => {
                     onChange={handleInputChange}
                     className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                   />
-                  <span className="ml-2 text-sm text-gray-700">Live Chat Enabled</span>
+                  <span className="ml-2 text-sm text-gray-700">Live Chat</span>
                 </label>
                 <label className="flex items-center">
                   <input
@@ -421,6 +517,117 @@ const ServiceTypes = () => {
                   />
                   <span className="ml-2 text-sm text-gray-700">Active</span>
                 </label>
+              </div>
+
+              {/* Enhanced Features Section */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Enhanced Features</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="dynamic_pricing_enabled"
+                        checked={formData.dynamic_pricing_enabled}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Dynamic Pricing</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="comprehensive_reading_enabled"
+                        checked={formData.comprehensive_reading_enabled}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Comprehensive Reading</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="birth_chart_enabled"
+                        checked={formData.birth_chart_enabled}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Birth Chart Analysis</span>
+                    </label>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="remedies_enabled"
+                        checked={formData.remedies_enabled}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Personalized Remedies</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="voice_enabled"
+                        checked={formData.voice_enabled}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Voice Narration</span>
+                    </label>
+                    <label className="flex items-center">
+                      <input
+                        type="checkbox"
+                        name="video_enabled"
+                        checked={formData.video_enabled}
+                        onChange={handleInputChange}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-sm text-gray-700">Video Generation</span>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Knowledge Domains */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Knowledge Domains</h4>
+                <div className="grid grid-cols-3 gap-2">
+                  {knowledgeDomainsOptions.map(domain => (
+                    <label key={domain} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.knowledge_domains.includes(domain)}
+                        onChange={() => handleKnowledgeDomainToggle(domain)}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-xs text-gray-700 capitalize">
+                        {domain.replace('_', ' ')}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Persona Modes */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-900 mb-3">Persona Modes</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {personaModesOptions.map(mode => (
+                    <label key={mode} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={formData.persona_modes.includes(mode)}
+                        onChange={() => handlePersonaModeToggle(mode)}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="ml-2 text-xs text-gray-700 capitalize">
+                        {mode.replace('_', ' ')}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               </div>
 
               <div className="flex justify-end space-x-3 pt-4">
