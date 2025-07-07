@@ -12,7 +12,8 @@ from typing import Dict, List, Optional, Any
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
 from pydantic import BaseModel, Field
 
-from core_foundation_enhanced import get_current_user, get_admin_user, StandardResponse
+from deps import get_current_user, get_admin_user
+from core_foundation_enhanced import StandardResponse
 from social_media_marketing_automation import social_marketing_engine
 from universal_pricing_engine import UniversalPricingEngine
 

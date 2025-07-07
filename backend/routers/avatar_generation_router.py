@@ -14,7 +14,8 @@ from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
 from pydantic import BaseModel, Field
 
-from core_foundation_enhanced import get_current_user, get_admin_user, StandardResponse
+from deps import get_current_user, get_admin_user
+from core_foundation_enhanced import StandardResponse
 from spiritual_avatar_generation_engine import avatar_engine
 from enhanced_business_logic import SpiritualAvatarEngine
 from universal_pricing_engine import UniversalPricingEngine
