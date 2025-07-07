@@ -1,0 +1,32 @@
+{
+  "system": {
+    "name": "JyotiFlow Enhanced",
+    "version": "2.0.0",
+    "deployment_date": "2025-07-07T06:23:18.800667"
+  },
+  "rag_system": {
+    "enabled": true,
+    "knowledge_domains": 8,
+    "embedding_model": "text-embedding-ada-002",
+    "similarity_threshold": 0.75
+  },
+  "persona_engine": {
+    "personas_available": 4,
+    "default_persona": "general",
+    "cultural_contexts": [
+      "tamil_vedic",
+      "universal",
+      "ayurvedic_tradition"
+    ]
+  },
+  "services": {
+    "dynamic_configuration": true,
+    "auto_knowledge_expansion": true,
+    "effectiveness_tracking": true
+  },
+  "api": {
+    "base_url": "/api/spiritual/enhanced",
+    "endpoints": 8,
+    "authentication": "required"
+  }
+}

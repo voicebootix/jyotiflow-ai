@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Video, Clock, Users, Star, X } from 'lucide-react';
 import spiritualAPI from '../lib/api';
+import AgoraVideoCall from './AgoraVideoCall';
 
 const LiveChat = () => {
   const navigate = useNavigate(); 
@@ -16,6 +17,8 @@ const LiveChat = () => {
   const [donationPaying, setDonationPaying] = useState(false);
   const [showFlowerAnimation, setShowFlowerAnimation] = useState(false);
   const [sessionTotalDonations, setSessionTotalDonations] = useState(0);
+  const [isVideoCallActive, setIsVideoCallActive] = useState(false);
+  const [videoCallError, setVideoCallError] = useState(null);
 
   useEffect(() => {
     checkAuthAndSubscription();
@@ -63,32 +66,61 @@ const LiveChat = () => {
     }
 
     setIsLoading(true);
+    setVideoCallError(null);
+    
     try {
       const sessionDetails = {
-        user_id: userProfile?.id,
-        session_type: 'live_video_chat',
-        timestamp: new Date().toISOString()
+        session_type: 'spiritual_guidance',
+        duration_minutes: 30,
+        topic: 'Live Divine Guidance'
       };
 
       const result = await spiritualAPI.initiateLiveChat(sessionDetails);
       
-      if (result && result.success) {
-        setChatSession(result.data);
+      if (result && result.session_id) {
+        setChatSession(result);
         await spiritualAPI.trackSpiritualEngagement('live_chat_initiated', {
-          session_id: result.data.session_id
+          session_id: result.session_id
         });
       } else {
-        alert('Live chat session could not be initiated. Please try again.');
+        setVideoCallError('Live chat session could not be initiated. Please try again.');
       }
     } catch (error) {
       console.error('Live chat initiation encountered divine turbulence:', error);
-      alert('Connection to divine guidance temporarily unavailable.');
+      setVideoCallError('Connection to divine guidance temporarily unavailable.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const hasRequiredSubscription = userProfile?.subscription_tier === 'premium' || userProfile?.subscription_tier === 'elite';
+
+  const startVideoCall = () => {
+    setIsVideoCallActive(true);
+  };
+
+  const endVideoCall = async () => {
+    try {
+      if (chatSession?.session_id) {
+        await spiritualAPI.endLiveChat(chatSession.session_id);
+        await spiritualAPI.trackSpiritualEngagement('live_chat_ended', {
+          session_id: chatSession.session_id
+        });
+      }
+      setIsVideoCallActive(false);
+      setChatSession(null);
+    } catch (error) {
+      console.error('Error ending video call:', error);
+      // Still close the call even if API fails
+      setIsVideoCallActive(false);
+      setChatSession(null);
+    }
+  };
+
+  const handleVideoCallError = (error) => {
+    setVideoCallError(error);
+    setIsVideoCallActive(false);
+  };
 
   // Donation payment handler
   const handleDonationPayment = async () => {
@@ -237,45 +269,62 @@ const LiveChat = () => {
             </div>
           ) : chatSession ? (
             /* Active Chat Session */
-            <div className="sacred-card p-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
-                🕉️ Live Session with Swami Jyotirananthan
-              </h2>
-              
-              <div className="bg-gray-100 rounded-lg p-8 text-center mb-6">
-                <div className="text-4xl mb-4">📹</div>
-                <p className="text-gray-600 mb-4">
-                  Session ID: {chatSession.session_id}
-                </p>
-                <p className="text-gray-600 mb-6">
-                  Your live video session is ready. Click below to join the sacred conversation.
-                </p>
+            isVideoCallActive ? (
+              <AgoraVideoCall 
+                sessionData={chatSession}
+                onEndCall={endVideoCall}
+                onError={handleVideoCallError}
+              />
+            ) : (
+              <div className="sacred-card p-8">
+                <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center">
+                  🕉️ Live Session with Swami Jyotirananthan
+                </h2>
                 
-                {chatSession.agora_channel && (
-                  <div className="bg-white rounded-lg p-4 mb-6">
-                    <p className="text-sm text-gray-500 mb-2">Channel:</p>
-                    <p className="font-mono text-sm">{chatSession.agora_channel}</p>
+                {videoCallError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                    <p className="text-red-600 text-center">{videoCallError}</p>
                   </div>
                 )}
                 
-                <button className="divine-button text-lg px-8 py-4">
-                  <Video className="mr-2" size={20} />
-                  Join Live Session
-                </button>
+                <div className="bg-gray-100 rounded-lg p-8 text-center mb-6">
+                  <div className="text-4xl mb-4">📹</div>
+                  <p className="text-gray-600 mb-4">
+                    Session ID: {chatSession.session_id}
+                  </p>
+                  <p className="text-gray-600 mb-6">
+                    Your live video session is ready. Click below to join the sacred conversation.
+                  </p>
+                  
+                  {chatSession.channel_name && (
+                    <div className="bg-white rounded-lg p-4 mb-6">
+                      <p className="text-sm text-gray-500 mb-2">Channel:</p>
+                      <p className="font-mono text-sm">{chatSession.channel_name}</p>
+                    </div>
+                  )}
+                  
+                  <button 
+                    onClick={startVideoCall}
+                    className="divine-button text-lg px-8 py-4"
+                  >
+                    <Video className="mr-2" size={20} />
+                    Join Live Session
+                  </button>
+                </div>
+                
+                <div className="text-center">
+                  <p className="text-sm text-gray-500 mb-4">
+                    Session expires at {new Date(chatSession.expires_at).toLocaleTimeString()}
+                  </p>
+                  <button 
+                    onClick={() => setChatSession(null)}
+                    className="text-red-600 hover:text-red-800 transition-colors"
+                  >
+                    End Session
+                  </button>
+                </div>
               </div>
-              
-              <div className="text-center">
-                <p className="text-sm text-gray-500 mb-4">
-                  Session started at {new Date(chatSession.start_time).toLocaleTimeString()}
-                </p>
-                <button 
-                  onClick={() => setChatSession(null)}
-                  className="text-red-600 hover:text-red-800 transition-colors"
-                >
-                  End Session
-                </button>
-              </div>
-            </div>
+            )
           ) : (
             /* Ready to Start */
             <div className="text-center sacred-card p-12">

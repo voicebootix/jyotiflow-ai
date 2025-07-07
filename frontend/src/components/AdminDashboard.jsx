@@ -16,6 +16,8 @@ import SocialContentManagement from './admin/SocialContentManagement';
 import Notifications from './admin/Notifications';
 import CreditPackages from './admin/CreditPackages';
 import FollowUpManagement from './admin/FollowUpManagement';
+import AdminPricingDashboard from './AdminPricingDashboard';
+import SocialMediaMarketing from './admin/SocialMediaMarketing';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -96,9 +98,11 @@ const AdminDashboard = () => {
     { key: 'donations', label: 'Donations' },
     { key: 'serviceTypes', label: 'Service Types' },
     { key: 'pricing', label: 'Pricing' },
+    { key: 'comprehensivePricing', label: 'Smart Pricing' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
     { key: 'followup', label: 'Follow-ups' },
+    { key: 'socialMarketing', label: 'Social Media Marketing' },
   ];
 
   return (
@@ -243,9 +247,11 @@ const AdminDashboard = () => {
         {activeTab === 'donations' && <Donations />}
         {activeTab === 'serviceTypes' && <ServiceTypes />}
         {activeTab === 'pricing' && <PricingConfig />}
+        {activeTab === 'comprehensivePricing' && <AdminPricingDashboard />}
         {activeTab === 'notifications' && <Notifications />}
         {activeTab === 'creditPackages' && <CreditPackages />}
         {activeTab === 'followup' && <FollowUpManagement />}
+        {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
       </div>
     </div>
   );

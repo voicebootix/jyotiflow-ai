@@ -762,53 +762,6 @@ security_manager = EnhancedSecurityManager()
 
 security_scheme = HTTPBearer()
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> Dict[str, Any]:
-    """Get current authenticated user with enhanced permissions"""
-    try:
-        payload = security_manager.verify_access_token(credentials.credentials)
-        conn = await db_manager.get_connection()
-
-        try:
-            if db_manager.is_sqlite:
-                result = await conn.execute("""
-                    SELECT email, name, role, credits, avatar_sessions_count,
-                           total_avatar_minutes, preferred_avatar_style, voice_preference
-                    FROM users WHERE email = ?
-                """, (payload['email'],))
-                user_data = await result.fetchone()
-            else:
-                user_data = await conn.fetchrow("""
-                    SELECT email, name, role, credits, avatar_sessions_count,
-                           total_avatar_minutes, preferred_avatar_style, voice_preference
-                    FROM users WHERE email = $1
-                """, payload['email'])
-
-            if not user_data:
-                raise HTTPException(status_code=401, detail="User not found")
-
-            user = dict(user_data)
-            user.update({
-                'id': payload.get('user_id'),
-                'avatar_enabled': payload.get('avatar_enabled', True),
-                'live_chat_enabled': payload.get('live_chat_enabled', True),
-                'satsang_access': payload.get('satsang_access', True)
-            })
-
-            return user
-
-        finally:
-            await db_manager.release_connection(conn)
-
-    except Exception as e:
-        logger.error(f"Authentication failed: {e}")
-        raise HTTPException(status_code=401, detail="Authentication failed")
-
-async def get_admin_user(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
-    """Get current admin user"""
-    if current_user.get('role') != 'admin':
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return current_user 
-
 async def get_database() -> EnhancedDatabaseManager:
     """Get database manager for FastAPI dependency injection"""
     return db_manager
@@ -1178,7 +1131,7 @@ app.include_router(admin_router)
 
 # Export app for main.py import
 __all__ = ["app", "auth_router", "user_router", "admin_router", "settings", "db_manager", "security_manager", "enhanced_app_lifespan",
-           "StandardResponse", "UserLogin", "UserRegistration", "get_current_user", "get_admin_user"]
+           "StandardResponse", "UserLogin", "UserRegistration"]
 
 # Add CORS middleware
 app.add_middleware(
@@ -2073,36 +2026,7 @@ class AvatarSession(BaseModel):
     quality_score: Optional[float] = None
 
 
-class AvatarGenerationRequest(BaseModel):
-    """Enhanced avatar video generation request"""
-    user_email: str
-    session_id: str
-    guidance_text: str
-    service_type: str = Field(..., pattern=r'^(clarity|love|premium|elite)$')
-    
-    # Add content_type field
-    content_type: Optional[str] = Field(
-        default="daily_guidance",
-        description="Type of content: daily_guidance, satsang, social_media, consultation"
-    )
-    
-    # Avatar Customization
-    avatar_style: Optional[str] = "traditional"
-    voice_tone: Optional[str] = "compassionate"
-    video_duration: Optional[int] = Field(default=300, le=1800)
-    include_subtitles: bool = True
-    video_quality: str = "high"
-    
-    # Spiritual Context
-    user_birth_details: Optional[Dict[str, Any]] = None
-    astrological_context: Optional[Dict[str, Any]] = None
-    emotional_tone: Optional[str] = "supportive"
-    
-    # User timezone for proper festival detection
-    user_timezone: Optional[str] = Field(
-        default="Asia/Kolkata",
-        description="User's timezone for accurate festival and daily theme detection"
-    )
+
 
 
 class SatsangEvent(BaseModel):
@@ -2222,24 +2146,7 @@ class SessionRequest(BaseModel):
     request_live_chat: bool = False
     voice_tone_preference: Optional[str] = "compassionate"
 
-class LiveChatSessionRequest(BaseModel):
-    """তমিল - Live chat session request"""
-    user_email: str
-    service_type: str = Field(..., pattern=r'^(premium|elite)$')
-    session_duration_minutes: int = Field(default=15, le=45)
-    preferred_time: Optional[datetime] = None
-    topic: Optional[str] = None
 
-class LiveChatSessionResponse(BaseModel):
-    """তমিল - Live chat session response"""
-    success: bool
-    session_id: str
-    chat_url: Optional[str] = None
-    scheduled_time: Optional[datetime] = None
-    duration_minutes: int
-    agora_token: Optional[str] = None
-    channel_name: Optional[str] = None
-    message: str
 
 class SatsangEventRequest(BaseModel):
     """তমিল - Satsang event creation/join request"""

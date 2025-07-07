@@ -8,7 +8,8 @@ from datetime import datetime, timezone
 security_scheme = HTTPBearer()
 
 # JWT configuration
-JWT_SECRET_KEY = "your-super-secret-jwt-key-change-in-production"
+import os
+JWT_SECRET_KEY = os.getenv("JWT_SECRET", "jyotiflow_secret")
 JWT_ALGORITHM = "HS256"
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> Dict[str, Any]:

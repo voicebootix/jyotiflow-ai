@@ -10,7 +10,8 @@ from schemas.followup import (
     FollowUpSchedule, FollowUpAnalytics, FollowUpSettings, FollowUpChannel
 )
 from utils.followup_service import FollowUpService
-from core_foundation_enhanced import get_current_user, get_admin_user, get_database
+from deps import get_current_user, get_admin_user
+from core_foundation_enhanced import get_database
 
 logger = logging.getLogger(__name__)
 

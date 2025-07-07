@@ -197,6 +197,10 @@ const spiritualAPI = {
     return this.post('/api/livechat/initiate', sessionDetails);
   },
 
+  async endLiveChat(sessionId) {
+    return this.request(`/api/livechat/end/${sessionId}`, { method: 'DELETE' });
+  },
+
   async startSession(sessionData) {
     return this.post('/api/sessions/start', sessionData);
   },
@@ -420,6 +424,102 @@ const spiritualAPI = {
   // Notification/Follow-up
   async sendFollowupNotification({ channel, to, subject, message, device_token }) {
     return this.post('/api/notify/followup', { channel, to, subject, message, device_token });
+  },
+
+  // ===== AVATAR GENERATION ENDPOINTS =====
+  
+  async generateAvatarWithGuidance(data) {
+    return this.post('/api/avatar/generate-with-guidance', data);
+  },
+
+  async getAvatarGenerationStatusDetailed(sessionId) {
+    return this.get(`/api/avatar/status/${sessionId}`);
+  },
+
+  async testAvatarServices() {
+    return this.get('/api/avatar/services/test');
+  },
+
+  async createSwamjiPresenter() {
+    return this.post('/api/avatar/presenter/create', {});
+  },
+
+  async getUserAvatarHistory(limit = 10) {
+    return this.get(`/api/avatar/user/history?limit=${limit}`);
+  },
+
+  // ===== ENHANCED SPIRITUAL GUIDANCE =====
+  
+  async getEnhancedSpiritualGuidance(requestData) {
+    return this.post('/api/spiritual/enhanced/enhanced-guidance', requestData);
+  },
+
+  async getServiceInsights(serviceName) {
+    return this.get(`/api/spiritual/enhanced/service-insights/${serviceName}`);
+  },
+
+  async getKnowledgeDomains() {
+    return this.get('/api/spiritual/enhanced/knowledge-domains');
+  },
+
+  async getPersonaModes() {
+    return this.get('/api/spiritual/enhanced/persona-modes');
+  },
+
+  async getComprehensiveReading(requestData) {
+    return this.post('/api/spiritual/enhanced/comprehensive-reading', requestData);
+  },
+
+  async getComprehensivePricing() {
+    return this.get('/api/spiritual/enhanced/comprehensive-pricing');
+  },
+
+  async getPricingDashboard() {
+    return this.get('/api/spiritual/enhanced/pricing-dashboard');
+  },
+
+  // ===== UNIVERSAL PRICING ENDPOINTS =====
+  
+  async getPricingRecommendations() {
+    return this.get('/api/spiritual/enhanced/pricing-recommendations');
+  },
+
+  async applyPricingChange(pricingData) {
+    return this.post('/api/spiritual/enhanced/apply-pricing-change', pricingData);
+  },
+
+  async getPricingHistory(serviceName, limit = 50) {
+    return this.get(`/api/spiritual/enhanced/pricing-history/${serviceName}?limit=${limit}`);
+  },
+
+  async getSatsangEvents(status = null) {
+    let endpoint = '/api/spiritual/enhanced/satsang-events';
+    if (status) endpoint += `?status=${status}`;
+    return this.get(endpoint);
+  },
+
+  async createSatsangEvent(eventData) {
+    return this.post('/api/spiritual/enhanced/satsang-events', eventData);
+  },
+
+  async getSatsangPricing(eventId) {
+    return this.get(`/api/spiritual/enhanced/satsang-pricing/${eventId}`);
+  },
+
+  async getSatsangDonations(eventId) {
+    return this.get(`/api/spiritual/enhanced/satsang-donations/${eventId}`);
+  },
+
+  async getAPIUsageMetrics(days = 7) {
+    return this.get(`/api/spiritual/enhanced/api-usage-metrics?days=${days}`);
+  },
+
+  async trackAPIUsage(usageData) {
+    return this.post('/api/spiritual/enhanced/track-api-usage', usageData);
+  },
+
+  async getSystemHealth() {
+    return this.get('/api/spiritual/enhanced/system-health');
   },
 };
 
