@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import enhanced_api from '../../services/enhanced-api';
 import PlatformConfiguration from './PlatformConfiguration';
+import SwamjiAvatarPreview from './SwamjiAvatarPreview';
 
 const SocialMediaMarketing = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -97,7 +98,8 @@ const SocialMediaMarketing = () => {
     { id: 'campaigns', label: 'Ad Campaigns', icon: Target },
     { id: 'performance', label: 'Analytics', icon: TrendingUp },
     { id: 'automation', label: 'Automation', icon: Zap },
-    { id: 'comments', label: 'Engagement', icon: MessageCircle }
+    { id: 'comments', label: 'Engagement', icon: MessageCircle },
+    { id: 'avatar', label: 'Avatar Preview', icon: Video }
   ];
 
   if (loading && !marketingData) {
@@ -188,6 +190,10 @@ const SocialMediaMarketing = () => {
 
       {activeTab === 'comments' && (
         <EngagementManagement />
+      )}
+
+      {activeTab === 'avatar' && (
+        <SwamjiAvatarPreview />
       )}
     </div>
   );
