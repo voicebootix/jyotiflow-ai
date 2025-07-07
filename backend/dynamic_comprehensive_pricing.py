@@ -24,6 +24,8 @@ class DynamicComprehensivePricing:
             "processing_time": 0.1,  # Credits per minute
             "chart_generation": 1.0,  # Credits for birth chart
             "remedies_generation": 0.8,  # Credits for personalized remedies
+            "elevenlabs_voice_generation": 2.5,  # Credits for voice narration
+            "did_video_generation": 4.0,  # Credits for AI avatar video
             "profit_margin": 1.3,  # 30% profit margin
             "market_demand_factor": 1.0  # Dynamic based on demand
         }
@@ -59,13 +61,15 @@ class DynamicComprehensivePricing:
         final_price = round(final_price * 2) / 2
         
         return {
-            "current_price": final_price,
+            "recommended_price": final_price,
             "base_cost": base_price,
             "demand_factor": demand_factor,
             "ai_recommendation": ai_recommendation,
             "cost_breakdown": costs,
             "pricing_rationale": self._generate_pricing_rationale(costs, demand_factor, ai_recommendation),
-            "last_updated": datetime.now().isoformat(),
+            "requires_admin_approval": True,
+            "confidence_level": self._calculate_confidence_level(costs, demand_factor, ai_recommendation),
+            "last_calculated": datetime.now().isoformat(),
             "next_review": (datetime.now() + timedelta(hours=6)).isoformat()
         }
     
@@ -91,6 +95,8 @@ class DynamicComprehensivePricing:
                 "chart_generation_cost": self._estimate_chart_costs(),
                 "remedies_generation_cost": self._estimate_remedies_costs(),
                 "server_processing_cost": self._estimate_processing_costs(),
+                "elevenlabs_voice_cost": self._estimate_elevenlabs_costs(),
+                "did_video_generation_cost": self._estimate_did_costs(),
                 "total_operational_cost": 0
             }
             
@@ -100,7 +106,9 @@ class DynamicComprehensivePricing:
                 costs["knowledge_processing_cost"], 
                 costs["chart_generation_cost"],
                 costs["remedies_generation_cost"],
-                costs["server_processing_cost"]
+                costs["server_processing_cost"],
+                costs["elevenlabs_voice_cost"],
+                costs["did_video_generation_cost"]
             ])
             
             conn.close()
@@ -115,7 +123,9 @@ class DynamicComprehensivePricing:
                 "chart_generation_cost": 1.5,
                 "remedies_generation_cost": 1.2,
                 "server_processing_cost": 0.8,
-                "total_operational_cost": 7.0
+                "elevenlabs_voice_cost": 2.5,
+                "did_video_generation_cost": 4.0,
+                "total_operational_cost": 14.5
             }
     
     def _estimate_openai_costs(self) -> float:
@@ -147,6 +157,25 @@ class DynamicComprehensivePricing:
         """Estimate server processing costs"""
         # 30 minutes of processing time, database queries, etc.
         return 0.8  # 0.8 credits
+    
+    def _estimate_elevenlabs_costs(self) -> float:
+        """Estimate ElevenLabs voice generation costs"""
+        # Comprehensive reading typically involves:
+        # - Voice narration of full reading (~10-15 minutes of audio)
+        # - High-quality voice cloning
+        # - Multiple voice segments for different sections
+        # Average cost: ~2.5 credits for full narration
+        return 2.5  # 2.5 credits
+    
+    def _estimate_did_costs(self) -> float:
+        """Estimate D-ID video generation costs"""
+        # Comprehensive reading typically involves:
+        # - AI avatar video of the reading
+        # - High-quality video generation
+        # - Multiple video segments for different sections
+        # - Video processing and rendering
+        # Average cost: ~4.0 credits for full video
+        return 4.0  # 4.0 credits
     
     async def _get_demand_factor(self) -> float:
         """Calculate demand factor based on recent usage patterns"""
@@ -263,6 +292,36 @@ class DynamicComprehensivePricing:
         
         return " | ".join(rationale_parts)
     
+    def _calculate_confidence_level(self, costs: Dict[str, float], 
+                                   demand_factor: float, 
+                                   ai_rec: Dict[str, Any]) -> float:
+        """Calculate confidence level of the pricing recommendation"""
+        confidence_factors = []
+        
+        # Cost calculation confidence
+        total_cost = costs["total_operational_cost"]
+        if total_cost > 0:
+            confidence_factors.append(0.9)  # High confidence in cost calculation
+        else:
+            confidence_factors.append(0.3)  # Low confidence if costs are zero
+        
+        # Demand factor confidence
+        if 0.9 <= demand_factor <= 1.1:
+            confidence_factors.append(0.8)  # High confidence in stable demand
+        elif 0.7 <= demand_factor <= 1.3:
+            confidence_factors.append(0.7)  # Medium confidence in moderate demand change
+        else:
+            confidence_factors.append(0.5)  # Lower confidence in extreme demand change
+        
+        # AI recommendation confidence
+        ai_confidence = ai_rec.get("confidence", 0.5)
+        confidence_factors.append(ai_confidence)
+        
+        # Overall confidence is the average of all factors
+        overall_confidence = sum(confidence_factors) / len(confidence_factors)
+        
+        return round(overall_confidence, 2)
+    
     async def update_service_price(self, new_pricing: Dict[str, Any]) -> bool:
         """Update the service price in the database"""
         try:
@@ -332,70 +391,125 @@ class DynamicComprehensivePricing:
             logger.error(f"Price retrieval error: {e}")
             return await self.calculate_comprehensive_reading_price()
 
-# Pricing automation functions
-async def auto_update_comprehensive_pricing():
-    """Automatically update pricing based on current conditions"""
+# Pricing recommendation functions (NO AUTO-UPDATE)
+async def generate_pricing_recommendations():
+    """Generate pricing recommendations for admin review (NO AUTO-UPDATE)"""
     pricing_engine = DynamicComprehensivePricing()
     
-    # Calculate new pricing
-    new_pricing = await pricing_engine.calculate_comprehensive_reading_price()
+    # Calculate recommended pricing
+    pricing_recommendation = await pricing_engine.calculate_comprehensive_reading_price()
     
     # Get current pricing
     current_pricing = await pricing_engine.get_current_price_info()
     
-    # Check if significant change is needed (more than 10% difference)
+    # Analyze the recommendation
     current_price = current_pricing.get("current_price", 12)
-    new_price = new_pricing["current_price"]
+    recommended_price = pricing_recommendation["recommended_price"]
     
-    price_change_percentage = abs(new_price - current_price) / current_price
+    price_change_percentage = abs(recommended_price - current_price) / current_price
     
-    if price_change_percentage > 0.1:  # 10% change threshold
+    # Create recommendation report
+    recommendation_report = {
+        "current_price": current_price,
+        "recommended_price": recommended_price,
+        "price_change_percentage": price_change_percentage,
+        "price_change_credits": recommended_price - current_price,
+        "recommendation_urgency": "high" if price_change_percentage > 0.2 else "medium" if price_change_percentage > 0.1 else "low",
+        "cost_breakdown": pricing_recommendation["cost_breakdown"],
+        "demand_analysis": {
+            "demand_factor": pricing_recommendation["demand_factor"],
+            "demand_trend": "high" if pricing_recommendation["demand_factor"] > 1.1 else "low" if pricing_recommendation["demand_factor"] < 0.9 else "stable"
+        },
+        "ai_recommendation": pricing_recommendation["ai_recommendation"],
+        "confidence_level": pricing_recommendation["confidence_level"],
+        "pricing_rationale": pricing_recommendation["pricing_rationale"],
+        "requires_admin_approval": True,
+        "generated_at": datetime.now().isoformat()
+    }
+    
+    logger.info(f"Generated pricing recommendation: {current_price} -> {recommended_price} credits (Admin approval required)")
+    return recommendation_report
+
+async def apply_admin_approved_pricing(approved_price: float, admin_notes: str = "") -> Dict[str, Any]:
+    """Apply admin-approved pricing change"""
+    pricing_engine = DynamicComprehensivePricing()
+    
+    try:
+        # Get current pricing for comparison
+        current_pricing = await pricing_engine.get_current_price_info()
+        current_price = current_pricing.get("current_price", 12)
+        
+        # Create pricing update data
+        approved_pricing = {
+            "current_price": approved_price,
+            "pricing_rationale": f"Admin approved: {admin_notes}",
+            "last_updated": datetime.now().isoformat(),
+            "approval_timestamp": datetime.now().isoformat(),
+            "approved_by": "admin"
+        }
+        
         # Update the price
-        success = await pricing_engine.update_service_price(new_pricing)
+        success = await pricing_engine.update_service_price(approved_pricing)
         
         if success:
-            logger.info(f"Auto-updated comprehensive reading price from {current_price} to {new_price} credits")
-            return new_pricing
+            logger.info(f"Admin approved price change: {current_price} -> {approved_price} credits")
+            return {
+                "success": True,
+                "message": "Price updated successfully",
+                "old_price": current_price,
+                "new_price": approved_price,
+                "updated_at": datetime.now().isoformat()
+            }
         else:
-            logger.error("Failed to auto-update pricing")
-            return current_pricing
-    else:
-        logger.info(f"Price stable at {current_price} credits - no update needed")
-        return current_pricing
+            logger.error("Failed to apply admin approved pricing")
+            return {
+                "success": False,
+                "message": "Failed to update price in database"
+            }
+            
+    except Exception as e:
+        logger.error(f"Admin pricing application error: {e}")
+        return {
+            "success": False,
+            "message": f"Error applying pricing: {str(e)}"
+        }
 
 async def get_pricing_dashboard_data() -> Dict[str, Any]:
     """Get comprehensive pricing data for admin dashboard"""
     pricing_engine = DynamicComprehensivePricing()
     
     current_pricing = await pricing_engine.get_current_price_info()
-    new_calculation = await pricing_engine.calculate_comprehensive_reading_price()
+    pricing_recommendation = await generate_pricing_recommendations()
     
     return {
         "current_pricing": current_pricing,
-        "recommended_pricing": new_calculation,
-        "price_change_needed": abs(current_pricing.get("current_price", 12) - new_calculation["current_price"]) > 1,
+        "pricing_recommendation": pricing_recommendation,
+        "price_change_needed": pricing_recommendation["recommendation_urgency"] in ["high", "medium"],
         "market_conditions": {
-            "demand_factor": new_calculation["demand_factor"],
-            "cost_trends": new_calculation["cost_breakdown"],
-            "ai_confidence": new_calculation["ai_recommendation"]["confidence"]
+            "demand_factor": pricing_recommendation["demand_analysis"]["demand_factor"],
+            "demand_trend": pricing_recommendation["demand_analysis"]["demand_trend"],
+            "cost_trends": pricing_recommendation["cost_breakdown"],
+            "ai_confidence": pricing_recommendation["ai_recommendation"]["confidence"]
         }
     }
 
 # Integration with existing pricing system
 async def integrate_with_ai_pricing_recommendations():
-    """Integrate with existing AI pricing recommendations system"""
+    """Generate pricing recommendations for admin review"""
     try:
-        # This would be called by the existing AI pricing system
-        # when it generates new recommendations
-        
-        pricing_engine = DynamicComprehensivePricing()
+        # Generate pricing recommendations (NO AUTO-UPDATE)
+        pricing_recommendation = await generate_pricing_recommendations()
         dashboard_data = await get_pricing_dashboard_data()
         
-        # Check if auto-update should be triggered
-        if dashboard_data["price_change_needed"]:
-            await auto_update_comprehensive_pricing()
+        # Log recommendation for admin review
+        if pricing_recommendation["recommendation_urgency"] in ["high", "medium"]:
+            logger.info(f"ADMIN REVIEW NEEDED: Pricing recommendation generated - {pricing_recommendation['pricing_rationale']}")
         
-        return dashboard_data
+        return {
+            "pricing_recommendation": pricing_recommendation,
+            "dashboard_data": dashboard_data,
+            "requires_admin_approval": True
+        }
         
     except Exception as e:
         logger.error(f"AI pricing integration error: {e}")
@@ -403,23 +517,34 @@ async def integrate_with_ai_pricing_recommendations():
 
 if __name__ == "__main__":
     async def test_dynamic_pricing():
-        """Test the dynamic pricing system"""
-        print("🧪 Testing Dynamic Comprehensive Pricing...")
+        """Test the dynamic pricing recommendation system"""
+        print("🧪 Testing Dynamic Comprehensive Pricing (Admin Approval Required)...")
         
         pricing_engine = DynamicComprehensivePricing()
         
         # Test price calculation
         pricing = await pricing_engine.calculate_comprehensive_reading_price()
-        print(f"✅ Current recommended price: {pricing['current_price']} credits")
+        print(f"✅ Recommended price: {pricing['recommended_price']} credits")
         print(f"📊 Demand factor: {pricing['demand_factor']:.2f}")
         print(f"🤖 AI recommendation: {pricing['ai_recommendation']['recommended_price']} credits")
-        print(f"💰 Cost breakdown: {pricing['cost_breakdown']['total_operational_cost']:.1f} credits")
+        print(f"💰 Total cost breakdown: {pricing['cost_breakdown']['total_operational_cost']:.1f} credits")
+        print(f"   - OpenAI API: {pricing['cost_breakdown']['openai_api_cost']:.1f} credits")
+        print(f"   - ElevenLabs Voice: {pricing['cost_breakdown']['elevenlabs_voice_cost']:.1f} credits")
+        print(f"   - D-ID Video: {pricing['cost_breakdown']['did_video_generation_cost']:.1f} credits")
         print(f"📝 Reasoning: {pricing['pricing_rationale']}")
+        print(f"🔒 Requires admin approval: {pricing['requires_admin_approval']}")
+        print(f"🎯 Confidence level: {pricing['confidence_level']:.2f}")
+        
+        # Test recommendation generation
+        recommendation = await generate_pricing_recommendations()
+        print(f"\n📋 Recommendation urgency: {recommendation['recommendation_urgency']}")
+        print(f"💡 Price change: {recommendation['price_change_credits']:+.1f} credits")
         
         # Test dashboard data
         dashboard = await get_pricing_dashboard_data()
         print(f"\n📈 Dashboard ready: {len(dashboard)} data points")
         
-        print("\n🎉 Dynamic pricing system is working!")
+        print("\n🎉 Dynamic pricing recommendation system is working!")
+        print("👨‍💼 Admin approval required for all price changes")
     
     asyncio.run(test_dynamic_pricing())

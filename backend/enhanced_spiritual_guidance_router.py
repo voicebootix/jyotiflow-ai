@@ -14,7 +14,11 @@ import sqlite3
 
 # Try to import dynamic pricing system
 try:
-    from .dynamic_comprehensive_pricing import DynamicComprehensivePricing, auto_update_comprehensive_pricing
+    from .dynamic_comprehensive_pricing import (
+        DynamicComprehensivePricing, 
+        generate_pricing_recommendations,
+        apply_admin_approved_pricing
+    )
     DYNAMIC_PRICING_AVAILABLE = True
 except ImportError:
     DYNAMIC_PRICING_AVAILABLE = False
@@ -541,8 +545,8 @@ async def get_comprehensive_reading(
             db
         )
         
-        # Schedule automatic price update in background
-        background_tasks.add_task(auto_update_comprehensive_pricing)
+        # Schedule pricing recommendation generation in background
+        background_tasks.add_task(generate_pricing_recommendations)
         
         return ComprehensiveReadingResponse(
             session_id=session_id,
@@ -756,30 +760,52 @@ async def get_comprehensive_pricing():
         logger.error(f"Pricing info error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@enhanced_router.post("/pricing/comprehensive/update")
-async def update_comprehensive_pricing():
-    """Manually trigger comprehensive reading price update"""
+@enhanced_router.post("/pricing/comprehensive/recommend")
+async def generate_comprehensive_pricing_recommendation():
+    """Generate pricing recommendation for comprehensive reading"""
     try:
         if not DYNAMIC_PRICING_AVAILABLE:
             return {
                 "success": False,
                 "message": "Dynamic pricing system not available",
-                "new_price": 12,
-                "pricing_rationale": "Fixed pricing mode",
-                "updated_at": datetime.now().isoformat()
+                "recommendation": {
+                    "current_price": 12,
+                    "recommended_price": 12,
+                    "requires_admin_approval": True
+                }
             }
         
-        updated_pricing = await auto_update_comprehensive_pricing()
+        pricing_recommendation = await generate_pricing_recommendations()
         
         return {
             "success": True,
-            "message": "Pricing updated successfully",
-            "new_price": updated_pricing["current_price"],
-            "pricing_rationale": updated_pricing["pricing_rationale"],
-            "updated_at": datetime.now().isoformat()
+            "message": "Pricing recommendation generated successfully",
+            "recommendation": pricing_recommendation,
+            "requires_admin_approval": True,
+            "generated_at": datetime.now().isoformat()
         }
     except Exception as e:
-        logger.error(f"Pricing update error: {e}")
+        logger.error(f"Pricing recommendation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@enhanced_router.post("/pricing/comprehensive/apply")
+async def apply_comprehensive_pricing(
+    approved_price: float,
+    admin_notes: str = ""
+):
+    """Apply admin-approved comprehensive reading price"""
+    try:
+        if not DYNAMIC_PRICING_AVAILABLE:
+            return {
+                "success": False,
+                "message": "Dynamic pricing system not available"
+            }
+        
+        result = await apply_admin_approved_pricing(approved_price, admin_notes)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Pricing application error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @enhanced_router.get("/pricing/dashboard")

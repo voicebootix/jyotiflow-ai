@@ -12,7 +12,8 @@ from typing import Dict, Any
 try:
     from .dynamic_comprehensive_pricing import (
         DynamicComprehensivePricing,
-        auto_update_comprehensive_pricing,
+        generate_pricing_recommendations,
+        apply_admin_approved_pricing,
         get_pricing_dashboard_data,
         integrate_with_ai_pricing_recommendations
     )
@@ -131,8 +132,8 @@ class DynamicPricingManager:
                     "message": "Dynamic pricing system not active"
                 }
             
-            # Trigger automatic pricing update
-            updated_pricing = await auto_update_comprehensive_pricing()
+            # Generate pricing recommendations (NO AUTO-UPDATE)
+            pricing_recommendation = await generate_pricing_recommendations()
             
             # Integrate with AI recommendations
             ai_integration_result = await integrate_with_ai_pricing_recommendations()
@@ -141,9 +142,10 @@ class DynamicPricingManager:
             
             return {
                 "success": True,
-                "message": "Pricing maintenance completed",
-                "updated_pricing": updated_pricing,
+                "message": "Pricing maintenance completed - Admin approval required for price changes",
+                "pricing_recommendation": pricing_recommendation,
                 "ai_integration": ai_integration_result,
+                "requires_admin_approval": True,
                 "maintenance_completed_at": datetime.now().isoformat()
             }
             

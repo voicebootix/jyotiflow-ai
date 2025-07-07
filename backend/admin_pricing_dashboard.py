@@ -16,7 +16,8 @@ import sqlite3
 try:
     from .dynamic_comprehensive_pricing import (
         DynamicComprehensivePricing, 
-        auto_update_comprehensive_pricing,
+        generate_pricing_recommendations,
+        apply_admin_approved_pricing,
         get_pricing_dashboard_data
     )
     DYNAMIC_PRICING_AVAILABLE = True
@@ -502,9 +503,9 @@ async def get_pricing_alerts():
     """Get pricing alerts for admin attention"""
     return await pricing_dashboard.get_pricing_alerts()
 
-@admin_pricing_router.post("/trigger-update")
-async def trigger_pricing_update():
-    """Manually trigger pricing update"""
+@admin_pricing_router.post("/trigger-recommendation")
+async def trigger_pricing_recommendation():
+    """Generate pricing recommendation for admin review"""
     try:
         if not DYNAMIC_PRICING_AVAILABLE:
             return {
@@ -512,15 +513,36 @@ async def trigger_pricing_update():
                 "message": "Dynamic pricing system not available"
             }
         
-        updated_pricing = await auto_update_comprehensive_pricing()
+        pricing_recommendation = await generate_pricing_recommendations()
         
         return {
             "success": True,
-            "message": "Pricing update triggered successfully",
-            "new_pricing": updated_pricing
+            "message": "Pricing recommendation generated successfully",
+            "recommendation": pricing_recommendation,
+            "requires_admin_approval": True
         }
     except Exception as e:
-        logger.error(f"Pricing update trigger error: {e}")
+        logger.error(f"Pricing recommendation error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@admin_pricing_router.post("/apply-pricing")
+async def apply_admin_approved_pricing_endpoint(
+    approved_price: float,
+    admin_notes: str = ""
+):
+    """Apply admin-approved pricing change"""
+    try:
+        if not DYNAMIC_PRICING_AVAILABLE:
+            return {
+                "success": False,
+                "message": "Dynamic pricing system not available"
+            }
+        
+        result = await apply_admin_approved_pricing(approved_price, admin_notes)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Admin pricing application error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @admin_pricing_router.get("/health")
