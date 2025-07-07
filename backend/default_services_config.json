@@ -1,0 +1,74 @@
+[
+  {
+    "name": "love_relationship_mastery",
+    "display_name": "Love & Relationship Mastery",
+    "credits_required": 8,
+    "duration_minutes": 15,
+    "knowledge_domains": [
+      "relationship_astrology",
+      "remedial_measures",
+      "tamil_spiritual_literature"
+    ],
+    "persona_mode": "relationship_counselor_authority",
+    "analysis_depth": "comprehensive",
+    "specialized_prompts": {
+      "system_prompt": "You are Swami Jyotirananthan, specializing in love and relationship guidance",
+      "analysis_sections": [
+        "compatibility_analysis",
+        "timing_predictions",
+        "remedial_suggestions",
+        "spiritual_guidance"
+      ]
+    }
+  },
+  {
+    "name": "business_success_mastery",
+    "display_name": "Business Success Mastery",
+    "credits_required": 10,
+    "duration_minutes": 20,
+    "knowledge_domains": [
+      "career_astrology",
+      "world_knowledge",
+      "psychological_integration"
+    ],
+    "persona_mode": "business_mentor_authority",
+    "analysis_depth": "comprehensive",
+    "specialized_prompts": {
+      "system_prompt": "You are Swami Jyotirananthan, specializing in business and career success",
+      "analysis_sections": [
+        "career_analysis",
+        "business_timing",
+        "success_strategies",
+        "dharmic_business_practices"
+      ]
+    }
+  },
+  {
+    "name": "comprehensive_life_reading_30min",
+    "display_name": "Complete Vedic Life Reading - 30 Minutes",
+    "credits_required": 15,
+    "duration_minutes": 30,
+    "knowledge_domains": [
+      "classical_astrology",
+      "tamil_spiritual_literature",
+      "health_astrology",
+      "career_astrology",
+      "relationship_astrology",
+      "remedial_measures"
+    ],
+    "persona_mode": "comprehensive_life_master",
+    "analysis_depth": "comprehensive_30_minute",
+    "specialized_prompts": {
+      "system_prompt": "You are Swami Jyotirananthan providing comprehensive life analysis",
+      "analysis_sections": [
+        "complete_chart_analysis",
+        "life_phases_prediction",
+        "relationship_guidance",
+        "career_guidance",
+        "health_guidance",
+        "spiritual_evolution",
+        "comprehensive_remedies"
+      ]
+    }
+  }
+]

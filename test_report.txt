@@ -1,0 +1,44 @@
+
+🧪 JyotiFlow Enhanced System Test Report
+==========================================
+
+Total Tests: 8
+Passed: 4
+Failed: 4
+Pass Rate: 50.0%
+
+Test Details:
+
+❌ FAILED: Database Schema Validation
+  Details: Missing tables: ['rag_knowledge_base', 'swami_persona_responses', 'knowledge_effectiveness_tracking', 'service_configuration_cache']
+  Time: 2025-07-07T06:23:10.594760
+
+✅ PASSED: Knowledge Base Seeding
+  Details: Knowledge seeder initialized successfully
+  Time: 2025-07-07T06:23:10.599056
+
+❌ FAILED: RAG System Functionality
+  Details: RAG test failed: name 'AsyncOpenAI' is not defined
+  Time: 2025-07-07T06:23:10.614250
+
+✅ PASSED: Service Configuration
+  Details: Service configuration structure valid
+  Time: 2025-07-07T06:23:10.614355
+
+❌ FAILED: Persona Engine
+  Details: Persona engine test failed: name 'AsyncOpenAI' is not defined
+  Time: 2025-07-07T06:23:10.616436
+
+❌ FAILED: API Endpoints
+  Details: API endpoint test failed: No module named 'fastapi'
+  Time: 2025-07-07T06:23:10.619606
+
+✅ PASSED: Full User Flow
+  Details: User flow request structure valid
+  Time: 2025-07-07T06:23:10.619715
+
+✅ PASSED: Edge Cases
+  Details: Edge cases defined for testing
+  Time: 2025-07-07T06:23:10.619791
+
+Overall Status: ⚠️ NEEDS ATTENTION
