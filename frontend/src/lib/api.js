@@ -197,6 +197,10 @@ const spiritualAPI = {
     return this.post('/api/livechat/initiate', sessionDetails);
   },
 
+  async endLiveChat(sessionId) {
+    return this.request(`/api/livechat/end/${sessionId}`, { method: 'DELETE' });
+  },
+
   async startSession(sessionData) {
     return this.post('/api/sessions/start', sessionData);
   },

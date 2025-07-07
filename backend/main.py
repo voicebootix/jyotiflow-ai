@@ -18,6 +18,35 @@ except ImportError:
     ENHANCED_ROUTER_AVAILABLE = False
     print("⚠️ Enhanced spiritual guidance router not available")
 
+# Import additional routers
+try:
+    from routers.universal_pricing_router import router as universal_pricing_router
+    UNIVERSAL_PRICING_AVAILABLE = True
+except ImportError:
+    UNIVERSAL_PRICING_AVAILABLE = False
+    print("⚠️ Universal pricing router not available")
+
+try:
+    from routers.avatar_generation_router import router as avatar_generation_router
+    AVATAR_GENERATION_AVAILABLE = True
+except ImportError:
+    AVATAR_GENERATION_AVAILABLE = False
+    print("⚠️ Avatar generation router not available")
+
+try:
+    from routers.social_media_marketing_router import router as social_media_router
+    SOCIAL_MEDIA_AVAILABLE = True
+except ImportError:
+    SOCIAL_MEDIA_AVAILABLE = False
+    print("⚠️ Social media marketing router not available")
+
+try:
+    from routers.livechat import router as livechat_router
+    LIVECHAT_AVAILABLE = True
+except ImportError:
+    LIVECHAT_AVAILABLE = False
+    print("⚠️ Live chat router not available")
+
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
@@ -154,6 +183,23 @@ app.include_router(admin_settings.router)
 if ENHANCED_ROUTER_AVAILABLE:
     app.include_router(enhanced_spiritual_router)
     print("✅ Enhanced spiritual guidance router registered")
+
+# Additional enhanced routers
+if UNIVERSAL_PRICING_AVAILABLE:
+    app.include_router(universal_pricing_router)
+    print("✅ Universal pricing router registered")
+
+if AVATAR_GENERATION_AVAILABLE:
+    app.include_router(avatar_generation_router)
+    print("✅ Avatar generation router registered")
+
+if SOCIAL_MEDIA_AVAILABLE:
+    app.include_router(social_media_router)
+    print("✅ Social media marketing router registered")
+
+if LIVECHAT_AVAILABLE:
+    app.include_router(livechat_router)
+    print("✅ Live chat router registered")
 
 if __name__ == "__main__":
     import uvicorn
