@@ -476,11 +476,18 @@ class KnowledgeSeeder:
 async def run_knowledge_seeding():
     """Run the complete knowledge seeding process"""
     try:
-        # Import database configuration
-        from database import get_database_pool
+        # Import database configuration from existing JyotiFlow setup
+        import db
         
-        # Get database pool
-        db_pool = await get_database_pool()
+        # Get database pool from existing setup
+        if db.db_pool is None:
+            # Initialize database pool if not already done
+            import asyncpg
+            DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
+            db_pool = await asyncpg.create_pool(DATABASE_URL)
+            db.set_db_pool(db_pool)
+        else:
+            db_pool = db.db_pool
         
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")

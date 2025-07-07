@@ -346,22 +346,30 @@ class RAGKnowledgeEngine:
         try:
             async with self.db_pool.acquire() as conn:
                 # Try cache first
-                cache_row = await conn.fetchrow(
-                    "SELECT configuration FROM service_configuration_cache WHERE service_name = $1 AND expires_at > NOW()",
-                    service_type
-                )
-                
-                if cache_row:
-                    return cache_row["configuration"]
+                try:
+                    cache_row = await conn.fetchrow(
+                        "SELECT configuration FROM service_configuration_cache WHERE service_name = $1 AND expires_at > NOW()",
+                        service_type
+                    )
+                    
+                    if cache_row:
+                        return cache_row["configuration"]
+                except Exception:
+                    # Cache table might not exist yet, continue to main table
+                    pass
                 
                 # Get from main table
-                service_row = await conn.fetchrow(
-                    "SELECT knowledge_configuration FROM service_types WHERE name = $1",
-                    service_type
-                )
-                
-                if service_row:
-                    return service_row["knowledge_configuration"]
+                try:
+                    service_row = await conn.fetchrow(
+                        "SELECT knowledge_configuration FROM service_types WHERE name = $1",
+                        service_type
+                    )
+                    
+                    if service_row:
+                        return service_row.get("knowledge_configuration")
+                except Exception:
+                    # service_types table might not be enhanced yet
+                    pass
                 
                 return None
                 

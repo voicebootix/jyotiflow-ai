@@ -10,6 +10,14 @@ from routers import auth, user, spiritual, sessions, followup, donations, credit
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
 import db
 
+# Import enhanced spiritual guidance router
+try:
+    from enhanced_spiritual_guidance_router import router as enhanced_spiritual_router
+    ENHANCED_ROUTER_AVAILABLE = True
+except ImportError:
+    ENHANCED_ROUTER_AVAILABLE = False
+    print("⚠️ Enhanced spiritual guidance router not available")
+
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
@@ -51,6 +59,18 @@ async def startup_event():
             await conn.fetchval("SELECT 1")
         print("✅ Database connection test successful")
         
+        # Initialize enhanced system if available
+        if ENHANCED_ROUTER_AVAILABLE:
+            try:
+                from enhanced_startup_integration import initialize_enhanced_jyotiflow
+                success = await initialize_enhanced_jyotiflow()
+                if success:
+                    print("✅ Enhanced JyotiFlow system initialized successfully")
+                else:
+                    print("⚠️ Enhanced system initialization had issues but will continue in fallback mode")
+            except Exception as e:
+                print(f"⚠️ Enhanced system initialization failed: {e}")
+        
     except Exception as e:
         print(f"❌ Database initialization failed: {e}")
         raise
@@ -88,10 +108,20 @@ async def health_check():
         async with db_pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         
+        # Get enhanced system status if available
+        enhanced_status = {}
+        if ENHANCED_ROUTER_AVAILABLE:
+            try:
+                from enhanced_startup_integration import get_enhancement_status
+                enhanced_status = get_enhancement_status()
+            except Exception:
+                enhanced_status = {"enhanced_system_active": False}
+        
         return {
             "status": "healthy",
             "database": "connected",
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "enhanced_features": enhanced_status
         }
     except Exception as e:
         return JSONResponse(
@@ -119,6 +149,11 @@ app.include_router(admin_credits.router)
 app.include_router(admin_analytics.router)
 app.include_router(admin_content.router)
 app.include_router(admin_settings.router)
+
+# Enhanced spiritual guidance router
+if ENHANCED_ROUTER_AVAILABLE:
+    app.include_router(enhanced_spiritual_router)
+    print("✅ Enhanced spiritual guidance router registered")
 
 if __name__ == "__main__":
     import uvicorn

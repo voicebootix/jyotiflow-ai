@@ -35,7 +35,7 @@ except ImportError:
 
 # Database imports
 try:
-    from database import get_database_pool
+    import db
     DATABASE_AVAILABLE = True
 except ImportError:
     DATABASE_AVAILABLE = False
@@ -89,12 +89,11 @@ class EnhancedSpiritualGuidanceEngine:
     async def initialize(self):
         """Initialize the enhanced guidance engine"""
         try:
-            if RAG_AVAILABLE and DATABASE_AVAILABLE:
-                db_pool = await get_database_pool()
+            if RAG_AVAILABLE and DATABASE_AVAILABLE and db.db_pool:
                 openai_api_key = os.getenv("OPENAI_API_KEY", "fallback_key")
                 
                 # Initialize RAG system
-                await initialize_rag_system(db_pool, openai_api_key)
+                await initialize_rag_system(db.db_pool, openai_api_key)
                 self.rag_initialized = True
                 logger.info("Enhanced RAG system initialized successfully")
             else:
@@ -239,13 +238,11 @@ Swami Jyotirananthan
     async def configure_service(self, config_request: ServiceConfigurationRequest) -> Dict[str, Any]:
         """Configure service dynamically through admin interface"""
         try:
-            if not DATABASE_AVAILABLE:
+            if not DATABASE_AVAILABLE or not db.db_pool:
                 raise HTTPException(status_code=500, detail="Database not available")
             
-            db_pool = await get_database_pool()
-            
             # Update service configuration
-            async with db_pool.acquire() as conn:
+            async with db.db_pool.acquire() as conn:
                 await conn.execute("""
                     UPDATE service_types 
                     SET 
@@ -284,12 +281,10 @@ Swami Jyotirananthan
     async def get_service_insights(self, service_name: str) -> Dict[str, Any]:
         """Get insights about service performance and knowledge effectiveness"""
         try:
-            if not DATABASE_AVAILABLE:
+            if not DATABASE_AVAILABLE or not db.db_pool:
                 return {"error": "Database not available"}
             
-            db_pool = await get_database_pool()
-            
-            async with db_pool.acquire() as conn:
+            async with db.db_pool.acquire() as conn:
                 # Get service configuration
                 service_config = await conn.fetchrow(
                     "SELECT * FROM service_types WHERE name = $1", service_name
