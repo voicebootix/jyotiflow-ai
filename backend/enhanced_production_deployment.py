@@ -961,6 +961,30 @@ if 'enhanced_app' in globals():
     except Exception as e:
         logger.error(f"❌ Social media marketing router mounting failed: {e}")
     
+    # Include universal pricing router
+    try:
+        from routers.universal_pricing_router import router as universal_pricing_router
+        enhanced_app.include_router(universal_pricing_router)
+        logger.info("✅ Universal pricing router mounted successfully")
+    except Exception as e:
+        logger.error(f"❌ Universal pricing router mounting failed: {e}")
+    
+    # Include admin products router
+    try:
+        from routers.admin_products import router as admin_products_router
+        enhanced_app.include_router(admin_products_router)
+        logger.info("✅ Admin products router mounted successfully")
+    except Exception as e:
+        logger.error(f"❌ Admin products router mounting failed: {e}")
+    
+    # Include enhanced spiritual guidance router
+    try:
+        from enhanced_spiritual_guidance_router import enhanced_router as spiritual_enhanced_router
+        enhanced_app.include_router(spiritual_enhanced_router)
+        logger.info("✅ Enhanced spiritual guidance router mounted successfully")
+    except Exception as e:
+        logger.error(f"❌ Enhanced spiritual guidance router mounting failed: {e}")
+    
     # Mount core foundation routes if available
     if CORE_APP_AVAILABLE:
         try:
