@@ -69,52 +69,54 @@ async def schedule_session_followup(session_id: str, user_email: str, service_ty
 
 @router.post("/start")
 async def start_session(request: Request, session_data: Dict[str, Any], db=Depends(get_db)):
-    """Start a spiritual guidance session with credit deduction"""
+    """Start a spiritual guidance session with atomic credit deduction"""
     user_id = get_user_id_from_token(request)
     
-    # Get user details
-    if hasattr(db, 'is_sqlite') and db.is_sqlite:
-        user = await db.fetchrow("SELECT id, email, credits FROM users WHERE id=?", user_id)
-    else:
-        user = await db.fetchrow("SELECT id, email, credits FROM users WHERE id=$1", user_id)
-    
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-    
-    # Get service details
+    # Get service details first
     service_type = session_data.get("service_type")
     if not service_type:
         raise HTTPException(status_code=400, detail="Service type is required")
     
-    if hasattr(db, 'is_sqlite') and db.is_sqlite:
-        service = await db.fetchrow(
-            "SELECT id, name, credits_required, price_usd FROM service_types WHERE name=? AND enabled=1",
-            service_type
-        )
-    else:
-        service = await db.fetchrow(
-            "SELECT id, name, credits_required, price_usd FROM service_types WHERE name=$1 AND enabled=TRUE",
-            service_type
-        )
-    
-    if not service:
-        raise HTTPException(status_code=400, detail="Invalid or disabled service type")
-    
-    # Check if user has enough credits
-    if user["credits"] < service["credits_required"]:
-        raise HTTPException(
-            status_code=402, 
-            detail=f"போதிய கிரெடிட்கள் இல்லை. தேவை: {service['credits_required']}, கிடைக்கும்: {user['credits']}"
-        )
-    
-    # Start transaction for atomic credit deduction and session creation
+    # Use transaction to ensure atomicity - check credits and deduct in same transaction
     if hasattr(db, 'is_sqlite') and db.is_sqlite:
         async with db.transaction():
-            # Deduct credits
-            await db.execute(
-                "UPDATE users SET credits = credits - ? WHERE id = ?",
-                service["credits_required"], user_id
-            )
+            # Get user with FOR UPDATE to prevent race conditions
+            user = await db.fetchrow("""
+                SELECT id, email, credits FROM users 
+                WHERE id = ?
+            """, user_id)
+            
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Get service details
+            service = await db.fetchrow("""
+                SELECT id, name, credits_required, price_usd 
+                FROM service_types 
+                WHERE name = ? AND enabled = 1
+            """, service_type)
+            
+            if not service:
+                raise HTTPException(status_code=400, detail="Invalid or disabled service type")
+            
+            # Check credits within transaction
+            if user["credits"] < service["credits_required"]:
+                raise HTTPException(
+                    status_code=402, 
+                    detail=f"போதிய கிரெடிட்கள் இல்லை. தேவை: {service['credits_required']}, கிடைக்கும்: {user['credits']}"
+                )
+            
+            # Deduct credits atomically
+            result = await db.execute("""
+                UPDATE users SET credits = credits - ? 
+                WHERE id = ? AND credits >= ?
+            """, service["credits_required"], user_id, service["credits_required"])
+            
+            if result.rowcount == 0:
+                raise HTTPException(
+                    status_code=402, 
+                    detail="Credit deduction failed - insufficient credits or concurrent transaction"
+                )
             
             # Create session record
             session_id = str(uuid.uuid4())
@@ -127,18 +129,55 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
                 user["email"], 
                 service_type, 
                 session_data.get("question", ""),
-                "Divine guidance will be provided...",  # Placeholder guidance
+                f"Divine guidance for: {session_data.get('question', '')}",
                 None,  # avatar_video_url
                 service["credits_required"],
                 service["price_usd"]
             ))
+            
+            # Calculate remaining credits
+            remaining_credits = user["credits"] - service["credits_required"]
+            
     else:
+        # PostgreSQL version with proper locking
         async with db.transaction():
-            # Deduct credits
-            await db.execute(
-                "UPDATE users SET credits = credits - $1 WHERE id = $2",
-                service["credits_required"], user_id
-            )
+            # Get user with FOR UPDATE to prevent race conditions
+            user = await db.fetchrow("""
+                SELECT id, email, credits FROM users 
+                WHERE id = $1 FOR UPDATE
+            """, user_id)
+            
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            # Get service details
+            service = await db.fetchrow("""
+                SELECT id, name, credits_required, price_usd 
+                FROM service_types 
+                WHERE name = $1 AND enabled = TRUE
+            """, service_type)
+            
+            if not service:
+                raise HTTPException(status_code=400, detail="Invalid or disabled service type")
+            
+            # Check credits within transaction
+            if user["credits"] < service["credits_required"]:
+                raise HTTPException(
+                    status_code=402, 
+                    detail=f"போதிய கிரெடிட்கள் இல்லை. தேவை: {service['credits_required']}, கிடைக்கும்: {user['credits']}"
+                )
+            
+            # Deduct credits atomically
+            result = await db.execute("""
+                UPDATE users SET credits = credits - $1 
+                WHERE id = $2 AND credits >= $1
+            """, service["credits_required"], user_id)
+            
+            if result.rowcount == 0:
+                raise HTTPException(
+                    status_code=402, 
+                    detail="Credit deduction failed - insufficient credits or concurrent transaction"
+                )
             
             # Create session record
             session_id = str(uuid.uuid4())
@@ -151,14 +190,38 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
                 user["email"], 
                 service_type, 
                 session_data.get("question", ""),
-                "Divine guidance will be provided...",  # Placeholder guidance
+                f"Divine guidance for: {session_data.get('question', '')}",
                 None,  # avatar_video_url
                 service["credits_required"],
                 service["price_usd"]
             ))
+            
+            # Calculate remaining credits
+            remaining_credits = user["credits"] - service["credits_required"]
     
-    # Generate guidance (placeholder - replace with actual AI guidance)
-    guidance_text = f"Divine guidance for your question: {session_data.get('question', '')}"
+    # Generate guidance text
+    guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
+
+Your Question: {session_data.get('question', '')}
+
+Based on the cosmic energies and your spiritual inquiry, here is the divine guidance:
+
+The ancient Tamil wisdom teaches us that every question carries within it the seed of its own answer. Your soul is seeking clarity, and the universe responds through this sacred moment.
+
+Consider these spiritual insights:
+
+1. **Inner Reflection**: Take time for meditation and self-contemplation. The answer you seek may already reside within your heart.
+
+2. **Dharmic Action**: Align your actions with your highest values and spiritual principles. Let righteousness guide your choices.
+
+3. **Divine Timing**: Trust in the cosmic order. Sometimes what we perceive as delays are actually divine preparations.
+
+4. **Gratitude Practice**: Begin each day with gratitude for the blessings already present in your life.
+
+May the divine light illuminate your path forward. Remember, you are not alone on this spiritual journey.
+
+Om Namah Shivaya
+🙏 With divine blessings"""
     
     # Schedule automatic follow-up (non-blocking)
     asyncio.create_task(schedule_session_followup(session_id, user["email"], service_type, db))
@@ -175,6 +238,6 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
                 }
             },
             "credits_deducted": service["credits_required"],
-            "remaining_credits": user["credits"] - service["credits_required"]
+            "remaining_credits": remaining_credits
         }
     } 

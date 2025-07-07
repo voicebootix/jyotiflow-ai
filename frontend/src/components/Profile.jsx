@@ -131,8 +131,12 @@ const Profile = () => {
       }
 
       // Load services
-      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
-      setServices(Array.isArray(servicesData) ? servicesData : []);
+      const servicesData = await spiritualAPI.request('/api/services/types');
+      if (servicesData && servicesData.success) {
+        setServices(servicesData.data || []);
+      } else {
+        setServices([]);
+      }
       setServicesLoading(false);
 
       // Load credit packages
@@ -162,12 +166,20 @@ const Profile = () => {
       }
 
       // Load services
-      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
-      setServices(Array.isArray(servicesData) ? servicesData : []);
+      const servicesData = await spiritualAPI.request('/api/services/types');
+      if (servicesData && servicesData.success) {
+        setServices(servicesData.data || []);
+      } else {
+        setServices([]);
+      }
 
       // Load credit packages
-      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
-      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
+      const packagesData = await spiritualAPI.request('/api/services/credit-packages');
+      if (packagesData && packagesData.success) {
+        setCreditPackages(packagesData.data || []);
+      } else {
+        setCreditPackages([]);
+      }
 
       setLastRefresh(new Date());
     } catch (error) {
