@@ -33,16 +33,10 @@ async def purchase_credits(request: Request, db=Depends(get_db)):
             raise HTTPException(status_code=400, detail="கிரெடிட் தொகுப்பு தேர்வு தேவை")
         
         # Get credit package details
-        if hasattr(db, 'is_sqlite') and db.is_sqlite:
-            package = await db.fetchrow(
-                "SELECT id, name, credits, price_usd, bonus_credits FROM credit_packages WHERE id = ? AND enabled = 1",
-                package_id
-            )
-        else:
-            package = await db.fetchrow(
-                "SELECT id, name, credits, price_usd, bonus_credits FROM credit_packages WHERE id = $1 AND enabled = TRUE",
-                package_id
-            )
+        package = await db.fetchrow(
+            "SELECT id, name, credits, price_usd, bonus_credits FROM credit_packages WHERE id = $1 AND enabled = TRUE",
+            package_id
+        )
         
         if not package:
             raise HTTPException(status_code=400, detail="தவறான கிரெடிட் தொகுப்பு - தயவுசெய்து மீண்டும் முயற்சிக்கவும்")
@@ -61,32 +55,18 @@ async def purchase_credits(request: Request, db=Depends(get_db)):
         # For now, simulate successful payment
         
         # Add credits to user account with proper transaction
-        if hasattr(db, 'is_sqlite') and db.is_sqlite:
-            async with db.transaction():
-                # Update user credits
-                await db.execute(
-                    "UPDATE users SET credits = credits + ? WHERE id = ?",
-                    total_credits, user_id
-                )
-                
-                # Record the transaction
-                await db.execute("""
-                    INSERT INTO credit_transactions (user_id, package_id, credits_purchased, bonus_credits, total_credits, amount_usd, status, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, 'completed', CURRENT_TIMESTAMP)
-                """, user_id, package_id, base_credits, bonus_credits, total_credits, package["price_usd"])
-        else:
-            async with db.transaction():
-                # Update user credits
-                await db.execute(
-                    "UPDATE users SET credits = credits + $1 WHERE id = $2",
-                    total_credits, user_id
-                )
-                
-                # Record the transaction
-                await db.execute("""
-                    INSERT INTO credit_transactions (user_id, package_id, credits_purchased, bonus_credits, total_credits, amount_usd, status, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'completed', NOW())
-                """, user_id, package_id, base_credits, bonus_credits, total_credits, package["price_usd"])
+        async with db.transaction():
+            # Update user credits
+            await db.execute(
+                "UPDATE users SET credits = credits + $1 WHERE id = $2",
+                total_credits, user_id
+            )
+            
+            # Record the transaction
+            await db.execute("""
+                INSERT INTO credit_transactions (user_id, package_id, credits_purchased, bonus_credits, total_credits, amount_usd, status, created_at)
+                VALUES ($1, $2, $3, $4, $5, $6, 'completed', NOW())
+            """, user_id, package_id, base_credits, bonus_credits, total_credits, package["price_usd"])
         
         return {
             "success": True, 
@@ -108,14 +88,9 @@ async def purchase_credits(request: Request, db=Depends(get_db)):
 async def get_credit_packages(db=Depends(get_db)):
     """Get available credit packages"""
     try:
-        if hasattr(db, 'is_sqlite') and db.is_sqlite:
-            packages = await db.fetch(
-                "SELECT id, name, credits_amount, price_usd, bonus_credits, enabled, created_at, updated_at FROM credit_packages WHERE enabled = 1 ORDER BY credits_amount ASC"
-            )
-        else:
-            packages = await db.fetch(
-                "SELECT id, name, credits_amount, price_usd, bonus_credits, enabled, created_at, updated_at FROM credit_packages WHERE enabled = TRUE ORDER BY credits_amount ASC"
-            )
+        packages = await db.fetch(
+            "SELECT id, name, credits_amount, price_usd, bonus_credits, enabled, created_at, updated_at FROM credit_packages WHERE enabled = TRUE ORDER BY credits_amount ASC"
+        )
         return {"success": True, "packages": packages}
     except Exception as e:
         print(f"Error fetching credit packages: {e}")

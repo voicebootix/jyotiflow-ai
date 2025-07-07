@@ -8,24 +8,14 @@ router = APIRouter(prefix="/api/services", tags=["Services"])
 async def get_service_types(db=Depends(get_db)):
     """Get public service types for customers"""
     try:
-        if hasattr(db, 'is_sqlite') and db.is_sqlite:
-            services = await db.fetch("""
-                SELECT id, name, display_name, description, icon, 
-                       credits_required, price_usd, duration_minutes, 
-                       service_category, is_video, is_audio, enabled
-                FROM service_types 
-                WHERE enabled = 1 
-                ORDER BY credits_required ASC
-            """)
-        else:
-            services = await db.fetch("""
-                SELECT id, name, display_name, description, icon, 
-                       credits_required, price_usd, duration_minutes, 
-                       service_category, is_video, is_audio, enabled
-                FROM service_types 
-                WHERE enabled = TRUE 
-                ORDER BY credits_required ASC
-            """)
+        services = await db.fetch("""
+            SELECT id, name, display_name, description, icon, 
+                   credits_required, price_usd, duration_minutes, 
+                   service_category, is_video, is_audio, enabled
+            FROM service_types 
+            WHERE enabled = TRUE 
+            ORDER BY credits_required ASC
+        """)
         
         return {
             "success": True,
@@ -38,22 +28,13 @@ async def get_service_types(db=Depends(get_db)):
 async def get_platform_stats(db=Depends(get_db)):
     """Get real platform statistics"""
     try:
-        if hasattr(db, 'is_sqlite') and db.is_sqlite:
-            stats = await db.fetchrow("""
-                SELECT 
-                    (SELECT COUNT(*) FROM users) as total_users,
-                    (SELECT COUNT(*) FROM sessions) as total_sessions,
-                    (SELECT COUNT(*) FROM users WHERE created_at > date('now', '-30 days')) as active_users,
-                    (SELECT COUNT(DISTINCT SUBSTR(email, INSTR(email, '@') + 1)) FROM users) as countries_reached
-            """)
-        else:
-            stats = await db.fetchrow("""
-                SELECT 
-                    (SELECT COUNT(*) FROM users) as total_users,
-                    (SELECT COUNT(*) FROM sessions) as total_sessions,
-                    (SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '30 days') as active_users,
-                    (SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM users) as countries_reached
-            """)
+        stats = await db.fetchrow("""
+            SELECT 
+                (SELECT COUNT(*) FROM users) as total_users,
+                (SELECT COUNT(*) FROM sessions) as total_sessions,
+                (SELECT COUNT(*) FROM users WHERE created_at > NOW() - INTERVAL '30 days') as active_users,
+                (SELECT COUNT(DISTINCT SPLIT_PART(email, '@', 2)) FROM users) as countries_reached
+        """)
         
         if stats:
             return {
@@ -93,34 +74,19 @@ async def get_platform_stats(db=Depends(get_db)):
 async def get_credit_packages_public(db=Depends(get_db)):
     """Get available credit packages for customers"""
     try:
-        if hasattr(db, 'is_sqlite') and db.is_sqlite:
-            packages = await db.fetch("""
-                SELECT id, name, 
-                       credits_amount as credits, 
-                       price_usd, 
-                       bonus_credits, 
-                       enabled, 
-                       created_at, 
-                       updated_at,
-                       description
-                FROM credit_packages 
-                WHERE enabled = 1 
-                ORDER BY credits_amount ASC
-            """)
-        else:
-            packages = await db.fetch("""
-                SELECT id, name, 
-                       credits_amount as credits, 
-                       price_usd, 
-                       bonus_credits, 
-                       enabled, 
-                       created_at, 
-                       updated_at,
-                       description
-                FROM credit_packages 
-                WHERE enabled = TRUE 
-                ORDER BY credits_amount ASC
-            """)
+        packages = await db.fetch("""
+            SELECT id, name, 
+                   credits_amount as credits, 
+                   price_usd, 
+                   bonus_credits, 
+                   enabled, 
+                   created_at, 
+                   updated_at,
+                   description
+            FROM credit_packages 
+            WHERE enabled = TRUE 
+            ORDER BY credits_amount ASC
+        """)
         
         return {
             "success": True, 
