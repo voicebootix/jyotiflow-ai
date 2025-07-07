@@ -541,18 +541,33 @@ async def avatar_processing_worker(worker_name: str):
         await asyncio.sleep(1)  # Prevent tight loop
 
 async def process_avatar_task(task: Dict) -> Dict:
-    """তমিল - অবতার কাজ প্রক্রিয়া করুন"""
+    """তমিল - অবতার কাজ প্রক্রিয়া করুন - NOW WITH REAL IMPLEMENTATION"""
     try:
-        # Simulate avatar generation (replace with actual D-ID integration)
-        await asyncio.sleep(45)  # Typical avatar generation time
+        # Import the real avatar engine
+        from spiritual_avatar_generation_engine import avatar_engine
         
-        return {
-            "success": True,
-            "video_url": f"https://cdn.jyotiflow.ai/avatars/{task['session_id']}.mp4",
-            "processing_time": 45
-        }
+        # Generate real avatar video
+        result = await avatar_engine.generate_complete_avatar_video(
+            session_id=task['session_id'],
+            user_email=task['user_email'],
+            guidance_text=task['guidance_text'],
+            service_type=task.get('service_type', 'comprehensive'),
+            avatar_style=task.get('avatar_style', 'traditional'),
+            voice_tone=task.get('voice_tone', 'compassionate'),
+            video_duration=task.get('duration', 300)
+        )
+        
+        return result
+        
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        logger.error(f"Real avatar generation failed: {e}")
+        # Fallback to mock response
+        return {
+            "success": False,
+            "error": str(e),
+            "video_url": None,
+            "processing_time": 0
+        }
 
 # =============================================================================
 # 📊 BACKGROUND MONITORING & OPTIMIZATION
@@ -929,6 +944,14 @@ if 'enhanced_app' in globals():
     # Include routers
     enhanced_app.include_router(enhanced_router)
     enhanced_app.include_router(original_router)
+    
+    # Include avatar generation router
+    try:
+        from routers.avatar_generation_router import avatar_router
+        enhanced_app.include_router(avatar_router)
+        logger.info("✅ Avatar generation router mounted successfully")
+    except Exception as e:
+        logger.error(f"❌ Avatar router mounting failed: {e}")
     
     # Mount core foundation routes if available
     if CORE_APP_AVAILABLE:
