@@ -1,6 +1,6 @@
 /**
  * Enhanced API Integration for JyotiFlow
- * Includes RAG-powered spiritual guidance and real-time birth chart generation
+ * Includes RAG-powered spiritual guidance, real-time birth chart generation, and DYNAMIC PRICING
  */
 
 import spiritualAPI from './api.js';
@@ -28,6 +28,61 @@ const enhancedAPI = {
 
   async configureService(serviceConfig) {
     return this.post('/api/spiritual/enhanced/configure-service', serviceConfig);
+  },
+
+  // DYNAMIC PRICING ENDPOINTS - ADMIN
+  async getPricingOverview() {
+    return this.get('/api/admin/pricing/overview');
+  },
+
+  async getPricingAnalytics() {
+    return this.get('/api/admin/pricing/analytics');
+  },
+
+  async generatePricingRecommendation() {
+    return this.post('/api/admin/pricing/trigger-recommendation');
+  },
+
+  async applyAdminPricing(approvedPrice, adminNotes = '') {
+    return this.post('/api/admin/pricing/apply-pricing', {
+      approved_price: approvedPrice,
+      admin_notes: adminNotes
+    });
+  },
+
+  async setPricingOverride(overrideData) {
+    return this.post('/api/admin/pricing/override', overrideData);
+  },
+
+  async getPricingAlerts() {
+    return this.get('/api/admin/pricing/alerts');
+  },
+
+  async getPricingSystemHealth() {
+    return this.get('/api/admin/pricing/health');
+  },
+
+  // DYNAMIC PRICING ENDPOINTS - PUBLIC
+  async getComprehensivePricing() {
+    return this.get('/api/spiritual/enhanced/pricing/comprehensive');
+  },
+
+  async generateComprehensivePricingRecommendation() {
+    return this.post('/api/spiritual/enhanced/pricing/comprehensive/recommend');
+  },
+
+  async getPricingDashboard() {
+    return this.get('/api/spiritual/enhanced/pricing/dashboard');
+  },
+
+  // ENHANCED COMPREHENSIVE READING WITH DYNAMIC PRICING
+  async requestComprehensiveReadingWithPricing(request) {
+    return this.post('/api/spiritual/enhanced/comprehensive-reading', {
+      birth_date: request.birthDate,
+      birth_time: request.birthTime,
+      birth_location: request.birthLocation,
+      focus_areas: request.focusAreas || ['general']
+    });
   },
 
   // Real-time Birth Chart Generation
@@ -184,7 +239,7 @@ const enhancedAPI = {
     return baseUrl.replace('http', 'ws');
   },
 
-  // 30-Minute Comprehensive Reading
+  // 30-Minute Comprehensive Reading (LEGACY - FIXED PRICING)
   async requestComprehensiveReading(request) {
     return this.post('/api/spiritual/enhanced/guidance', {
       ...request,

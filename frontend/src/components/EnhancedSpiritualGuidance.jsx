@@ -54,6 +54,10 @@ const EnhancedSpiritualGuidance = () => {
   const [selectedPersona, setSelectedPersona] = useState('comprehensive_life_master');
   const [currentSessionId, setCurrentSessionId] = useState(null);
   
+  // Dynamic pricing state
+  const [comprehensivePricing, setComprehensivePricing] = useState(null);
+  const [pricingLoading, setPricingLoading] = useState(false);
+  
   // Initialize enhanced system
   useEffect(() => {
     initializeEnhancedSystem();
@@ -109,8 +113,31 @@ const EnhancedSpiritualGuidance = () => {
         }
       }
       
+      // Load dynamic pricing for comprehensive reading
+      await loadComprehensivePricing();
+      
     } catch (error) {
       console.error('Enhanced data loading error:', error);
+    }
+  };
+
+  const loadComprehensivePricing = async () => {
+    try {
+      setPricingLoading(true);
+      const pricingResponse = await enhancedAPI.getComprehensivePricing();
+      
+      if (pricingResponse && pricingResponse.current_price) {
+        setComprehensivePricing(pricingResponse);
+      }
+    } catch (error) {
+      console.error('Pricing loading error:', error);
+      // Set fallback pricing
+      setComprehensivePricing({
+        current_price: 15,
+        pricing_rationale: "Fixed pricing - dynamic system unavailable"
+      });
+    } finally {
+      setPricingLoading(false);
     }
   };
 
@@ -166,19 +193,12 @@ const EnhancedSpiritualGuidance = () => {
       let guidanceResponse;
       
       if (isComprehensive) {
-        // Use comprehensive reading endpoint
-        guidanceResponse = await enhancedAPI.requestComprehensiveReading({
-          question: formData.question,
-          birth_details: {
-            date: formData.birthDate,
-            time: formData.birthTime,
-            location: formData.birthLocation
-          },
-          preferred_language: formData.preferredLanguage,
-          user_context: {
-            previous_sessions: currentSessionId ? [currentSessionId] : [],
-            spiritual_background: 'seeking_guidance'
-          }
+        // Use dynamic pricing comprehensive reading endpoint
+        guidanceResponse = await enhancedAPI.requestComprehensiveReadingWithPricing({
+          birthDate: formData.birthDate,
+          birthTime: formData.birthTime,
+          birthLocation: formData.birthLocation,
+          focusAreas: formData.question ? ['general', 'specific_question'] : ['general']
         });
       } else {
         // Use enhanced guidance endpoint
@@ -409,7 +429,18 @@ const EnhancedSpiritualGuidance = () => {
                 <p className="text-white opacity-90 text-sm mb-4">
                   Complete life analysis with birth chart, predictions, and personalized remedies
                 </p>
-                <div className="text-2xl font-bold text-yellow-300 mb-2">15 Credits</div>
+                <div className="text-2xl font-bold text-yellow-300 mb-2">
+                  {pricingLoading ? (
+                    <RefreshCw className="w-6 h-6 animate-spin mx-auto" />
+                  ) : (
+                    `${comprehensivePricing?.current_price || 15} Credits`
+                  )}
+                </div>
+                {comprehensivePricing && comprehensivePricing.pricing_rationale && (
+                  <p className="text-yellow-200 text-xs mb-2 opacity-75">
+                    {comprehensivePricing.pricing_rationale.includes('Dynamic') ? 'Smart Pricing ⚡' : 'Fixed Pricing'}
+                  </p>
+                )}
                 <button
                   onClick={() => setSelectedService('comprehensive_life_reading_30min')}
                   className={`w-full py-2 px-4 rounded-lg font-semibold transition-colors ${
@@ -419,6 +450,13 @@ const EnhancedSpiritualGuidance = () => {
                   }`}
                 >
                   Select Service
+                </button>
+                <button
+                  onClick={loadComprehensivePricing}
+                  disabled={pricingLoading}
+                  className="w-full mt-2 py-1 px-2 text-xs text-yellow-200 hover:text-yellow-100 transition-colors"
+                >
+                  {pricingLoading ? 'Updating...' : 'Refresh Price'}
                 </button>
               </div>
             </div>
