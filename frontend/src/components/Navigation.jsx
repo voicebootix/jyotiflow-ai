@@ -98,7 +98,7 @@ const Navigation = () => {
   const navLinks = [
     { to: '/', label: '🏠 Home' },
     { to: '/spiritual-guidance', label: '🕉️ Spiritual Guidance' },
-    { to: '/avatar-generation', label: '🎭 Avatar Generation' },
+    
     { to: '/live-chat', label: '🗨️ Live Chat' },
     { to: '/satsang', label: '🙏 Satsang' },
     { to: '/birth-chart', label: '📊 Birth Chart' },

@@ -59,16 +59,10 @@ async def register(form: RegisterForm, db=Depends(get_db)):
         # Give new users 5 free credits
         free_credits = 5
         
-        if hasattr(db, 'is_sqlite') and db.is_sqlite:
-            await db.execute("""
-                INSERT INTO users (id, email, password_hash, name, full_name, credits, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, str(user_id), form.email, password_hash, form.full_name, form.full_name, free_credits)
-        else:
-            await db.execute("""
-                INSERT INTO users (id, email, password_hash, name, full_name, credits, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6, NOW())
-            """, user_id, form.email, password_hash, form.full_name, form.full_name, free_credits)
+        await db.execute("""
+            INSERT INTO users (id, email, password_hash, name, full_name, credits, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        """, user_id, form.email, password_hash, form.full_name, form.full_name, free_credits)
         
         token = await create_jwt_token(user_id, form.email)
         return {

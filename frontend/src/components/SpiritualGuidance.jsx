@@ -59,13 +59,21 @@ const SpiritualGuidance = () => {
   const loadData = async () => {
     try {
       // Load services
-      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
-      setServices(Array.isArray(servicesData) ? servicesData : []);
+      const servicesData = await spiritualAPI.request('/api/services/types');
+      if (servicesData && servicesData.success) {
+        setServices(servicesData.data || []);
+      } else {
+        setServices([]);
+      }
       setServicesLoading(false);
 
       // Load credit packages
-      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
-      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
+      const packagesData = await spiritualAPI.request('/api/services/credit-packages');
+      if (packagesData && packagesData.success) {
+        setCreditPackages(packagesData.data || []);
+      } else {
+        setCreditPackages([]);
+      }
       setPackagesLoading(false);
 
       // Load donation options
@@ -94,12 +102,20 @@ const SpiritualGuidance = () => {
       setRefreshing(true);
       
       // Load services
-      const servicesData = await spiritualAPI.request('/api/admin/products/service-types');
-      setServices(Array.isArray(servicesData) ? servicesData : []);
+      const servicesData = await spiritualAPI.request('/api/services/types');
+      if (servicesData && servicesData.success) {
+        setServices(servicesData.data || []);
+      } else {
+        setServices([]);
+      }
 
       // Load credit packages
-      const packagesData = await spiritualAPI.request('/api/admin/products/credit-packages');
-      setCreditPackages(Array.isArray(packagesData) ? packagesData : []);
+      const packagesData = await spiritualAPI.request('/api/services/credit-packages');
+      if (packagesData && packagesData.success) {
+        setCreditPackages(packagesData.data || []);
+      } else {
+        setCreditPackages([]);
+      }
 
       // Load donation options
       const donationsData = await spiritualAPI.request('/api/admin/products/donations');
@@ -136,12 +152,6 @@ const SpiritualGuidance = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Check if user has enough credits before starting session
-    if (credits <= 0) {
-      alert('⚠️ போதிய கிரெடிட்கள் இல்லை!\n\nதயவுசெய்து கிரெடிட்கள் வாங்கி மீண்டும் முயற்சிக்கவும்.');
-      return;
-    }
-    
     setIsLoading(true);
     setGuidance(null);
     setAvatarVideo(null);
@@ -167,7 +177,7 @@ const SpiritualGuidance = () => {
 
       if (sessionResult && sessionResult.success) {
         // Update local credits after successful session
-        setCredits(prevCredits => prevCredits - selectedServiceDetails.credits_required);
+        setCredits(sessionResult.data.remaining_credits);
         
         setGuidance({
           guidance: sessionResult.data.guidance,
@@ -182,7 +192,7 @@ const SpiritualGuidance = () => {
         if ((selectedService === 'premium' || selectedService === 'elite') && spiritualAPI.isAuthenticated()) {
           try {
             const avatarResult = await spiritualAPI.generateAvatarVideo(
-              sessionResult.data.guidance_text,
+              sessionResult.data.guidance,
               sessionResult.data.birth_details
             );
             
@@ -194,6 +204,9 @@ const SpiritualGuidance = () => {
             console.log('Avatar generation blessed with patience:', error);
           }
         }
+      } else if (sessionResult && sessionResult.status === 402) {
+        // Handle insufficient credits error
+        alert(`⚠️ ${sessionResult.message || 'போதிய கிரெடிட்கள் இல்லை!'}\n\nதயவுசெய்து கிரெடிட்கள் வாங்கி மீண்டும் முயற்சிக்கவும்.`);
       } else {
         setGuidance({
           guidance: "Divine guidance is temporarily unavailable. Please try again in a few moments.",
