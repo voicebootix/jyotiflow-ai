@@ -14,7 +14,7 @@ import Register from './components/Register';
 import Navigation from './components/Navigation';
 
 // Import new feature components
-import AvatarGeneration from './components/AvatarGeneration';
+
 import FollowUpCenter from './components/FollowUpCenter';
 import BirthChart from './components/BirthChart';
 import RealTimeBirthChart from './components/RealTimeBirthChart';
@@ -59,6 +59,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 
 // Import ErrorBoundary for error handling
 import ErrorBoundary from './components/ui/ErrorBoundary';
+import LanguageProvider from './contexts/LanguageContext';
 
 function App() {
   useEffect(() => {
@@ -83,7 +84,8 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <Router>
+      <LanguageProvider>
+        <Router>
         <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-purple-800">
           {/* Digital Particles Background */}
           <div className="digital-particles">
@@ -135,11 +137,7 @@ function App() {
                   <Profile />
                 </ProtectedRoute>
               } />
-              <Route path="/avatar-generation" element={
-                <ProtectedRoute>
-                  <AvatarGeneration />
-                </ProtectedRoute>
-              } />
+
               <Route path="/follow-up-center" element={
                 <ProtectedRoute>
                   <FollowUpCenter />
@@ -264,6 +262,7 @@ function App() {
           </main>
         </div>
       </Router>
+      </LanguageProvider>
     </ErrorBoundary>
   );
 }
