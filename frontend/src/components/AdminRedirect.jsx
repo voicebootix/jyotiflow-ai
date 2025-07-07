@@ -8,23 +8,24 @@ const AdminRedirect = () => {
 
   useEffect(() => {
     const checkAndRedirect = async () => {
-      // Only redirect if we're on the home page or profile page
-      if (location.pathname === '/' || location.pathname === '/profile') {
-        const isAuthenticated = spiritualAPI.isAuthenticated();
-        
-        if (isAuthenticated) {
-          // Check if user is admin
-          const storedUser = localStorage.getItem('jyotiflow_user');
-          if (storedUser) {
-            try {
-              const user = JSON.parse(storedUser);
-              if (user.role === 'admin') {
-                console.log('👑 Admin user detected, redirecting to admin dashboard');
+      const isAuthenticated = spiritualAPI.isAuthenticated();
+      
+      if (isAuthenticated) {
+        // Check if user is admin
+        const storedUser = localStorage.getItem('jyotiflow_user');
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            console.log('🔍 AdminRedirect - User role:', user.role);
+            if (user.role === 'admin') {
+              // Only redirect if not already on an admin page
+              if (!location.pathname.startsWith('/admin') && location.pathname !== '/debug-admin') {
+                console.log('👑 Admin user detected, redirecting to admin dashboard from:', location.pathname);
                 navigate('/admin', { replace: true });
               }
-            } catch (error) {
-              console.log('Error parsing stored user:', error);
             }
+          } catch (error) {
+            console.log('Error parsing stored user:', error);
           }
         }
       }

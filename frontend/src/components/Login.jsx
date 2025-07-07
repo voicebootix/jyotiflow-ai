@@ -71,6 +71,9 @@ const Login = () => {
         } else if (isAdmin) {
           console.log('Redirecting to /admin (isAdmin)');
           navigate('/admin', { replace: true });
+        } else if (result.user?.role === 'admin') {
+          console.log('Redirecting to /admin (user role is admin)');
+          navigate('/admin', { replace: true });
         } else if (redirectTo) {
           console.log('Redirecting to', redirectTo);
           navigate(redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`, { replace: true });
