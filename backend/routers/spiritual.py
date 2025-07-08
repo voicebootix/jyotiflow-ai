@@ -71,10 +71,10 @@ async def get_birth_chart(request: Request):
     datetime_str = f"{date}T{time_}:00+05:30"  # Default to IST
     coordinates = f"{latitude},{longitude}"
 
-    # --- Prokerala API calls for complete chart data ---
+    # --- Only use the working Prokerala API endpoint ---
     chart_data = {}
     
-    # Basic parameters for all API calls
+    # Basic parameters for API call
     basic_params = {
         "datetime": datetime_str,
         "coordinates": coordinates,
@@ -88,87 +88,38 @@ async def get_birth_chart(request: Request):
             async with httpx.AsyncClient() as client:
                 headers = {"Authorization": f"Bearer {token}"}
                 
-                # 1. Get basic birth details (this one works)
+                # Get basic birth details (this is the only endpoint that works)
                 basic_resp = await client.get(
                     "https://api.prokerala.com/v2/astrology/birth-details",
                     headers=headers,
                     params=basic_params
                 )
-                print(f"[BirthChart] Basic details status: {basic_resp.status_code}")
-                if basic_resp.status_code == 200:
+                print(f"[BirthChart] Birth details status: {basic_resp.status_code}")
+                
+                if basic_resp.status_code == 401 and attempt == 0:
+                    # Token expired, refresh and retry
+                    await fetch_prokerala_token()
+                    continue
+                elif basic_resp.status_code == 200:
                     basic_data = basic_resp.json()
+                    print(f"[BirthChart] Birth details response: {basic_data}")
                     if "data" in basic_data:
                         chart_data.update(basic_data["data"])
-                
-                # 2. Try the comprehensive birth chart endpoint (if it exists)
-                try:
-                    chart_resp = await client.get(
-                        "https://api.prokerala.com/v2/astrology/birth-chart",
-                        headers=headers,
-                        params=basic_params
-                    )
-                    print(f"[BirthChart] Birth chart endpoint status: {chart_resp.status_code}")
-                    if chart_resp.status_code == 200:
-                        chart_full_data = chart_resp.json()
-                        if "data" in chart_full_data:
-                            chart_data.update(chart_full_data["data"])
-                except Exception as e:
-                    print(f"[BirthChart] Birth chart endpoint not available: {e}")
-                
-                # 3. Try alternative endpoint names for planets
-                try:
-                    planet_resp = await client.get(
-                        "https://api.prokerala.com/v2/astrology/planet-position",
-                        headers=headers,
-                        params=basic_params
-                    )
-                    print(f"[BirthChart] Planet position status: {planet_resp.status_code}")
-                    if planet_resp.status_code == 200:
-                        planet_data = planet_resp.json()
-                        if "data" in planet_data:
-                            chart_data["planets"] = planet_data["data"]
-                except Exception as e:
-                    print(f"[BirthChart] Planet position endpoint error: {e}")
-                
-                # 4. Try alternative endpoint names for houses
-                try:
-                    house_resp = await client.get(
-                        "https://api.prokerala.com/v2/astrology/house-cusps",
-                        headers=headers,
-                        params=basic_params
-                    )
-                    print(f"[BirthChart] House cusps status: {house_resp.status_code}")
-                    if house_resp.status_code == 200:
-                        house_data = house_resp.json()
-                        if "data" in house_data:
-                            chart_data["houses"] = house_data["data"]
-                except Exception as e:
-                    print(f"[BirthChart] House cusps endpoint error: {e}")
-                
-                break
-                
+                    break
+                else:
+                    print(f"[BirthChart] Birth details API error: {basic_resp.status_code} - {basic_resp.text}")
+                    raise HTTPException(status_code=503, detail=f"Prokerala API error: {basic_resp.status_code}")
+                    
         except Exception as e:
             print(f"[BirthChart] Prokerala API error: {e}")
             if attempt == 1:
-                print(f"[BirthChart] All attempts failed, proceeding with available data")
-                break
-    
-    # Create fallback planets data if we have basic birth details but no planets
-    if chart_data and "planets" not in chart_data and chart_data.get("nakshatra"):
-        print("[BirthChart] Creating fallback planets data based on basic birth details")
-        chart_data["planets"] = create_fallback_planets_data(chart_data)
-    
-    # Create fallback houses data if we don't have it
-    if chart_data and "houses" not in chart_data:
-        print("[BirthChart] Creating fallback houses data")
-        chart_data["houses"] = create_fallback_houses_data(chart_data)
+                raise HTTPException(status_code=503, detail=f"Failed to fetch birth chart data: {str(e)}")
 
-    # Ensure planets, houses, and chart keys are always present
-    chart_data.setdefault("planets", {})
-    chart_data.setdefault("houses", {})
-    chart_data.setdefault("chart", {})
+    # Check if we got valid data
+    if not chart_data:
+        raise HTTPException(status_code=503, detail="No birth chart data received from Prokerala API")
     
-    # Enhanced response with additional metadata
+    # Enhanced response with metadata - NO MOCK DATA
     enhanced_response = {
         "success": True,
         "birth_chart": {
@@ -184,104 +135,14 @@ async def get_birth_chart(request: Request):
                 },
                 "calculation_method": "Vedic Astrology (Prokerala API)",
                 "ayanamsa": "Lahiri",
-                "data_sources": {
-                    "basic_details": True,
-                    "planets": "planets" in chart_data and bool(chart_data["planets"]),
-                    "houses": "houses" in chart_data and bool(chart_data["houses"]),
-                    "fallback_used": "planets" not in chart_data or not chart_data["planets"]
-                }
+                "data_source": "Prokerala API v2/astrology/birth-details",
+                "note": "Real astrological data from Prokerala API"
             }
         }
     }
-    print(f"[BirthChart] Returning enhanced response with planets: {len(chart_data.get('planets', {}))}, houses: {len(chart_data.get('houses', {}))}")
+    
+    print(f"[BirthChart] Returning real Prokerala data: {chart_data.keys()}")
     return enhanced_response
-
-def create_fallback_planets_data(basic_data):
-    """Create fallback planets data based on available basic birth details"""
-    planets = {}
-    
-    # Use nakshatra information to place Moon
-    if basic_data.get("nakshatra"):
-        nakshatra_info = basic_data["nakshatra"]
-        moon_sign = basic_data.get("chandra_rasi", {}).get("name", "Mesha")
-        
-        planets["Moon"] = {
-            "name": "Moon",
-            "rashi": moon_sign,
-            "nakshatra": nakshatra_info.get("name", ""),
-            "degree": f"{nakshatra_info.get('pada', 1) * 3.33:.1f}",
-            "house": calculate_house_from_rashi(moon_sign),
-            "status": "Normal"
-        }
-    
-    # Use sun sign information if available
-    if basic_data.get("soorya_rasi"):
-        sun_sign = basic_data["soorya_rasi"].get("name", "Mesha")
-        planets["Sun"] = {
-            "name": "Sun",
-            "rashi": sun_sign,
-            "degree": "15.0",
-            "house": calculate_house_from_rashi(sun_sign),
-            "status": "Normal"
-        }
-    
-    # Add other basic planetary positions (simplified)
-    basic_planets = ["Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
-    rashis = ["Mesha", "Vrishabha", "Mithuna", "Karka", "Simha", "Kanya", 
-              "Tula", "Vrishchika", "Dhanu", "Makara", "Kumbha", "Meena"]
-    
-    for i, planet in enumerate(basic_planets):
-        if planet not in planets:
-            rashi = rashis[i % 12]
-            planets[planet] = {
-                "name": planet,
-                "rashi": rashi,
-                "degree": f"{(i * 30 + 15) % 360:.1f}",
-                "house": calculate_house_from_rashi(rashi),
-                "status": "Normal"
-            }
-    
-    return planets
-
-def calculate_house_from_rashi(rashi_name):
-    """Convert rashi name to house number (simplified)"""
-    rashi_to_house = {
-        "Mesha": 1, "Vrishabha": 2, "Mithuna": 3, "Karka": 4,
-        "Simha": 5, "Kanya": 6, "Tula": 7, "Vrishchika": 8,
-        "Dhanu": 9, "Makara": 10, "Kumbha": 11, "Meena": 12
-    }
-    return rashi_to_house.get(rashi_name, 1)
-
-def create_fallback_houses_data(basic_data):
-    """Create fallback houses data"""
-    houses = {}
-    
-    # Standard 12 houses with basic information
-    house_names = ["Self", "Wealth", "Siblings", "Home", "Children", "Health",
-                   "Marriage", "Transformation", "Fortune", "Career", "Gains", "Liberation"]
-    
-    rashis = ["Mesha", "Vrishabha", "Mithuna", "Karka", "Simha", "Kanya", 
-              "Tula", "Vrishchika", "Dhanu", "Makara", "Kumbha", "Meena"]
-    
-    for i in range(1, 13):
-        houses[str(i)] = {
-            "house": i,
-            "sign": rashis[(i-1) % 12],
-            "degree": f"{i * 30:.1f}",
-            "lord": get_house_lord(rashis[(i-1) % 12]),
-            "significance": house_names[i-1]
-        }
-    
-    return houses
-
-def get_house_lord(rashi_name):
-    """Get the ruling planet for a rashi"""
-    rashi_lords = {
-        "Mesha": "Mars", "Vrishabha": "Venus", "Mithuna": "Mercury", "Karka": "Moon",
-        "Simha": "Sun", "Kanya": "Mercury", "Tula": "Venus", "Vrishchika": "Mars",
-        "Dhanu": "Jupiter", "Makara": "Saturn", "Kumbha": "Saturn", "Meena": "Jupiter"
-    }
-    return rashi_lords.get(rashi_name, "Sun")
 
 @router.post("/guidance")
 async def get_spiritual_guidance(request: Request):

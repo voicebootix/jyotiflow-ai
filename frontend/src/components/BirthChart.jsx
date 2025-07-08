@@ -131,10 +131,11 @@ const BirthChart = () => {
   const exportChart = () => {
     if (!chartData) return;
     
-    // Create a comprehensive export
+    // Create export with real Prokerala API data
     let exportData = `
 VEDIC BIRTH CHART REPORT
 Generated on: ${new Date().toLocaleString()}
+Data Source: ${chartData.metadata?.data_source || 'Prokerala API'}
 Calculation Method: ${chartData.metadata?.calculation_method || 'Vedic Astrology'}
 
 =====================================================
@@ -147,72 +148,68 @@ Timezone: ${birthDetails.timezone}
 Coordinates: ${chartData.metadata?.birth_details?.coordinates || 'N/A'}
 
 =====================================================
-BASIC BIRTH INFORMATION
+ASTROLOGICAL INFORMATION
 =====================================================`;
 
-    // Add basic birth details
+    // Add nakshatra information
     if (chartData.nakshatra) {
       exportData += `
 Birth Nakshatra: ${chartData.nakshatra.name}
-Pada: ${chartData.nakshatra.pada}
-Ruling Planet: ${chartData.nakshatra.lord?.vedic_name || chartData.nakshatra.lord?.name || 'N/A'}`;
+Nakshatra Pada: ${chartData.nakshatra.pada}`;
+      if (chartData.nakshatra.lord) {
+        exportData += `
+Nakshatra Lord: ${chartData.nakshatra.lord.vedic_name || chartData.nakshatra.lord.name}`;
+      }
     }
 
+    // Add rashi information
     if (chartData.chandra_rasi) {
       exportData += `
-Moon Sign (Rashi): ${chartData.chandra_rasi.name}
-Moon Sign Lord: ${chartData.chandra_rasi.lord?.vedic_name || chartData.chandra_rasi.lord?.name || 'N/A'}`;
+Moon Sign (Chandra Rasi): ${chartData.chandra_rasi.name}`;
+      if (chartData.chandra_rasi.lord) {
+        exportData += `
+Moon Sign Lord: ${chartData.chandra_rasi.lord.vedic_name || chartData.chandra_rasi.lord.name}`;
+      }
     }
 
     if (chartData.soorya_rasi) {
       exportData += `
-Sun Sign: ${chartData.soorya_rasi.name}
-Sun Sign Lord: ${chartData.soorya_rasi.lord?.vedic_name || chartData.soorya_rasi.lord?.name || 'N/A'}`;
+Sun Sign (Soorya Rasi): ${chartData.soorya_rasi.name}`;
+      if (chartData.soorya_rasi.lord) {
+        exportData += `
+Sun Sign Lord: ${chartData.soorya_rasi.lord.vedic_name || chartData.soorya_rasi.lord.name}`;
+      }
     }
 
-    if (chartData.zodiac) {
+    if (chartData.lagna) {
       exportData += `
-Western Zodiac: ${chartData.zodiac.name}`;
+Ascendant (Lagna): ${chartData.lagna.name}`;
+      if (chartData.lagna.lord) {
+        exportData += `
+Lagna Lord: ${chartData.lagna.lord.vedic_name || chartData.lagna.lord.name}`;
+      }
     }
 
-    // Add planetary positions
-    if (chartData.planets && Object.keys(chartData.planets).length > 0) {
+    // Add time information
+    if (chartData.sunrise || chartData.sunset || chartData.ayanamsa) {
       exportData += `
 
 =====================================================
-PLANETARY POSITIONS
+TIME & CALCULATION DETAILS
 =====================================================`;
       
-      Object.entries(chartData.planets).forEach(([planet, details]) => {
+      if (chartData.sunrise) {
         exportData += `
-${planet}:
-  Sign: ${details.rashi || details.sign || 'N/A'}
-  Degree: ${details.degree ? `${parseFloat(details.degree).toFixed(2)}°` : 'N/A'}
-  House: ${details.house || 'N/A'}
-  Status: ${details.status || 'Normal'}`;
-        if (details.nakshatra) {
-          exportData += `
-  Nakshatra: ${details.nakshatra}`;
-        }
-      });
-    }
-
-    // Add houses information
-    if (chartData.houses && Object.keys(chartData.houses).length > 0) {
-      exportData += `
-
-=====================================================
-HOUSE SYSTEM
-=====================================================`;
-      
-      Object.entries(chartData.houses).forEach(([house, details]) => {
+Sunrise: ${chartData.sunrise}`;
+      }
+      if (chartData.sunset) {
         exportData += `
-House ${house}:
-  Sign: ${details.sign || details.rashi || 'N/A'}
-  Degree: ${details.degree ? `${parseFloat(details.degree).toFixed(2)}°` : 'N/A'}
-  Lord: ${details.lord || 'N/A'}
-  Significance: ${details.significance || getHouseSignificance(parseInt(house))}`;
-      });
+Sunset: ${chartData.sunset}`;
+      }
+      if (chartData.ayanamsa) {
+        exportData += `
+Ayanamsa: ${chartData.ayanamsa}°`;
+      }
     }
 
     // Add additional information
@@ -224,47 +221,46 @@ ADDITIONAL INFORMATION
 =====================================================`;
       
       Object.entries(chartData.additional_info).forEach(([key, value]) => {
+        const formattedKey = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
         exportData += `
-${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${value}`;
+${formattedKey}: ${value}`;
       });
     }
 
-    // Add data source information
-    if (chartData.metadata?.data_sources) {
+    // Add zodiac information if available
+    if (chartData.zodiac) {
       exportData += `
 
 =====================================================
-DATA SOURCE INFORMATION
+WESTERN ZODIAC
 =====================================================
-Basic Birth Details: ${chartData.metadata.data_sources.basic_details ? 'Available' : 'Not Available'}
-Planetary Positions: ${chartData.metadata.data_sources.planets ? 'Available from API' : 'Calculated/Fallback'}
-House System: ${chartData.metadata.data_sources.houses ? 'Available from API' : 'Standard System'}
-${chartData.metadata.data_sources.fallback_used ? 'Note: Some data calculated from available birth details for demonstration purposes.' : ''}`;
+Western Zodiac Sign: ${chartData.zodiac.name}`;
     }
 
     exportData += `
 
 =====================================================
-DISCLAIMER
+DATA NOTES
 =====================================================
-This birth chart is generated for educational and entertainment purposes.
-For professional astrological consultation, please consult a qualified astrologer.
-Generated by JyotiFlow AI - Your Spiritual Guide
-${window.location.origin}
+- This report is based on Vedic Astrology principles
+- Data source: Prokerala API (birth-details endpoint)
+- Generated by JyotiFlow AI Platform
+- For complete planetary positions and house cusps, additional API endpoints are required
 
-End of Report
-=====================================================`;
+Report generated on: ${new Date().toISOString()}
+`;
 
-    // Create and download the file
+    // Create download
     const blob = new Blob([exportData], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
+    const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
+    a.style.display = 'none';
     a.href = url;
-    a.download = `vedic-birth-chart-${birthDetails.date}-${birthDetails.time.replace(':', '')}.txt`;
+    a.download = `birth-chart-${birthDetails.date}-${new Date().toISOString().split('T')[0]}.txt`;
     document.body.appendChild(a);
     a.click();
+    window.URL.revokeObjectURL(url);
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   const planetIcons = {
@@ -298,12 +294,8 @@ End of Report
   };
 
   const renderVedicChart = () => {
-    // Check what data we have available
-    const hasBasicData = chartData && (chartData.nakshatra || chartData.chandra_rasi || chartData.soorya_rasi);
-    const hasPlanetsData = chartData && chartData.planets && Object.keys(chartData.planets).length > 0;
-    const hasHousesData = chartData && chartData.houses && Object.keys(chartData.houses).length > 0;
-    
-    if (!hasBasicData) {
+    // Show what real data we have from Prokerala API
+    if (!chartData) {
       return (
         <div className="text-center p-8">
           <div className="text-gray-400 text-lg mb-4">No chart data available</div>
@@ -315,289 +307,271 @@ End of Report
     }
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Data Source Info */}
-        {chartData.metadata?.data_sources && (
-          <div className="bg-blue-900 border border-blue-700 rounded-lg p-4">
-            <div className="text-sm text-blue-200">
-              <div className="font-medium mb-2">Chart Data Sources:</div>
-              <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className={chartData.metadata.data_sources.basic_details ? "text-green-300" : "text-red-300"}>
-                  ✓ Basic Birth Details
-                </div>
-                <div className={chartData.metadata.data_sources.planets ? "text-green-300" : "text-yellow-300"}>
-                  {chartData.metadata.data_sources.planets ? "✓" : "~"} Planetary Positions
-                  {chartData.metadata.data_sources.fallback_used ? " (Calculated)" : ""}
-                </div>
-                <div className={chartData.metadata.data_sources.houses ? "text-green-300" : "text-yellow-300"}>
-                  {chartData.metadata.data_sources.houses ? "✓" : "~"} House System
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        <div className="bg-blue-900 border border-blue-700 text-blue-200 px-4 py-3 rounded-md text-sm">
+          <div className="font-medium">✅ Real Astrological Data</div>
+          <div>Source: {chartData.metadata?.data_source || 'Prokerala API'}</div>
+          <div>Method: {chartData.metadata?.calculation_method || 'Vedic Astrology'}</div>
+        </div>
 
         {/* Basic Birth Information */}
-        <div className="bg-gray-700 rounded-lg p-4">
-          <h4 className="text-white font-semibold mb-3">Birth Chart Summary</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Details</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
             {chartData.nakshatra && (
-              <div className="bg-gray-800 p-3 rounded">
-                <div className="text-gray-400">Birth Nakshatra</div>
+              <div>
+                <span className="text-gray-400">Nakshatra:</span>
                 <div className="text-white font-medium">{chartData.nakshatra.name}</div>
-                <div className="text-gray-300 text-xs">Pada: {chartData.nakshatra.pada}</div>
-                <div className="text-gray-300 text-xs">Lord: {chartData.nakshatra.lord?.vedic_name}</div>
+                <div className="text-gray-300">Pada: {chartData.nakshatra.pada}</div>
               </div>
             )}
-            
             {chartData.chandra_rasi && (
-              <div className="bg-gray-800 p-3 rounded">
-                <div className="text-gray-400">Moon Sign (Rashi)</div>
+              <div>
+                <span className="text-gray-400">Chandra Rasi (Moon Sign):</span>
                 <div className="text-white font-medium">{chartData.chandra_rasi.name}</div>
-                <div className="text-gray-300 text-xs">Lord: {chartData.chandra_rasi.lord?.vedic_name}</div>
               </div>
             )}
-            
             {chartData.soorya_rasi && (
-              <div className="bg-gray-800 p-3 rounded">
-                <div className="text-gray-400">Sun Sign</div>
+              <div>
+                <span className="text-gray-400">Soorya Rasi (Sun Sign):</span>
                 <div className="text-white font-medium">{chartData.soorya_rasi.name}</div>
-                <div className="text-gray-300 text-xs">Lord: {chartData.soorya_rasi.lord?.vedic_name}</div>
               </div>
             )}
-            
-            {chartData.zodiac && (
-              <div className="bg-gray-800 p-3 rounded">
-                <div className="text-gray-400">Western Zodiac</div>
-                <div className="text-white font-medium">{chartData.zodiac.name}</div>
-              </div>
-            )}
-            
-            {chartData.additional_info && (
-              <div className="bg-gray-800 p-3 rounded">
-                <div className="text-gray-400">Birth Stone</div>
-                <div className="text-white font-medium">{chartData.additional_info.birth_stone}</div>
-                <div className="text-gray-300 text-xs">Color: {chartData.additional_info.color}</div>
+            {chartData.lagna && (
+              <div>
+                <span className="text-gray-400">Lagna (Ascendant):</span>
+                <div className="text-white font-medium">{chartData.lagna.name}</div>
               </div>
             )}
           </div>
         </div>
 
-        {/* Vedic Chart Grid */}
-        {hasPlanetsData && (
-          <div className="text-center">
-            <h4 className="text-white font-semibold mb-4">Vedic Chart (North Indian Style)</h4>
-            <div className="grid grid-cols-4 gap-1 w-80 h-80 mx-auto">
-              {Array.from({ length: 12 }, (_, i) => {
-                const houseNumber = i + 1;
-                const planetsInHouse = Object.entries(chartData.planets || {})
-                  .filter(([_, details]) => details.house === houseNumber);
-                
-                return (
-                  <div
-                    key={houseNumber}
-                    className="border border-gray-400 bg-gray-800 p-2 flex flex-col items-center justify-center relative cursor-pointer hover:bg-gray-700 transition-colors"
-                    title={`House ${houseNumber}: ${getHouseSignificance(houseNumber)}`}
-                  >
-                    <div className="text-xs text-gray-400 absolute top-1 left-1">
-                      {houseNumber}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {planetsInHouse.map(([planet, details]) => (
-                        <div
-                          key={planet}
-                          className="cursor-pointer hover:scale-110 transition-transform"
-                          onClick={() => setSelectedPlanet({ name: planet, ...details })}
-                          title={`${planet}: ${details.rashi} ${details.degree}°`}
-                        >
-                          {planetIcons[planet] || <Circle className="w-4 h-4" />}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+        {/* Additional Birth Information */}
+        {(chartData.janma_ghati || chartData.ayanamsa) && (
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Astrological Details</h3>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              {chartData.janma_ghati && (
+                <div>
+                  <span className="text-gray-400">Janma Ghati:</span>
+                  <div className="text-white font-medium">{chartData.janma_ghati}</div>
+                </div>
+              )}
+              {chartData.ayanamsa && (
+                <div>
+                  <span className="text-gray-400">Ayanamsa:</span>
+                  <div className="text-white font-medium">{chartData.ayanamsa}°</div>
+                </div>
+              )}
+              {chartData.sunrise && (
+                <div>
+                  <span className="text-gray-400">Sunrise:</span>
+                  <div className="text-white font-medium">{chartData.sunrise}</div>
+                </div>
+              )}
+              {chartData.sunset && (
+                <div>
+                  <span className="text-gray-400">Sunset:</span>
+                  <div className="text-white font-medium">{chartData.sunset}</div>
+                </div>
+              )}
             </div>
-            <p className="text-gray-400 text-sm mt-4">
-              Click on planets to see detailed information
-            </p>
           </div>
         )}
 
-        {/* Additional Birth Details */}
-        {chartData.additional_info && (
-          <div className="bg-gray-700 rounded-lg p-4">
-            <h4 className="text-white font-semibold mb-3">Additional Information</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
-              {Object.entries(chartData.additional_info).map(([key, value]) => (
-                <div key={key} className="bg-gray-800 p-2 rounded">
-                  <div className="text-gray-400 capitalize">
-                    {key.replace(/_/g, ' ')}
-                  </div>
-                  <div className="text-white">{value}</div>
-                </div>
-              ))}
+        {/* Raw Data Display for debugging */}
+        <details className="bg-gray-800 rounded-lg p-6">
+          <summary className="text-yellow-400 cursor-pointer font-semibold mb-4">
+            🔍 View Raw API Data (Debug)
+          </summary>
+          <pre className="text-xs text-gray-300 bg-gray-900 p-4 rounded overflow-auto max-h-96">
+            {JSON.stringify(chartData, null, 2)}
+          </pre>
+        </details>
+
+        {/* Chart Visualization Placeholder */}
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
+          <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
+            <div className="text-gray-400 mb-2">📊 Chart visualization coming soon</div>
+            <div className="text-sm text-gray-500">
+              Chart data received from Prokerala API will be visualized here
             </div>
           </div>
-        )}
+        </div>
       </div>
     );
   };
 
   const renderPlanetaryTable = () => {
-    if (!chartData?.planets) return <div className="text-gray-400">No planetary data available</div>;
-
-    const planetsData = Object.entries(chartData.planets);
-    if (planetsData.length === 0) {
-      return <div className="text-gray-400">No planetary data available</div>;
+    if (!chartData) {
+      return <div className="text-gray-400">No chart data available</div>;
     }
 
+    // Display available astrological information from real API
     return (
       <div className="space-y-4">
-        {/* Data Quality Notice */}
-        {chartData.metadata?.data_sources?.fallback_used && (
-          <div className="bg-yellow-900 border border-yellow-700 text-yellow-200 px-4 py-3 rounded-md text-sm">
-            <div className="font-medium">Notice:</div>
-            <div>Planetary positions are calculated based on available birth details. 
-            For precise calculations, please verify your exact birth time and location.</div>
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h3 className="text-xl font-semibold mb-4 text-yellow-400">Available Astrological Data</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Nakshatra Information */}
+            {chartData.nakshatra && (
+              <div className="bg-gray-700 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-white mb-3">Nakshatra Details</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Name:</span>
+                    <span className="text-white">{chartData.nakshatra.name}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Pada:</span>
+                    <span className="text-white">{chartData.nakshatra.pada}</span>
+                  </div>
+                  {chartData.nakshatra.lord && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Lord:</span>
+                      <span className="text-white">{chartData.nakshatra.lord.vedic_name || chartData.nakshatra.lord.name}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Rashi Information */}
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <h4 className="text-lg font-medium text-white mb-3">Rashi Information</h4>
+              <div className="space-y-2 text-sm">
+                {chartData.chandra_rasi && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Moon Sign:</span>
+                    <span className="text-white">{chartData.chandra_rasi.name}</span>
+                  </div>
+                )}
+                {chartData.soorya_rasi && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Sun Sign:</span>
+                    <span className="text-white">{chartData.soorya_rasi.name}</span>
+                  </div>
+                )}
+                {chartData.lagna && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Ascendant:</span>
+                    <span className="text-white">{chartData.lagna.name}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Additional Information */}
+            {chartData.additional_info && (
+              <div className="bg-gray-700 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-white mb-3">Additional Info</h4>
+                <div className="space-y-2 text-sm">
+                  {Object.entries(chartData.additional_info).map(([key, value]) => (
+                    <div key={key} className="flex justify-between">
+                      <span className="text-gray-400 capitalize">{key.replace(/_/g, ' ')}:</span>
+                      <span className="text-white">{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Time Information */}
+            {(chartData.sunrise || chartData.sunset) && (
+              <div className="bg-gray-700 p-4 rounded-lg">
+                <h4 className="text-lg font-medium text-white mb-3">Time Information</h4>
+                <div className="space-y-2 text-sm">
+                  {chartData.sunrise && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Sunrise:</span>
+                      <span className="text-white">{chartData.sunrise}</span>
+                    </div>
+                  )}
+                  {chartData.sunset && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Sunset:</span>
+                      <span className="text-white">{chartData.sunset}</span>
+                    </div>
+                  )}
+                  {chartData.ayanamsa && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Ayanamsa:</span>
+                      <span className="text-white">{chartData.ayanamsa}°</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-600">
-                <th className="text-left text-white p-2">Planet</th>
-                <th className="text-left text-white p-2">Sign (Rashi)</th>
-                <th className="text-left text-white p-2">Degree</th>
-                <th className="text-left text-white p-2">House</th>
-                <th className="text-left text-white p-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {planetsData.map(([planet, details]) => (
-                <tr 
-                  key={planet}
-                  className="border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
-                  onClick={() => setSelectedPlanet({ name: planet, ...details })}
-                >
-                  <td className="p-2 flex items-center">
-                    {planetIcons[planet] || <Circle className="w-4 h-4" />}
-                    <span className="ml-2 text-white font-medium">{planet}</span>
-                  </td>
-                  <td className="p-2 text-gray-300">
-                    {details.rashi || details.sign || 'N/A'}
-                    {details.nakshatra && (
-                      <div className="text-xs text-gray-500">
-                        {details.nakshatra}
-                      </div>
-                    )}
-                  </td>
-                  <td className="p-2 text-gray-300">
-                    {details.degree ? `${parseFloat(details.degree).toFixed(1)}°` : 'N/A'}
-                  </td>
-                  <td className="p-2 text-gray-300">{details.house || 'N/A'}</td>
-                  <td className="p-2">
-                    <span className={`px-2 py-1 rounded text-xs ${
-                      details.status === 'Exalted' ? 'bg-green-700 text-green-200' :
-                      details.status === 'Debilitated' ? 'bg-red-700 text-red-200' :
-                      details.status === 'Own Sign' ? 'bg-blue-700 text-blue-200' :
-                      'bg-gray-700 text-gray-300'
-                    }`}>
-                      {details.status || 'Normal'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        </div>
+
+        {/* Notice about additional data */}
+        <div className="bg-yellow-900 border border-yellow-700 text-yellow-200 px-4 py-3 rounded-md text-sm">
+          <div className="font-medium">ℹ️ API Data Source</div>
+          <div>This data is from the working Prokerala API endpoint (birth-details). 
+          Additional planetary positions and house data would require different API endpoints.</div>
         </div>
       </div>
     );
   };
 
   const renderHousesTable = () => {
-    if (!chartData?.houses) return <div className="text-gray-400">No house data available</div>;
-
-    const housesData = Object.entries(chartData.houses);
-    if (housesData.length === 0) {
-      return <div className="text-gray-400">No house data available</div>;
+    if (!chartData) {
+      return <div className="text-gray-400">No chart data available</div>;
     }
 
     return (
       <div className="space-y-4">
-        {/* Houses Information */}
-        <div className="bg-purple-900 border border-purple-700 text-purple-200 px-4 py-3 rounded-md text-sm">
-          <div className="font-medium mb-1">House System Information:</div>
-          <div>Each house represents different aspects of life. Click on any row for detailed house analysis.</div>
-        </div>
-        
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-600">
-                <th className="text-left text-white p-2">House</th>
-                <th className="text-left text-white p-2">Sign</th>
-                <th className="text-left text-white p-2">Degree</th>
-                <th className="text-left text-white p-2">Lord</th>
-                <th className="text-left text-white p-2">Significance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {housesData.map(([house, details]) => (
-                <tr 
-                  key={house} 
-                  className="border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
-                  title={`House ${house}: ${details.significance || getHouseSignificance(parseInt(house))}`}
-                >
-                  <td className="p-2 text-white font-medium">
-                    <div className="flex items-center">
-                      <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-xs mr-2">
-                        {house}
-                      </div>
-                      House {house}
-                    </div>
-                  </td>
-                  <td className="p-2 text-gray-300 font-medium">
-                    {details.sign || details.rashi || 'N/A'}
-                  </td>
-                  <td className="p-2 text-gray-300">
-                    {details.degree ? `${parseFloat(details.degree).toFixed(1)}°` : 'N/A'}
-                  </td>
-                  <td className="p-2 text-gray-300">
-                    <div className="flex items-center">
-                      {details.lord && planetIcons[details.lord] && (
-                        <span className="mr-1">{planetIcons[details.lord]}</span>
-                      )}
-                      {details.lord || 'N/A'}
-                    </div>
-                  </td>
-                  <td className="p-2 text-gray-300 text-xs">
-                    {details.significance || getHouseSignificance(parseInt(house))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        
-        {/* House Meanings Guide */}
-        <div className="bg-gray-700 rounded-lg p-4">
-          <h5 className="text-white font-semibold mb-2">House System Guide</h5>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-300">
-            <div><strong>1st House:</strong> Self, personality, appearance</div>
-            <div><strong>2nd House:</strong> Wealth, family, speech</div>
-            <div><strong>3rd House:</strong> Courage, siblings, communication</div>
-            <div><strong>4th House:</strong> Home, mother, property</div>
-            <div><strong>5th House:</strong> Children, creativity, education</div>
-            <div><strong>6th House:</strong> Health, service, enemies</div>
-            <div><strong>7th House:</strong> Marriage, partnership, business</div>
-            <div><strong>8th House:</strong> Transformation, longevity</div>
-            <div><strong>9th House:</strong> Luck, father, higher learning</div>
-            <div><strong>10th House:</strong> Career, reputation, authority</div>
-            <div><strong>11th House:</strong> Gains, social circle, income</div>
-            <div><strong>12th House:</strong> Spirituality, liberation, foreign</div>
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h3 className="text-xl font-semibold mb-4 text-yellow-400">House System Information</h3>
+          
+          <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
+            <div className="text-gray-400 mb-2">🏠 House positions not available</div>
+            <div className="text-sm text-gray-500">
+              House cusps and planetary house positions require additional Prokerala API endpoints
+              that are currently returning 404 errors.
+            </div>
           </div>
+
+          {/* Show basic house interpretation based on available signs */}
+          {(chartData.chandra_rasi || chartData.soorya_rasi || chartData.lagna) && (
+            <div className="mt-6">
+              <h4 className="text-lg font-medium text-white mb-3">Available Sign Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {chartData.lagna && (
+                  <div className="bg-gray-700 p-4 rounded-lg">
+                    <div className="text-yellow-400 font-medium">1st House (Ascendant)</div>
+                    <div className="text-white">{chartData.lagna.name}</div>
+                    <div className="text-gray-400 text-sm mt-1">Self, personality, appearance</div>
+                  </div>
+                )}
+                {chartData.chandra_rasi && (
+                  <div className="bg-gray-700 p-4 rounded-lg">
+                    <div className="text-yellow-400 font-medium">Moon Position</div>
+                    <div className="text-white">{chartData.chandra_rasi.name}</div>
+                    <div className="text-gray-400 text-sm mt-1">Mind, emotions, mother</div>
+                  </div>
+                )}
+                {chartData.soorya_rasi && (
+                  <div className="bg-gray-700 p-4 rounded-lg">
+                    <div className="text-yellow-400 font-medium">Sun Position</div>
+                    <div className="text-white">{chartData.soorya_rasi.name}</div>
+                    <div className="text-gray-400 text-sm mt-1">Soul, father, authority</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Notice about house data */}
+        <div className="bg-blue-900 border border-blue-700 text-blue-200 px-4 py-3 rounded-md text-sm">
+          <div className="font-medium">📊 House Data Status</div>
+          <div>Complete house cusps and planetary house positions would be available 
+          once the correct Prokerala API endpoints for planets and houses are identified.</div>
         </div>
       </div>
     );
