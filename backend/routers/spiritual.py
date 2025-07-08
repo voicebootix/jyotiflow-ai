@@ -71,52 +71,89 @@ async def get_birth_chart(request: Request):
     datetime_str = f"{date}T{time_}:00+05:30"  # Default to IST
     coordinates = f"{latitude},{longitude}"
 
-    params = {
+    # --- Prokerala API calls for complete chart data ---
+    chart_data = {}
+    
+    # 1. Get basic birth details
+    basic_params = {
         "datetime": datetime_str,
         "coordinates": coordinates,
         "ayanamsa": "1"
     }
-    print(f"[BirthChart] Prokerala params: {params}")
-
-    # --- Prokerala API call with token refresh logic ---
+    
+    # 2. Get planets data
+    planets_params = {
+        "datetime": datetime_str,
+        "coordinates": coordinates,
+        "ayanamsa": "1"
+    }
+    
+    # 3. Get houses data  
+    houses_params = {
+        "datetime": datetime_str,
+        "coordinates": coordinates,
+        "ayanamsa": "1"
+    }
+    
     for attempt in range(2):  # Try once, refresh token and retry if 401
         try:
             token = await get_prokerala_token()
             print(f"[BirthChart] Using Prokerala token: {token}")
             async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    PROKERALA_API_BASE,
-                    headers={"Authorization": f"Bearer {token}"},
-                    params=params
+                headers = {"Authorization": f"Bearer {token}"}
+                
+                # Get basic birth details
+                basic_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/birth-details",
+                    headers=headers,
+                    params=basic_params
                 )
-                print(f"[BirthChart] Prokerala response status: {resp.status_code}")
-                print(f"[BirthChart] Prokerala response text: {resp.text}")
-                if resp.status_code == 401 and attempt == 0:
-                    print("[BirthChart] Prokerala token expired, refreshing...")
-                    await fetch_prokerala_token()  # Refresh and retry
-                    continue
-                resp.raise_for_status()
-                birth_chart_data = resp.json()
-                print(f"[BirthChart] Prokerala response data: {birth_chart_data}")
+                print(f"[BirthChart] Basic details status: {basic_resp.status_code}")
+                if basic_resp.status_code == 200:
+                    chart_data.update(basic_resp.json())
+                
+                # Get planets data
+                planets_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/planets",
+                    headers=headers,
+                    params=planets_params
+                )
+                print(f"[BirthChart] Planets status: {planets_resp.status_code}")
+                if planets_resp.status_code == 200:
+                    planets_data = planets_resp.json()
+                    if "data" in planets_data:
+                        chart_data["planets"] = planets_data["data"]
+                
+                # Get houses data
+                houses_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/houses",
+                    headers=headers,
+                    params=houses_params
+                )
+                print(f"[BirthChart] Houses status: {houses_resp.status_code}")
+                if houses_resp.status_code == 200:
+                    houses_data = houses_resp.json()
+                    if "data" in houses_data:
+                        chart_data["houses"] = houses_data["data"]
+                
                 break
+                
         except Exception as e:
             print(f"[BirthChart] Prokerala API error: {e}")
             if attempt == 1:
-                # Return error details to frontend for debugging
                 return {"success": False, "message": f"Prokerala API error: {str(e)}"}
     else:
-        print("[BirthChart] Prokerala API error: Unable to fetch birth chart after retries.")
-        return {"success": False, "message": "Prokerala API error: Unable to fetch birth chart."}
+        return {"success": False, "message": "Prokerala API error: Unable to fetch chart data."}
 
     # Enhance the response with additional metadata
     # Ensure planets, houses, and chart keys are always present
-    birth_chart_data.setdefault("planets", {})
-    birth_chart_data.setdefault("houses", {})
-    birth_chart_data.setdefault("chart", {})
+    chart_data.setdefault("planets", {})
+    chart_data.setdefault("houses", {})
+    chart_data.setdefault("chart", {})
     enhanced_response = {
         "success": True,
         "birth_chart": {
-            **birth_chart_data,
+            **chart_data,
             "metadata": {
                 "generated_at": datetime.now().isoformat(),
                 "birth_details": {
