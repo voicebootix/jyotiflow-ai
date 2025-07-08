@@ -36,6 +36,7 @@ class JyotiFlowDatabaseInitializer:
             await self._create_agora_tables(conn)
             await self._create_enhanced_tables(conn)
             await self._create_admin_tables(conn)
+            await self._create_platform_tables(conn)
             
             # Insert initial data
             await self._insert_initial_data(conn)
@@ -493,6 +494,61 @@ class JyotiFlowDatabaseInitializer:
         
         logger.info("✅ Admin tables created")
     
+    async def _create_platform_tables(self, conn):
+        """Create platform settings and social media automation tables"""
+        logger.info("Creating platform tables...")
+        
+        tables = [
+            # Platform settings for API credentials and configuration
+            '''CREATE TABLE IF NOT EXISTS platform_settings (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(100) UNIQUE NOT NULL,
+                value JSONB NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );''',
+            
+            # Social media campaigns
+            '''CREATE TABLE IF NOT EXISTS social_campaigns (
+                id SERIAL PRIMARY KEY,
+                campaign_id VARCHAR(100) UNIQUE NOT NULL,
+                name VARCHAR(255) NOT NULL,
+                platform VARCHAR(50) NOT NULL,
+                campaign_type VARCHAR(50) NOT NULL,
+                budget DECIMAL(10,2),
+                target_audience JSONB,
+                duration_days INTEGER,
+                status VARCHAR(50) DEFAULT 'active',
+                start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                end_date TIMESTAMP,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );''',
+            
+            # Social media posts tracking
+            '''CREATE TABLE IF NOT EXISTS social_posts (
+                id SERIAL PRIMARY KEY,
+                post_id VARCHAR(100) UNIQUE NOT NULL,
+                platform VARCHAR(50) NOT NULL,
+                platform_post_id VARCHAR(255),
+                title VARCHAR(500),
+                content TEXT NOT NULL,
+                hashtags TEXT,
+                media_url VARCHAR(500),
+                scheduled_time TIMESTAMP,
+                posted_time TIMESTAMP,
+                status VARCHAR(50) DEFAULT 'scheduled',
+                engagement_metrics JSONB DEFAULT '{}',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );'''
+        ]
+        
+        for table_sql in tables:
+            await conn.execute(table_sql)
+        
+        logger.info("✅ Platform tables created")
+    
     async def _insert_initial_data(self, conn):
         """Insert initial data into tables"""
         logger.info("Inserting initial data...")
@@ -571,6 +627,35 @@ class JyotiFlowDatabaseInitializer:
                     json.dumps(config["persona_config"]),
                     config["knowledge_domains"]
                 ))
+            
+            # Insert initial platform settings
+            platform_settings = [
+                ('facebook_credentials', {}),
+                ('instagram_credentials', {}),
+                ('youtube_credentials', {}),
+                ('twitter_credentials', {}),
+                ('tiktok_credentials', {}),
+                ('ai_model_config', {}),
+                ('social_automation_config', {
+                    'auto_posting_enabled': True,
+                    'auto_comment_response': True,
+                    'daily_content_generation': True,
+                    'posting_schedule': {
+                        'facebook': ['09:00', '15:00', '20:00'],
+                        'instagram': ['10:00', '16:00', '21:00'],
+                        'youtube': ['12:00', '18:00'],
+                        'twitter': ['08:00', '14:00', '19:00', '22:00'],
+                        'tiktok': ['11:00', '17:00', '20:30']
+                    }
+                })
+            ]
+            
+            for setting_key, setting_value in platform_settings:
+                await conn.execute("""
+                    INSERT INTO platform_settings (key, value)
+                    VALUES ($1, $2)
+                    ON CONFLICT (key) DO NOTHING
+                """, (setting_key, json.dumps(setting_value)))
             
             logger.info("✅ Initial data inserted")
             

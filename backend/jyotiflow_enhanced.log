@@ -91,3 +91,20 @@
 2025-07-07 17:11:18,808 - spiritual_avatar_generation_engine - INFO - 🎭 Swamiji Avatar Generation Engine initialized
 2025-07-07 17:11:18,830 - core_foundation_enhanced - INFO - ✅ Festival calendar loaded with 7 festivals
 2025-07-07 17:11:18,830 - social_media_marketing_automation - INFO - 🚀 Social Media Marketing Engine initialized
+2025-07-08 12:23:30,712 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-08 12:23:30,713 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-08 12:23:30,713 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-08 12:23:30,713 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-08 12:23:30,713 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-08 12:23:30,762 - core_foundation_enhanced - ERROR - Database initialization failed: [Errno -2] Name or service not known
+2025-07-08 12:23:31,547 - spiritual_avatar_generation_engine - INFO - 🎭 Swamiji Avatar Generation Engine initialized
+2025-07-08 12:23:31,577 - core_foundation_enhanced - INFO - ✅ Festival calendar loaded with 7 festivals
+2025-07-08 12:23:31,577 - social_media_marketing_automation - INFO - 🚀 Social Media Marketing Engine initialized
+2025-07-08 12:23:31,594 - core_foundation_enhanced - INFO - ✅ Festival calendar loaded with 7 festivals
+2025-07-08 12:23:31,595 - social_media_marketing_automation - INFO - 🚀 Social Media Marketing Engine initialized
+2025-07-08 12:23:31,602 - core_foundation_enhanced - INFO - ✅ Festival calendar loaded with 7 festivals
+2025-07-08 12:23:31,602 - core_foundation_enhanced - INFO - 🌍 AI Marketing Director Agent initialized for WORLD DOMINATION
+2025-07-08 12:23:31,602 - core_foundation_enhanced - ERROR - Global market analysis failed: 'AIMarketingDirectorAgent' object has no attribute '_calculate_total_addressable_market'
+2025-07-08 12:23:31,602 - core_foundation_enhanced - ERROR - Domination strategy creation failed: 'AIMarketingDirectorAgent' object has no attribute '_select_domination_strategies'
+2025-07-08 12:23:31,602 - core_foundation_enhanced - ERROR - Content production planning failed: 'AIMarketingDirectorAgent' object has no attribute '_create_language_content_plan'
+2025-07-08 12:23:31,602 - core_foundation_enhanced - ERROR - Global performance analysis failed: 'AIMarketingDirectorAgent' object has no attribute '_analyze_global_conversions'
