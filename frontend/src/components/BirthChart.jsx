@@ -5,6 +5,7 @@ import {
   Download, Share2, Save, Loader2, AlertCircle, CheckCircle
 } from 'lucide-react';
 import spiritualAPI from '../lib/api';
+import FreeReportHook from './FreeReportHook';
 
 const BirthChart = () => {
   const [birthDetails, setBirthDetails] = useState({
@@ -986,6 +987,26 @@ Report generated on: ${new Date().toISOString()}
                 </div>
               )}
             </div>
+
+            {/* Conversion Hook - After user sees their chart */}
+            <div className="mt-8">
+              <FreeReportHook 
+                size="large"
+                buttonText="Get Your Complete Personalized Reading from Swamiji FREE"
+                onButtonClick={() => window.location.href = '/register'}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Always show hook for non-logged in users */}
+        {!chartData && (
+          <div className="mt-8 max-w-4xl mx-auto">
+            <FreeReportHook 
+              size="default"
+              buttonText="Skip the Wait - Get Your Complete Report FREE"
+              onButtonClick={() => window.location.href = '/register'}
+            />
           </div>
         )}
       </div>
