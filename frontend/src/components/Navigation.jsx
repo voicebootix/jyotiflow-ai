@@ -106,14 +106,7 @@ const Navigation = () => {
     { to: '/follow-up-center', label: '📧 Follow-ups' },
   ];
 
-  const adminLinks = [
-    { to: '/admin', label: '👑 Admin' },
-    { to: '/admin/overview', label: '📊 Overview' },
-    { to: '/admin/users', label: '👥 Users' },
-    { to: '/admin/analytics', label: '📈 Analytics' },
-    { to: '/admin/social-marketing', label: '📱 Social Media' },
-    { to: '/admin/pricing', label: '💰 Pricing' },
-  ];
+  // Removed conflicting admin links - all admin functionality now through /admin dashboard
 
   const aboutItems = [
     { path: '/about/swamiji', label: "Swamiji's Story" },
@@ -168,11 +161,7 @@ const Navigation = () => {
                 <>
                   <div className="border-t border-gray-200 my-1"></div>
                   <div className="px-4 py-1 text-xs font-semibold text-gray-500 uppercase">Admin</div>
-                  <Link to="/admin" className="block px-4 py-2 hover:bg-gray-100">👑 Dashboard</Link>
-                  <Link to="/admin/users" className="block px-4 py-2 hover:bg-gray-100">👥 Users</Link>
-                  <Link to="/admin/analytics" className="block px-4 py-2 hover:bg-gray-100">📈 Analytics</Link>
-                  <Link to="/admin/social-marketing" className="block px-4 py-2 hover:bg-gray-100">📱 Social Media</Link>
-                  <Link to="/admin/pricing" className="block px-4 py-2 hover:bg-gray-100">💰 Pricing</Link>
+                  <Link to="/admin" className="block px-4 py-2 hover:bg-gray-100">👑 Admin Dashboard</Link>
                 </>
               )}
               <div className="border-t border-gray-200 my-1"></div>
