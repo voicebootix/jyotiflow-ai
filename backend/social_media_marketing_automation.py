@@ -117,6 +117,18 @@ class SocialMediaMarketingEngine:
                 "max_description_length": 150,
                 "optimal_times": ["06:00", "12:00", "18:00", "22:00"],
                 "content_types": [ContentType.SPIRITUAL_QUOTE, ContentType.DAILY_WISDOM]
+            },
+            SocialPlatform.TWITTER: {
+                "max_title_length": 50,
+                "max_description_length": 200,
+                "optimal_times": ["08:00", "13:00", "17:00", "20:00"],
+                "content_types": [ContentType.SPIRITUAL_QUOTE, ContentType.DAILY_WISDOM, ContentType.SATSANG_PROMO]
+            },
+            SocialPlatform.LINKEDIN: {
+                "max_title_length": 70,
+                "max_description_length": 1300,
+                "optimal_times": ["09:00", "12:00", "17:00"],
+                "content_types": [ContentType.DAILY_WISDOM, ContentType.PRODUCT_SHOWCASE]
             }
         }
         
@@ -274,7 +286,9 @@ class SocialMediaMarketingEngine:
             SocialPlatform.YOUTUBE: "🙏 Welcome to Swami Jyotirananthan's divine guidance.",
             SocialPlatform.INSTAGRAM: "✨ Divine wisdom from Tamil spiritual tradition.",
             SocialPlatform.FACEBOOK: "🕉️ Spiritual guidance from beloved Swami Jyotirananthan.",
-            SocialPlatform.TIKTOK: "💫 Quick spiritual wisdom for your day!"
+            SocialPlatform.TIKTOK: "💫 Quick spiritual wisdom for your day!",
+            SocialPlatform.TWITTER: "🕉️ Spiritual wisdom in 280 characters.",
+            SocialPlatform.LINKEDIN: "🙏 Professional spiritual guidance for mindful leadership."
         }
         
         intro = platform_intros.get(platform, "🙏 Spiritual guidance")
@@ -283,7 +297,9 @@ class SocialMediaMarketingEngine:
             SocialPlatform.YOUTUBE: "\n\n🔔 Subscribe for daily spiritual wisdom!",
             SocialPlatform.INSTAGRAM: "\n\n💫 Follow for daily inspiration!",
             SocialPlatform.FACEBOOK: "\n\n🙏 Like and share divine blessings!",
-            SocialPlatform.TIKTOK: "\n\n✨ Follow for spiritual content!"
+            SocialPlatform.TIKTOK: "\n\n✨ Follow for spiritual content!",
+            SocialPlatform.TWITTER: "\n\n🕉️ Follow for daily wisdom tweets!",
+            SocialPlatform.LINKEDIN: "\n\n🙏 Connect for spiritual leadership insights!"
         }
         
         cta = call_to_action.get(platform, "")
@@ -312,7 +328,9 @@ class SocialMediaMarketingEngine:
             SocialPlatform.YOUTUBE: ["#YouTubeShorts", "#SpiritualVideos"],
             SocialPlatform.INSTAGRAM: ["#InstagramReels", "#SpiritualInstagram"],
             SocialPlatform.TIKTOK: ["#SpiritualTikTok", "#WisdomShorts"],
-            SocialPlatform.FACEBOOK: ["#FacebookLive", "#SpiritualFacebook"]
+            SocialPlatform.FACEBOOK: ["#FacebookLive", "#SpiritualFacebook"],
+            SocialPlatform.TWITTER: ["#TwitterSpiritual", "#Wisdom"],
+            SocialPlatform.LINKEDIN: ["#SpiritualLeadership", "#Mindfulness"]
         }
         
         platform_tags = platform_hashtags.get(platform, [])
@@ -325,7 +343,9 @@ class SocialMediaMarketingEngine:
             SocialPlatform.YOUTUBE: 0.08,
             SocialPlatform.INSTAGRAM: 0.12,
             SocialPlatform.FACEBOOK: 0.06,
-            SocialPlatform.TIKTOK: 0.15
+            SocialPlatform.TIKTOK: 0.15,
+            SocialPlatform.TWITTER: 0.045,
+            SocialPlatform.LINKEDIN: 0.025
         }
         
         content_multipliers = {
@@ -523,9 +543,11 @@ class SocialMediaMarketingEngine:
                 return await self._post_to_youtube(post_data, media_url)
             elif platform == "tiktok":
                 return await self._post_to_tiktok(post_data, media_url)
+            elif platform == "twitter":
+                return await self._post_to_twitter(post_data, media_url)
             else:
-                logger.warning(f"⚠️ Platform {platform} not yet implemented, using mock response")
-                return {"success": True, "post_id": f"mock_{platform}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"}
+                logger.warning(f"⚠️ Platform {platform} not supported")
+                return {"success": False, "error": f"Platform {platform} not supported"}
         except Exception as e:
             logger.error(f"❌ Posting to {platform} failed: {e}")
             return {"success": False, "error": str(e)}
@@ -543,22 +565,52 @@ class SocialMediaMarketingEngine:
             return {"success": False, "error": f"Facebook posting failed: {str(e)}"}
     
     async def _post_to_instagram(self, post_data: Dict, media_url: Optional[str]) -> Dict:
-        """Instagram posting (uses Facebook Graph API)"""
-        # Instagram posting implementation would go here
-        logger.info("⚠️ Instagram posting not yet implemented")
-        return {"success": False, "error": "Instagram posting not yet implemented"}
+        """Real Instagram posting using Instagram service"""
+        try:
+            from services.instagram_service import instagram_service
+            
+            result = await instagram_service.post_content(post_data, media_url)
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Instagram posting failed: {e}")
+            return {"success": False, "error": f"Instagram posting failed: {str(e)}"}
     
     async def _post_to_youtube(self, post_data: Dict, media_url: Optional[str]) -> Dict:
-        """YouTube posting implementation"""
-        # YouTube API implementation would go here
-        logger.info("⚠️ YouTube posting not yet implemented") 
-        return {"success": False, "error": "YouTube posting not yet implemented"}
+        """Real YouTube posting using YouTube service"""
+        try:
+            from services.youtube_service import youtube_service
+            
+            result = await youtube_service.post_content(post_data, media_url)
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ YouTube posting failed: {e}")
+            return {"success": False, "error": f"YouTube posting failed: {str(e)}"}
     
     async def _post_to_tiktok(self, post_data: Dict, media_url: Optional[str]) -> Dict:
-        """TikTok posting implementation"""
-        # TikTok API implementation would go here
-        logger.info("⚠️ TikTok posting not yet implemented")
-        return {"success": False, "error": "TikTok posting not yet implemented"}
+        """Real TikTok posting using TikTok service"""
+        try:
+            from services.tiktok_service import tiktok_service
+            
+            result = await tiktok_service.post_content(post_data, media_url)
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ TikTok posting failed: {e}")
+            return {"success": False, "error": f"TikTok posting failed: {str(e)}"}
+    
+    async def _post_to_twitter(self, post_data: Dict, media_url: Optional[str]) -> Dict:
+        """Real Twitter posting using Twitter service"""
+        try:
+            from services.twitter_service import twitter_service
+            
+            result = await twitter_service.post_content(post_data, media_url)
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Twitter posting failed: {e}")
+            return {"success": False, "error": f"Twitter posting failed: {str(e)}"}
 
     # Helper methods for implementation...
     async def _store_content_plan(self, plan: Dict): pass
