@@ -560,52 +560,23 @@ const SpiritualGuidance = () => {
               {(Array.isArray(services) ? services : [])
                 .filter(s => s.enabled)
                 .filter(s => !selectedCategory || s.service_category === selectedCategory)
-                .map(service => {
-                  const hasEnoughCredits = spiritualAPI.isAuthenticated() && credits >= service.credits_required;
-                  const canSelect = spiritualAPI.isAuthenticated() && hasEnoughCredits;
-                  
-                  return (
-                    <button
-                      key={service.id}
-                      onClick={() => canSelect && setSelectedService(service.name)}
-                      disabled={!canSelect}
-                      className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                        selectedService === service.name
-                          ? 'border-yellow-400 bg-yellow-400 bg-opacity-20'
-                          : canSelect
-                            ? 'border-gray-600 bg-gray-800 hover:border-gray-400'
-                            : 'border-red-600 bg-red-900 bg-opacity-50 cursor-not-allowed'
-                      }`}
-                      title={!spiritualAPI.isAuthenticated() ? 'உள்நுழைய வேண்டும்' : !hasEnoughCredits ? 'போதுமான கிரெடிட்ஸ் இல்லை' : ''}
-                    >
-                      <div className="text-2xl mb-2">{service.icon || (service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮')}</div>
-                      <div className="text-white font-semibold text-sm">{service.display_name || service.name}</div>
-                      <div className="text-yellow-300 font-bold mt-2">₹{service.credits_required} கிரெடிட்ஸ்</div>
-                      <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full mt-1">{service.duration_minutes} நிமிடங்கள்</div>
-                      <div className="text-gray-500 text-xs mt-1">{service.description}</div>
-                      
-                      {!spiritualAPI.isAuthenticated() && (
-                        <div className="text-red-400 text-xs mt-2">உள்நுழைய வேண்டும்</div>
-                      )}
-                      {spiritualAPI.isAuthenticated() && !hasEnoughCredits && (
-                        <div className="mt-3 space-y-2">
-                          <div className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-semibold">
-                            ⚠️ போதுமான கிரெடிட்ஸ் இல்லை
-                          </div>
-                          <div className="text-red-400 text-xs">
-                            தேவை: {service.credits_required} கிரெடிட்ஸ் | உள்ளது: {credits} கிரெடிட்ஸ்
-                          </div>
-                          <Link 
-                            to="/profile?tab=credits"
-                            className="block w-full bg-yellow-500 hover:bg-yellow-600 text-black text-xs font-bold px-3 py-2 rounded-lg transition-colors text-center"
-                          >
-                            💰 கிரெடிட்ஸ் வாங்க
-                          </Link>
-                        </div>
-                      )}
-                    </button>
-                  );
-                })}
+                .map(service => (
+                  <button
+                    key={service.id}
+                    onClick={() => setSelectedService(service.name)}
+                    className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                      selectedService === service.name
+                        ? 'border-yellow-400 bg-yellow-400 bg-opacity-20'
+                        : 'border-gray-600 bg-gray-800 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="text-2xl mb-2">{service.icon || (service.is_video ? '🎥' : service.is_audio ? '🔊' : '🔮')}</div>
+                    <div className="text-white font-semibold text-sm">{service.display_name || service.name}</div>
+                    <div className="text-yellow-300 font-bold mt-2">₹{service.credits_required} கிரெடிட்ஸ்</div>
+                    <div className="bg-blue-500 text-white text-xs px-2 py-1 rounded-full mt-1">{service.duration_minutes} நிமிடங்கள்</div>
+                    <div className="text-gray-400 text-xs mt-1">{service.description}</div>
+                  </button>
+                ))}
             </div>
           )}
         </div>

@@ -184,90 +184,7 @@ const LiveChat = () => {
       {/* Main Content */}
       <div className="py-16 px-4">
         <div className="max-w-4xl mx-auto">
-          {!isAuthenticated ? (
-            /* Not Authenticated */
-            <div className="text-center sacred-card p-12">
-              <div className="text-6xl mb-6">🔐</div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                Sacred Authentication Required
-              </h2>
-              <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-                To access live video guidance with Swami Jyotirananthan, please create your sacred account or sign in to your existing one.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                <Link to="/register" className="divine-button">
-                  Create Sacred Account
-                </Link>
-                <Link 
-                  to="/login" 
-                  className="bg-transparent border-2 border-yellow-500 text-yellow-600 hover:bg-yellow-500 hover:text-white transition-all duration-300 px-6 py-3 rounded-lg font-semibold"
-                >
-                  Sign In
-                </Link>
-              </div>
-            </div>
-          ) : !hasRequiredSubscription ? (
-            /* Insufficient Subscription */
-            <div className="text-center sacred-card p-12">
-              <div className="text-6xl mb-6">⭐</div>
-              <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                Premium Spiritual Investment Required
-              </h2>
-              <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-                Live video chat with Swami Jyotirananthan is available for Premium and Elite members. 
-                Upgrade your spiritual journey to access this divine feature.
-              </p>
-              
-              {/* Subscription Options */}
-              <div className="grid md:grid-cols-2 gap-6 mb-8">
-                <div className="border-2 border-yellow-400 rounded-lg p-6">
-                  <div className="text-3xl mb-3">🌟</div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Premium</h3>
-                  <p className="text-gray-600 mb-4">Advanced spiritual guidance with avatar videos</p>
-                  <ul className="text-sm text-gray-600 mb-6 space-y-2">
-                    <li className="flex items-center">
-                      <Star size={12} className="text-yellow-500 mr-2" />
-                      Live video chat sessions
-                    </li>
-                    <li className="flex items-center">
-                      <Star size={12} className="text-yellow-500 mr-2" />
-                      Avatar video guidance
-                    </li>
-                    <li className="flex items-center">
-                      <Star size={12} className="text-yellow-500 mr-2" />
-                      Priority support
-                    </li>
-                  </ul>
-                  <button className="divine-button w-full">
-                    Upgrade to Premium
-                  </button>
-                </div>
-                
-                <div className="border-2 border-purple-400 rounded-lg p-6">
-                  <div className="text-3xl mb-3">👑</div>
-                  <h3 className="text-xl font-bold text-gray-800 mb-2">Elite</h3>
-                  <p className="text-gray-600 mb-4">Complete spiritual transformation journey</p>
-                  <ul className="text-sm text-gray-600 mb-6 space-y-2">
-                    <li className="flex items-center">
-                      <Star size={12} className="text-purple-500 mr-2" />
-                      Unlimited live sessions
-                    </li>
-                    <li className="flex items-center">
-                      <Star size={12} className="text-purple-500 mr-2" />
-                      Personal mentorship
-                    </li>
-                    <li className="flex items-center">
-                      <Star size={12} className="text-purple-500 mr-2" />
-                      Exclusive satsangs
-                    </li>
-                  </ul>
-                  <button className="bg-gradient-to-r from-purple-500 to-indigo-600 text-white px-6 py-3 rounded-lg font-semibold w-full hover:from-purple-600 hover:to-indigo-700 transition-all duration-300">
-                    Upgrade to Elite
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : chatSession ? (
+          {chatSession ? (
             /* Active Chat Session */
             isVideoCallActive ? (
               <AgoraVideoCall 
@@ -330,11 +247,13 @@ const LiveChat = () => {
             <div className="text-center sacred-card p-12">
               <div className="text-6xl mb-6">🙏</div>
               <h2 className="text-3xl font-bold text-gray-800 mb-4">
-                Welcome, {userProfile?.name || 'Divine Soul'}
+                {isAuthenticated ? `Welcome, ${userProfile?.name || 'Divine Soul'}` : 'Live Video Chat with Swami Jyotirananthan'}
               </h2>
               <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
-                You have access to live video guidance with Swami Jyotirananthan. 
-                Start a session whenever you need divine wisdom and personal guidance.
+                {isAuthenticated 
+                  ? "You have access to live video guidance with Swami Jyotirananthan. Start a session whenever you need divine wisdom and personal guidance."
+                  : "Experience real-time spiritual consultation with live video sessions for deeper guidance and personal connection."
+                }
               </p>
               
               {/* Session Info */}
@@ -356,6 +275,25 @@ const LiveChat = () => {
                 </div>
               </div>
               
+              {/* Subscription Requirements */}
+              {!isAuthenticated && (
+                <div className="mb-8 p-6 bg-yellow-50 rounded-lg border-2 border-yellow-200">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4">Membership Requirements</h3>
+                  <div className="grid md:grid-cols-2 gap-4 text-sm">
+                    <div className="text-center p-4 bg-white rounded-lg">
+                      <div className="text-2xl mb-2">🌟</div>
+                      <div className="font-semibold">Premium</div>
+                      <div className="text-gray-600">Advanced spiritual guidance</div>
+                    </div>
+                    <div className="text-center p-4 bg-white rounded-lg">
+                      <div className="text-2xl mb-2">👑</div>
+                      <div className="font-semibold">Elite</div>
+                      <div className="text-gray-600">Complete transformation journey</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <button 
                 onClick={initiateLiveChat}
                 disabled={isLoading}
@@ -369,7 +307,7 @@ const LiveChat = () => {
                 ) : (
                   <>
                     <Video className="mr-2" size={20} />
-                    Start Live Session
+                    {isAuthenticated ? 'Start Live Session' : 'Sign In to Start Session'}
                   </>
                 )}
               </button>
@@ -416,6 +354,34 @@ const LiveChat = () => {
           </div>
         </div>
       </div>
+
+      {/* Call to Action for Non-Authenticated Users */}
+      {!isAuthenticated && (
+        <div className="py-16 bg-gradient-to-r from-purple-600 to-blue-600">
+          <div className="max-w-4xl mx-auto px-4 text-center">
+            <h2 className="text-3xl font-bold text-white mb-6">
+              Ready to Experience Live Spiritual Guidance?
+            </h2>
+            <p className="text-white text-lg mb-8 opacity-90">
+              Join our sacred community and connect directly with Swami Jyotirananthan through live video sessions
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link 
+                to="/register"
+                className="bg-white text-purple-600 hover:bg-gray-100 transition-all duration-300 px-8 py-4 rounded-lg text-lg font-semibold"
+              >
+                Create Sacred Account
+              </Link>
+              <Link 
+                to="/login"
+                className="bg-transparent border-2 border-white text-white hover:bg-white hover:text-purple-600 transition-all duration-300 px-8 py-4 rounded-lg text-lg font-semibold"
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       {chatSession && (
         <>

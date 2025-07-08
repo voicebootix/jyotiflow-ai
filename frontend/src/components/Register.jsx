@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Mail, Lock, Eye, EyeOff, Loader, Check } from 'lucide-react';
 import spiritualAPI from '../lib/api';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Register = () => {
-  const navigate = useNavigate(); // ADD THIS LINE
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -55,27 +57,27 @@ const Register = () => {
 
   const validateStep1 = () => {
     if (!formData.name.trim()) {
-      setError('Please enter your sacred name');
+      setError(t('nameRequired', 'Please enter your sacred name'));
       return false;
     }
     if (!formData.email.trim()) {
-      setError('Please enter your email address');
+      setError(t('emailRequired', 'Please enter your email address'));
       return false;
     }
     if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      setError('Please enter a valid email address');
+      setError(t('emailInvalid', 'Please enter a valid email address'));
       return false;
     }
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError(t('passwordTooShort', 'Password must be at least 6 characters long'));
       return false;
     }
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwordMismatch', 'Passwords do not match'));
       return false;
     }
     if (!formData.agreeToTerms) {
-      setError('Please agree to the Terms of Service');
+      setError(t('agreeTermsRequired', 'Please agree to the Terms of Service'));
       return false;
     }
     return true;
@@ -83,15 +85,15 @@ const Register = () => {
 
   const validateStep2 = () => {
     if (!formData.birthDate) {
-      setError('Birth date is required for accurate spiritual guidance');
+      setError(t('birthDateRequired', 'Birth date is required for accurate spiritual guidance'));
       return false;
     }
     if (!formData.birthTime) {
-      setError('Birth time helps provide more precise guidance');
+      setError(t('birthTimeRequired', 'Birth time helps provide more precise guidance'));
       return false;
     }
     if (!formData.birthLocation.trim()) {
-      setError('Birth location is needed for astrological calculations');
+      setError(t('birthLocationRequired', 'Birth location is needed for astrological calculations'));
       return false;
     }
     return true;
@@ -154,10 +156,10 @@ const Register = () => {
           navigate(redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`);
         } else {
           // Registration successful but login failed, redirect to login
-          navigate('/login?message=Registration successful! Please sign in.');
+          navigate('/login?message=' + encodeURIComponent(t('registerSuccessLogin', 'Registration successful! Please sign in.')));
         }
       } else {
-        setError(result?.message || 'Registration failed. Please try again.');
+        setError(result?.message || t('registerError'));
         
         // Track failed registration
         await spiritualAPI.trackSpiritualEngagement('register_failed', {
@@ -166,7 +168,7 @@ const Register = () => {
       }
     } catch (error) {
       console.error('Registration encountered divine turbulence:', error);
-      setError('Connection to divine servers temporarily unavailable. Please try again.');
+      setError(t('networkError'));
     } finally {
       setIsLoading(false);
     }
@@ -174,15 +176,15 @@ const Register = () => {
 
   const getWelcomeMessage = () => {
     const messages = {
-      'live-chat': 'Join to access live video guidance with Swami Jyotirananthan',
-      'satsang': 'Create your account to register for sacred community gatherings',
-      'clarity': 'Begin your spiritual journey with personalized guidance',
-      'love': 'Discover divine insights about love and relationships',
-      'premium': 'Unlock premium features including AI avatar videos',
-      'elite': 'Access the complete spiritual transformation experience'
+      'live-chat': t('welcomeLiveChat', 'Join to access live video guidance with Swami Jyotirananthan'),
+      'satsang': t('welcomeSatsang', 'Create your account to register for sacred community gatherings'),
+      'clarity': t('welcomeClarity', 'Begin your spiritual journey with personalized guidance'),
+      'love': t('welcomeLove', 'Discover divine insights about love and relationships'),
+      'premium': t('welcomePremium', 'Unlock premium features including AI avatar videos'),
+      'elite': t('welcomeElite', 'Access the complete spiritual transformation experience')
     };
     
-    return messages[welcomeService] || 'Welcome to your divine digital guidance journey';
+    return messages[welcomeService] || t('welcomeDefault', 'Welcome to your divine digital guidance journey');
   };
 
   return (
@@ -195,15 +197,15 @@ const Register = () => {
             className="inline-flex items-center text-white hover:text-gray-200 mb-6 transition-colors"
           >
             <ArrowLeft size={20} className="mr-2" />
-            Back to Home
+            {t('backToHome')}
           </Link>
           
           <div className="text-6xl mb-4">🌟</div>
           <h1 className="text-4xl font-bold text-white mb-4">
-            Join Sacred Journey
+            {t('joinSacredJourney')}
           </h1>
           <p className="text-xl text-white opacity-90">
-            {welcomeService ? getWelcomeMessage() : 'Create your account for divine digital guidance'}
+            {welcomeService ? getWelcomeMessage() : t('createAccountDefault', 'Create your account for divine digital guidance')}
           </p>
         </div>
       </div>
@@ -225,8 +227,8 @@ const Register = () => {
             </div>
           </div>
           <div className="flex justify-between mt-2 text-sm text-white">
-            <span>Account Details</span>
-            <span>Birth Information</span>
+            <span>{t('accountDetails', 'Account Details')}</span>
+            <span>{t('birthInformation', 'Birth Information')}</span>
           </div>
         </div>
       </div>
@@ -239,8 +241,8 @@ const Register = () => {
               /* Step 1: Account Details */
               <form onSubmit={handleStep1Submit} className="space-y-6">
                 <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Create Your Sacred Account</h2>
-                  <p className="text-gray-600 mt-2">Step 1 of 2: Basic Information</p>
+                  <h2 className="text-2xl font-bold text-gray-800">{t('createSacredAccount', 'Create Your Sacred Account')}</h2>
+                  <p className="text-gray-600 mt-2">{t('step1Of2', 'Step 1 of 2: Basic Information')}</p>
                 </div>
 
                 {/* Error Message */}
@@ -253,7 +255,7 @@ const Register = () => {
                 {/* Name Field */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Full Name
+                    {t('fullName')}
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -262,7 +264,7 @@ const Register = () => {
                       name="name"
                       value={formData.name}
                       onChange={handleInputChange}
-                      placeholder="Your sacred name"
+                      placeholder={t('namePlaceholder', 'Your sacred name')}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                       required
                     />
@@ -272,7 +274,7 @@ const Register = () => {
                 {/* Email Field */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address
+                    {t('email')}
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -281,7 +283,7 @@ const Register = () => {
                       name="email"
                       value={formData.email}
                       onChange={handleInputChange}
-                      placeholder="your@email.com"
+                      placeholder={t('emailPlaceholder', 'your@email.com')}
                       className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                       required
                     />
@@ -291,7 +293,7 @@ const Register = () => {
                 {/* Password Field */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Password
+                    {t('password')}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -300,7 +302,7 @@ const Register = () => {
                       name="password"
                       value={formData.password}
                       onChange={handleInputChange}
-                      placeholder="Create a secure password"
+                      placeholder={t('createPasswordPlaceholder', 'Create a secure password')}
                       className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                       required
                     />
@@ -317,7 +319,7 @@ const Register = () => {
                 {/* Confirm Password Field */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Confirm Password
+                    {t('confirmPassword')}
                   </label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
@@ -326,7 +328,7 @@ const Register = () => {
                       name="confirmPassword"
                       value={formData.confirmPassword}
                       onChange={handleInputChange}
-                      placeholder="Confirm your password"
+                      placeholder={t('confirmPasswordPlaceholder', 'Confirm your password')}
                       className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent"
                       required
                     />
@@ -352,7 +354,7 @@ const Register = () => {
                       required 
                     />
                     <span className="text-sm text-gray-600">
-                      I agree to the <Link to="/terms" className="text-yellow-600 hover:text-yellow-800">Terms of Service</Link> and <Link to="/privacy" className="text-yellow-600 hover:text-yellow-800">Privacy Policy</Link>
+                      {t('agreeTerms', 'I agree to the')} <Link to="/terms" className="text-yellow-600 hover:text-yellow-800">{t('termsOfService', 'Terms of Service')}</Link> {t('and', 'and')} <Link to="/privacy" className="text-yellow-600 hover:text-yellow-800">{t('privacyPolicy', 'Privacy Policy')}</Link>
                     </span>
                   </label>
                   
@@ -365,7 +367,7 @@ const Register = () => {
                       className="mr-3 mt-1" 
                     />
                     <span className="text-sm text-gray-600">
-                      Subscribe to spiritual wisdom newsletter and satsang updates
+                      {t('subscribeNewsletter', 'Subscribe to spiritual wisdom newsletter and satsang updates')}
                     </span>
                   </label>
                 </div>
@@ -375,15 +377,15 @@ const Register = () => {
                   type="submit"
                   className="w-full divine-button py-3"
                 >
-                  Continue to Birth Details
+                  {t('continueToBirthDetails', 'Continue to Birth Details')}
                 </button>
               </form>
             ) : (
               /* Step 2: Birth Information */
               <form onSubmit={handleFinalSubmit} className="space-y-6">
                 <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">Birth Information</h2>
-                  <p className="text-gray-600 mt-2">Step 2 of 2: For Accurate Spiritual Guidance</p>
+                  <h2 className="text-2xl font-bold text-gray-800">{t('birthInformation')}</h2>
+                  <p className="text-gray-600 mt-2">{t('step2Of2', 'Step 2 of 2: For Accurate Spiritual Guidance')}</p>
                 </div>
 
                 {/* Error Message */}
@@ -397,7 +399,7 @@ const Register = () => {
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Birth Date
+                      {t('birthDate')}
                     </label>
                     <input
                       type="date"
@@ -411,7 +413,7 @@ const Register = () => {
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Birth Time
+                      {t('birthTime')}
                     </label>
                     <input
                       type="time"
@@ -422,25 +424,25 @@ const Register = () => {
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Exact time helps provide more accurate guidance
+                      {t('birthTimeHelp', 'Exact time helps provide more accurate guidance')}
                     </p>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Birth Location
+                      {t('birthLocation')}
                     </label>
                     <input
                       type="text"
                       name="birthLocation"
                       value={formData.birthLocation}
                       onChange={handleInputChange}
-                      placeholder="City, State/Province, Country"
+                      placeholder={t('birthLocationPlaceholder', 'City, State/Province, Country')}
                       className="w-full px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
                       required
                     />
                     <p className="text-xs text-gray-500 mt-1">
-                      Used for astrological calculations and spiritual insights
+                      {t('birthLocationHelp', 'Used for astrological calculations and spiritual insights')}
                     </p>
                   </div>
                 </div>
@@ -448,8 +450,7 @@ const Register = () => {
                 {/* Privacy Note */}
                 <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
                   <p className="text-sm text-blue-800">
-                    🔒 Your birth information is kept completely private and secure. 
-                    It's only used to provide accurate spiritual guidance and astrological insights.
+                    🔒 {t('privacyNote', 'Your birth information is kept completely private and secure. It\'s only used to provide accurate spiritual guidance and astrological insights.')}
                   </p>
                 </div>
 
@@ -460,7 +461,7 @@ const Register = () => {
                     onClick={() => setStep(1)}
                     className="flex-1 bg-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-400 transition-colors"
                   >
-                    Back
+                    {t('back')}
                   </button>
                   <button
                     type="submit"
@@ -470,10 +471,10 @@ const Register = () => {
                     {isLoading ? (
                       <>
                         <Loader className="animate-spin" size={20} />
-                        <span>Creating Account...</span>
+                        <span>{t('creatingAccount', 'Creating Account...')}</span>
                       </>
                     ) : (
-                      <span>Complete Sacred Registration</span>
+                      <span>{t('completeSacredRegistration', 'Complete Sacred Registration')}</span>
                     )}
                   </button>
                 </div>
@@ -483,13 +484,13 @@ const Register = () => {
             {/* Sign In Link */}
             <div className="mt-8 text-center">
               <p className="text-gray-600 mb-4">
-                Already have an account?
+                {t('alreadyHaveAccount', 'Already have an account?')}
               </p>
               <Link 
                 to="/login" 
                 className="text-yellow-600 hover:text-yellow-800 font-semibold transition-colors"
               >
-                Sign In to Your Journey
+                {t('signInToJourney', 'Sign In to Your Journey')}
               </Link>
             </div>
           </div>

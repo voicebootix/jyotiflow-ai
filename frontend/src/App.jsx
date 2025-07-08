@@ -14,8 +14,6 @@ import Register from './components/Register';
 import Navigation from './components/Navigation';
 
 // Import new feature components
-
-import FollowUpCenter from './components/FollowUpCenter';
 import BirthChart from './components/BirthChart';
 import RealTimeBirthChart from './components/RealTimeBirthChart';
 import PersonalizedRemedies from './components/PersonalizedRemedies';
@@ -47,9 +45,6 @@ import BusinessIntelligence from './components/admin/BusinessIntelligence';
 
 // Import debug component
 import AdminRoleTest from './components/AdminRoleTest';
-
-// Import admin redirect component
-import AdminRedirect from './components/AdminRedirect';
 
 // Import API client
 import spiritualAPI from './lib/api';
@@ -99,9 +94,6 @@ function App() {
           {/* Navigation */}
           <Navigation />    
           
-          {/* Admin Redirect - automatically redirects admin users */}
-          <AdminRedirect />
-          
           {/* Main Content */}
           <main className="relative z-10">
             <Routes>
@@ -116,46 +108,18 @@ function App() {
               <Route path="/about/four-pillars" element={<FourPillars />} />
               <Route path="/about/tamil-heritage" element={<TamilHeritage />} />
               
-              {/* User Routes (require authentication) */}
-              <Route path="/spiritual-guidance" element={
-                <ProtectedRoute>
-                  <SpiritualGuidance />
-                </ProtectedRoute>
-              } />
-              <Route path="/live-chat" element={
-                <ProtectedRoute>
-                  <LiveChat />
-                </ProtectedRoute>
-              } />
-              <Route path="/satsang" element={
-                <ProtectedRoute>
-                  <Satsang />
-                </ProtectedRoute>
-              } />
+              {/* Spiritual Service Routes (Public - Browse freely, login required for actions) */}
+              <Route path="/spiritual-guidance" element={<SpiritualGuidance />} />
+              <Route path="/live-chat" element={<LiveChat />} />
+              <Route path="/satsang" element={<Satsang />} />
+              <Route path="/birth-chart" element={<BirthChart />} />
+              <Route path="/real-time-birth-chart" element={<RealTimeBirthChart />} />
+              <Route path="/personalized-remedies" element={<PersonalizedRemedies />} />
+              
+              {/* User-Specific Routes (require authentication) */}
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <Profile />
-                </ProtectedRoute>
-              } />
-
-              <Route path="/follow-up-center" element={
-                <ProtectedRoute>
-                  <FollowUpCenter />
-                </ProtectedRoute>
-              } />
-              <Route path="/birth-chart" element={
-                <ProtectedRoute>
-                  <BirthChart />
-                </ProtectedRoute>
-              } />
-              <Route path="/real-time-birth-chart" element={
-                <ProtectedRoute>
-                  <RealTimeBirthChart />
-                </ProtectedRoute>
-              } />
-              <Route path="/personalized-remedies" element={
-                <ProtectedRoute>
-                  <PersonalizedRemedies />
                 </ProtectedRoute>
               } />
               <Route path="/agora-video-call" element={
