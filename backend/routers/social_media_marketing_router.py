@@ -10,7 +10,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile, Body
 from pydantic import BaseModel, Field
 
 from deps import get_current_user, get_admin_user
@@ -496,6 +496,46 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
     except Exception as e:
         logger.error(f"❌ Avatar config fetch failed: {e}")
         raise HTTPException(status_code=500, detail=f"Avatar config fetch failed: {str(e)}")
+
+@social_marketing_router.get("/platform-config")
+async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
+    """Social media platform config-ஐ பெறும் endpoint"""
+    try:
+        configs = {
+            str(platform.value): config
+            for platform, config in social_marketing_engine.platform_configs.items()
+        }
+        return StandardResponse(
+            success=True,
+            data=configs,
+            message="Platform configuration retrieved successfully"
+        )
+    except Exception as e:
+        logger.error(f"❌ Platform config fetch failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Platform config fetch failed: {str(e)}")
+
+@social_marketing_router.post("/platform-config")
+async def update_platform_config(
+    config_update: dict = Body(...),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Social media platform config-ஐ update செய்யும் endpoint"""
+    try:
+        for platform_name, config in config_update.items():
+            platform_enum = None
+            for p in social_marketing_engine.platform_configs:
+                if p.value == platform_name:
+                    platform_enum = p
+                    break
+            if platform_enum:
+                social_marketing_engine.platform_configs[platform_enum].update(config)
+        return StandardResponse(
+            success=True,
+            message="Platform configuration updated successfully"
+        )
+    except Exception as e:
+        logger.error(f"❌ Platform config update failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Platform config update failed: {str(e)}")
 
 @social_marketing_router.post("/agent-chat")
 async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_admin_user)):
