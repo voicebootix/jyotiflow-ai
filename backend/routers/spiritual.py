@@ -46,7 +46,10 @@ prokerala_token = None
 prokerala_token_expiry = 0
 
 # Initialize birth chart cache service
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required")
+
 birth_chart_cache = BirthChartCacheService(DATABASE_URL)
 
 async def fetch_prokerala_token():
