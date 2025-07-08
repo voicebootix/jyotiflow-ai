@@ -99,8 +99,7 @@ function App() {
           {/* Navigation */}
           <Navigation />    
           
-          {/* Admin Redirect - automatically redirects admin users */}
-          <AdminRedirect />
+          {/* AdminRedirect component removed for direct access */}
           
           {/* Main Content */}
           <main className="relative z-10">
