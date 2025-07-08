@@ -460,6 +460,46 @@ const EnhancedRegistration = () => {
           </form>
         </CardContent>
       </Card>
+
+      {/* Compelling Hook Line */}
+      <Card className="mt-6 bg-gradient-to-r from-orange-50 to-yellow-50 border-orange-200">
+        <CardContent className="text-center py-6">
+          <div className="flex flex-col items-center space-y-3">
+            <div className="flex items-center gap-2 text-orange-800">
+              <Star className="w-6 h-6 text-yellow-500" />
+              <h3 className="text-xl font-bold">Get Your Complete Spiritual Report & Personal Reading from Swami Jyotirananthan</h3>
+              <Star className="w-6 h-6 text-yellow-500" />
+            </div>
+            
+            <p className="text-lg text-orange-700 font-semibold">
+              Just Sign Up and You Get That FREE! 
+            </p>
+            
+            <div className="flex flex-wrap justify-center gap-4 text-sm text-orange-600 mt-2">
+              <div className="flex items-center gap-1">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>Complete Vedic Birth Chart</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>Personal AI Reading by Swamiji</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>Spiritual Guidance & Remedies</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <Check className="w-4 h-4 text-green-600" />
+                <span>Worth $60-105 USD</span>
+              </div>
+            </div>
+            
+            <Badge className="bg-orange-100 text-orange-800 text-base px-4 py-2 font-bold">
+              🎁 100% FREE - No Credit Card Required
+            </Badge>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
