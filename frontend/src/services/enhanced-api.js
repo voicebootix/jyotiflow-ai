@@ -39,12 +39,12 @@ class EnhancedAPIWrapper {
   
   // Marketing overview
   async getMarketingOverview() {
-    return this.mainAPI.get('/admin/social-marketing/overview');
+    return this.mainAPI.get('/api/admin/social-marketing/overview');
   }
 
   // Content calendar
   async getContentCalendar(params = {}) {
-    let endpoint = '/admin/social-marketing/content-calendar';
+    let endpoint = '/api/admin/social-marketing/content-calendar';
     const queryParams = new URLSearchParams();
     
     if (params.date) queryParams.append('date', params.date);
@@ -59,7 +59,7 @@ class EnhancedAPIWrapper {
 
   // Campaigns management
   async getCampaigns(params = {}) {
-    let endpoint = '/admin/social-marketing/campaigns';
+    let endpoint = '/api/admin/social-marketing/campaigns';
     const queryParams = new URLSearchParams();
     
     if (params.status) queryParams.append('status', params.status);
@@ -74,17 +74,17 @@ class EnhancedAPIWrapper {
 
   // Generate daily content
   async generateDailyContent(data = {}) {
-    return this.mainAPI.post('/admin/social-marketing/generate-daily-content', data);
+    return this.mainAPI.post('/api/admin/social-marketing/generate-daily-content', data);
   }
 
   // Execute automated posting
   async executePosting() {
-    return this.mainAPI.post('/admin/social-marketing/execute-posting', {});
+    return this.mainAPI.post('/api/admin/social-marketing/execute-posting', {});
   }
 
   // Marketing analytics
   async getMarketingAnalytics(params = {}) {
-    let endpoint = '/admin/social-marketing/analytics';
+    let endpoint = '/api/admin/social-marketing/analytics';
     const queryParams = new URLSearchParams();
     
     if (params.date_range) queryParams.append('date_range', params.date_range);
@@ -99,12 +99,12 @@ class EnhancedAPIWrapper {
 
   // Performance metrics
   async getPerformanceMetrics() {
-    return this.mainAPI.get('/admin/social-marketing/performance');
+    return this.mainAPI.get('/api/admin/social-marketing/performance');
   }
 
   // Comment management
   async getComments(params = {}) {
-    let endpoint = '/admin/social-marketing/comments';
+    let endpoint = '/api/admin/social-marketing/comments';
     const queryParams = new URLSearchParams();
     
     if (params.platform) queryParams.append('platform', params.platform);
@@ -119,17 +119,17 @@ class EnhancedAPIWrapper {
 
   // Execute comment responses
   async executeCommentResponses() {
-    return this.mainAPI.post('/admin/social-marketing/comments/respond', {});
+    return this.mainAPI.post('/api/admin/social-marketing/comments/respond', {});
   }
 
   // Automation settings
   async getAutomationSettings() {
-    return this.mainAPI.get('/admin/social-marketing/automation-settings');
+    return this.mainAPI.get('/api/admin/social-marketing/automation-settings');
   }
 
   // Update automation settings
   async updateAutomationSettings(settings) {
-    return this.mainAPI.request('/admin/social-marketing/automation-settings', {
+    return this.mainAPI.request('/api/admin/social-marketing/automation-settings', {
       method: 'PUT',
       body: JSON.stringify(settings)
     });
@@ -137,7 +137,7 @@ class EnhancedAPIWrapper {
 
   // Create campaign
   async createCampaign(campaignData) {
-    return this.mainAPI.post('/admin/social-marketing/campaigns', campaignData);
+    return this.mainAPI.post('/api/admin/social-marketing/campaigns', campaignData);
   }
 
   // ===== ENHANCED SPIRITUAL GUIDANCE =====
