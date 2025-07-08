@@ -37,7 +37,7 @@ const MarketingAgentChat = () => {
     setLoading(true);
 
     try {
-      const response = await enhanced_api.post('/admin/social-marketing/agent-chat', { 
+      const response = await enhanced_api.post('/api/admin/social-marketing/agent-chat', { 
         message: input 
       });
       

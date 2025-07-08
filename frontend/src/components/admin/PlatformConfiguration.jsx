@@ -20,7 +20,7 @@ const PlatformConfiguration = () => {
 
   const fetchCurrentKeys = async () => {
     try {
-      const response = await enhanced_api.get('/admin/social-marketing/platform-config');
+      const response = await enhanced_api.get('/api/admin/social-marketing/platform-config');
       if (response.data.success) {
         setApiKeys(response.data.data);
       }
@@ -42,7 +42,7 @@ const PlatformConfiguration = () => {
   const saveConfiguration = async (platform) => {
     try {
       setLoading(true);
-      const response = await enhanced_api.post('/admin/social-marketing/platform-config', {
+      const response = await enhanced_api.post('/api/admin/social-marketing/platform-config', {
         platform,
         config: apiKeys[platform]
       });
@@ -62,7 +62,7 @@ const PlatformConfiguration = () => {
   const testConnection = async (platform) => {
     try {
       setLoading(true);
-      const response = await enhanced_api.post('/admin/social-marketing/test-connection', {
+      const response = await enhanced_api.post('/api/admin/social-marketing/test-connection', {
         platform,
         config: apiKeys[platform]
       });

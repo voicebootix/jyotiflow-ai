@@ -24,9 +24,8 @@ logger = logging.getLogger(__name__)
 
 # Create router
 social_marketing_router = APIRouter(
-    prefix="/admin/social-marketing",
-    tags=["Social Media Marketing"],
-    dependencies=[Depends(get_admin_user)]
+    prefix="/api/admin/social-marketing",
+    tags=["Social Media Marketing"]
 )
 
 # Request/Response Models
