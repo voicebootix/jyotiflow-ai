@@ -6,8 +6,34 @@ import openai
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from services.birth_chart_cache_service import BirthChartCacheService
+import jwt
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
+
+# JWT configuration
+JWT_SECRET_KEY = os.getenv("JWT_SECRET", "jyotiflow_secret")
+JWT_ALGORITHM = "HS256"
+
+# --- Helper function to extract user email from JWT token ---
+def extract_user_email_from_token(request: Request) -> str:
+    """Extract user email from JWT token in Authorization header"""
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    token = auth_header.split(" ")[1]
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        user_email = payload.get("email")
+        if not user_email:
+            raise HTTPException(status_code=401, detail="Invalid token: missing email")
+        return user_email
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token has expired")
+    except jwt.DecodeError:
+        raise HTTPException(status_code=401, detail="Invalid token format")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 # --- Prokerala Token Management ---
 PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
@@ -69,12 +95,7 @@ async def get_birth_chart(request: Request):
         raise HTTPException(status_code=400, detail="Missing date or time in birth details")
 
     # Get user email from Authorization header
-    user_email = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        # In production, decode JWT token to get user email
-        # For now, we'll use a placeholder or get from user context
-        user_email = "user@example.com"  # TODO: Extract from JWT token
+    user_email = extract_user_email_from_token(request)
 
     # --- CHECK CACHE FIRST ---
     if user_email:
@@ -285,14 +306,7 @@ async def get_spiritual_guidance(request: Request):
 async def get_birth_chart_cache_status(request: Request):
     """Get user's birth chart cache status"""
     # Get user email from Authorization header
-    user_email = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        # TODO: Extract from JWT token
-        user_email = "user@example.com"  # Placeholder
-    
-    if not user_email:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    user_email = extract_user_email_from_token(request)
     
     try:
         status = await birth_chart_cache.get_user_birth_chart_status(user_email)
@@ -308,14 +322,7 @@ async def get_birth_chart_cache_status(request: Request):
 async def clear_birth_chart_cache(request: Request):
     """Clear user's birth chart cache"""
     # Get user email from Authorization header
-    user_email = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        # TODO: Extract from JWT token
-        user_email = "user@example.com"  # Placeholder
-    
-    if not user_email:
-        raise HTTPException(status_code=401, detail="Authentication required")
+    user_email = extract_user_email_from_token(request)
     
     try:
         success = await birth_chart_cache.invalidate_cache(user_email)
