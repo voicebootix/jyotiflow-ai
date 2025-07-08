@@ -5,7 +5,7 @@ Handles caching of birth chart data + PDF reports + AI-generated Swamiji reading
 
 import hashlib
 import json
-import sqlite3
+import asyncpg
 import httpx
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
@@ -138,8 +138,8 @@ class ProkeralaPDFProcessor:
 class EnhancedBirthChartCacheService:
     """Enhanced service for managing birth chart data + PDF reports + AI readings"""
     
-    def __init__(self, db_path: str = "jyotiflow.db"):
-        self.db_path = db_path
+    def __init__(self, db_url: str):
+        self.db_url = db_url
         self.cache_duration_days = 365
         
         # Initialize Prokerala API
@@ -171,35 +171,34 @@ class EnhancedBirthChartCacheService:
         try:
             birth_hash = self.generate_birth_details_hash(birth_details)
             
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+            conn = await asyncpg.connect(self.db_url)
+            
+            result = await conn.fetchrow("""
+                SELECT birth_chart_data, birth_chart_cached_at, birth_chart_expires_at
+                FROM users 
+                WHERE email = $1 
+                AND birth_chart_hash = $2 
+                AND birth_chart_expires_at > NOW()
+                AND birth_chart_data IS NOT NULL
+            """, user_email, birth_hash)
+            
+            await conn.close()
+            
+            if result:
+                logger.info(f"✅ Complete profile cache HIT for user {user_email}")
+                cached_data = json.loads(result['birth_chart_data'])
                 
-                cursor.execute("""
-                    SELECT birth_chart_data, birth_chart_cached_at, birth_chart_expires_at
-                    FROM users 
-                    WHERE email = ? 
-                    AND birth_chart_hash = ? 
-                    AND birth_chart_expires_at > datetime('now')
-                    AND birth_chart_data IS NOT NULL
-                """, (user_email, birth_hash))
-                
-                result = cursor.fetchone()
-                
-                if result:
-                    logger.info(f"✅ Complete profile cache HIT for user {user_email}")
-                    cached_data = json.loads(result[0])
-                    
-                    return {
-                        'birth_chart': cached_data.get('birth_chart', {}),
-                        'pdf_reports': cached_data.get('pdf_reports', {}),
-                        'swamiji_reading': cached_data.get('swamiji_reading', {}),
-                        'cached_at': result[1],
-                        'expires_at': result[2],
-                        'cache_hit': True
-                    }
-                else:
-                    logger.info(f"❌ Complete profile cache MISS for user {user_email}")
-                    return None
+                return {
+                    'birth_chart': cached_data.get('birth_chart', {}),
+                    'pdf_reports': cached_data.get('pdf_reports', {}),
+                    'swamiji_reading': cached_data.get('swamiji_reading', {}),
+                    'cached_at': result['birth_chart_cached_at'],
+                    'expires_at': result['birth_chart_expires_at'],
+                    'cache_hit': True
+                }
+            else:
+                logger.info(f"❌ Complete profile cache MISS for user {user_email}")
+                return None
                     
         except Exception as e:
             logger.error(f"Error getting cached profile: {e}")
@@ -455,32 +454,31 @@ Make it personal and practical for daily life.
             cached_at = datetime.now()
             expires_at = cached_at + timedelta(days=self.cache_duration_days)
             
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT OR REPLACE INTO users 
-                    (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
-                     birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
-                     birth_location, name, password_hash, role, credits)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    user_email,
-                    json.dumps(complete_profile),
-                    birth_hash,
-                    cached_at.isoformat(),
-                    expires_at.isoformat(),
-                    True,
-                    birth_details.get('date'),
-                    birth_details.get('time'),
-                    birth_details.get('location'),
-                    birth_details.get('name', 'User'),
-                    'temp_hash',  # This would be set during actual registration
-                    'user',
-                    50  # Default credits for new users
-                ))
-                
-                conn.commit()
+            conn = await asyncpg.connect(self.db_url)
+            
+            await conn.execute("""
+                UPDATE users SET 
+                    birth_chart_data = $1,
+                    birth_chart_hash = $2,
+                    birth_chart_cached_at = $3,
+                    birth_chart_expires_at = $4,
+                    has_free_birth_chart = $5,
+                    birth_date = $6,
+                    birth_time = $7,
+                    birth_location = $8
+                WHERE email = $9
+            """, 
+            json.dumps(complete_profile),
+            birth_hash,
+            cached_at,
+            expires_at,
+            True,
+            birth_details.get('date'),
+            birth_details.get('time'),
+            birth_details.get('location'),
+            user_email)
+            
+            await conn.close()
             
             logger.info(f"✅ Complete profile cached for {user_email}")
             return True
@@ -492,38 +490,38 @@ Make it personal and practical for daily life.
     async def get_user_profile_status(self, user_email: str) -> Dict[str, Any]:
         """Get user's complete profile status"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT birth_date, birth_time, birth_location, birth_chart_cached_at, 
-                           birth_chart_expires_at, has_free_birth_chart,
-                           (birth_chart_data IS NOT NULL) as has_cached_data,
-                           (birth_chart_expires_at > datetime('now')) as cache_valid
-                    FROM users 
-                    WHERE email = ?
-                """, (user_email,))
-                
-                result = cursor.fetchone()
-                
-                if result:
-                    return {
-                        'has_birth_details': bool(result[0] and result[1] and result[2]),
-                        'has_cached_data': bool(result[5]),
-                        'cache_valid': bool(result[6]),
-                        'cached_at': result[3],
-                        'expires_at': result[4],
-                        'has_free_birth_chart': bool(result[5])
-                    }
-                else:
-                    return {
-                        'has_birth_details': False,
-                        'has_cached_data': False,
-                        'cache_valid': False,
-                        'cached_at': None,
-                        'expires_at': None,
-                        'has_free_birth_chart': False
-                    }
+            conn = await asyncpg.connect(self.db_url)
+            
+            result = await conn.fetchrow("""
+                SELECT 
+                    birth_date, birth_time, birth_location, birth_chart_cached_at, 
+                    birth_chart_expires_at, has_free_birth_chart,
+                    (birth_chart_data IS NOT NULL) as has_cached_data,
+                    (birth_chart_expires_at > NOW()) as cache_valid
+                FROM users 
+                WHERE email = $1
+            """, user_email)
+            
+            await conn.close()
+            
+            if result:
+                return {
+                    'has_birth_details': bool(result['birth_date'] and result['birth_time'] and result['birth_location']),
+                    'has_cached_data': bool(result['has_cached_data']),
+                    'cache_valid': bool(result['cache_valid']),
+                    'cached_at': result['birth_chart_cached_at'],
+                    'expires_at': result['birth_chart_expires_at'],
+                    'has_free_birth_chart': bool(result['has_free_birth_chart'])
+                }
+            else:
+                return {
+                    'has_birth_details': False,
+                    'has_cached_data': False,
+                    'cache_valid': False,
+                    'cached_at': None,
+                    'expires_at': None,
+                    'has_free_birth_chart': False
+                }
                     
         except Exception as e:
             logger.error(f"Error getting user profile status: {e}")
