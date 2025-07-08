@@ -500,39 +500,38 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
 async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
     """Get social media platform credentials from database"""
     try:
-        import sqlite3
+        import db
         import json
         
-        # Use SQLite database
-        conn = sqlite3.connect('jyotiflow.db')
-        cursor = conn.cursor()
+        # Get database connection
+        if not db.db_pool:
+            logger.error("❌ Database pool not available")
+            raise HTTPException(status_code=500, detail="Database not available")
         
-        configs = {}
-        
-        # Get credentials for each platform from database
-        for platform in ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok']:
-            cursor.execute(
-                "SELECT value FROM platform_settings WHERE key = ?",
-                (f"{platform}_credentials",)
-            )
-            row = cursor.fetchone()
+        async with db.db_pool.acquire() as db_conn:
+            configs = {}
             
-            if row and row[0]:
-                try:
-                    credentials = json.loads(row[0]) if isinstance(row[0], str) else row[0]
-                except (json.JSONDecodeError, TypeError):
+            # Get credentials for each platform from database
+            for platform in ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok']:
+                row = await db_conn.fetchrow(
+                    "SELECT value FROM platform_settings WHERE key = $1",
+                    f"{platform}_credentials"
+                )
+                
+                if row and row['value']:
+                    try:
+                        credentials = json.loads(row['value']) if isinstance(row['value'], str) else row['value']
+                    except (json.JSONDecodeError, TypeError):
+                        credentials = {}
+                else:
                     credentials = {}
-            else:
-                credentials = {}
-            
-            # Add status based on whether credentials are configured
-            credentials['status'] = 'connected' if credentials and all(
-                credentials.get(field) for field in get_required_fields(platform)
-            ) else 'not_connected'
-            
-            configs[platform] = credentials
-        
-        conn.close()
+                
+                # Add status based on whether credentials are configured
+                credentials['status'] = 'connected' if credentials and all(
+                    credentials.get(field) for field in get_required_fields(platform)
+                ) else 'not_connected'
+                
+                configs[platform] = credentials
         
         return StandardResponse(
             success=True,
@@ -550,9 +549,13 @@ async def update_platform_config(
 ):
     """Save social media platform credentials to database"""
     try:
-        import sqlite3
+        import db
         import json
-        from datetime import datetime
+        
+        # Get database connection
+        if not db.db_pool:
+            logger.error("❌ Database pool not available")
+            raise HTTPException(status_code=500, detail="Database not available")
         
         platform = config_update.get('platform')
         config = config_update.get('config', {})
@@ -563,18 +566,15 @@ async def update_platform_config(
         # Remove status field before saving
         config_to_save = {k: v for k, v in config.items() if k != 'status'}
         
-        # Use SQLite database
-        conn = sqlite3.connect('jyotiflow.db')
-        cursor = conn.cursor()
-        
-        # Save or update credentials in database
-        cursor.execute("""
-            INSERT OR REPLACE INTO platform_settings (key, value, created_at, updated_at)
-            VALUES (?, ?, ?, ?)
-        """, (f"{platform}_credentials", json.dumps(config_to_save), datetime.now().isoformat(), datetime.now().isoformat()))
-        
-        conn.commit()
-        conn.close()
+        async with db.db_pool.acquire() as db_conn:
+            # Save or update credentials in database
+            await db_conn.execute("""
+                INSERT INTO platform_settings (key, value, created_at, updated_at)
+                VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (key) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    updated_at = CURRENT_TIMESTAMP
+            """, f"{platform}_credentials", json.dumps(config_to_save))
         
         # Clear cached credentials in Facebook service
         if platform == 'facebook':
