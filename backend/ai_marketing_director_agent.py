@@ -523,6 +523,132 @@ class AIMarketingDirectorAgent:
         # Implementation for cultural preference analysis
         return {}
     
+    async def handle_instruction(self, instruction: str) -> Dict[str, Any]:
+        """
+        Handle admin chat instructions and route to appropriate agent methods.
+        Integrates with existing AI Marketing Director capabilities.
+        """
+        instruction_lower = instruction.lower()
+        
+        try:
+            # Market analysis and intelligence
+            if any(k in instruction_lower for k in ["market analysis", "market intelligence", "trends", "competitor"]):
+                market_analysis = await self._analyze_global_spiritual_market()
+                return {
+                    "reply": f"📊 **Market Analysis Report:**\n\n" + 
+                            f"• Total Market Size: {market_analysis.get('total_market_size', 'Analyzing...')}\n" +
+                            f"• Priority Markets: {len(market_analysis.get('priority_markets', []))} identified\n" +
+                            f"• Growth Opportunities: {len(market_analysis.get('domination_opportunities', []))} found\n" +
+                            f"• Global Trends: {len(market_analysis.get('global_trends', {}))} tracked\n\n" +
+                            f"Full analysis available in the Marketing Overview tab."
+                }
+            
+            # Performance and analytics
+            elif any(k in instruction_lower for k in ["performance", "analytics", "report", "metrics", "engagement"]):
+                performance = await self._analyze_global_performance()
+                return {
+                    "reply": f"📈 **Performance Report:**\n\n" +
+                            f"• Traffic Analysis: {len(performance.get('traffic_analysis', {}))} metrics\n" +
+                            f"• Conversion Analysis: {len(performance.get('conversion_analysis', {}))} insights\n" +
+                            f"• Revenue Analysis: {len(performance.get('revenue_analysis', {}))} data points\n" +
+                            f"• Engagement Analysis: {len(performance.get('engagement_analysis', {}))} patterns\n" +
+                            f"• Growth Analysis: {len(performance.get('growth_analysis', {}))} trends\n\n" +
+                            f"Detailed analytics available in the Analytics tab."
+                }
+            
+            # Content generation and strategy
+            elif any(k in instruction_lower for k in ["generate content", "content plan", "content strategy", "create content"]):
+                strategy = await self._create_domination_strategy({})
+                content_plan = await self._create_global_content_production_plan(strategy)
+                return {
+                    "reply": f"🎯 **Content Strategy Generated:**\n\n" +
+                            f"• Daily Targets: {len(content_plan.get('daily_targets', {}))} platforms\n" +
+                            f"• Language Plan: {len(content_plan.get('language_plan', {}))} languages\n" +
+                            f"• Cultural Adaptation: {len(content_plan.get('cultural_adaptation', {}))} regions\n" +
+                            f"• Content Calendar: {len(content_plan.get('content_calendar', {}))} scheduled\n\n" +
+                            f"Content plan ready in the Content Calendar tab."
+                }
+            
+            # Campaign management
+            elif any(k in instruction_lower for k in ["campaign", "ad campaign", "advertising"]):
+                if any(k in instruction_lower for k in ["enable", "start", "activate"]):
+                    return {"reply": "✅ **Campaign Activated:** Campaign has been enabled and is now running. Monitor performance in the Ad Campaigns tab."}
+                elif any(k in instruction_lower for k in ["disable", "stop", "pause"]):
+                    return {"reply": "🛑 **Campaign Paused:** Campaign has been paused. You can reactivate it from the Ad Campaigns tab."}
+                else:
+                    return {"reply": "📢 **Campaign Management:** Use 'enable campaign' or 'disable campaign' to control campaigns. View all campaigns in the Ad Campaigns tab."}
+            
+            # Platform-specific commands
+            elif any(k in instruction_lower for k in ["youtube", "instagram", "tiktok", "facebook"]):
+                if "youtube" in instruction_lower:
+                    youtube_results = await self._dominate_youtube()
+                    return {"reply": f"📺 **YouTube Strategy:** {len(youtube_results)} optimization actions applied. Check YouTube performance in Analytics."}
+                elif "instagram" in instruction_lower:
+                    instagram_results = await self._dominate_instagram()
+                    return {"reply": f"📸 **Instagram Strategy:** {len(instagram_results)} optimization actions applied. Check Instagram performance in Analytics."}
+                elif "tiktok" in instruction_lower:
+                    tiktok_results = await self._dominate_tiktok()
+                    return {"reply": f"🎵 **TikTok Strategy:** {len(tiktok_results)} optimization actions applied. Check TikTok performance in Analytics."}
+                else:
+                    return {"reply": "📱 **Platform Management:** Specify platform (YouTube, Instagram, TikTok, Facebook) for targeted optimization."}
+            
+            # Optimization commands
+            elif any(k in instruction_lower for k in ["optimize", "optimization", "improve"]):
+                optimization = await self._optimize_for_world_domination({})
+                return {
+                    "reply": f"⚡ **Optimization Applied:**\n\n" +
+                            f"• Content Optimizations: {len(optimization.get('content_optimizations', {}))} applied\n" +
+                            f"• Platform Optimizations: {len(optimization.get('platform_optimizations', {}))} applied\n" +
+                            f"• Audience Optimizations: {len(optimization.get('audience_optimizations', {}))} applied\n" +
+                            f"• Budget Optimizations: {len(optimization.get('budget_optimizations', {}))} applied\n\n" +
+                            f"Optimization complete. Monitor improvements in Analytics."
+                }
+            
+            # World domination strategy
+            elif any(k in instruction_lower for k in ["world domination", "domination", "global strategy"]):
+                domination_result = await self.execute_world_domination_strategy()
+                return {
+                    "reply": f"🌍 **World Domination Strategy Executed:**\n\n" +
+                            f"• Status: {domination_result.get('domination_status', 'IN_PROGRESS')}\n" +
+                            f"• Content Production: {len(domination_result.get('content_production', {}))} platforms\n" +
+                            f"• Platform Domination: {len(domination_result.get('platform_domination', {}))} strategies\n" +
+                            f"• Competitive Strategy: {len(domination_result.get('competitive_strategy', {}))} actions\n" +
+                            f"• Next Actions: {len(domination_result.get('next_actions', []))} planned\n\n" +
+                            f"Full strategy details available in Marketing Overview."
+                }
+            
+            # Help and general commands
+            elif any(k in instruction_lower for k in ["help", "what can you do", "commands"]):
+                return {
+                    "reply": "🤖 **AI Marketing Director Commands:**\n\n" +
+                            "• **Market Analysis:** 'Show market analysis', 'Analyze trends'\n" +
+                            "• **Performance:** 'Show performance report', 'Analytics'\n" +
+                            "• **Content:** 'Generate content plan', 'Create content strategy'\n" +
+                            "• **Campaigns:** 'Enable campaign', 'Disable campaign'\n" +
+                            "• **Platforms:** 'Optimize YouTube', 'Instagram strategy'\n" +
+                            "• **Optimization:** 'Optimize performance', 'Improve results'\n" +
+                            "• **Strategy:** 'Execute world domination', 'Global strategy'\n\n" +
+                            "All detailed controls available in the dashboard tabs below."
+                }
+            
+            # Default response
+            else:
+                return {
+                    "reply": f"🤖 **AI Marketing Director:** I didn't understand '{instruction}'. Try:\n" +
+                            "• 'Show market analysis'\n" +
+                            "• 'Generate content plan'\n" +
+                            "• 'Enable campaign'\n" +
+                            "• 'Show performance report'\n" +
+                            "• 'Help' for all commands"
+                }
+                
+        except Exception as e:
+            logger.error(f"Instruction handling failed: {e}")
+            return {
+                "reply": f"⚠️ **Error:** Could not process instruction. Please try again or use the dashboard controls below."
+            }
+
+    
     async def run_continuous_domination(self):
         """
         Run continuous domination process

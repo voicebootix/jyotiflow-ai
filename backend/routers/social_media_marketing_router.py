@@ -18,6 +18,7 @@ from core_foundation_enhanced import StandardResponse
 from social_media_marketing_automation import social_marketing_engine
 from universal_pricing_engine import UniversalPricingEngine
 from spiritual_avatar_generation_engine import avatar_engine
+from ai_marketing_director_agent import ai_marketing_director
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,9 @@ class AvatarConfigurationRequest(BaseModel):
     previews: Dict[str, Any] = Field(..., description="Generated previews")
     approved_styles: List[str] = Field(..., description="Approved avatar styles")
     default_style: str = Field(..., description="Default avatar style")
+
+class AgentChatRequest(BaseModel):
+    message: str
 
 # Marketing Overview Endpoints
 @social_marketing_router.get("/overview")
@@ -492,6 +496,16 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
     except Exception as e:
         logger.error(f"❌ Avatar config fetch failed: {e}")
         raise HTTPException(status_code=500, detail=f"Avatar config fetch failed: {str(e)}")
+
+@social_marketing_router.post("/agent-chat")
+async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_admin_user)):
+    """Chat with the AI Marketing Director Agent - give instructions and get reports"""
+    try:
+        reply = await ai_marketing_director.handle_instruction(request.message)
+        return StandardResponse(success=True, data=reply, message="Agent reply")
+    except Exception as e:
+        logger.error(f"Agent chat failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Agent chat failed: {str(e)}")
 
 # Helper Functions
 async def calculate_marketing_kpis(performance_data: Dict) -> Dict[str, str]:

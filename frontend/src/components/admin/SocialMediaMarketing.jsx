@@ -8,6 +8,7 @@ import {
 import enhanced_api from '../../services/enhanced-api';
 import PlatformConfiguration from './PlatformConfiguration';
 import SwamjiAvatarPreview from './SwamjiAvatarPreview';
+import MarketingAgentChat from './MarketingAgentChat';
 
 const SocialMediaMarketing = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -115,6 +116,7 @@ const SocialMediaMarketing = () => {
 
   return (
     <div className="space-y-6">
+      <MarketingAgentChat />
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>

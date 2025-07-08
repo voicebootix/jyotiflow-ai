@@ -564,6 +564,8 @@ const spiritualAPI = {
   async getSystemHealth() {
     return this.get('/api/spiritual/enhanced/system-health');
   },
+
+
 };
 
 export default spiritualAPI;
