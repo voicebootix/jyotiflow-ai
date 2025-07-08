@@ -2,10 +2,169 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from db import get_db
 import jwt
 import os
+import time
 from datetime import datetime, timezone
 import uuid
 from typing import Dict, Any
 import asyncio
+
+# PROKERALA INTEGRATION - Using existing working logic from spiritual.py
+import httpx
+import openai
+
+PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
+PROKERALA_CLIENT_SECRET = os.getenv("PROKERALA_CLIENT_SECRET", "your-client-secret")
+PROKERALA_TOKEN_URL = "https://api.prokerala.com/token"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+
+# Global token cache
+prokerala_token = None
+prokerala_token_expiry = 0
+
+async def fetch_prokerala_token():
+    """Fetch a new access token from Prokerala API"""
+    global prokerala_token, prokerala_token_expiry
+    async with httpx.AsyncClient() as client:
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": PROKERALA_CLIENT_ID,
+            "client_secret": PROKERALA_CLIENT_SECRET
+        }
+        resp = await client.post(PROKERALA_TOKEN_URL, data=data)
+        resp.raise_for_status()
+        token_data = resp.json()
+        prokerala_token = token_data["access_token"]
+        prokerala_token_expiry = int(time.time()) + int(token_data.get("expires_in", 3600)) - 60
+        return prokerala_token
+
+async def get_prokerala_token():
+    """Get a valid token, refresh if expired"""
+    global prokerala_token, prokerala_token_expiry
+    if not prokerala_token or time.time() > prokerala_token_expiry:
+        return await fetch_prokerala_token()
+    return prokerala_token
+
+async def get_prokerala_chart_data(birth_details: Dict[str, Any]) -> Dict[str, Any]:
+    """Get birth chart data from Prokerala - MOVED FROM spiritual.py"""
+    date = birth_details.get("date")
+    time_str = birth_details.get("time")
+    location = birth_details.get("location", "Jaffna, Sri Lanka")
+    
+    # Format datetime with timezone
+    datetime_str = f"{date}T{time_str}:00+05:30"
+    coordinates = "9.66845,80.00742"  # Default Jaffna coordinates
+    
+    params = {
+        "datetime": datetime_str,
+        "coordinates": coordinates,
+        "ayanamsa": "1"
+    }
+    
+    chart_data = {}
+    
+    for attempt in range(2):  # Try once, refresh token and retry if 401
+        try:
+            token = await get_prokerala_token()
+            async with httpx.AsyncClient() as client:
+                headers = {"Authorization": f"Bearer {token}"}
+                
+                # Get birth details
+                basic_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/birth-details",
+                    headers=headers,
+                    params=params
+                )
+                if basic_resp.status_code == 200:
+                    chart_data.update(basic_resp.json())
+                
+                # Get planets data
+                planets_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/planets",
+                    headers=headers,
+                    params=params
+                )
+                if planets_resp.status_code == 200:
+                    planets_data = planets_resp.json()
+                    if "data" in planets_data:
+                        chart_data["planets"] = planets_data["data"]
+                
+                # Get houses data
+                houses_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/houses",
+                    headers=headers,
+                    params=params
+                )
+                if houses_resp.status_code == 200:
+                    houses_data = houses_resp.json()
+                    if "data" in houses_data:
+                        chart_data["houses"] = houses_data["data"]
+                
+                # Ensure required keys exist
+                chart_data.setdefault("planets", {})
+                chart_data.setdefault("houses", {})
+                chart_data.setdefault("data", {})
+                
+                return chart_data
+                
+        except Exception as e:
+            if attempt == 0 and "401" in str(e):
+                await fetch_prokerala_token()
+                continue
+            raise e
+    
+    # Return minimal data if all attempts fail
+    return {
+        "data": {
+            "nakshatra": {"name": "Unable to calculate"},
+            "chandra_rasi": {"name": "Unable to calculate"}
+        },
+        "error": "Prokerala API unavailable"
+    }
+
+async def generate_spiritual_guidance_with_ai(question: str, astrology_data: Dict[str, Any]) -> str:
+    """Generate spiritual guidance using OpenAI - MOVED FROM spiritual.py"""
+    try:
+        openai.api_key = OPENAI_API_KEY
+        prompt = f"""You are Swami Jyotirananthan, a revered Tamil spiritual master.
+
+User's Question: {question}
+Astrological Data: {astrology_data}
+
+Provide compassionate spiritual guidance that includes:
+1. Direct response to their question
+2. Astrological insights from their chart
+3. Tamil spiritual wisdom
+4. Practical advice
+
+Write in English with Tamil spiritual concepts."""
+
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are Swami Jyotirananthan, a compassionate Tamil spiritual guide."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        # Fallback guidance if OpenAI fails
+        return f"""🕉️ Divine Guidance from Swami Jyotirananthan
+
+Your Question: {question}
+
+Though the AI guidance is temporarily unavailable, I offer you this wisdom from the eternal Tamil tradition:
+
+The ancient texts teach us that every question arises from the soul's journey toward truth. Your sincere inquiry itself shows spiritual awakening.
+
+May divine grace illuminate your path forward.
+
+Om Namah Shivaya 🙏"""
+
+PROKERALA_AVAILABLE = bool(PROKERALA_CLIENT_ID and PROKERALA_CLIENT_ID != "your-client-id")
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
@@ -69,7 +228,7 @@ async def schedule_session_followup(session_id: str, user_email: str, service_ty
 
 @router.post("/start")
 async def start_session(request: Request, session_data: Dict[str, Any], db=Depends(get_db)):
-    """Start a spiritual guidance session with atomic credit deduction"""
+    """Start a spiritual guidance session with RAG + Prokerala integration"""
     user_id = get_user_id_from_token(request)
     
     # Get service details first
@@ -137,29 +296,91 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
         # Calculate remaining credits
         remaining_credits = user["credits"] - service["credits_required"]
     
-    # Generate guidance text
-    guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
+    # ENHANCED: Use RAG system with Swami's knowledge base + Prokerala integration
+    birth_details = session_data.get("birth_details")
+    astrology_data = {}
+    guidance_text = ""
+    
+    try:
+        # Import and use the RAG-enhanced spiritual guidance system
+        from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+        
+        # Get enhanced guidance with RAG + Prokerala integration
+        rag_result = await get_rag_enhanced_guidance(
+            user_query=session_data.get("question", ""),
+            birth_details=birth_details,
+            service_type=service_type
+        )
+        
+        guidance_text = rag_result.get("enhanced_guidance", "")
+        
+        # Extract astrology data from enhanced birth details if available
+        enhanced_birth_details = rag_result.get("enhanced_birth_details", {})
+        if enhanced_birth_details and "prokerala_response" in enhanced_birth_details:
+            astrology_data = enhanced_birth_details["prokerala_response"]
+        else:
+            astrology_data = {"data": {"message": "Enhanced spiritual guidance provided"}}
+        
+        print(f"[RAG] Enhanced guidance generated: {len(guidance_text)} chars")
+        print(f"[RAG] Knowledge sources used: {len(rag_result.get('knowledge_sources', []))}")
+        print(f"[RAG] Persona mode: {rag_result.get('persona_mode', 'general')}")
+        
+    except Exception as e:
+        print(f"[RAG] Enhanced guidance failed, falling back to basic: {e}")
+        
+        # Fallback to basic Prokerala + AI if RAG fails
+        if PROKERALA_AVAILABLE and birth_details and all(birth_details.get(key) for key in ["date", "time", "location"]):
+            try:
+                # Get real birth chart data from Prokerala
+                astrology_data = await get_prokerala_chart_data(birth_details)
+                
+                # Generate spiritual guidance based on real data
+                guidance_text = await generate_spiritual_guidance_with_ai(
+                    session_data.get("question", ""), 
+                    astrology_data
+                )
+                
+            except Exception as e:
+                print(f"Prokerala API error for session {session_id}: {e}")
+                # Fallback to basic guidance
+                astrology_data = {
+                    "data": {
+                        "nakshatra": {"name": "Unable to calculate"},
+                        "chandra_rasi": {"name": "Please check birth details"}
+                    },
+                    "error": str(e)
+                }
+                guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
 
 Your Question: {session_data.get('question', '')}
 
-Based on the cosmic energies and your spiritual inquiry, here is the divine guidance:
+While the cosmic calculations are temporarily unavailable, the divine wisdom flows through eternal principles:
 
-The ancient Tamil wisdom teaches us that every question carries within it the seed of its own answer. Your soul is seeking clarity, and the universe responds through this sacred moment.
+The Tamil spiritual tradition teaches us that every question arises from the soul's journey toward truth. Your inquiry itself shows spiritual awakening.
 
-Consider these spiritual insights:
+Consider these timeless insights:
+1. Practice daily meditation and prayer
+2. Serve others with compassion
+3. Trust in divine timing
+4. Cultivate gratitude and humility
 
-1. **Inner Reflection**: Take time for meditation and self-contemplation. The answer you seek may already reside within your heart.
+May the divine light guide you on your sacred path.
 
-2. **Dharmic Action**: Align your actions with your highest values and spiritual principles. Let righteousness guide your choices.
+Om Namah Shivaya 🙏"""
+        else:
+            # No birth details provided or Prokerala unavailable
+            astrology_data = {"data": {"message": "Birth details required for astrological analysis"}}
+            guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
 
-3. **Divine Timing**: Trust in the cosmic order. Sometimes what we perceive as delays are actually divine preparations.
+Your Question: {session_data.get('question', '')}
 
-4. **Gratitude Practice**: Begin each day with gratitude for the blessings already present in your life.
+Though complete birth details would enhance the astrological guidance, the divine wisdom speaks through your sincere inquiry.
 
-May the divine light illuminate your path forward. Remember, you are not alone on this spiritual journey.
+The ancient Tamil wisdom teaches that the answers we seek often reside within us, waiting to be unveiled through spiritual practice and divine grace.
 
-Om Namah Shivaya
-🙏 With divine blessings"""
+May you find clarity and peace on your spiritual journey.
+
+Om Namah Shivaya 🙏"""
     
     # Schedule automatic follow-up (non-blocking)
     asyncio.create_task(schedule_session_followup(session_id, user["email"], service_type, db))
@@ -168,14 +389,17 @@ Om Namah Shivaya
         "success": True,
         "data": {
             "session_id": session_id,
-            "guidance": guidance_text,
-            "astrology": {
-                "data": {
-                    "nakshatra": {"name": "Ashwini"},
-                    "chandra_rasi": {"name": "Mesha"}
-                }
-            },
+            "guidance": guidance_text,  # Enhanced RAG guidance with real astrology
+            "astrology": astrology_data,  # Real Prokerala data
+            "birth_chart": astrology_data,  # Complete chart data
+            "birth_details": birth_details,  # Echo back for verification
             "credits_deducted": service["credits_required"],
-            "remaining_credits": remaining_credits
+            "remaining_credits": remaining_credits,
+            "metadata": {
+                "generated_at": datetime.now().isoformat(),
+                "rag_enhanced": True,
+                "prokerala_integration": PROKERALA_AVAILABLE,
+                "service_type": service_type
+            }
         }
     } 

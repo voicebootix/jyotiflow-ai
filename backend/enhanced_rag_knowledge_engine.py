@@ -358,18 +358,48 @@ class RAGKnowledgeEngine:
                     # Cache table might not exist yet, continue to main table
                     pass
                 
-                # Get from main table
+                # Get from main table - USE ACTUAL FIELDS THAT EXIST
                 try:
                     service_row = await conn.fetchrow(
-                        "SELECT knowledge_configuration FROM service_types WHERE name = $1",
+                        """SELECT knowledge_domains, persona_modes, birth_chart_enabled, 
+                                  comprehensive_reading_enabled, remedies_enabled,
+                                  voice_enabled, video_enabled, dynamic_pricing_enabled
+                           FROM service_types WHERE name = $1 AND enabled = TRUE""",
                         service_type
                     )
                     
                     if service_row:
-                        return service_row.get("knowledge_configuration")
-                except Exception:
-                    # service_types table might not be enhanced yet
-                    pass
+                        # Convert to expected configuration format
+                        return {
+                            "knowledge_domains": list(service_row["knowledge_domains"] or []),
+                            "persona_modes": list(service_row["persona_modes"] or []),
+                            "response_behavior": {
+                                "swami_persona_mode": service_row["persona_modes"][0] if service_row["persona_modes"] else "general"
+                            },
+                            "specialized_prompts": {
+                                "analysis_sections": ["birth_chart_analysis", "guidance", "remedies"] if service_row["birth_chart_enabled"] else ["guidance"]
+                            },
+                            "features": {
+                                "birth_chart_enabled": service_row["birth_chart_enabled"],
+                                "comprehensive_reading_enabled": service_row["comprehensive_reading_enabled"],
+                                "remedies_enabled": service_row["remedies_enabled"],
+                                "voice_enabled": service_row["voice_enabled"],
+                                "video_enabled": service_row["video_enabled"]
+                            }
+                        }
+                except Exception as e:
+                    logger.warning(f"Could not read service_types enhanced fields: {e}")
+                    # Fallback for old schema
+                    try:
+                        service_row = await conn.fetchrow(
+                            "SELECT knowledge_configuration FROM service_types WHERE name = $1",
+                            service_type
+                        )
+                        
+                        if service_row:
+                            return service_row.get("knowledge_configuration")
+                    except Exception:
+                        pass
                 
                 return None
                 
@@ -785,16 +815,40 @@ async def initialize_rag_system(database_pool, openai_api_key: str):
 async def get_rag_enhanced_guidance(user_query: str, birth_details: Optional[Dict[str, Any]], 
                                   service_type: str = "general") -> Dict[str, Any]:
     """
-    Main interface for getting RAG-enhanced spiritual guidance
+    Main interface for getting RAG-enhanced spiritual guidance with REAL PROKERALA INTEGRATION
     """
     try:
         if not rag_engine or not persona_engine:
             raise Exception("RAG system not initialized")
         
-        # Create knowledge query
+        # ENHANCED: Get real birth chart data from Prokerala if birth details provided
+        enhanced_birth_details = birth_details
+        if birth_details and all(birth_details.get(key) for key in ["date", "time", "location"]):
+            try:
+                from routers.sessions import get_prokerala_chart_data
+                prokerala_data = await get_prokerala_chart_data(birth_details)
+                
+                # Enhance birth_details with real Prokerala calculations
+                enhanced_birth_details = {
+                    **birth_details,
+                    "prokerala_response": prokerala_data,
+                    "real_astrology": True
+                }
+                
+                logger.info(f"Enhanced RAG with Prokerala data: {len(str(prokerala_data))} chars")
+                
+            except Exception as e:
+                logger.warning(f"Prokerala integration failed in RAG: {e}")
+                enhanced_birth_details = {
+                    **birth_details,
+                    "prokerala_error": str(e),
+                    "real_astrology": False
+                }
+        
+        # Create knowledge query with enhanced birth details
         query = KnowledgeQuery(
             primary_question=user_query,
-            birth_details=birth_details,
+            birth_details=enhanced_birth_details,
             service_type=service_type
         )
         
@@ -828,6 +882,7 @@ async def get_rag_enhanced_guidance(user_query: str, birth_details: Optional[Dic
         # Prepare response with transparency
         return {
             "enhanced_guidance": enhanced_guidance,
+            "enhanced_birth_details": enhanced_birth_details,  # Include enhanced birth details
             "knowledge_sources": [
                 {
                     "domain": k.knowledge_domain,
