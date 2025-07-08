@@ -19,10 +19,21 @@ const LiveChat = () => {
   const [sessionTotalDonations, setSessionTotalDonations] = useState(0);
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
   const [videoCallError, setVideoCallError] = useState(null);
+  const [availablePackages, setAvailablePackages] = useState([]);
 
   useEffect(() => {
     checkAuthAndSubscription();
     spiritualAPI.trackSpiritualEngagement('live_chat_visit');
+    // Fetch available packages for non-authenticated users
+    if (!spiritualAPI.isAuthenticated()) {
+      spiritualAPI.getCreditPackages().then((data) => {
+        if (data && data.data) {
+          setAvailablePackages(Array.isArray(data.data) ? data.data.filter(pkg => pkg.enabled) : []);
+        } else if (Array.isArray(data)) {
+          setAvailablePackages(data.filter(pkg => pkg.enabled));
+        }
+      });
+    }
   }, []);
 
   // Fetch donation options when chatSession becomes active
@@ -280,16 +291,21 @@ const LiveChat = () => {
                 <div className="mb-8 p-6 bg-yellow-50 rounded-lg border-2 border-yellow-200">
                   <h3 className="text-lg font-semibold text-gray-800 mb-4">Membership Requirements</h3>
                   <div className="grid md:grid-cols-2 gap-4 text-sm">
-                    <div className="text-center p-4 bg-white rounded-lg">
-                      <div className="text-2xl mb-2">🌟</div>
-                      <div className="font-semibold">Premium</div>
-                      <div className="text-gray-600">Advanced spiritual guidance</div>
-                    </div>
-                    <div className="text-center p-4 bg-white rounded-lg">
-                      <div className="text-2xl mb-2">👑</div>
-                      <div className="font-semibold">Elite</div>
-                      <div className="text-gray-600">Complete transformation journey</div>
-                    </div>
+                    {availablePackages.length === 0 ? (
+                      <div className="text-center text-gray-500 col-span-2">No packages available. Please contact admin.</div>
+                    ) : (
+                      availablePackages.map(pkg => (
+                        <div key={pkg.id} className="text-center p-4 bg-white rounded-lg">
+                          <div className="text-2xl mb-2">💎</div>
+                          <div className="font-semibold">{pkg.name}</div>
+                          <div className="text-gray-600">{pkg.description || 'Spiritual guidance package'}</div>
+                          <div className="text-lg font-bold text-purple-700 mt-2">${pkg.price_usd}</div>
+                          {pkg.bonus_credits > 0 && (
+                            <div className="text-xs text-green-600 mt-1">+{pkg.bonus_credits} bonus credits</div>
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
                 </div>
               )}

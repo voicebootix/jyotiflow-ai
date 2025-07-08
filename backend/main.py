@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 import asyncpg
 from datetime import datetime
 import os
+import asyncio
 
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
@@ -56,14 +57,25 @@ from enhanced_startup_integration import initialize_enhanced_jyotiflow
 # Import database schema fix
 from db_schema_fix import fix_database_schema
 
-# Auto-fix database schema on startup
-try:
-    import subprocess
-    print("[AUTO-FIX] Running database schema autofix...")
-    subprocess.run(["python", "backend/db_schema_autofix.py"], check=True)
-    print("[AUTO-FIX] Database schema autofix complete.")
-except Exception as e:
-    print(f"[AUTO-FIX] Schema autofix failed: {e}")
+async def ensure_base_credits_column():
+    DB_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/jyotiflow')
+    conn = await asyncpg.connect(DB_URL)
+    try:
+        col_exists = await conn.fetchval("""
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name='service_types' AND column_name='base_credits'
+        """)
+        if not col_exists:
+            print("[AUTO-FIX] Adding missing column: base_credits to service_types...")
+            await conn.execute("ALTER TABLE service_types ADD COLUMN base_credits INTEGER DEFAULT 1;")
+            print("[AUTO-FIX] base_credits column added!")
+        else:
+            print("[AUTO-FIX] base_credits column already exists.")
+    finally:
+        await conn.close()
+
+# Run the schema fix at startup
+asyncio.run(ensure_base_credits_column())
 
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
