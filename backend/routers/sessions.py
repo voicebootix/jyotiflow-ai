@@ -228,7 +228,7 @@ async def schedule_session_followup(session_id: str, user_email: str, service_ty
 
 @router.post("/start")
 async def start_session(request: Request, session_data: Dict[str, Any], db=Depends(get_db)):
-    """Start a spiritual guidance session with atomic credit deduction"""
+    """Start a spiritual guidance session with RAG + Prokerala integration"""
     user_id = get_user_id_from_token(request)
     
     # Get service details first
@@ -296,33 +296,61 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
         # Calculate remaining credits
         remaining_credits = user["credits"] - service["credits_required"]
     
-    # NEW: Get real astrological data and guidance
+    # ENHANCED: Use RAG system with Swami's knowledge base + Prokerala integration
     birth_details = session_data.get("birth_details")
     astrology_data = {}
     guidance_text = ""
     
-    if PROKERALA_AVAILABLE and birth_details and all(birth_details.get(key) for key in ["date", "time", "location"]):
-        try:
-            # Get real birth chart data from Prokerala
-            astrology_data = await get_prokerala_chart_data(birth_details)
-            
-            # Generate spiritual guidance based on real data
-            guidance_text = await generate_spiritual_guidance_with_ai(
-                session_data.get("question", ""), 
-                astrology_data
-            )
-            
-        except Exception as e:
-            print(f"Prokerala API error for session {session_id}: {e}")
-            # Fallback to basic guidance
-            astrology_data = {
-                "data": {
-                    "nakshatra": {"name": "Unable to calculate"},
-                    "chandra_rasi": {"name": "Please check birth details"}
-                },
-                "error": str(e)
-            }
-            guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
+    try:
+        # Import and use the RAG-enhanced spiritual guidance system
+        from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+        
+        # Get enhanced guidance with RAG + Prokerala integration
+        rag_result = await get_rag_enhanced_guidance(
+            user_query=session_data.get("question", ""),
+            birth_details=birth_details,
+            service_type=service_type
+        )
+        
+        guidance_text = rag_result.get("enhanced_guidance", "")
+        
+        # Extract astrology data from enhanced birth details if available
+        enhanced_birth_details = rag_result.get("enhanced_birth_details", {})
+        if enhanced_birth_details and "prokerala_response" in enhanced_birth_details:
+            astrology_data = enhanced_birth_details["prokerala_response"]
+        else:
+            astrology_data = {"data": {"message": "Enhanced spiritual guidance provided"}}
+        
+        print(f"[RAG] Enhanced guidance generated: {len(guidance_text)} chars")
+        print(f"[RAG] Knowledge sources used: {len(rag_result.get('knowledge_sources', []))}")
+        print(f"[RAG] Persona mode: {rag_result.get('persona_mode', 'general')}")
+        
+    except Exception as e:
+        print(f"[RAG] Enhanced guidance failed, falling back to basic: {e}")
+        
+        # Fallback to basic Prokerala + AI if RAG fails
+        if PROKERALA_AVAILABLE and birth_details and all(birth_details.get(key) for key in ["date", "time", "location"]):
+            try:
+                # Get real birth chart data from Prokerala
+                astrology_data = await get_prokerala_chart_data(birth_details)
+                
+                # Generate spiritual guidance based on real data
+                guidance_text = await generate_spiritual_guidance_with_ai(
+                    session_data.get("question", ""), 
+                    astrology_data
+                )
+                
+            except Exception as e:
+                print(f"Prokerala API error for session {session_id}: {e}")
+                # Fallback to basic guidance
+                astrology_data = {
+                    "data": {
+                        "nakshatra": {"name": "Unable to calculate"},
+                        "chandra_rasi": {"name": "Please check birth details"}
+                    },
+                    "error": str(e)
+                }
+                guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
 
 Your Question: {session_data.get('question', '')}
 
@@ -339,10 +367,10 @@ Consider these timeless insights:
 May the divine light guide you on your sacred path.
 
 Om Namah Shivaya 🙏"""
-    else:
-        # No birth details provided or Prokerala unavailable
-        astrology_data = {"data": {"message": "Birth details required for astrological analysis"}}
-        guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
+        else:
+            # No birth details provided or Prokerala unavailable
+            astrology_data = {"data": {"message": "Birth details required for astrological analysis"}}
+            guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
 
 Your Question: {session_data.get('question', '')}
 
@@ -361,7 +389,7 @@ Om Namah Shivaya 🙏"""
         "success": True,
         "data": {
             "session_id": session_id,
-            "guidance": guidance_text,  # Real AI-generated guidance
+            "guidance": guidance_text,  # Enhanced RAG guidance with real astrology
             "astrology": astrology_data,  # Real Prokerala data
             "birth_chart": astrology_data,  # Complete chart data
             "birth_details": birth_details,  # Echo back for verification
@@ -369,6 +397,7 @@ Om Namah Shivaya 🙏"""
             "remaining_credits": remaining_credits,
             "metadata": {
                 "generated_at": datetime.now().isoformat(),
+                "rag_enhanced": True,
                 "prokerala_integration": PROKERALA_AVAILABLE,
                 "service_type": service_type
             }

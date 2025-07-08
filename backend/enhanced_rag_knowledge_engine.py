@@ -785,16 +785,40 @@ async def initialize_rag_system(database_pool, openai_api_key: str):
 async def get_rag_enhanced_guidance(user_query: str, birth_details: Optional[Dict[str, Any]], 
                                   service_type: str = "general") -> Dict[str, Any]:
     """
-    Main interface for getting RAG-enhanced spiritual guidance
+    Main interface for getting RAG-enhanced spiritual guidance with REAL PROKERALA INTEGRATION
     """
     try:
         if not rag_engine or not persona_engine:
             raise Exception("RAG system not initialized")
         
-        # Create knowledge query
+        # ENHANCED: Get real birth chart data from Prokerala if birth details provided
+        enhanced_birth_details = birth_details
+        if birth_details and all(birth_details.get(key) for key in ["date", "time", "location"]):
+            try:
+                from routers.sessions import get_prokerala_chart_data
+                prokerala_data = await get_prokerala_chart_data(birth_details)
+                
+                # Enhance birth_details with real Prokerala calculations
+                enhanced_birth_details = {
+                    **birth_details,
+                    "prokerala_response": prokerala_data,
+                    "real_astrology": True
+                }
+                
+                logger.info(f"Enhanced RAG with Prokerala data: {len(str(prokerala_data))} chars")
+                
+            except Exception as e:
+                logger.warning(f"Prokerala integration failed in RAG: {e}")
+                enhanced_birth_details = {
+                    **birth_details,
+                    "prokerala_error": str(e),
+                    "real_astrology": False
+                }
+        
+        # Create knowledge query with enhanced birth details
         query = KnowledgeQuery(
             primary_question=user_query,
-            birth_details=birth_details,
+            birth_details=enhanced_birth_details,
             service_type=service_type
         )
         
@@ -828,6 +852,7 @@ async def get_rag_enhanced_guidance(user_query: str, birth_details: Optional[Dic
         # Prepare response with transparency
         return {
             "enhanced_guidance": enhanced_guidance,
+            "enhanced_birth_details": enhanced_birth_details,  # Include enhanced birth details
             "knowledge_sources": [
                 {
                     "domain": k.knowledge_domain,
