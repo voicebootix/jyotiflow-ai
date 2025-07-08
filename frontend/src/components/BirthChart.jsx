@@ -131,33 +131,136 @@ const BirthChart = () => {
   const exportChart = () => {
     if (!chartData) return;
     
-    // Create a simple text export
-    const exportData = `
-Birth Chart Report
+    // Create a comprehensive export
+    let exportData = `
+VEDIC BIRTH CHART REPORT
 Generated on: ${new Date().toLocaleString()}
+Calculation Method: ${chartData.metadata?.calculation_method || 'Vedic Astrology'}
 
-Birth Details:
+=====================================================
+BIRTH DETAILS
+=====================================================
 Date: ${birthDetails.date}
 Time: ${birthDetails.time}
 Location: ${birthDetails.location}
 Timezone: ${birthDetails.timezone}
+Coordinates: ${chartData.metadata?.birth_details?.coordinates || 'N/A'}
 
-Planetary Positions:
-${chartData.planets ? Object.entries(chartData.planets).map(([planet, details]) => 
-  `${planet}: ${details.rashi} ${details.degree}° (House ${details.house})`
-).join('\n') : 'No planetary data available'}
+=====================================================
+BASIC BIRTH INFORMATION
+=====================================================`;
 
-Houses:
-${chartData.houses ? Object.entries(chartData.houses).map(([house, details]) => 
-  `House ${house}: ${details.sign} ${details.degree}° (Lord: ${details.lord})`
-).join('\n') : 'No house data available'}
-    `.trim();
+    // Add basic birth details
+    if (chartData.nakshatra) {
+      exportData += `
+Birth Nakshatra: ${chartData.nakshatra.name}
+Pada: ${chartData.nakshatra.pada}
+Ruling Planet: ${chartData.nakshatra.lord?.vedic_name || chartData.nakshatra.lord?.name || 'N/A'}`;
+    }
 
+    if (chartData.chandra_rasi) {
+      exportData += `
+Moon Sign (Rashi): ${chartData.chandra_rasi.name}
+Moon Sign Lord: ${chartData.chandra_rasi.lord?.vedic_name || chartData.chandra_rasi.lord?.name || 'N/A'}`;
+    }
+
+    if (chartData.soorya_rasi) {
+      exportData += `
+Sun Sign: ${chartData.soorya_rasi.name}
+Sun Sign Lord: ${chartData.soorya_rasi.lord?.vedic_name || chartData.soorya_rasi.lord?.name || 'N/A'}`;
+    }
+
+    if (chartData.zodiac) {
+      exportData += `
+Western Zodiac: ${chartData.zodiac.name}`;
+    }
+
+    // Add planetary positions
+    if (chartData.planets && Object.keys(chartData.planets).length > 0) {
+      exportData += `
+
+=====================================================
+PLANETARY POSITIONS
+=====================================================`;
+      
+      Object.entries(chartData.planets).forEach(([planet, details]) => {
+        exportData += `
+${planet}:
+  Sign: ${details.rashi || details.sign || 'N/A'}
+  Degree: ${details.degree ? `${parseFloat(details.degree).toFixed(2)}°` : 'N/A'}
+  House: ${details.house || 'N/A'}
+  Status: ${details.status || 'Normal'}`;
+        if (details.nakshatra) {
+          exportData += `
+  Nakshatra: ${details.nakshatra}`;
+        }
+      });
+    }
+
+    // Add houses information
+    if (chartData.houses && Object.keys(chartData.houses).length > 0) {
+      exportData += `
+
+=====================================================
+HOUSE SYSTEM
+=====================================================`;
+      
+      Object.entries(chartData.houses).forEach(([house, details]) => {
+        exportData += `
+House ${house}:
+  Sign: ${details.sign || details.rashi || 'N/A'}
+  Degree: ${details.degree ? `${parseFloat(details.degree).toFixed(2)}°` : 'N/A'}
+  Lord: ${details.lord || 'N/A'}
+  Significance: ${details.significance || getHouseSignificance(parseInt(house))}`;
+      });
+    }
+
+    // Add additional information
+    if (chartData.additional_info) {
+      exportData += `
+
+=====================================================
+ADDITIONAL INFORMATION
+=====================================================`;
+      
+      Object.entries(chartData.additional_info).forEach(([key, value]) => {
+        exportData += `
+${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}: ${value}`;
+      });
+    }
+
+    // Add data source information
+    if (chartData.metadata?.data_sources) {
+      exportData += `
+
+=====================================================
+DATA SOURCE INFORMATION
+=====================================================
+Basic Birth Details: ${chartData.metadata.data_sources.basic_details ? 'Available' : 'Not Available'}
+Planetary Positions: ${chartData.metadata.data_sources.planets ? 'Available from API' : 'Calculated/Fallback'}
+House System: ${chartData.metadata.data_sources.houses ? 'Available from API' : 'Standard System'}
+${chartData.metadata.data_sources.fallback_used ? 'Note: Some data calculated from available birth details for demonstration purposes.' : ''}`;
+    }
+
+    exportData += `
+
+=====================================================
+DISCLAIMER
+=====================================================
+This birth chart is generated for educational and entertainment purposes.
+For professional astrological consultation, please consult a qualified astrologer.
+Generated by JyotiFlow AI - Your Spiritual Guide
+${window.location.origin}
+
+End of Report
+=====================================================`;
+
+    // Create and download the file
     const blob = new Blob([exportData], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `birth-chart-${birthDetails.date}.txt`;
+    a.download = `vedic-birth-chart-${birthDetails.date}-${birthDetails.time.replace(':', '')}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -195,48 +298,148 @@ ${chartData.houses ? Object.entries(chartData.houses).map(([house, details]) =>
   };
 
   const renderVedicChart = () => {
-    // Show 'No chart data available' only if all are missing
-    if (!chartData || (
-      Object.keys(chartData.planets || {}).length === 0 &&
-      !chartData.nakshatra &&
-      !chartData.chandra_rasi &&
-      !chartData.soorya_rasi &&
-      Object.keys(chartData.houses || {}).length === 0
-    )) {
-      return <div className="text-gray-400">No chart data available</div>;
+    // Check what data we have available
+    const hasBasicData = chartData && (chartData.nakshatra || chartData.chandra_rasi || chartData.soorya_rasi);
+    const hasPlanetsData = chartData && chartData.planets && Object.keys(chartData.planets).length > 0;
+    const hasHousesData = chartData && chartData.houses && Object.keys(chartData.houses).length > 0;
+    
+    if (!hasBasicData) {
+      return (
+        <div className="text-center p-8">
+          <div className="text-gray-400 text-lg mb-4">No chart data available</div>
+          <div className="text-sm text-gray-500">
+            Please check your birth details and try again
+          </div>
+        </div>
+      );
     }
 
     return (
-      <div className="grid grid-cols-4 gap-1 w-80 h-80 mx-auto">
-        {Array.from({ length: 12 }, (_, i) => {
-          const houseNumber = i + 1;
-          const planetsInHouse = Object.entries(chartData.planets || {})
-            .filter(([_, details]) => details.house === houseNumber);
-          
-          return (
-            <div
-              key={houseNumber}
-              className="border border-gray-400 bg-gray-800 p-2 flex flex-col items-center justify-center relative cursor-pointer hover:bg-gray-700 transition-colors"
-              title={`House ${houseNumber}: ${getHouseSignificance(houseNumber)}`}
-            >
-              <div className="text-xs text-gray-400 absolute top-1 left-1">
-                {houseNumber}
-              </div>
-              <div className="flex flex-wrap gap-1 mt-2">
-                {planetsInHouse.map(([planet, details]) => (
-                  <div
-                    key={planet}
-                    className="cursor-pointer hover:scale-110 transition-transform"
-                    onClick={() => setSelectedPlanet({ name: planet, ...details })}
-                    title={`${planet}: ${details.rashi} ${details.degree}°`}
-                  >
-                    {planetIcons[planet] || <Circle className="w-4 h-4" />}
-                  </div>
-                ))}
+      <div className="space-y-6">
+        {/* Data Source Info */}
+        {chartData.metadata?.data_sources && (
+          <div className="bg-blue-900 border border-blue-700 rounded-lg p-4">
+            <div className="text-sm text-blue-200">
+              <div className="font-medium mb-2">Chart Data Sources:</div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className={chartData.metadata.data_sources.basic_details ? "text-green-300" : "text-red-300"}>
+                  ✓ Basic Birth Details
+                </div>
+                <div className={chartData.metadata.data_sources.planets ? "text-green-300" : "text-yellow-300"}>
+                  {chartData.metadata.data_sources.planets ? "✓" : "~"} Planetary Positions
+                  {chartData.metadata.data_sources.fallback_used ? " (Calculated)" : ""}
+                </div>
+                <div className={chartData.metadata.data_sources.houses ? "text-green-300" : "text-yellow-300"}>
+                  {chartData.metadata.data_sources.houses ? "✓" : "~"} House System
+                </div>
               </div>
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Basic Birth Information */}
+        <div className="bg-gray-700 rounded-lg p-4">
+          <h4 className="text-white font-semibold mb-3">Birth Chart Summary</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+            {chartData.nakshatra && (
+              <div className="bg-gray-800 p-3 rounded">
+                <div className="text-gray-400">Birth Nakshatra</div>
+                <div className="text-white font-medium">{chartData.nakshatra.name}</div>
+                <div className="text-gray-300 text-xs">Pada: {chartData.nakshatra.pada}</div>
+                <div className="text-gray-300 text-xs">Lord: {chartData.nakshatra.lord?.vedic_name}</div>
+              </div>
+            )}
+            
+            {chartData.chandra_rasi && (
+              <div className="bg-gray-800 p-3 rounded">
+                <div className="text-gray-400">Moon Sign (Rashi)</div>
+                <div className="text-white font-medium">{chartData.chandra_rasi.name}</div>
+                <div className="text-gray-300 text-xs">Lord: {chartData.chandra_rasi.lord?.vedic_name}</div>
+              </div>
+            )}
+            
+            {chartData.soorya_rasi && (
+              <div className="bg-gray-800 p-3 rounded">
+                <div className="text-gray-400">Sun Sign</div>
+                <div className="text-white font-medium">{chartData.soorya_rasi.name}</div>
+                <div className="text-gray-300 text-xs">Lord: {chartData.soorya_rasi.lord?.vedic_name}</div>
+              </div>
+            )}
+            
+            {chartData.zodiac && (
+              <div className="bg-gray-800 p-3 rounded">
+                <div className="text-gray-400">Western Zodiac</div>
+                <div className="text-white font-medium">{chartData.zodiac.name}</div>
+              </div>
+            )}
+            
+            {chartData.additional_info && (
+              <div className="bg-gray-800 p-3 rounded">
+                <div className="text-gray-400">Birth Stone</div>
+                <div className="text-white font-medium">{chartData.additional_info.birth_stone}</div>
+                <div className="text-gray-300 text-xs">Color: {chartData.additional_info.color}</div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Vedic Chart Grid */}
+        {hasPlanetsData && (
+          <div className="text-center">
+            <h4 className="text-white font-semibold mb-4">Vedic Chart (North Indian Style)</h4>
+            <div className="grid grid-cols-4 gap-1 w-80 h-80 mx-auto">
+              {Array.from({ length: 12 }, (_, i) => {
+                const houseNumber = i + 1;
+                const planetsInHouse = Object.entries(chartData.planets || {})
+                  .filter(([_, details]) => details.house === houseNumber);
+                
+                return (
+                  <div
+                    key={houseNumber}
+                    className="border border-gray-400 bg-gray-800 p-2 flex flex-col items-center justify-center relative cursor-pointer hover:bg-gray-700 transition-colors"
+                    title={`House ${houseNumber}: ${getHouseSignificance(houseNumber)}`}
+                  >
+                    <div className="text-xs text-gray-400 absolute top-1 left-1">
+                      {houseNumber}
+                    </div>
+                    <div className="flex flex-wrap gap-1 mt-2">
+                      {planetsInHouse.map(([planet, details]) => (
+                        <div
+                          key={planet}
+                          className="cursor-pointer hover:scale-110 transition-transform"
+                          onClick={() => setSelectedPlanet({ name: planet, ...details })}
+                          title={`${planet}: ${details.rashi} ${details.degree}°`}
+                        >
+                          {planetIcons[planet] || <Circle className="w-4 h-4" />}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-gray-400 text-sm mt-4">
+              Click on planets to see detailed information
+            </p>
+          </div>
+        )}
+
+        {/* Additional Birth Details */}
+        {chartData.additional_info && (
+          <div className="bg-gray-700 rounded-lg p-4">
+            <h4 className="text-white font-semibold mb-3">Additional Information</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+              {Object.entries(chartData.additional_info).map(([key, value]) => (
+                <div key={key} className="bg-gray-800 p-2 rounded">
+                  <div className="text-gray-400 capitalize">
+                    {key.replace(/_/g, ' ')}
+                  </div>
+                  <div className="text-white">{value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -244,35 +447,71 @@ ${chartData.houses ? Object.entries(chartData.houses).map(([house, details]) =>
   const renderPlanetaryTable = () => {
     if (!chartData?.planets) return <div className="text-gray-400">No planetary data available</div>;
 
+    const planetsData = Object.entries(chartData.planets);
+    if (planetsData.length === 0) {
+      return <div className="text-gray-400">No planetary data available</div>;
+    }
+
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-600">
-              <th className="text-left text-white p-2">Planet</th>
-              <th className="text-left text-white p-2">Sign</th>
-              <th className="text-left text-white p-2">Degree</th>
-              <th className="text-left text-white p-2">House</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(chartData.planets).map(([planet, details]) => (
-              <tr 
-                key={planet}
-                className="border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
-                onClick={() => setSelectedPlanet({ name: planet, ...details })}
-              >
-                <td className="p-2 flex items-center">
-                  {planetIcons[planet] || <Circle className="w-4 h-4" />}
-                  <span className="ml-2 text-white">{planet}</span>
-                </td>
-                <td className="p-2 text-gray-300">{details.rashi}</td>
-                <td className="p-2 text-gray-300">{details.degree}°</td>
-                <td className="p-2 text-gray-300">{details.house}</td>
+      <div className="space-y-4">
+        {/* Data Quality Notice */}
+        {chartData.metadata?.data_sources?.fallback_used && (
+          <div className="bg-yellow-900 border border-yellow-700 text-yellow-200 px-4 py-3 rounded-md text-sm">
+            <div className="font-medium">Notice:</div>
+            <div>Planetary positions are calculated based on available birth details. 
+            For precise calculations, please verify your exact birth time and location.</div>
+          </div>
+        )}
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-600">
+                <th className="text-left text-white p-2">Planet</th>
+                <th className="text-left text-white p-2">Sign (Rashi)</th>
+                <th className="text-left text-white p-2">Degree</th>
+                <th className="text-left text-white p-2">House</th>
+                <th className="text-left text-white p-2">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {planetsData.map(([planet, details]) => (
+                <tr 
+                  key={planet}
+                  className="border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
+                  onClick={() => setSelectedPlanet({ name: planet, ...details })}
+                >
+                  <td className="p-2 flex items-center">
+                    {planetIcons[planet] || <Circle className="w-4 h-4" />}
+                    <span className="ml-2 text-white font-medium">{planet}</span>
+                  </td>
+                  <td className="p-2 text-gray-300">
+                    {details.rashi || details.sign || 'N/A'}
+                    {details.nakshatra && (
+                      <div className="text-xs text-gray-500">
+                        {details.nakshatra}
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-2 text-gray-300">
+                    {details.degree ? `${parseFloat(details.degree).toFixed(1)}°` : 'N/A'}
+                  </td>
+                  <td className="p-2 text-gray-300">{details.house || 'N/A'}</td>
+                  <td className="p-2">
+                    <span className={`px-2 py-1 rounded text-xs ${
+                      details.status === 'Exalted' ? 'bg-green-700 text-green-200' :
+                      details.status === 'Debilitated' ? 'bg-red-700 text-red-200' :
+                      details.status === 'Own Sign' ? 'bg-blue-700 text-blue-200' :
+                      'bg-gray-700 text-gray-300'
+                    }`}>
+                      {details.status || 'Normal'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   };
@@ -280,30 +519,86 @@ ${chartData.houses ? Object.entries(chartData.houses).map(([house, details]) =>
   const renderHousesTable = () => {
     if (!chartData?.houses) return <div className="text-gray-400">No house data available</div>;
 
+    const housesData = Object.entries(chartData.houses);
+    if (housesData.length === 0) {
+      return <div className="text-gray-400">No house data available</div>;
+    }
+
     return (
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-600">
-              <th className="text-left text-white p-2">House</th>
-              <th className="text-left text-white p-2">Sign</th>
-              <th className="text-left text-white p-2">Degree</th>
-              <th className="text-left text-white p-2">Lord</th>
-              <th className="text-left text-white p-2">Significance</th>
-            </tr>
-          </thead>
-          <tbody>
-            {Object.entries(chartData.houses).map(([house, details]) => (
-              <tr key={house} className="border-b border-gray-700">
-                <td className="p-2 text-white font-medium">{house}</td>
-                <td className="p-2 text-gray-300">{details.sign}</td>
-                <td className="p-2 text-gray-300">{details.degree}°</td>
-                <td className="p-2 text-gray-300">{details.lord}</td>
-                <td className="p-2 text-gray-300 text-xs">{getHouseSignificance(parseInt(house))}</td>
+      <div className="space-y-4">
+        {/* Houses Information */}
+        <div className="bg-purple-900 border border-purple-700 text-purple-200 px-4 py-3 rounded-md text-sm">
+          <div className="font-medium mb-1">House System Information:</div>
+          <div>Each house represents different aspects of life. Click on any row for detailed house analysis.</div>
+        </div>
+        
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-600">
+                <th className="text-left text-white p-2">House</th>
+                <th className="text-left text-white p-2">Sign</th>
+                <th className="text-left text-white p-2">Degree</th>
+                <th className="text-left text-white p-2">Lord</th>
+                <th className="text-left text-white p-2">Significance</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {housesData.map(([house, details]) => (
+                <tr 
+                  key={house} 
+                  className="border-b border-gray-700 hover:bg-gray-800 cursor-pointer"
+                  title={`House ${house}: ${details.significance || getHouseSignificance(parseInt(house))}`}
+                >
+                  <td className="p-2 text-white font-medium">
+                    <div className="flex items-center">
+                      <div className="w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center text-xs mr-2">
+                        {house}
+                      </div>
+                      House {house}
+                    </div>
+                  </td>
+                  <td className="p-2 text-gray-300 font-medium">
+                    {details.sign || details.rashi || 'N/A'}
+                  </td>
+                  <td className="p-2 text-gray-300">
+                    {details.degree ? `${parseFloat(details.degree).toFixed(1)}°` : 'N/A'}
+                  </td>
+                  <td className="p-2 text-gray-300">
+                    <div className="flex items-center">
+                      {details.lord && planetIcons[details.lord] && (
+                        <span className="mr-1">{planetIcons[details.lord]}</span>
+                      )}
+                      {details.lord || 'N/A'}
+                    </div>
+                  </td>
+                  <td className="p-2 text-gray-300 text-xs">
+                    {details.significance || getHouseSignificance(parseInt(house))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        
+        {/* House Meanings Guide */}
+        <div className="bg-gray-700 rounded-lg p-4">
+          <h5 className="text-white font-semibold mb-2">House System Guide</h5>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-300">
+            <div><strong>1st House:</strong> Self, personality, appearance</div>
+            <div><strong>2nd House:</strong> Wealth, family, speech</div>
+            <div><strong>3rd House:</strong> Courage, siblings, communication</div>
+            <div><strong>4th House:</strong> Home, mother, property</div>
+            <div><strong>5th House:</strong> Children, creativity, education</div>
+            <div><strong>6th House:</strong> Health, service, enemies</div>
+            <div><strong>7th House:</strong> Marriage, partnership, business</div>
+            <div><strong>8th House:</strong> Transformation, longevity</div>
+            <div><strong>9th House:</strong> Luck, father, higher learning</div>
+            <div><strong>10th House:</strong> Career, reputation, authority</div>
+            <div><strong>11th House:</strong> Gains, social circle, income</div>
+            <div><strong>12th House:</strong> Spirituality, liberation, foreign</div>
+          </div>
+        </div>
       </div>
     );
   };
@@ -539,9 +834,6 @@ ${chartData.houses ? Object.entries(chartData.houses).map(([house, details]) =>
                   <div className="text-center">
                     <h3 className="text-white font-semibold mb-4">Vedic Chart (North Indian Style)</h3>
                     {renderVedicChart()}
-                    <p className="text-gray-400 text-sm mt-4">
-                      Click on planets to see detailed information
-                    </p>
                   </div>
                 )}
                 
