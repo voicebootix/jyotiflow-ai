@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # Create router
 social_marketing_router = APIRouter(
-    prefix="/admin/social-marketing",
+    prefix="/api/admin/social-marketing",
     tags=["Social Media Marketing"]
 )
 
