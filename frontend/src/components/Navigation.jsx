@@ -94,7 +94,6 @@ const Navigation = () => {
     { to: '/satsang', label: t('satsang'), icon: '🙏' },
     { to: '/birth-chart', label: t('birthChart'), icon: '📊' },
     { to: '/personalized-remedies', label: t('remedies'), icon: '💊' },
-    { to: '/follow-up-center', label: t('followUps'), icon: '📧' },
   ];
 
   const adminLinks = [
@@ -154,7 +153,7 @@ const Navigation = () => {
             </button>
             <div className="absolute right-0 mt-2 w-48 bg-white text-black rounded shadow-lg opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-opacity z-50">
               <Link to="/profile" className="block px-4 py-2 hover:bg-gray-100">👤 {t('profile')}</Link>
-              <Link to="/follow-up-center" className="block px-4 py-2 hover:bg-gray-100">📧 {t('followUps')}</Link>
+              <Link to="/profile?tab=sessions" className="block px-4 py-2 hover:bg-gray-100">📧 {t('followUps')}</Link>
               {userProfile?.role === 'admin' && (
                 <>
                   <div className="border-t border-gray-200 my-1"></div>
