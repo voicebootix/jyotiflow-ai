@@ -88,14 +88,17 @@ const AdminDashboard = () => {
     { key: 'products', label: 'Products' },
     { key: 'revenue', label: 'Revenue' },
     { key: 'content', label: 'Content' },
+    { key: 'insights', label: 'Insights' },
     { key: 'settings', label: 'Settings' },
     { key: 'users', label: 'Users' },
     { key: 'donations', label: 'Donations' },
     { key: 'serviceTypes', label: 'Service Types' },
-    { key: 'pricing', label: 'Smart Pricing' },
+    { key: 'pricing', label: 'Pricing' },
+    { key: 'comprehensivePricing', label: 'Smart Pricing' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
-    { key: 'socialMarketing', label: 'Social Media Marketing' },
+    { key: 'followup', label: 'Follow-ups' },
+    { key: 'socialMarketing', label: '🤖 AI Social Media Marketing' },
   ];
 
   return (
