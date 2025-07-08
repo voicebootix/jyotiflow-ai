@@ -80,8 +80,9 @@ async def get_birth_chart(request: Request):
 
     # --- Prokerala API call with token refresh logic ---
     for attempt in range(2):  # Try once, refresh token and retry if 401
-        token = await get_prokerala_token()
         try:
+            token = await get_prokerala_token()
+            print(f"[BirthChart] Using Prokerala token: {token}")
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
                     PROKERALA_API_BASE,
@@ -89,6 +90,7 @@ async def get_birth_chart(request: Request):
                     params=params
                 )
                 print(f"[BirthChart] Prokerala response status: {resp.status_code}")
+                print(f"[BirthChart] Prokerala response text: {resp.text}")
                 if resp.status_code == 401 and attempt == 0:
                     print("[BirthChart] Prokerala token expired, refreshing...")
                     await fetch_prokerala_token()  # Refresh and retry
@@ -100,23 +102,8 @@ async def get_birth_chart(request: Request):
         except Exception as e:
             print(f"[BirthChart] Prokerala API error: {e}")
             if attempt == 1:
-                # Return a sample birth chart for demo/testing if Prokerala fails
-                birth_chart_data = {
-                    "planets": {
-                        "Sun": {"sign": "Cancer", "degree": 23.5},
-                        "Moon": {"sign": "Leo", "degree": 10.2},
-                        "Mars": {"sign": "Gemini", "degree": 5.1}
-                    },
-                    "houses": {
-                        "1": {"sign": "Cancer"},
-                        "2": {"sign": "Leo"},
-                        "3": {"sign": "Virgo"}
-                    },
-                    "ascendant": "Cancer",
-                    "ayanamsa": "Lahiri",
-                    "note": "This is a sample chart. Set Prokerala credentials for real data."
-                }
-                break
+                # Return error details to frontend for debugging
+                return {"success": False, "message": f"Prokerala API error: {str(e)}"}
     else:
         print("[BirthChart] Prokerala API error: Unable to fetch birth chart after retries.")
         return {"success": False, "message": "Prokerala API error: Unable to fetch birth chart."}
