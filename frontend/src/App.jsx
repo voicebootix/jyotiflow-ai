@@ -14,8 +14,6 @@ import Register from './components/Register';
 import Navigation from './components/Navigation';
 
 // Import new feature components
-
-import FollowUpCenter from './components/FollowUpCenter';
 import BirthChart from './components/BirthChart';
 import RealTimeBirthChart from './components/RealTimeBirthChart';
 import PersonalizedRemedies from './components/PersonalizedRemedies';
@@ -122,11 +120,6 @@ function App() {
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <Profile />
-                </ProtectedRoute>
-              } />
-              <Route path="/follow-up-center" element={
-                <ProtectedRoute>
-                  <FollowUpCenter />
                 </ProtectedRoute>
               } />
               <Route path="/agora-video-call" element={

@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play, LogOut, RefreshCw } from 'lucide-react';
+import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play, LogOut, RefreshCw, Mail, MessageSquare, Phone, CheckCircle, AlertCircle } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 
 const Profile = () => {
   const [searchParams] = useSearchParams();
   const [userProfile, setUserProfile] = useState(null);
   const [sessionHistory, setSessionHistory] = useState([]);
+  const [followUpData, setFollowUpData] = useState({}); // Map of session_id -> followups
   const [creditBalance, setCreditBalance] = useState(0);
   const [donationHistory, setDonationHistory] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -116,11 +117,31 @@ const Profile = () => {
 
       // Load session history
       const history = await spiritualAPI.getSessionHistory();
+      let sessions = [];
       if (history && Array.isArray(history)) {
+        sessions = history;
         setSessionHistory(history);
       } else if (history && history.success && Array.isArray(history.data)) {
+        sessions = history.data;
         setSessionHistory(history.data);
       }
+
+      // Load follow-up data for each session
+      const followUpMap = {};
+      for (const session of sessions) {
+        if (session.session_id || session.id) {
+          try {
+            const sessionId = session.session_id || session.id;
+            const followUps = await spiritualAPI.request(`/api/followup/session/${sessionId}`);
+            if (followUps && followUps.success && Array.isArray(followUps.data)) {
+              followUpMap[sessionId] = followUps.data;
+            }
+          } catch (error) {
+            console.log(`Follow-up loading for session ${session.session_id || session.id} blessed with patience:`, error);
+          }
+        }
+      }
+      setFollowUpData(followUpMap);
 
       // Load credit balance
       const credits = await spiritualAPI.getCreditBalance();
@@ -486,45 +507,152 @@ const Profile = () => {
           
           {activeTab === 'sessions' && (
             <div className="sacred-card p-8">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Session History</h2>
+              <h2 className="text-2xl font-bold text-gray-800 mb-6">Session History & Follow-ups</h2>
               {sessionHistory.length > 0 ? (
-                <div className="space-y-4">
-                  {sessionHistory.map((session, index) => (
-                    <div key={index} className="border border-gray-200 rounded-lg p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h3 className="font-semibold text-gray-800 text-lg">
-                            {session.service_type || 'Spiritual Guidance Session'}
-                          </h3>
-                          <p className="text-gray-600">{formatDate(session.created_at)}</p>
+                <div className="space-y-6">
+                  {sessionHistory.map((session, index) => {
+                    const sessionId = session.session_id || session.id;
+                    const sessionFollowUps = followUpData[sessionId] || [];
+                    
+                    return (
+                      <div key={index} className="border border-gray-200 rounded-lg p-6 bg-gradient-to-r from-white to-gray-50">
+                        <div className="flex items-start justify-between mb-4">
+                          <div>
+                            <h3 className="font-semibold text-gray-800 text-lg flex items-center">
+                              <span className="text-2xl mr-2">🕉️</span>
+                              {session.service_type || 'Spiritual Guidance Session'}
+                            </h3>
+                            <p className="text-gray-600">{formatDate(session.created_at)}</p>
+                            {sessionId && (
+                              <p className="text-xs text-gray-500">Session ID: {sessionId}</p>
+                            )}
+                          </div>
+                          <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+                            Completed
+                          </span>
                         </div>
-                        <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
-                          Completed
-                        </span>
-                      </div>
-                      
-                      {session.question && (
+                        
+                        {session.question && (
+                          <div className="mb-4 p-3 bg-blue-50 rounded-lg border-l-4 border-blue-400">
+                            <h4 className="font-medium text-gray-700 mb-2">Your Question:</h4>
+                            <p className="text-gray-600 italic">"{session.question}"</p>
+                          </div>
+                        )}
+
+                        {/* Session Content */}
+                        {(session.guidance || session.audio_url || session.video_url) && (
+                          <div className="mb-4 p-3 bg-yellow-50 rounded-lg border-l-4 border-yellow-400">
+                            <h4 className="font-medium text-gray-700 mb-2">🎯 Guidance Received:</h4>
+                            {session.guidance && (
+                              <p className="text-gray-600 text-sm mb-2 line-clamp-3">{session.guidance}</p>
+                            )}
+                            <div className="flex gap-2">
+                              {session.audio_url && (
+                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded text-xs">🔊 Audio</span>
+                              )}
+                              {session.video_url && (
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">🎥 Video</span>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Follow-up Status */}
                         <div className="mb-4">
-                          <h4 className="font-medium text-gray-700 mb-2">Your Question:</h4>
-                          <p className="text-gray-600 italic">"{session.question}"</p>
+                          <h4 className="font-medium text-gray-700 mb-3 flex items-center">
+                            <span className="mr-2">📧</span>
+                            Follow-up Communications
+                          </h4>
+                          {sessionFollowUps.length > 0 ? (
+                            <div className="grid md:grid-cols-3 gap-3">
+                              {sessionFollowUps.map((followUp, fIndex) => {
+                                const getChannelIcon = (channel) => {
+                                  const icons = {
+                                    email: <Mail size={16} className="text-green-600" />,
+                                    sms: <MessageSquare size={16} className="text-blue-600" />,
+                                    whatsapp: <Phone size={16} className="text-green-600" />
+                                  };
+                                  return icons[channel] || <Mail size={16} className="text-gray-600" />;
+                                };
+
+                                const getStatusIcon = (status) => {
+                                  const icons = {
+                                    sent: <CheckCircle size={14} className="text-green-600" />,
+                                    delivered: <CheckCircle size={14} className="text-green-600" />,
+                                    read: <CheckCircle size={14} className="text-green-600" />,
+                                    pending: <AlertCircle size={14} className="text-yellow-600" />,
+                                    failed: <AlertCircle size={14} className="text-red-600" />
+                                  };
+                                  return icons[status] || <AlertCircle size={14} className="text-gray-600" />;
+                                };
+
+                                const getStatusColor = (status) => {
+                                  const colors = {
+                                    sent: 'bg-green-100 text-green-800 border-green-200',
+                                    delivered: 'bg-green-100 text-green-800 border-green-200',
+                                    read: 'bg-green-100 text-green-800 border-green-200',
+                                    pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                                    failed: 'bg-red-100 text-red-800 border-red-200'
+                                  };
+                                  return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+                                };
+
+                                return (
+                                  <div key={fIndex} className={`p-3 rounded-lg border ${getStatusColor(followUp.status)}`}>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <div className="flex items-center space-x-2">
+                                        {getChannelIcon(followUp.channel)}
+                                        <span className="text-sm font-medium capitalize">{followUp.channel}</span>
+                                      </div>
+                                      {getStatusIcon(followUp.status)}
+                                    </div>
+                                    <div className="text-xs">
+                                      <div className="font-medium">{followUp.template_name || followUp.subject}</div>
+                                      <div className="text-gray-600">
+                                        {followUp.status === 'pending' 
+                                          ? `Scheduled: ${new Date(followUp.scheduled_at).toLocaleDateString()}`
+                                          : `Sent: ${new Date(followUp.sent_at || followUp.created_at).toLocaleDateString()}`
+                                        }
+                                      </div>
+                                      {followUp.credits_charged > 0 && (
+                                        <div className="text-yellow-600 font-medium">{followUp.credits_charged} credits</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                              <p className="text-gray-500 text-sm">No follow-up communications for this session</p>
+                              <p className="text-xs text-gray-400 mt-1">Follow-ups can be requested during or after your session</p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      
-                      <div className="flex items-center justify-between text-sm text-gray-500">
-                        <span>Duration: {session.duration || '30 minutes'}</span>
-                        <button className="text-yellow-600 hover:text-yellow-800 transition-colors">
-                          View Details
-                        </button>
+                        
+                        <div className="flex items-center justify-between text-sm text-gray-500 border-t pt-3">
+                          <span>Duration: {session.duration || '30 minutes'}</span>
+                          <div className="flex space-x-3">
+                            {sessionFollowUps.length > 0 && (
+                              <span className="text-green-600 font-medium">
+                                {sessionFollowUps.filter(f => ['sent', 'delivered', 'read'].includes(f.status)).length} follow-ups delivered
+                              </span>
+                            )}
+                            <button className="text-yellow-600 hover:text-yellow-800 transition-colors font-medium">
+                              View Full Details
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12">
                   <div className="text-6xl mb-6">📚</div>
                   <h3 className="text-xl font-bold text-gray-800 mb-4">No Sessions Yet</h3>
                   <p className="text-gray-600 mb-6">
-                    Your spiritual journey awaits. Begin with your first guidance session.
+                    Your spiritual journey awaits. Begin with your first guidance session to start building your session history.
                   </p>
                   <Link to="/spiritual-guidance" className="divine-button">
                     Start First Session
