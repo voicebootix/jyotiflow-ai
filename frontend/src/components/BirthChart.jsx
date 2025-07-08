@@ -90,9 +90,14 @@ const BirthChart = () => {
       });
 
       if (response.success) {
-        setChartData(response.birth_chart);
+        // Use .data if present, else fallback to root
+        const chart = response.birth_chart?.data ? {
+          ...response.birth_chart.data,
+          metadata: response.birth_chart.metadata
+        } : response.birth_chart;
+        setChartData(chart);
         // Save to localStorage
-        saveChartToHistory(response.birth_chart);
+        saveChartToHistory(chart);
       } else {
         setError(response.message || 'Failed to generate birth chart');
       }
