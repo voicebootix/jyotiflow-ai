@@ -358,18 +358,48 @@ class RAGKnowledgeEngine:
                     # Cache table might not exist yet, continue to main table
                     pass
                 
-                # Get from main table
+                # Get from main table - USE ACTUAL FIELDS THAT EXIST
                 try:
                     service_row = await conn.fetchrow(
-                        "SELECT knowledge_configuration FROM service_types WHERE name = $1",
+                        """SELECT knowledge_domains, persona_modes, birth_chart_enabled, 
+                                  comprehensive_reading_enabled, remedies_enabled,
+                                  voice_enabled, video_enabled, dynamic_pricing_enabled
+                           FROM service_types WHERE name = $1 AND enabled = TRUE""",
                         service_type
                     )
                     
                     if service_row:
-                        return service_row.get("knowledge_configuration")
-                except Exception:
-                    # service_types table might not be enhanced yet
-                    pass
+                        # Convert to expected configuration format
+                        return {
+                            "knowledge_domains": list(service_row["knowledge_domains"] or []),
+                            "persona_modes": list(service_row["persona_modes"] or []),
+                            "response_behavior": {
+                                "swami_persona_mode": service_row["persona_modes"][0] if service_row["persona_modes"] else "general"
+                            },
+                            "specialized_prompts": {
+                                "analysis_sections": ["birth_chart_analysis", "guidance", "remedies"] if service_row["birth_chart_enabled"] else ["guidance"]
+                            },
+                            "features": {
+                                "birth_chart_enabled": service_row["birth_chart_enabled"],
+                                "comprehensive_reading_enabled": service_row["comprehensive_reading_enabled"],
+                                "remedies_enabled": service_row["remedies_enabled"],
+                                "voice_enabled": service_row["voice_enabled"],
+                                "video_enabled": service_row["video_enabled"]
+                            }
+                        }
+                except Exception as e:
+                    logger.warning(f"Could not read service_types enhanced fields: {e}")
+                    # Fallback for old schema
+                    try:
+                        service_row = await conn.fetchrow(
+                            "SELECT knowledge_configuration FROM service_types WHERE name = $1",
+                            service_type
+                        )
+                        
+                        if service_row:
+                            return service_row.get("knowledge_configuration")
+                    except Exception:
+                        pass
                 
                 return None
                 
