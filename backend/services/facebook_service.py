@@ -51,7 +51,7 @@ class FacebookService:
                         return None
                     
                     # Validate required fields
-                    required_fields = ['app_id', 'app_secret', 'page_access_token']
+                    required_fields = ['app_id', 'app_secret', 'page_access_token', 'page_id']
                     missing_fields = [field for field in required_fields if not credentials.get(field)]
                     
                     if missing_fields:
@@ -124,20 +124,54 @@ class FacebookService:
             "access_token": credentials['page_access_token']
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "post_id": result.get("id")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"Facebook API error: {response.status} - {error_text}"
-                    }
+        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):  # 3 retry attempts
+                try:
+                    async with session.post(url, data=data) as response:
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "post_id": result.get("id")
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Facebook API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:  # Rate limit
+                            if attempt < 2:  # Only retry if not last attempt
+                                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Facebook API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Facebook API error: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:  # Only retry if not last attempt
+                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                        continue
+                    else:
+                                                 return {
+                             "success": False,
+                             "error": f"Facebook API network error: {str(e)}"
+                         }
+            
+            # If we get here, all attempts failed
+            return {
+                "success": False,
+                "error": "Facebook API request failed after 3 attempts"
+            }
     
     async def _post_with_media(self, message: str, media_url: str, credentials: Dict) -> Dict:
         """Post content with media (photo or video) to Facebook"""
@@ -159,20 +193,53 @@ class FacebookService:
             "access_token": credentials['page_access_token']
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "post_id": result.get("id")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"Facebook photo upload error: {response.status} - {error_text}"
-                    }
+        timeout = aiohttp.ClientTimeout(total=120, connect=10)  # Longer timeout for media
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.post(url, data=data) as response:
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "post_id": result.get("id")
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Facebook API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Facebook API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Facebook photo upload error: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Facebook photo upload network error: {str(e)}"
+                        }
+            
+            return {
+                "success": False,
+                "error": "Facebook photo upload failed after 3 attempts"
+            }
     
     async def _post_video(self, message: str, video_url: str, credentials: Dict) -> Dict:
         """Post video to Facebook"""
@@ -184,20 +251,53 @@ class FacebookService:
             "access_token": credentials['page_access_token']
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "post_id": result.get("id")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"Facebook video upload error: {response.status} - {error_text}"
-                    }
+        timeout = aiohttp.ClientTimeout(total=300, connect=10)  # Longer timeout for video
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.post(url, data=data) as response:
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "post_id": result.get("id")
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Facebook API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Facebook API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Facebook video upload error: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Facebook video upload network error: {str(e)}"
+                        }
+            
+            return {
+                "success": False,
+                "error": "Facebook video upload failed after 3 attempts"
+            }
     
     async def get_page_info(self) -> Dict:
         """Get Facebook page information"""
@@ -211,25 +311,52 @@ class FacebookService:
             "access_token": credentials['page_access_token']
         }
         
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        return {
-                            "success": True,
-                            "page_info": result
-                        }
+        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.get(url, params=params) as response:
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "page_info": result
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Facebook API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Facebook API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Failed to get page info: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
                     else:
-                        error_text = await response.text()
                         return {
                             "success": False,
-                            "error": f"Failed to get page info: {response.status} - {error_text}"
+                            "error": f"Failed to get page info: {str(e)}"
                         }
-        except Exception as e:
+            
             return {
                 "success": False,
-                "error": f"Failed to get page info: {str(e)}"
+                "error": "Facebook page info request failed after 3 attempts"
             }
     
     async def validate_credentials(self) -> Dict:

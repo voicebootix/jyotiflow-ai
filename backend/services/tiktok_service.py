@@ -4,6 +4,7 @@ TikTok posting service for automated video uploads and management
 """
 
 import logging
+import asyncio
 from typing import Dict, Optional
 import aiohttp
 import json
@@ -215,40 +216,77 @@ class TikTokService:
         }
         
         # Poll for upload completion and publish
-        max_attempts = 10
+        max_attempts = 24  # Increased from 10 to 24 (4 minutes total)
+        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        
         for attempt in range(max_attempts):
-            async with aiohttp.ClientSession() as session:
-                async with session.post(url, headers=headers, json=data) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        status = result.get("data", {}).get("status")
-                        
-                        if status == "PROCESSING_UPLOAD":
-                            # Wait and retry
-                            import asyncio
-                            await asyncio.sleep(5)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                for retry in range(3):  # Retry network failures
+                    try:
+                        async with session.post(url, headers=headers, json=data) as response:
+                            if response.status == 200:
+                                try:
+                                    result = await response.json()
+                                    status = result.get("data", {}).get("status")
+                                    
+                                    if status == "PROCESSING_UPLOAD":
+                                        # Wait and retry - exponential backoff
+                                        wait_time = min(10, 2 + (attempt * 0.5))  # 2s to 14s
+                                        await asyncio.sleep(wait_time)
+                                        break  # Break retry loop, continue outer loop
+                                    elif status == "PUBLISH_COMPLETE":
+                                        return {
+                                            "success": True,
+                                            "share_id": result["data"].get("share_id"),
+                                            "share_url": result["data"].get("share_url")
+                                        }
+                                    elif status == "FAILED":
+                                        return {
+                                            "success": False,
+                                            "error": f"TikTok publish failed: {result.get('data', {}).get('fail_reason', 'Unknown error')}"
+                                        }
+                                    else:
+                                        return {
+                                            "success": False,
+                                            "error": f"TikTok publish failed with status: {status}"
+                                        }
+                                except (json.JSONDecodeError, KeyError):
+                                    error_text = await response.text()
+                                    return {
+                                        "success": False,
+                                        "error": f"TikTok API returned invalid JSON: {error_text}"
+                                    }
+                            elif response.status == 429:
+                                if retry < 2:
+                                    await asyncio.sleep(2 ** retry)
+                                    continue
+                                else:
+                                    return {
+                                        "success": False,
+                                        "error": "TikTok API rate limit exceeded"
+                                    }
+                            else:
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"TikTok publish check failed: {response.status} - {error_text}"
+                                }
+                    except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                        if retry < 2:
+                            await asyncio.sleep(2 ** retry)
                             continue
-                        elif status == "PUBLISH_COMPLETE":
-                            return {
-                                "success": True,
-                                "share_id": result["data"].get("share_id"),
-                                "share_url": result["data"].get("share_url")
-                            }
                         else:
                             return {
                                 "success": False,
-                                "error": f"TikTok publish failed with status: {status}"
+                                "error": f"TikTok publish check network error: {str(e)}"
                             }
-                    else:
-                        error_text = await response.text()
-                        return {
-                            "success": False,
-                            "error": f"TikTok publish check failed: {response.status} - {error_text}"
-                        }
+                else:
+                    # If we've exhausted all retries for this attempt, continue to next attempt
+                    continue
         
         return {
             "success": False,
-            "error": "TikTok publish timeout - video may still be processing"
+            "error": "TikTok publish timeout - video processing took too long (4+ minutes)"
         }
     
     async def get_user_info(self) -> Dict:

@@ -4,6 +4,7 @@ Instagram posting service using Facebook Graph API (Instagram uses Facebook's AP
 """
 
 import logging
+import asyncio
 from typing import Dict, Optional
 import aiohttp
 import json
@@ -45,6 +46,12 @@ class InstagramService:
                     
                     if missing_fields:
                         logger.error(f"❌ Missing Instagram credential fields: {', '.join(missing_fields)}")
+                        return None
+                    
+                    # Validate account type (must be Business or Creator)
+                    account_type = credentials.get('account_type')
+                    if account_type not in ['BUSINESS', 'CREATOR']:
+                        logger.error(f"❌ Instagram account type must be BUSINESS or CREATOR, got: {account_type}")
                         return None
                     
                     # Cache credentials
@@ -132,20 +139,53 @@ class InstagramService:
             "access_token": credentials['access_token']
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "container_id": result.get("id")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"Instagram container creation error: {response.status} - {error_text}"
-                    }
+        timeout = aiohttp.ClientTimeout(total=120, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.post(url, data=data) as response:
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "container_id": result.get("id")
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Instagram API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Instagram API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Instagram container creation error: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Instagram container creation network error: {str(e)}"
+                        }
+            
+            return {
+                "success": False,
+                "error": "Instagram container creation failed after 3 attempts"
+            }
     
     async def _publish_media(self, container_id: str, credentials: Dict) -> Dict:
         """Publish Instagram media container"""
@@ -156,20 +196,53 @@ class InstagramService:
             "access_token": credentials['access_token']
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, data=data) as response:
-                if response.status == 200:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "post_id": result.get("id")
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"Instagram publish error: {response.status} - {error_text}"
-                    }
+        timeout = aiohttp.ClientTimeout(total=120, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.post(url, data=data) as response:
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "post_id": result.get("id")
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Instagram API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Instagram API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Instagram publish error: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Instagram publish network error: {str(e)}"
+                        }
+            
+            return {
+                "success": False,
+                "error": "Instagram publish failed after 3 attempts"
+            }
     
     async def _post_story(self, content: Dict, credentials: Dict) -> Dict:
         """Post Instagram Story for text-only content"""
@@ -192,25 +265,52 @@ class InstagramService:
             "access_token": credentials['access_token']
         }
         
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        result = await response.json()
-                        return {
-                            "success": True,
-                            "account_info": result
-                        }
+        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.get(url, params=params) as response:
+                        if response.status == 200:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "account_info": result
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Instagram API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Instagram API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Failed to get account info: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
                     else:
-                        error_text = await response.text()
                         return {
                             "success": False,
-                            "error": f"Failed to get account info: {response.status} - {error_text}"
+                            "error": f"Failed to get account info: {str(e)}"
                         }
-        except Exception as e:
+            
             return {
                 "success": False,
-                "error": f"Failed to get account info: {str(e)}"
+                "error": "Instagram account info request failed after 3 attempts"
             }
     
     async def validate_credentials(self) -> Dict:
@@ -220,7 +320,7 @@ class InstagramService:
             return {
                 "success": False,
                 "error": "Instagram credentials not configured in admin dashboard",
-                "missing": ["app_id", "app_secret", "access_token", "user_id"]
+                "missing": ["app_id", "app_secret", "access_token", "user_id", "account_type"]
             }
         
         # Test with account info API call
