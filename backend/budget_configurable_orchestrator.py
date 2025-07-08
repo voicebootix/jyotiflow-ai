@@ -154,7 +154,7 @@ class BudgetConfigurableOrchestrator:
                 intelligence_level=intelligence_level,
                 enabled_features=enabled_features,
                 api_call_limits=api_limits,
-                update_frequency="daily" if monthly_budget >= 200 else "daily"
+                update_frequency="daily" if monthly_budget >= 200 else "weekly"
             )
             
             # Store in database
