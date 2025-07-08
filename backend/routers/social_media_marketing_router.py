@@ -576,6 +576,11 @@ async def update_platform_config(
                     updated_at = CURRENT_TIMESTAMP
             """, f"{platform}_credentials", json.dumps(config_to_save))
         
+        # Clear cached credentials in Facebook service
+        if platform == 'facebook':
+            from services.facebook_service import facebook_service
+            facebook_service._credentials_cache = None
+        
         logger.info(f"✅ {platform.capitalize()} credentials saved successfully")
         
         return StandardResponse(

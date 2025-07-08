@@ -4,6 +4,7 @@ Twitter posting service for automated tweets and management
 """
 
 import logging
+import asyncio
 from typing import Dict, Optional
 import aiohttp
 import json
@@ -120,20 +121,53 @@ class TwitterService:
             "text": tweet_text
         }
         
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=data) as response:
-                if response.status == 201:
-                    result = await response.json()
-                    return {
-                        "success": True,
-                        "tweet_id": result["data"]["id"]
-                    }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"Twitter posting failed: {response.status} - {error_text}"
-                    }
+        timeout = aiohttp.ClientTimeout(total=60, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.post(url, headers=headers, json=data) as response:
+                        if response.status == 201:
+                            try:
+                                result = await response.json()
+                                return {
+                                    "success": True,
+                                    "tweet_id": result["data"]["id"]
+                                }
+                            except (json.JSONDecodeError, KeyError):
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
+                                    "error": f"Twitter API returned invalid JSON: {error_text}"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Twitter API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"Twitter posting failed: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
+                    else:
+                        return {
+                            "success": False,
+                            "error": f"Twitter posting network error: {str(e)}"
+                        }
+            
+            return {
+                "success": False,
+                "error": "Twitter posting failed after 3 attempts"
+            }
     
     async def _post_with_media(self, content: Dict, media_url: str, credentials: Dict) -> Dict:
         """Post tweet with media"""
@@ -174,21 +208,18 @@ class TwitterService:
                             media_category = "tweet_image"  # Default
                         
                         # Upload to Twitter
-                        auth_header = self._get_oauth_header(credentials, "POST", self.upload_url)
+                        auth_header = self._get_oauth_header(credentials, "POST", self.upload_url, {'media_category': media_category})
                         
-                        files = {
-                            'media': media_data
-                        }
-                        
-                        data = {
-                            'media_category': media_category
-                        }
+                        # Create multipart form data
+                        form_data = aiohttp.FormData()
+                        form_data.add_field('media', media_data, filename='media', content_type=content_type)
+                        form_data.add_field('media_category', media_category)
                         
                         headers = {
                             "Authorization": auth_header
                         }
                         
-                        async with session.post(self.upload_url, headers=headers, data=data) as response:
+                        async with session.post(self.upload_url, headers=headers, data=form_data) as response:
                             if response.status == 200:
                                 result = await response.json()
                                 return {
@@ -253,9 +284,8 @@ class TwitterService:
                         "error": f"Twitter posting with media failed: {response.status} - {error_text}"
                     }
     
-    def _get_oauth_header(self, credentials: Dict, method: str, url: str) -> str:
+    def _get_oauth_header(self, credentials: Dict, method: str, url: str, params: Optional[Dict] = None) -> str:
         """Generate OAuth 1.0a header for Twitter API v1.1 endpoints"""
-        # Simplified OAuth header - in production, use proper OAuth library
         import time
         import secrets
         import urllib.parse
@@ -271,8 +301,14 @@ class TwitterService:
             'oauth_version': '1.0'
         }
         
+        # Combine OAuth params with request params for signature
+        all_params = oauth_params.copy()
+        if params:
+            all_params.update(params)
+        
         # Create signature base string
-        param_string = '&'.join([f"{k}={v}" for k, v in sorted(oauth_params.items())])
+        sorted_params = sorted(all_params.items())
+        param_string = '&'.join([f"{urllib.parse.quote(str(k), safe='')}={urllib.parse.quote(str(v), safe='')}" for k, v in sorted_params])
         base_string = f"{method}&{urllib.parse.quote(url, safe='')}&{urllib.parse.quote(param_string, safe='')}"
         
         # Create signing key
@@ -283,7 +319,7 @@ class TwitterService:
         oauth_params['oauth_signature'] = base64.b64encode(signature).decode()
         
         # Create authorization header
-        auth_header = 'OAuth ' + ', '.join([f'{k}="{v}"' for k, v in oauth_params.items()])
+        auth_header = 'OAuth ' + ', '.join([f'{urllib.parse.quote(str(k), safe="")}="{urllib.parse.quote(str(v), safe="")}"' for k, v in oauth_params.items()])
         return auth_header
     
     async def get_user_info(self) -> Dict:

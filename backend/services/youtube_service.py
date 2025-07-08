@@ -4,10 +4,12 @@ YouTube posting service for automated video uploads and management
 """
 
 import logging
+import asyncio
 from typing import Dict, Optional
 import aiohttp
 import json
 import base64
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -129,6 +131,9 @@ class YouTubeService:
     
     async def _resumable_upload(self, metadata: Dict, video_url: str, credentials: Dict) -> Dict:
         """Perform resumable upload to YouTube"""
+        # Ensure token is valid
+        credentials = await self._ensure_valid_token(credentials)
+        
         headers = {
             "Authorization": f"Bearer {credentials['access_token']}",
             "Content-Type": "application/json",
@@ -141,69 +146,122 @@ class YouTubeService:
         }
         
         # Step 1: Initiate resumable upload
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                self.upload_url,
-                params=params,
-                headers=headers,
-                json=metadata
-            ) as response:
-                if response.status == 200:
-                    upload_url = response.headers.get("Location")
-                    if upload_url:
-                        # Step 2: Upload video file
-                        upload_result = await self._upload_video_file(upload_url, video_url, credentials)
-                        return upload_result
+        timeout = aiohttp.ClientTimeout(total=120, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            for attempt in range(3):
+                try:
+                    async with session.post(
+                        self.upload_url,
+                        params=params,
+                        headers=headers,
+                        json=metadata
+                    ) as response:
+                        if response.status == 200:
+                            upload_url = response.headers.get("Location")
+                            if upload_url:
+                                # Step 2: Upload video file
+                                upload_result = await self._upload_video_file(upload_url, video_url, credentials)
+                                return upload_result
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "Failed to get upload URL from YouTube"
+                                }
+                        elif response.status == 429:
+                            if attempt < 2:
+                                await asyncio.sleep(2 ** attempt)
+                                continue
+                            else:
+                                return {
+                                    "success": False,
+                                    "error": "YouTube API rate limit exceeded"
+                                }
+                        else:
+                            error_text = await response.text()
+                            return {
+                                "success": False,
+                                "error": f"YouTube upload initiation failed: {response.status} - {error_text}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
                     else:
                         return {
                             "success": False,
-                            "error": "Failed to get upload URL from YouTube"
+                            "error": f"YouTube upload initiation network error: {str(e)}"
                         }
-                else:
-                    error_text = await response.text()
-                    return {
-                        "success": False,
-                        "error": f"YouTube upload initiation failed: {response.status} - {error_text}"
-                    }
+            
+            return {
+                "success": False,
+                "error": "YouTube upload initiation failed after 3 attempts"
+            }
     
     async def _upload_video_file(self, upload_url: str, video_url: str, credentials: Dict) -> Dict:
         """Upload video file to YouTube"""
-        try:
-            # Download video from URL and upload to YouTube
-            async with aiohttp.ClientSession() as session:
-                # Download video
-                async with session.get(video_url) as video_response:
-                    if video_response.status == 200:
-                        video_data = await video_response.read()
-                        
-                        # Upload to YouTube
-                        headers = {
-                            "Authorization": f"Bearer {credentials['access_token']}",
-                            "Content-Type": "video/*"
-                        }
-                        
-                        async with session.put(upload_url, headers=headers, data=video_data) as response:
-                            if response.status == 200:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "video_id": result.get("id")
-                                }
-                            else:
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"YouTube video upload failed: {response.status} - {error_text}"
-                                }
+        # Download video from URL and upload to YouTube
+        timeout = aiohttp.ClientTimeout(total=900, connect=10)  # 15 minutes for large videos
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            # Download video
+            for attempt in range(3):
+                try:
+                    async with session.get(video_url) as video_response:
+                        if video_response.status == 200:
+                            video_data = await video_response.read()
+                            
+                            # Upload to YouTube
+                            headers = {
+                                "Authorization": f"Bearer {credentials['access_token']}",
+                                "Content-Type": "video/*"
+                            }
+                            
+                            async with session.put(upload_url, headers=headers, data=video_data) as response:
+                                if response.status == 200:
+                                    try:
+                                        result = await response.json()
+                                        return {
+                                            "success": True,
+                                            "video_id": result.get("id")
+                                        }
+                                    except (json.JSONDecodeError, KeyError):
+                                        error_text = await response.text()
+                                        return {
+                                            "success": False,
+                                            "error": f"YouTube API returned invalid JSON: {error_text}"
+                                        }
+                                elif response.status == 429:
+                                    if attempt < 2:
+                                        await asyncio.sleep(2 ** attempt)
+                                        continue
+                                    else:
+                                        return {
+                                            "success": False,
+                                            "error": "YouTube API rate limit exceeded"
+                                        }
+                                else:
+                                    error_text = await response.text()
+                                    return {
+                                        "success": False,
+                                        "error": f"YouTube video upload failed: {response.status} - {error_text}"
+                                    }
+                        else:
+                            return {
+                                "success": False,
+                                "error": f"Failed to download video from URL: {video_response.status}"
+                            }
+                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+                    if attempt < 2:
+                        await asyncio.sleep(2 ** attempt)
+                        continue
                     else:
                         return {
                             "success": False,
-                            "error": f"Failed to download video from URL: {video_response.status}"
+                            "error": f"Video file upload failed: {str(e)}"
                         }
-        except Exception as e:
+            
             return {
                 "success": False,
-                "error": f"Video file upload failed: {str(e)}"
+                "error": "Video file upload failed after 3 attempts"
             }
     
     async def _create_community_post(self, content: Dict, credentials: Dict) -> Dict:
@@ -330,6 +388,7 @@ class YouTubeService:
             
             if db.db_pool and self._credentials_cache:
                 self._credentials_cache['access_token'] = new_token
+                self._credentials_cache['token_expires_at'] = time.time() + 3600  # 1 hour from now
                 
                 async with db.db_pool.acquire() as db_conn:
                     await db_conn.execute(
@@ -339,6 +398,22 @@ class YouTubeService:
                 logger.info("✅ YouTube access token updated in database")
         except Exception as e:
             logger.error(f"❌ Failed to update access token: {e}")
+    
+    async def _ensure_valid_token(self, credentials: Dict) -> Dict:
+        """Ensure the access token is valid, refresh if needed"""
+        # Check if token is expired (with 5 minute buffer)
+        expires_at = credentials.get('token_expires_at', 0)
+        if expires_at > 0 and time.time() > (expires_at - 300):
+            logger.info("🔄 YouTube access token expired, refreshing...")
+            refresh_result = await self.refresh_access_token()
+            if refresh_result.get("success"):
+                credentials['access_token'] = refresh_result['access_token']
+                return credentials
+            else:
+                logger.error(f"❌ Failed to refresh YouTube token: {refresh_result.get('error')}")
+                return credentials
+        
+        return credentials
 
 # Global instance
 youtube_service = YouTubeService()
