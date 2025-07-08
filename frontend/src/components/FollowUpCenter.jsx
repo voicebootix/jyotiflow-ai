@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -13,9 +14,17 @@ const FollowUpCenter = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    loadFollowups();
+    const authStatus = spiritualAPI.isAuthenticated();
+    setIsAuthenticated(authStatus);
+    
+    if (authStatus) {
+      loadFollowups();
+    } else {
+      setLoading(false);
+    }
   }, []);
 
   const loadFollowups = async () => {
@@ -101,6 +110,63 @@ const FollowUpCenter = () => {
   };
 
   if (loading) return <Loader />;
+
+  // Show authentication required message for non-authenticated users
+  if (!isAuthenticated) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 space-y-6">
+        <div className="text-center space-y-4">
+          <div className="text-4xl">🔐</div>
+          <h1 className="text-3xl font-bold text-gray-900">Authentication Required</h1>
+          <p className="text-gray-600 max-w-2xl mx-auto">
+            The Follow-up Center contains your personal spiritual guidance history. 
+            Please sign in to view your scheduled messages and manage your preferences.
+          </p>
+        </div>
+        
+        <div className="text-center sacred-card p-12">
+          <div className="text-6xl mb-6">📧</div>
+          <h2 className="text-3xl font-bold text-gray-800 mb-4">
+            Your Personal Follow-up Center
+          </h2>
+          <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+            Track your spiritual guidance messages, manage follow-up preferences, and stay connected 
+            with your spiritual journey through personalized communication.
+          </p>
+          
+          <div className="grid md:grid-cols-3 gap-6 mb-8">
+            <div className="text-center">
+              <Mail className="mx-auto mb-2 text-blue-500" size={32} />
+              <h3 className="font-semibold text-gray-800">Email Follow-ups</h3>
+              <p className="text-sm text-gray-600">Receive guidance via email</p>
+            </div>
+            <div className="text-center">
+              <MessageSquare className="mx-auto mb-2 text-green-500" size={32} />
+              <h3 className="font-semibold text-gray-800">WhatsApp Messages</h3>
+              <p className="text-sm text-gray-600">Get insights on WhatsApp</p>
+            </div>
+            <div className="text-center">
+              <Smartphone className="mx-auto mb-2 text-purple-500" size={32} />
+              <h3 className="font-semibold text-gray-800">SMS Guidance</h3>
+              <p className="text-sm text-gray-600">Quick spiritual reminders</p>
+            </div>
+          </div>
+          
+          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <Link to="/register" className="divine-button">
+              Create Sacred Account
+            </Link>
+            <Link 
+              to="/login" 
+              className="bg-transparent border-2 border-yellow-500 text-yellow-600 hover:bg-yellow-500 hover:text-white transition-all duration-300 px-6 py-3 rounded-lg font-semibold"
+            >
+              Sign In
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-6 space-y-6">

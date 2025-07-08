@@ -110,46 +110,23 @@ function App() {
               <Route path="/about/four-pillars" element={<FourPillars />} />
               <Route path="/about/tamil-heritage" element={<TamilHeritage />} />
               
-              {/* User Routes (require authentication) */}
-              <Route path="/spiritual-guidance" element={
-                <ProtectedRoute>
-                  <SpiritualGuidance />
-                </ProtectedRoute>
-              } />
-              <Route path="/live-chat" element={
-                <ProtectedRoute>
-                  <LiveChat />
-                </ProtectedRoute>
-              } />
-              <Route path="/satsang" element={
-                <ProtectedRoute>
-                  <Satsang />
-                </ProtectedRoute>
-              } />
+              {/* Spiritual Service Routes (Public - Browse freely, login required for actions) */}
+              <Route path="/spiritual-guidance" element={<SpiritualGuidance />} />
+              <Route path="/live-chat" element={<LiveChat />} />
+              <Route path="/satsang" element={<Satsang />} />
+              <Route path="/birth-chart" element={<BirthChart />} />
+              <Route path="/real-time-birth-chart" element={<RealTimeBirthChart />} />
+              <Route path="/personalized-remedies" element={<PersonalizedRemedies />} />
+              
+              {/* User-Specific Routes (require authentication) */}
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <Profile />
                 </ProtectedRoute>
               } />
-
               <Route path="/follow-up-center" element={
                 <ProtectedRoute>
                   <FollowUpCenter />
-                </ProtectedRoute>
-              } />
-              <Route path="/birth-chart" element={
-                <ProtectedRoute>
-                  <BirthChart />
-                </ProtectedRoute>
-              } />
-              <Route path="/real-time-birth-chart" element={
-                <ProtectedRoute>
-                  <RealTimeBirthChart />
-                </ProtectedRoute>
-              } />
-              <Route path="/personalized-remedies" element={
-                <ProtectedRoute>
-                  <PersonalizedRemedies />
                 </ProtectedRoute>
               } />
               <Route path="/agora-video-call" element={
