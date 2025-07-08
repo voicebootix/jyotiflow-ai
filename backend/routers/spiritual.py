@@ -71,7 +71,7 @@ async def get_birth_chart(request: Request):
     datetime_str = f"{date}T{time_}:00+05:30"  # Default to IST
     coordinates = f"{latitude},{longitude}"
 
-    # --- Only use the working Prokerala API endpoint ---
+    # --- Call both birth-details and chart endpoints ---
     chart_data = {}
     
     # Basic parameters for API call
@@ -81,6 +81,15 @@ async def get_birth_chart(request: Request):
         "ayanamsa": "1"
     }
     
+    # Chart-specific parameters
+    chart_params = {
+        "datetime": datetime_str,
+        "coordinates": coordinates,
+        "chart_type": "rasi",  # Can be rasi, navamsa, chalit, etc.
+        "chart_style": "north-indian",  # north-indian, south-indian, east-indian
+        "format": "json"
+    }
+    
     for attempt in range(2):  # Try once, refresh token and retry if 401
         try:
             token = await get_prokerala_token()
@@ -88,7 +97,7 @@ async def get_birth_chart(request: Request):
             async with httpx.AsyncClient() as client:
                 headers = {"Authorization": f"Bearer {token}"}
                 
-                # Get basic birth details (this is the only endpoint that works)
+                # Get basic birth details
                 basic_resp = await client.get(
                     "https://api.prokerala.com/v2/astrology/birth-details",
                     headers=headers,
@@ -105,10 +114,30 @@ async def get_birth_chart(request: Request):
                     print(f"[BirthChart] Birth details response: {basic_data}")
                     if "data" in basic_data:
                         chart_data.update(basic_data["data"])
-                    break
                 else:
                     print(f"[BirthChart] Birth details API error: {basic_resp.status_code} - {basic_resp.text}")
-                    raise HTTPException(status_code=503, detail=f"Prokerala API error: {basic_resp.status_code}")
+                
+                # Get chart visualization data
+                chart_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/chart",
+                    headers=headers,
+                    params=chart_params
+                )
+                print(f"[BirthChart] Chart visualization status: {chart_resp.status_code}")
+                
+                if chart_resp.status_code == 200:
+                    chart_visual_data = chart_resp.json()
+                    print(f"[BirthChart] Chart visualization response: {chart_visual_data}")
+                    if "data" in chart_visual_data:
+                        chart_data["chart_visualization"] = chart_visual_data["data"]
+                    break
+                else:
+                    print(f"[BirthChart] Chart visualization API error: {chart_resp.status_code} - {chart_resp.text}")
+                    # Continue with just basic data if chart endpoint fails
+                    if basic_resp.status_code == 200:
+                        break
+                    else:
+                        raise HTTPException(status_code=503, detail=f"Prokerala API error: {basic_resp.status_code}")
                     
         except Exception as e:
             print(f"[BirthChart] Prokerala API error: {e}")
@@ -135,8 +164,8 @@ async def get_birth_chart(request: Request):
                 },
                 "calculation_method": "Vedic Astrology (Prokerala API)",
                 "ayanamsa": "Lahiri",
-                "data_source": "Prokerala API v2/astrology/birth-details",
-                "note": "Real astrological data from Prokerala API"
+                "data_source": "Prokerala API v2/astrology/birth-details + chart",
+                "note": "Real astrological data from Prokerala API with chart visualization"
             }
         }
     }

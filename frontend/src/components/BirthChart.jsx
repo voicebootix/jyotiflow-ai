@@ -313,7 +313,67 @@ Report generated on: ${new Date().toISOString()}
           <div className="font-medium">✅ Real Astrological Data</div>
           <div>Source: {chartData.metadata?.data_source || 'Prokerala API'}</div>
           <div>Method: {chartData.metadata?.calculation_method || 'Vedic Astrology'}</div>
+          {chartData.chart_visualization && (
+            <div className="text-green-200">🎯 Chart visualization data received!</div>
+          )}
         </div>
+
+        {/* Chart Visualization */}
+        {chartData.chart_visualization ? (
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
+            <div className="bg-gray-900 rounded-lg p-6">
+              {chartData.chart_visualization.chart_url ? (
+                <div className="text-center">
+                  <img 
+                    src={chartData.chart_visualization.chart_url} 
+                    alt="Vedic Birth Chart" 
+                    className="max-w-full mx-auto rounded-lg border border-gray-600"
+                  />
+                  <div className="mt-4 text-sm text-gray-400">
+                    Chart Type: {chartData.chart_visualization.chart_type || 'Rasi'}
+                  </div>
+                </div>
+              ) : chartData.chart_visualization.houses ? (
+                <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+                  {Object.entries(chartData.chart_visualization.houses).map(([houseNum, houseData]) => (
+                    <div key={houseNum} className="bg-gray-700 p-4 rounded-lg text-center">
+                      <div className="text-yellow-400 font-semibold">House {houseNum}</div>
+                      <div className="text-white text-sm mt-1">{houseData.sign || 'N/A'}</div>
+                      {houseData.planets && houseData.planets.length > 0 && (
+                        <div className="text-gray-300 text-xs mt-2">
+                          {houseData.planets.map(planet => (
+                            <div key={planet.name} className="flex items-center justify-center">
+                              {planetIcons[planet.name] || <Circle className="w-3 h-3" />}
+                              <span className="ml-1">{planet.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center p-4">
+                  <div className="text-green-400 mb-2">📊 Chart data received from API</div>
+                  <pre className="text-xs text-gray-300 bg-gray-800 p-4 rounded overflow-auto max-h-48">
+                    {JSON.stringify(chartData.chart_visualization, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg p-6">
+            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
+            <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
+              <div className="text-gray-400 mb-2">📊 Chart visualization loading...</div>
+              <div className="text-sm text-gray-500">
+                Attempting to fetch chart data from Prokerala API
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Basic Birth Information */}
         <div className="bg-gray-800 rounded-lg p-6">
@@ -389,17 +449,6 @@ Report generated on: ${new Date().toISOString()}
             {JSON.stringify(chartData, null, 2)}
           </pre>
         </details>
-
-        {/* Chart Visualization Placeholder */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
-          <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
-            <div className="text-gray-400 mb-2">📊 Chart visualization coming soon</div>
-            <div className="text-sm text-gray-500">
-              Chart data received from Prokerala API will be visualized here
-            </div>
-          </div>
-        </div>
       </div>
     );
   };
@@ -415,6 +464,40 @@ Report generated on: ${new Date().toISOString()}
         <div className="bg-gray-800 rounded-lg p-6">
           <h3 className="text-xl font-semibold mb-4 text-yellow-400">Available Astrological Data</h3>
           
+          {/* Planetary Positions from Chart Data */}
+          {chartData.chart_visualization && chartData.chart_visualization.planets && (
+            <div className="mb-6">
+              <h4 className="text-lg font-medium text-white mb-3">Planetary Positions</h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-600">
+                      <th className="text-left py-2 text-gray-400">Planet</th>
+                      <th className="text-left py-2 text-gray-400">Sign</th>
+                      <th className="text-left py-2 text-gray-400">House</th>
+                      <th className="text-left py-2 text-gray-400">Degree</th>
+                      <th className="text-left py-2 text-gray-400">Nakshatra</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {chartData.chart_visualization.planets.map((planet, index) => (
+                      <tr key={index} className="border-b border-gray-700 hover:bg-gray-700">
+                        <td className="py-2 text-white flex items-center">
+                          {planetIcons[planet.name] || <Circle className="w-4 h-4" />}
+                          <span className="ml-2">{planet.name}</span>
+                        </td>
+                        <td className="py-2 text-white">{planet.sign || 'N/A'}</td>
+                        <td className="py-2 text-white">{planet.house || 'N/A'}</td>
+                        <td className="py-2 text-white">{planet.degree || 'N/A'}</td>
+                        <td className="py-2 text-white">{planet.nakshatra || 'N/A'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Nakshatra Information */}
             {chartData.nakshatra && (
@@ -511,8 +594,12 @@ Report generated on: ${new Date().toISOString()}
         {/* Notice about additional data */}
         <div className="bg-yellow-900 border border-yellow-700 text-yellow-200 px-4 py-3 rounded-md text-sm">
           <div className="font-medium">ℹ️ API Data Source</div>
-          <div>This data is from the working Prokerala API endpoint (birth-details). 
-          Additional planetary positions and house data would require different API endpoints.</div>
+          <div>
+            {chartData.chart_visualization ? 
+              "This data includes chart visualization from the Prokerala API chart endpoint!" :
+              "This data is from the working Prokerala API endpoint (birth-details). Additional planetary positions and house data would require different API endpoints."
+            }
+          </div>
         </div>
       </div>
     );
@@ -528,13 +615,46 @@ Report generated on: ${new Date().toISOString()}
         <div className="bg-gray-800 rounded-lg p-6">
           <h3 className="text-xl font-semibold mb-4 text-yellow-400">House System Information</h3>
           
-          <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
-            <div className="text-gray-400 mb-2">🏠 House positions not available</div>
-            <div className="text-sm text-gray-500">
-              House cusps and planetary house positions require additional Prokerala API endpoints
-              that are currently returning 404 errors.
+          {/* Display house data from chart visualization if available */}
+          {chartData.chart_visualization && chartData.chart_visualization.houses ? (
+            <div className="mb-6">
+              <h4 className="text-lg font-medium text-white mb-3">House Positions</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {Object.entries(chartData.chart_visualization.houses).map(([houseNum, houseData]) => (
+                  <div key={houseNum} className="bg-gray-700 p-4 rounded-lg">
+                    <div className="text-yellow-400 font-medium mb-2">House {houseNum}</div>
+                    <div className="text-white text-sm mb-1">
+                      Sign: {houseData.sign || 'N/A'}
+                    </div>
+                    <div className="text-gray-400 text-xs mb-2">
+                      {getHouseSignificance(parseInt(houseNum))}
+                    </div>
+                    {houseData.planets && houseData.planets.length > 0 && (
+                      <div className="text-gray-300 text-xs">
+                        <div className="font-medium mb-1">Planets:</div>
+                        {houseData.planets.map((planet, index) => (
+                          <div key={index} className="flex items-center mb-1">
+                            {planetIcons[planet.name] || <Circle className="w-3 h-3" />}
+                            <span className="ml-1">{planet.name}</span>
+                            {planet.degree && (
+                              <span className="text-gray-500 ml-2">({planet.degree}°)</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
+              <div className="text-gray-400 mb-2">🏠 House positions loading...</div>
+              <div className="text-sm text-gray-500">
+                Attempting to fetch house data from Prokerala API chart endpoint
+              </div>
+            </div>
+          )}
 
           {/* Show basic house interpretation based on available signs */}
           {(chartData.chandra_rasi || chartData.soorya_rasi || chartData.lagna) && (
@@ -570,8 +690,12 @@ Report generated on: ${new Date().toISOString()}
         {/* Notice about house data */}
         <div className="bg-blue-900 border border-blue-700 text-blue-200 px-4 py-3 rounded-md text-sm">
           <div className="font-medium">📊 House Data Status</div>
-          <div>Complete house cusps and planetary house positions would be available 
-          once the correct Prokerala API endpoints for planets and houses are identified.</div>
+          <div>
+            {chartData.chart_visualization && chartData.chart_visualization.houses ? 
+              "House data successfully loaded from Prokerala API chart endpoint!" :
+              "Complete house cusps and planetary house positions would be available once the correct Prokerala API endpoints for planets and houses are identified."
+            }
+          </div>
         </div>
       </div>
     );
