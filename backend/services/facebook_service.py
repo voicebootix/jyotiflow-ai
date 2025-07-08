@@ -17,37 +17,61 @@ class FacebookService:
     """Facebook Graph API Service for automated posting"""
     
     def __init__(self):
-        self.app_id = os.getenv("FACEBOOK_APP_ID")
-        self.app_secret = os.getenv("FACEBOOK_APP_SECRET")
-        self.page_access_token = os.getenv("FACEBOOK_PAGE_ACCESS_TOKEN")
-        self.page_id = os.getenv("FACEBOOK_PAGE_ID")
-        
-        # Validate required credentials
-        missing_creds = []
-        if not self.app_id:
-            missing_creds.append("FACEBOOK_APP_ID")
-        if not self.app_secret:
-            missing_creds.append("FACEBOOK_APP_SECRET")
-        if not self.page_access_token:
-            missing_creds.append("FACEBOOK_PAGE_ACCESS_TOKEN")
-        if not self.page_id:
-            missing_creds.append("FACEBOOK_PAGE_ID")
-        
-        if missing_creds:
-            logger.error(f"❌ Missing Facebook credentials: {', '.join(missing_creds)}")
-            self.is_configured = False
-        else:
-            self.is_configured = True
-            logger.info("✅ Facebook service initialized successfully")
-        
+        # Initialize without credentials - will load from database when needed
         self.base_url = "https://graph.facebook.com/v18.0"
+        self._credentials_cache = None
+        logger.info("🔵 Facebook service initialized - will load credentials from database")
+    
+    async def _get_credentials(self):
+        """Get Facebook credentials from database (platform_settings table)"""
+        if self._credentials_cache:
+            return self._credentials_cache
+        
+        try:
+            import db
+            
+            # Get database connection
+            if not db.db_pool:
+                logger.error("❌ Database pool not available")
+                return None
+            
+            async with db.db_pool.acquire() as db_conn:
+                # Get Facebook credentials from platform_settings
+                row = await db_conn.fetchrow(
+                    "SELECT value FROM platform_settings WHERE key = 'facebook_credentials'"
+                )
+                
+                if row and row['value']:
+                    credentials = row['value']
+                    
+                    # Validate required fields
+                    required_fields = ['app_id', 'app_secret', 'page_access_token', 'page_id']
+                    missing_fields = [field for field in required_fields if not credentials.get(field)]
+                    
+                    if missing_fields:
+                        logger.error(f"❌ Missing Facebook credential fields: {', '.join(missing_fields)}")
+                        return None
+                    
+                    # Cache credentials
+                    self._credentials_cache = credentials
+                    logger.info("✅ Facebook credentials loaded from database")
+                    return credentials
+                else:
+                    logger.error("❌ Facebook credentials not found in database. Please configure them in the admin dashboard.")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"❌ Failed to load Facebook credentials from database: {e}")
+            return None
         
     async def post_content(self, content: Dict, media_url: Optional[str] = None) -> Dict:
         """Post content to Facebook page"""
-        if not self.is_configured:
+        # Get credentials from database
+        credentials = await self._get_credentials()
+        if not credentials:
             return {
                 "success": False,
-                "error": "Facebook service not properly configured. Check environment variables."
+                "error": "Facebook credentials not configured in admin dashboard."
             }
         
         try:
@@ -61,10 +85,10 @@ class FacebookService:
             
             if media_url:
                 # Post with media (photo/video)
-                result = await self._post_with_media(message, media_url)
+                result = await self._post_with_media(message, media_url, credentials)
             else:
                 # Text-only post
-                result = await self._post_text_only(message)
+                result = await self._post_text_only(message, credentials)
             
             if result.get("success"):
                 logger.info(f"✅ Successfully posted to Facebook: {result['post_id']}")
@@ -85,13 +109,13 @@ class FacebookService:
                 "error": f"Facebook posting failed: {str(e)}"
             }
     
-    async def _post_text_only(self, message: str) -> Dict:
+    async def _post_text_only(self, message: str, credentials: Dict) -> Dict:
         """Post text-only content to Facebook"""
-        url = f"{self.base_url}/{self.page_id}/feed"
+        url = f"{self.base_url}/{credentials['page_id']}/feed"
         
         data = {
             "message": message,
-            "access_token": self.page_access_token
+            "access_token": credentials['page_access_token']
         }
         
         async with aiohttp.ClientSession() as session:
@@ -109,24 +133,24 @@ class FacebookService:
                         "error": f"Facebook API error: {response.status} - {error_text}"
                     }
     
-    async def _post_with_media(self, message: str, media_url: str) -> Dict:
+    async def _post_with_media(self, message: str, media_url: str, credentials: Dict) -> Dict:
         """Post content with media (photo or video) to Facebook"""
         # First, determine if it's a photo or video based on URL
         is_video = any(ext in media_url.lower() for ext in ['.mp4', '.mov', '.avi', '.webm'])
         
         if is_video:
-            return await self._post_video(message, media_url)
+            return await self._post_video(message, media_url, credentials)
         else:
-            return await self._post_photo(message, media_url)
+            return await self._post_photo(message, media_url, credentials)
     
-    async def _post_photo(self, message: str, photo_url: str) -> Dict:
+    async def _post_photo(self, message: str, photo_url: str, credentials: Dict) -> Dict:
         """Post photo to Facebook"""
-        url = f"{self.base_url}/{self.page_id}/photos"
+        url = f"{self.base_url}/{credentials['page_id']}/photos"
         
         data = {
             "url": photo_url,
             "caption": message,
-            "access_token": self.page_access_token
+            "access_token": credentials['page_access_token']
         }
         
         async with aiohttp.ClientSession() as session:
@@ -144,14 +168,14 @@ class FacebookService:
                         "error": f"Facebook photo upload error: {response.status} - {error_text}"
                     }
     
-    async def _post_video(self, message: str, video_url: str) -> Dict:
+    async def _post_video(self, message: str, video_url: str, credentials: Dict) -> Dict:
         """Post video to Facebook"""
-        url = f"{self.base_url}/{self.page_id}/videos"
+        url = f"{self.base_url}/{credentials['page_id']}/videos"
         
         data = {
             "file_url": video_url,
             "description": message,
-            "access_token": self.page_access_token
+            "access_token": credentials['page_access_token']
         }
         
         async with aiohttp.ClientSession() as session:
@@ -171,13 +195,14 @@ class FacebookService:
     
     async def get_page_info(self) -> Dict:
         """Get Facebook page information"""
-        if not self.is_configured:
-            return {"success": False, "error": "Facebook service not configured"}
+        credentials = await self._get_credentials()
+        if not credentials:
+            return {"success": False, "error": "Facebook credentials not configured"}
         
-        url = f"{self.base_url}/{self.page_id}"
+        url = f"{self.base_url}/{credentials['page_id']}"
         params = {
             "fields": "id,name,username,followers_count,fan_count",
-            "access_token": self.page_access_token
+            "access_token": credentials['page_access_token']
         }
         
         try:
@@ -203,12 +228,12 @@ class FacebookService:
     
     async def validate_credentials(self) -> Dict:
         """Validate Facebook API credentials"""
-        if not self.is_configured:
+        credentials = await self._get_credentials()
+        if not credentials:
             return {
                 "success": False,
-                "error": "Missing required credentials",
-                "missing": [cred for cred in ["FACEBOOK_APP_ID", "FACEBOOK_APP_SECRET", "FACEBOOK_PAGE_ACCESS_TOKEN", "FACEBOOK_PAGE_ID"] 
-                           if not os.getenv(cred)]
+                "error": "Facebook credentials not configured in admin dashboard",
+                "missing": ["app_id", "app_secret", "page_access_token", "page_id"]
             }
         
         # Test with a simple API call
