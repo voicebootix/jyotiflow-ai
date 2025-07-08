@@ -74,9 +74,6 @@ async def ensure_base_credits_column():
     finally:
         await conn.close()
 
-# Run the schema fix at startup
-asyncio.run(ensure_base_credits_column())
-
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
@@ -117,6 +114,13 @@ async def startup_event():
         async with db_pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         print("✅ Database connection test successful")
+        
+        # Ensure base credits column exists
+        try:
+            await ensure_base_credits_column()
+            print("✅ Base credits column check completed")
+        except Exception as e:
+            print(f"⚠️ Base credits column check failed: {e}")
         
         # Apply database schema fixes
         try:
