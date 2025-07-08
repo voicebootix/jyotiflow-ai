@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 async def run_migration():
     """Run the birth chart cache migration"""
     
-    # Database connection - try SQLite first for local testing
-    DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///jyotiflow.db")
+    # Database connection - PostgreSQL for production platform
+    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/jyotiflow")
     
     try:
         logger.info("🚀 Starting birth chart cache migration...")
