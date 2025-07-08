@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
 PROKERALA_CLIENT_SECRET = os.getenv("PROKERALA_CLIENT_SECRET", "your-client-secret")
 PROKERALA_TOKEN_URL = "https://api.prokerala.com/token"
-PROKERALA_API_BASE = "https://api.prokerala.com/v2/astrology/birth-details"
+PROKERALA_API_BASE = "https://api.prokerala.com/v2/astrology/vedic-chart"
 
 # Global token cache (for demo; use Redis or DB for production)
 prokerala_token = None
@@ -74,7 +74,7 @@ async def get_birth_chart(request: Request):
     params = {
         "datetime": datetime_str,
         "coordinates": coordinates,
-        "ayanamsa": 1
+        "ayanamsa": "1"
     }
     print(f"[BirthChart] Prokerala params: {params}")
 
@@ -155,14 +155,14 @@ async def get_spiritual_guidance(request: Request):
     params = {
         "datetime": f"{date}T{time_}:00+05:30",
         "coordinates": f"{latitude},{longitude}",
-        "ayanamsa": 1
+        "ayanamsa": "1"
     }
     for attempt in range(2):
         token = await get_prokerala_token()
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
-                    PROKERALA_API_BASE,
+                    "https://api.prokerala.com/v2/astrology/vedic-chart",
                     headers={"Authorization": f"Bearer {token}"},
                     params=params
                 )
