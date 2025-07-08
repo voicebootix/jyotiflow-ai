@@ -6,7 +6,7 @@ import uuid
 import random
 from datetime import datetime
 
-router = APIRouter(tags=["Admin Analytics"])
+router = APIRouter(prefix="/api/admin/analytics", tags=["Admin Analytics"])
 
 @router.get("/analytics")
 async def analytics(db=Depends(get_db)):
