@@ -2,18 +2,169 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from db import get_db
 import jwt
 import os
+import time
 from datetime import datetime, timezone
 import uuid
 from typing import Dict, Any
 import asyncio
 
-# ADD: Import the Prokerala service
-try:
-    from services.prokerala_service import prokerala_service
-    PROKERALA_AVAILABLE = True
-except ImportError:
-    PROKERALA_AVAILABLE = False
-    print("Warning: Prokerala service not available")
+# PROKERALA INTEGRATION - Using existing working logic from spiritual.py
+import httpx
+import openai
+
+PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
+PROKERALA_CLIENT_SECRET = os.getenv("PROKERALA_CLIENT_SECRET", "your-client-secret")
+PROKERALA_TOKEN_URL = "https://api.prokerala.com/token"
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
+
+# Global token cache
+prokerala_token = None
+prokerala_token_expiry = 0
+
+async def fetch_prokerala_token():
+    """Fetch a new access token from Prokerala API"""
+    global prokerala_token, prokerala_token_expiry
+    async with httpx.AsyncClient() as client:
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": PROKERALA_CLIENT_ID,
+            "client_secret": PROKERALA_CLIENT_SECRET
+        }
+        resp = await client.post(PROKERALA_TOKEN_URL, data=data)
+        resp.raise_for_status()
+        token_data = resp.json()
+        prokerala_token = token_data["access_token"]
+        prokerala_token_expiry = int(time.time()) + int(token_data.get("expires_in", 3600)) - 60
+        return prokerala_token
+
+async def get_prokerala_token():
+    """Get a valid token, refresh if expired"""
+    global prokerala_token, prokerala_token_expiry
+    if not prokerala_token or time.time() > prokerala_token_expiry:
+        return await fetch_prokerala_token()
+    return prokerala_token
+
+async def get_prokerala_chart_data(birth_details: Dict[str, Any]) -> Dict[str, Any]:
+    """Get birth chart data from Prokerala - MOVED FROM spiritual.py"""
+    date = birth_details.get("date")
+    time_str = birth_details.get("time")
+    location = birth_details.get("location", "Jaffna, Sri Lanka")
+    
+    # Format datetime with timezone
+    datetime_str = f"{date}T{time_str}:00+05:30"
+    coordinates = "9.66845,80.00742"  # Default Jaffna coordinates
+    
+    params = {
+        "datetime": datetime_str,
+        "coordinates": coordinates,
+        "ayanamsa": "1"
+    }
+    
+    chart_data = {}
+    
+    for attempt in range(2):  # Try once, refresh token and retry if 401
+        try:
+            token = await get_prokerala_token()
+            async with httpx.AsyncClient() as client:
+                headers = {"Authorization": f"Bearer {token}"}
+                
+                # Get birth details
+                basic_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/birth-details",
+                    headers=headers,
+                    params=params
+                )
+                if basic_resp.status_code == 200:
+                    chart_data.update(basic_resp.json())
+                
+                # Get planets data
+                planets_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/planets",
+                    headers=headers,
+                    params=params
+                )
+                if planets_resp.status_code == 200:
+                    planets_data = planets_resp.json()
+                    if "data" in planets_data:
+                        chart_data["planets"] = planets_data["data"]
+                
+                # Get houses data
+                houses_resp = await client.get(
+                    "https://api.prokerala.com/v2/astrology/houses",
+                    headers=headers,
+                    params=params
+                )
+                if houses_resp.status_code == 200:
+                    houses_data = houses_resp.json()
+                    if "data" in houses_data:
+                        chart_data["houses"] = houses_data["data"]
+                
+                # Ensure required keys exist
+                chart_data.setdefault("planets", {})
+                chart_data.setdefault("houses", {})
+                chart_data.setdefault("data", {})
+                
+                return chart_data
+                
+        except Exception as e:
+            if attempt == 0 and "401" in str(e):
+                await fetch_prokerala_token()
+                continue
+            raise e
+    
+    # Return minimal data if all attempts fail
+    return {
+        "data": {
+            "nakshatra": {"name": "Unable to calculate"},
+            "chandra_rasi": {"name": "Unable to calculate"}
+        },
+        "error": "Prokerala API unavailable"
+    }
+
+async def generate_spiritual_guidance_with_ai(question: str, astrology_data: Dict[str, Any]) -> str:
+    """Generate spiritual guidance using OpenAI - MOVED FROM spiritual.py"""
+    try:
+        openai.api_key = OPENAI_API_KEY
+        prompt = f"""You are Swami Jyotirananthan, a revered Tamil spiritual master.
+
+User's Question: {question}
+Astrological Data: {astrology_data}
+
+Provide compassionate spiritual guidance that includes:
+1. Direct response to their question
+2. Astrological insights from their chart
+3. Tamil spiritual wisdom
+4. Practical advice
+
+Write in English with Tamil spiritual concepts."""
+
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are Swami Jyotirananthan, a compassionate Tamil spiritual guide."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=1000,
+            temperature=0.7
+        )
+        
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        # Fallback guidance if OpenAI fails
+        return f"""🕉️ Divine Guidance from Swami Jyotirananthan
+
+Your Question: {question}
+
+Though the AI guidance is temporarily unavailable, I offer you this wisdom from the eternal Tamil tradition:
+
+The ancient texts teach us that every question arises from the soul's journey toward truth. Your sincere inquiry itself shows spiritual awakening.
+
+May divine grace illuminate your path forward.
+
+Om Namah Shivaya 🙏"""
+
+PROKERALA_AVAILABLE = bool(PROKERALA_CLIENT_ID and PROKERALA_CLIENT_ID != "your-client-id")
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
@@ -153,10 +304,10 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     if PROKERALA_AVAILABLE and birth_details and all(birth_details.get(key) for key in ["date", "time", "location"]):
         try:
             # Get real birth chart data from Prokerala
-            astrology_data = await prokerala_service.get_complete_birth_chart(birth_details)
+            astrology_data = await get_prokerala_chart_data(birth_details)
             
             # Generate spiritual guidance based on real data
-            guidance_text = await prokerala_service.generate_spiritual_guidance(
+            guidance_text = await generate_spiritual_guidance_with_ai(
                 session_data.get("question", ""), 
                 astrology_data
             )
