@@ -15,7 +15,6 @@ import Navigation from './components/Navigation';
 
 // Import new feature components
 import BirthChart from './components/BirthChart';
-import RealTimeBirthChart from './components/RealTimeBirthChart';
 import PersonalizedRemedies from './components/PersonalizedRemedies';
 import AgoraVideoCall from './components/AgoraVideoCall';
 
@@ -98,7 +97,6 @@ function App() {
               <Route path="/live-chat" element={<LiveChat />} />
               <Route path="/satsang" element={<Satsang />} />
               <Route path="/birth-chart" element={<BirthChart />} />
-              <Route path="/real-time-birth-chart" element={<RealTimeBirthChart />} />
               <Route path="/personalized-remedies" element={<PersonalizedRemedies />} />
               
               {/* User-Specific Routes (require authentication) */}

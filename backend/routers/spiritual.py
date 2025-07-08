@@ -4,6 +4,7 @@ from fastapi import APIRouter, Request, HTTPException
 import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
+from datetime import datetime
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
@@ -51,10 +52,15 @@ async def get_birth_chart(request: Request):
 
     date = birth_details.get("date")  # "1988-03-02"
     time_ = birth_details.get("time")  # "05:00"
+    location = birth_details.get("location", "Jaffna, Sri Lanka")
+    timezone = birth_details.get("timezone", "Asia/Colombo")
+    
+    # Default coordinates for Jaffna (can be enhanced with geocoding)
     latitude = "9.66845"   # Jaffna latitude
     longitude = "80.00742" # Jaffna longitude
 
-    datetime_str = f"{date}T{time_}:00+05:30"
+    # Format datetime with timezone
+    datetime_str = f"{date}T{time_}:00+05:30"  # Default to IST
     coordinates = f"{latitude},{longitude}"
 
     params = {
@@ -85,10 +91,27 @@ async def get_birth_chart(request: Request):
     else:
         return {"success": False, "message": "Prokerala API error: Unable to fetch birth chart."}
 
-    return {
+    # Enhance the response with additional metadata
+    enhanced_response = {
         "success": True,
-        "birth_chart": birth_chart_data
+        "birth_chart": {
+            **birth_chart_data,
+            "metadata": {
+                "generated_at": datetime.now().isoformat(),
+                "birth_details": {
+                    "date": date,
+                    "time": time_,
+                    "location": location,
+                    "timezone": timezone,
+                    "coordinates": coordinates
+                },
+                "calculation_method": "Vedic Astrology (Prokerala API)",
+                "ayanamsa": "Lahiri"
+            }
+        }
     }
+
+    return enhanced_response
 
 @router.post("/guidance")
 async def get_spiritual_guidance(request: Request):
