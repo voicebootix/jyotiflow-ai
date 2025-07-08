@@ -96,14 +96,7 @@ const Navigation = () => {
     { to: '/personalized-remedies', label: t('remedies'), icon: '💊' },
   ];
 
-  const adminLinks = [
-    { to: '/admin', label: t('adminDashboard'), icon: '👑' },
-    { to: '/admin/overview', label: t('overview'), icon: '📊' },
-    { to: '/admin/users', label: t('users'), icon: '👥' },
-    { to: '/admin/analytics', label: t('analytics'), icon: '📈' },
-    { to: '/admin/social-marketing', label: t('socialMedia', 'Social Media'), icon: '📱' },
-    { to: '/admin/pricing', label: t('pricing'), icon: '💰' },
-  ];
+  // Removed conflicting admin links - all admin functionality now through /admin dashboard
 
   const aboutItems = [
     { path: '/about/swamiji', label: t('swamijiStory', "Swamiji's Story") },
@@ -158,11 +151,7 @@ const Navigation = () => {
                 <>
                   <div className="border-t border-gray-200 my-1"></div>
                   <div className="px-4 py-1 text-xs font-semibold text-gray-500 uppercase">{t('admin', 'Admin')}</div>
-                  <Link to="/admin" className="block px-4 py-2 hover:bg-gray-100">👑 {t('adminDashboard', 'Dashboard')}</Link>
-                  <Link to="/admin/users" className="block px-4 py-2 hover:bg-gray-100">👥 {t('users')}</Link>
-                  <Link to="/admin/analytics" className="block px-4 py-2 hover:bg-gray-100">📈 {t('analytics')}</Link>
-                  <Link to="/admin/social-marketing" className="block px-4 py-2 hover:bg-gray-100">📱 {t('socialMedia', 'Social Media')}</Link>
-                  <Link to="/admin/pricing" className="block px-4 py-2 hover:bg-gray-100">💰 {t('pricing')}</Link>
+                  <Link to="/admin" className="block px-4 py-2 hover:bg-gray-100">👑 {t('adminDashboard', 'Admin Dashboard')}</Link>
                 </>
               )}
               <div className="border-t border-gray-200 my-1"></div>
