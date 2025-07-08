@@ -9,6 +9,7 @@ import asyncio
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
+from routers import content
 import db
 
 # Import enhanced spiritual guidance router
@@ -237,6 +238,7 @@ app.include_router(followup.router)
 app.include_router(donations.router)
 app.include_router(credits.router)
 app.include_router(services.router)
+app.include_router(content.router)
 
 # Admin routers
 app.include_router(admin_products.router)
