@@ -499,12 +499,41 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
 
 @social_marketing_router.get("/platform-config")
 async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
-    """Social media platform config-ஐ பெறும் endpoint"""
+    """Get social media platform credentials from database"""
     try:
-        configs = {
-            str(platform.value): config
-            for platform, config in social_marketing_engine.platform_configs.items()
-        }
+        import db
+        import json
+        
+        # Get database connection
+        if not db.db_pool:
+            logger.error("❌ Database pool not available")
+            raise HTTPException(status_code=500, detail="Database not available")
+        
+        async with db.db_pool.acquire() as db_conn:
+            configs = {}
+            
+            # Get credentials for each platform from database
+            for platform in ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok']:
+                row = await db_conn.fetchrow(
+                    "SELECT value FROM platform_settings WHERE key = $1",
+                    f"{platform}_credentials"
+                )
+                
+                if row and row['value']:
+                    try:
+                        credentials = json.loads(row['value']) if isinstance(row['value'], str) else row['value']
+                    except (json.JSONDecodeError, TypeError):
+                        credentials = {}
+                else:
+                    credentials = {}
+                
+                # Add status based on whether credentials are configured
+                credentials['status'] = 'connected' if credentials and all(
+                    credentials.get(field) for field in get_required_fields(platform)
+                ) else 'not_connected'
+                
+                configs[platform] = credentials
+        
         return StandardResponse(
             success=True,
             data=configs,
@@ -519,23 +548,103 @@ async def update_platform_config(
     config_update: dict = Body(...),
     admin_user: dict = Depends(get_admin_user)
 ):
-    """Social media platform config-ஐ update செய்யும் endpoint"""
+    """Save social media platform credentials to database"""
     try:
-        for platform_name, config in config_update.items():
-            platform_enum = None
-            for p in social_marketing_engine.platform_configs:
-                if p.value == platform_name:
-                    platform_enum = p
-                    break
-            if platform_enum:
-                social_marketing_engine.platform_configs[platform_enum].update(config)
+        import db
+        import json
+        
+        # Get database connection
+        if not db.db_pool:
+            logger.error("❌ Database pool not available")
+            raise HTTPException(status_code=500, detail="Database not available")
+        
+        platform = config_update.get('platform')
+        config = config_update.get('config', {})
+        
+        if not platform:
+            raise HTTPException(status_code=400, detail="Platform name is required")
+        
+        # Remove status field before saving
+        config_to_save = {k: v for k, v in config.items() if k != 'status'}
+        
+        async with db.db_pool.acquire() as db_conn:
+            # Save or update credentials in database
+            await db_conn.execute("""
+                INSERT INTO platform_settings (key, value, created_at, updated_at)
+                VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON CONFLICT (key) DO UPDATE SET
+                    value = EXCLUDED.value,
+                    updated_at = CURRENT_TIMESTAMP
+            """, f"{platform}_credentials", json.dumps(config_to_save))
+        
+        logger.info(f"✅ {platform.capitalize()} credentials saved successfully")
+        
         return StandardResponse(
             success=True,
-            message="Platform configuration updated successfully"
+            message=f"{platform.capitalize()} configuration saved successfully"
         )
     except Exception as e:
-        logger.error(f"❌ Platform config update failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Platform config update failed: {str(e)}")
+        logger.error(f"❌ Platform config save failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Platform config save failed: {str(e)}")
+
+@social_marketing_router.post("/test-connection")
+async def test_platform_connection(
+    test_request: dict = Body(...),
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Test social media platform connection"""
+    try:
+        platform = test_request.get('platform')
+        config = test_request.get('config', {})
+        
+        if not platform:
+            raise HTTPException(status_code=400, detail="Platform name is required")
+        
+        # Test connection based on platform
+        if platform == 'facebook':
+            from services.facebook_service import FacebookService
+            service = FacebookService()
+            # Temporarily set credentials for testing
+            service._credentials_cache = {
+                'app_id': config.get('app_id'),
+                'app_secret': config.get('app_secret'),
+                'page_access_token': config.get('page_access_token'),
+                'page_id': config.get('page_id', 'test_page_id')
+            }
+            result = await service.validate_credentials()
+            
+        elif platform in ['instagram', 'youtube', 'twitter', 'tiktok']:
+            # Basic validation for other platforms
+            required_fields = get_required_fields(platform)
+            missing_fields = [field for field in required_fields if not config.get(field)]
+            
+            if missing_fields:
+                result = {
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }
+            else:
+                result = {
+                    "success": True,
+                    "message": f"{platform.capitalize()} credentials appear valid (basic validation)"
+                }
+            
+        else:
+            raise HTTPException(status_code=400, detail=f"Platform {platform} not supported")
+        
+        return StandardResponse(
+            success=result.get('success', False),
+            data=result,
+            message=f"{platform.capitalize()} connection test completed"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Platform connection test failed: {e}")
+        return StandardResponse(
+            success=False,
+            data={"error": str(e)},
+            message=f"Connection test failed: {str(e)}"
+        )
 
 @social_marketing_router.post("/agent-chat")
 async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_admin_user)):
@@ -548,6 +657,17 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
         raise HTTPException(status_code=500, detail=f"Agent chat failed: {str(e)}")
 
 # Helper Functions
+def get_required_fields(platform: str) -> List[str]:
+    """Get required credential fields for each platform"""
+    fields_map = {
+        'facebook': ['app_id', 'app_secret', 'page_access_token'],
+        'instagram': ['app_id', 'app_secret', 'access_token'],
+        'youtube': ['api_key', 'channel_id'],
+        'twitter': ['client_key', 'client_secret'],
+        'tiktok': ['client_key', 'client_secret']
+    }
+    return fields_map.get(platform, [])
+
 async def calculate_marketing_kpis(performance_data: Dict) -> Dict[str, str]:
     """Calculate marketing KPIs from performance data"""
     try:

@@ -28,38 +28,44 @@ class FacebookService:
             return self._credentials_cache
         
         try:
-            import db
+            import sqlite3
+            import json
             
-            # Get database connection
-            if not db.db_pool:
-                logger.error("❌ Database pool not available")
-                return None
+            # Connect to SQLite database
+            conn = sqlite3.connect('jyotiflow.db')
+            cursor = conn.cursor()
             
-            async with db.db_pool.acquire() as db_conn:
-                # Get Facebook credentials from platform_settings
-                row = await db_conn.fetchrow(
-                    "SELECT value FROM platform_settings WHERE key = 'facebook_credentials'"
-                )
-                
-                if row and row['value']:
-                    credentials = row['value']
-                    
-                    # Validate required fields
-                    required_fields = ['app_id', 'app_secret', 'page_access_token', 'page_id']
-                    missing_fields = [field for field in required_fields if not credentials.get(field)]
-                    
-                    if missing_fields:
-                        logger.error(f"❌ Missing Facebook credential fields: {', '.join(missing_fields)}")
-                        return None
-                    
-                    # Cache credentials
-                    self._credentials_cache = credentials
-                    logger.info("✅ Facebook credentials loaded from database")
-                    return credentials
-                else:
-                    logger.error("❌ Facebook credentials not found in database. Please configure them in the admin dashboard.")
+            # Get Facebook credentials from platform_settings
+            cursor.execute("SELECT value FROM platform_settings WHERE key = ?", ("facebook_credentials",))
+            row = cursor.fetchone()
+            
+            if row and row[0]:
+                try:
+                    credentials = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                except (json.JSONDecodeError, TypeError):
+                    logger.error("❌ Invalid JSON format in Facebook credentials")
+                    conn.close()
                     return None
-                    
+                
+                # Validate required fields
+                required_fields = ['app_id', 'app_secret', 'page_access_token']
+                missing_fields = [field for field in required_fields if not credentials.get(field)]
+                
+                if missing_fields:
+                    logger.error(f"❌ Missing Facebook credential fields: {', '.join(missing_fields)}")
+                    conn.close()
+                    return None
+                
+                # Cache credentials
+                self._credentials_cache = credentials
+                logger.info("✅ Facebook credentials loaded from database")
+                conn.close()
+                return credentials
+            else:
+                logger.error("❌ Facebook credentials not found in database. Please configure them in the admin dashboard.")
+                conn.close()
+                return None
+                
         except Exception as e:
             logger.error(f"❌ Failed to load Facebook credentials from database: {e}")
             return None
