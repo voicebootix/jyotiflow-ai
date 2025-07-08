@@ -62,7 +62,7 @@ const PlatformConfiguration = () => {
   const testConnection = async (platform) => {
     try {
       setLoading(true);
-      const response = await enhanced_api.post('/admin/social-marketing/test-connection', {
+      const response = await enhanced_api.post('/api/admin/social-marketing/test-connection', {
         platform,
         config: apiKeys[platform]
       });
