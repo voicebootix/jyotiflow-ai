@@ -497,6 +497,204 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
         logger.error(f"❌ Avatar config fetch failed: {e}")
         raise HTTPException(status_code=500, detail=f"Avatar config fetch failed: {str(e)}")
 
+@social_marketing_router.post("/platform-config")
+async def save_platform_config(
+    platform: str,
+    config: Dict[str, Any],
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Save platform configuration and credentials"""
+    try:
+        # Import database connection
+        from db import db_pool
+        
+        if not db_pool:
+            raise HTTPException(status_code=500, detail="Database not available")
+        
+        async with db_pool.acquire() as db_conn:
+            # Save platform credentials to database
+            await db_conn.execute(
+                """
+                INSERT INTO platform_settings (key, value, updated_at)
+                VALUES ($1, $2, NOW())
+                ON CONFLICT (key) 
+                DO UPDATE SET value = $2, updated_at = NOW()
+                """,
+                f"{platform}_credentials",
+                json.dumps(config)
+            )
+        
+        return StandardResponse(
+            success=True,
+            data={"platform": platform, "configured": True},
+            message=f"{platform.capitalize()} credentials saved successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Platform config save failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save {platform} configuration: {str(e)}")
+
+@social_marketing_router.post("/test-connection")
+async def test_platform_connection(
+    platform: str,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Test connection to social media platform"""
+    try:
+        if platform.lower() == "facebook":
+            from services.facebook_service import facebook_service
+            result = await facebook_service.validate_credentials()
+        elif platform.lower() == "instagram":
+            from services.instagram_service import instagram_service
+            result = await instagram_service.validate_credentials()
+        elif platform.lower() == "youtube":
+            from services.youtube_service import youtube_service
+            result = await youtube_service.validate_credentials()
+        elif platform.lower() == "tiktok":
+            from services.tiktok_service import tiktok_service
+            result = await tiktok_service.validate_credentials()
+        elif platform.lower() == "twitter":
+            from services.twitter_service import twitter_service
+            result = await twitter_service.validate_credentials()
+        else:
+            return StandardResponse(
+                success=False,
+                data={"platform": platform, "connected": False},
+                message=f"Platform {platform} not supported"
+            )
+        
+        return StandardResponse(
+            success=result.get("success", False),
+            data={
+                "platform": platform,
+                "connected": result.get("success", False),
+                "details": result
+            },
+            message=result.get("message", f"{platform.capitalize()} connection test completed")
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Connection test failed for {platform}: {e}")
+        return StandardResponse(
+            success=False,
+            data={"platform": platform, "connected": False},
+            message=f"Connection test failed: {str(e)}"
+        )
+
+@social_marketing_router.get("/platform-config/{platform}")
+async def get_platform_config(
+    platform: str,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Get platform configuration status"""
+    try:
+        from db import db_pool
+        
+        if not db_pool:
+            raise HTTPException(status_code=500, detail="Database not available")
+        
+        async with db_pool.acquire() as db_conn:
+            # Get platform credentials from database
+            row = await db_conn.fetchrow(
+                "SELECT value FROM platform_settings WHERE key = $1",
+                f"{platform}_credentials"
+            )
+            
+            if row and row['value']:
+                # Don't return actual credentials, just configuration status
+                credentials = row['value']
+                required_fields = {
+                    "facebook": ["app_id", "app_secret", "page_id", "page_access_token"],
+                    "instagram": ["app_id", "app_secret", "access_token", "user_id"],
+                    "youtube": ["api_key", "client_id", "client_secret", "access_token", "refresh_token", "channel_id"],
+                    "tiktok": ["client_key", "client_secret", "access_token", "user_id"],
+                    "twitter": ["api_key", "api_secret", "access_token", "access_token_secret", "bearer_token"]
+                }
+                
+                fields = required_fields.get(platform.lower(), [])
+                configured_fields = [field for field in fields if credentials.get(field)]
+                
+                return StandardResponse(
+                    success=True,
+                    data={
+                        "platform": platform,
+                        "configured": len(configured_fields) == len(fields),
+                        "configured_fields": configured_fields,
+                        "required_fields": fields,
+                        "completion_percentage": int((len(configured_fields) / len(fields)) * 100) if fields else 0
+                    },
+                    message=f"{platform.capitalize()} configuration status retrieved"
+                )
+            else:
+                return StandardResponse(
+                    success=True,
+                    data={
+                        "platform": platform,
+                        "configured": False,
+                        "configured_fields": [],
+                        "required_fields": [],
+                        "completion_percentage": 0
+                    },
+                    message=f"{platform.capitalize()} not configured"
+                )
+        
+    except Exception as e:
+        logger.error(f"❌ Get platform config failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get {platform} configuration: {str(e)}")
+
+@social_marketing_router.get("/platforms/status")
+async def get_all_platforms_status(admin_user: dict = Depends(get_admin_user)):
+    """Get status of all social media platform integrations"""
+    try:
+        platforms = ["facebook", "instagram", "youtube", "tiktok", "twitter"]
+        platform_status = {}
+        
+        for platform in platforms:
+            try:
+                if platform == "facebook":
+                    from services.facebook_service import facebook_service
+                    result = await facebook_service.validate_credentials()
+                elif platform == "instagram":
+                    from services.instagram_service import instagram_service
+                    result = await instagram_service.validate_credentials()
+                elif platform == "youtube":
+                    from services.youtube_service import youtube_service
+                    result = await youtube_service.validate_credentials()
+                elif platform == "tiktok":
+                    from services.tiktok_service import tiktok_service
+                    result = await tiktok_service.validate_credentials()
+                elif platform == "twitter":
+                    from services.twitter_service import twitter_service
+                    result = await twitter_service.validate_credentials()
+                
+                platform_status[platform] = {
+                    "configured": result.get("success", False),
+                    "status": "connected" if result.get("success") else "not_configured",
+                    "message": result.get("message", ""),
+                    "details": result.get("details", "")
+                }
+            except Exception as e:
+                platform_status[platform] = {
+                    "configured": False,
+                    "status": "error",
+                    "message": f"Service error: {str(e)}",
+                    "details": ""
+                }
+        
+        return StandardResponse(
+            success=True,
+            data={
+                "platforms": platform_status,
+                "total_configured": sum(1 for p in platform_status.values() if p["configured"]),
+                "total_platforms": len(platforms)
+            },
+            message="Platform status retrieved successfully"
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Platform status check failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Platform status check failed: {str(e)}")
+
 @social_marketing_router.post("/agent-chat")
 async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_admin_user)):
     """Chat with the AI Marketing Director Agent - give instructions and get reports"""
