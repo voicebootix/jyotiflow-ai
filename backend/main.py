@@ -85,7 +85,11 @@ db_pool = None
 # --- CORS Middleware (English & Tamil) ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://jyotiflow-ai-frontend.onrender.com"],
+    allow_origins=[
+        "https://jyotiflow-ai-frontend.onrender.com",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -111,9 +115,12 @@ async def startup_event():
         print("✅ Database connection pool initialized")
         
         # Test database connection
-        async with db_pool.acquire() as conn:
-            await conn.fetchval("SELECT 1")
-        print("✅ Database connection test successful")
+        if db_pool is not None:
+            async with db_pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+            print("✅ Database connection test successful")
+        else:
+            raise Exception("Database pool is not initialized.")
         
         # Ensure base credits column exists
         try:
@@ -164,7 +171,7 @@ async def startup_event():
 async def shutdown_event():
     """Clean up database connections"""
     try:
-        if 'db_pool' in globals():
+        if 'db_pool' in globals() and db_pool is not None:
             await db_pool.close()
             print("✅ Database connections closed")
     except Exception as e:
@@ -190,8 +197,11 @@ async def health_check():
     """Check application health and database connectivity"""
     try:
         # Test database connection
-        async with db_pool.acquire() as conn:
-            await conn.fetchval("SELECT 1")
+        if db_pool is not None:
+            async with db_pool.acquire() as conn:
+                await conn.fetchval("SELECT 1")
+        else:
+            raise Exception("Database pool is not initialized.")
         
         # Get enhanced system status if available
         enhanced_status = {}
