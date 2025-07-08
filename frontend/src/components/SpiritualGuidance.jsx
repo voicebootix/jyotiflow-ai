@@ -687,10 +687,63 @@ const SpiritualGuidance = () => {
               <div className="prose prose-lg max-w-none text-gray-700 mb-8">
                 {guidance.guidance}
               </div>
-              {guidance.astrology && (
-                <div className="mb-8 p-4 bg-gray-100 rounded-lg">
-                  <div><b>நட்சத்திரம்:</b> {guidance.astrology.data?.nakshatra?.name}</div>
-                  <div><b>சந்திர ராசி:</b> {guidance.astrology.data?.chandra_rasi?.name}</div>
+              {guidance.astrology && guidance.astrology.data && (
+                <div className="mb-8 p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg border-2 border-purple-200">
+                  <h4 className="font-bold mb-3 text-purple-800 text-lg">🌟 Your Astrological Insights</h4>
+                  
+                  {guidance.astrology.data.nakshatra && (
+                    <div className="mb-2">
+                      <b className="text-purple-700">நட்சத்திரம் (Nakshatra):</b> 
+                      <span className="ml-2 text-purple-900 font-semibold">{guidance.astrology.data.nakshatra.name}</span>
+                    </div>
+                  )}
+                  
+                  {guidance.astrology.data.chandra_rasi && (
+                    <div className="mb-2">
+                      <b className="text-purple-700">சந்திர ராசி (Moon Sign):</b> 
+                      <span className="ml-2 text-purple-900 font-semibold">{guidance.astrology.data.chandra_rasi.name}</span>
+                    </div>
+                  )}
+                  
+                  {guidance.astrology.planets && Object.keys(guidance.astrology.planets).length > 0 && (
+                    <div className="mt-3 p-2 bg-white rounded border">
+                      <b className="text-purple-700">Planetary Information:</b>
+                      <div className="text-sm text-gray-600 mt-1">
+                        {Object.keys(guidance.astrology.planets).length} planetary positions calculated
+                      </div>
+                    </div>
+                  )}
+                  
+                  {guidance.astrology.houses && Object.keys(guidance.astrology.houses).length > 0 && (
+                    <div className="mt-2 p-2 bg-white rounded border">
+                      <b className="text-purple-700">House Analysis:</b>
+                      <div className="text-sm text-gray-600 mt-1">
+                        Complete house system analysis available
+                      </div>
+                    </div>
+                  )}
+                  
+                  {guidance.birth_details && (
+                    <div className="mt-3 p-2 bg-yellow-50 rounded border border-yellow-200">
+                      <b className="text-yellow-800">Birth Details Used:</b>
+                      <div className="text-sm text-yellow-700 mt-1">
+                        {guidance.birth_details.date} at {guidance.birth_details.time}, {guidance.birth_details.location}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {guidance.astrology.error && (
+                    <div className="mt-3 p-2 bg-red-50 rounded border border-red-200">
+                      <b className="text-red-700">Note:</b>
+                      <div className="text-red-600 text-sm mt-1">{guidance.astrology.error}</div>
+                    </div>
+                  )}
+                  
+                  {guidance.metadata && guidance.metadata.prokerala_integration && (
+                    <div className="mt-3 text-xs text-gray-500 italic">
+                      ✨ Calculated using Prokerala Vedic Astrology API
+                    </div>
+                  )}
                 </div>
               )}
 

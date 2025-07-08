@@ -7,6 +7,14 @@ import uuid
 from typing import Dict, Any
 import asyncio
 
+# ADD: Import the Prokerala service
+try:
+    from services.prokerala_service import prokerala_service
+    PROKERALA_AVAILABLE = True
+except ImportError:
+    PROKERALA_AVAILABLE = False
+    print("Warning: Prokerala service not available")
+
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
 JWT_SECRET = os.getenv("JWT_SECRET", "jyotiflow_secret")
@@ -137,29 +145,63 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
         # Calculate remaining credits
         remaining_credits = user["credits"] - service["credits_required"]
     
-    # Generate guidance text
-    guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
+    # NEW: Get real astrological data and guidance
+    birth_details = session_data.get("birth_details")
+    astrology_data = {}
+    guidance_text = ""
+    
+    if PROKERALA_AVAILABLE and birth_details and all(birth_details.get(key) for key in ["date", "time", "location"]):
+        try:
+            # Get real birth chart data from Prokerala
+            astrology_data = await prokerala_service.get_complete_birth_chart(birth_details)
+            
+            # Generate spiritual guidance based on real data
+            guidance_text = await prokerala_service.generate_spiritual_guidance(
+                session_data.get("question", ""), 
+                astrology_data
+            )
+            
+        except Exception as e:
+            print(f"Prokerala API error for session {session_id}: {e}")
+            # Fallback to basic guidance
+            astrology_data = {
+                "data": {
+                    "nakshatra": {"name": "Unable to calculate"},
+                    "chandra_rasi": {"name": "Please check birth details"}
+                },
+                "error": str(e)
+            }
+            guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
 
 Your Question: {session_data.get('question', '')}
 
-Based on the cosmic energies and your spiritual inquiry, here is the divine guidance:
+While the cosmic calculations are temporarily unavailable, the divine wisdom flows through eternal principles:
 
-The ancient Tamil wisdom teaches us that every question carries within it the seed of its own answer. Your soul is seeking clarity, and the universe responds through this sacred moment.
+The Tamil spiritual tradition teaches us that every question arises from the soul's journey toward truth. Your inquiry itself shows spiritual awakening.
 
-Consider these spiritual insights:
+Consider these timeless insights:
+1. Practice daily meditation and prayer
+2. Serve others with compassion
+3. Trust in divine timing
+4. Cultivate gratitude and humility
 
-1. **Inner Reflection**: Take time for meditation and self-contemplation. The answer you seek may already reside within your heart.
+May the divine light guide you on your sacred path.
 
-2. **Dharmic Action**: Align your actions with your highest values and spiritual principles. Let righteousness guide your choices.
+Om Namah Shivaya 🙏"""
+    else:
+        # No birth details provided or Prokerala unavailable
+        astrology_data = {"data": {"message": "Birth details required for astrological analysis"}}
+        guidance_text = f"""🕉️ Divine Guidance from Swami Jyotirananthan
 
-3. **Divine Timing**: Trust in the cosmic order. Sometimes what we perceive as delays are actually divine preparations.
+Your Question: {session_data.get('question', '')}
 
-4. **Gratitude Practice**: Begin each day with gratitude for the blessings already present in your life.
+Though complete birth details would enhance the astrological guidance, the divine wisdom speaks through your sincere inquiry.
 
-May the divine light illuminate your path forward. Remember, you are not alone on this spiritual journey.
+The ancient Tamil wisdom teaches that the answers we seek often reside within us, waiting to be unveiled through spiritual practice and divine grace.
 
-Om Namah Shivaya
-🙏 With divine blessings"""
+May you find clarity and peace on your spiritual journey.
+
+Om Namah Shivaya 🙏"""
     
     # Schedule automatic follow-up (non-blocking)
     asyncio.create_task(schedule_session_followup(session_id, user["email"], service_type, db))
@@ -168,14 +210,16 @@ Om Namah Shivaya
         "success": True,
         "data": {
             "session_id": session_id,
-            "guidance": guidance_text,
-            "astrology": {
-                "data": {
-                    "nakshatra": {"name": "Ashwini"},
-                    "chandra_rasi": {"name": "Mesha"}
-                }
-            },
+            "guidance": guidance_text,  # Real AI-generated guidance
+            "astrology": astrology_data,  # Real Prokerala data
+            "birth_chart": astrology_data,  # Complete chart data
+            "birth_details": birth_details,  # Echo back for verification
             "credits_deducted": service["credits_required"],
-            "remaining_credits": remaining_credits
+            "remaining_credits": remaining_credits,
+            "metadata": {
+                "generated_at": datetime.now().isoformat(),
+                "prokerala_integration": PROKERALA_AVAILABLE,
+                "service_type": service_type
+            }
         }
     } 
