@@ -5,6 +5,7 @@ import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
+from services.birth_chart_cache_service import BirthChartCacheService
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
@@ -17,6 +18,10 @@ PROKERALA_API_BASE = "https://api.prokerala.com/v2/astrology/vedic-chart"
 # Global token cache (for demo; use Redis or DB for production)
 prokerala_token = None
 prokerala_token_expiry = 0
+
+# Initialize birth chart cache service
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+birth_chart_cache = BirthChartCacheService(DATABASE_URL)
 
 async def fetch_prokerala_token():
     """Fetch a new access token from Prokerala API (English & Tamil comments)"""
@@ -62,6 +67,33 @@ async def get_birth_chart(request: Request):
     if not date or not time_:
         print("[BirthChart] Error: Missing date or time in birth_details")
         raise HTTPException(status_code=400, detail="Missing date or time in birth details")
+
+    # Get user email from Authorization header
+    user_email = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        # In production, decode JWT token to get user email
+        # For now, we'll use a placeholder or get from user context
+        user_email = "user@example.com"  # TODO: Extract from JWT token
+
+    # --- CHECK CACHE FIRST ---
+    if user_email:
+        cached_chart = await birth_chart_cache.get_cached_birth_chart(user_email, birth_details)
+        if cached_chart:
+            print(f"[BirthChart] ✅ Using cached data for user {user_email}")
+            return {
+                "success": True,
+                "birth_chart": {
+                    **cached_chart['data'],
+                    "metadata": {
+                        **cached_chart['data'].get('metadata', {}),
+                        "cache_hit": True,
+                        "cached_at": cached_chart['cached_at'].isoformat(),
+                        "expires_at": cached_chart['expires_at'].isoformat(),
+                        "data_source": "Cached Prokerala API data"
+                    }
+                }
+            }
 
     # Default coordinates for Jaffna (can be enhanced with geocoding)
     latitude = "9.66845"   # Jaffna latitude
@@ -165,10 +197,21 @@ async def get_birth_chart(request: Request):
                 "calculation_method": "Vedic Astrology (Prokerala API)",
                 "ayanamsa": "Lahiri",
                 "data_source": "Prokerala API v2/astrology/birth-details + chart",
-                "note": "Real astrological data from Prokerala API with chart visualization"
+                "note": "Real astrological data from Prokerala API with chart visualization",
+                "cache_hit": False
             }
         }
     }
+    
+    # --- CACHE THE DATA FOR FUTURE USE ---
+    if user_email and chart_data:
+        cache_success = await birth_chart_cache.cache_birth_chart(user_email, birth_details, enhanced_response["birth_chart"])
+        if cache_success:
+            print(f"[BirthChart] ✅ Data cached for user {user_email}")
+            enhanced_response["birth_chart"]["metadata"]["cached"] = True
+        else:
+            print(f"[BirthChart] ❌ Failed to cache data for user {user_email}")
+            enhanced_response["birth_chart"]["metadata"]["cached"] = False
     
     print(f"[BirthChart] Returning real Prokerala data: {chart_data.keys()}")
     return enhanced_response
@@ -236,4 +279,81 @@ async def get_spiritual_guidance(request: Request):
         "success": True,
         "guidance": answer,
         "astrology": prokerala_data
-    } 
+    }
+
+@router.get("/birth-chart/cache-status")
+async def get_birth_chart_cache_status(request: Request):
+    """Get user's birth chart cache status"""
+    # Get user email from Authorization header
+    user_email = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        # TODO: Extract from JWT token
+        user_email = "user@example.com"  # Placeholder
+    
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        status = await birth_chart_cache.get_user_birth_chart_status(user_email)
+        return {
+            "success": True,
+            "cache_status": status
+        }
+    except Exception as e:
+        print(f"[BirthChart] Error getting cache status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get cache status")
+
+@router.delete("/birth-chart/cache")
+async def clear_birth_chart_cache(request: Request):
+    """Clear user's birth chart cache"""
+    # Get user email from Authorization header
+    user_email = None
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        # TODO: Extract from JWT token
+        user_email = "user@example.com"  # Placeholder
+    
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        success = await birth_chart_cache.invalidate_cache(user_email)
+        if success:
+            return {
+                "success": True,
+                "message": "Birth chart cache cleared successfully"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to clear cache")
+    except Exception as e:
+        print(f"[BirthChart] Error clearing cache: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clear cache")
+
+@router.get("/birth-chart/cache-statistics")
+async def get_birth_chart_cache_statistics(request: Request):
+    """Get birth chart cache statistics (admin only)"""
+    # TODO: Add admin authentication check
+    try:
+        stats = await birth_chart_cache.get_cache_statistics()
+        return {
+            "success": True,
+            "cache_statistics": stats
+        }
+    except Exception as e:
+        print(f"[BirthChart] Error getting cache statistics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get cache statistics")
+
+@router.post("/birth-chart/cache-cleanup")
+async def cleanup_expired_birth_chart_cache(request: Request):
+    """Clean up expired birth chart cache entries (admin only)"""
+    # TODO: Add admin authentication check
+    try:
+        rows_cleaned = await birth_chart_cache.cleanup_expired_cache()
+        return {
+            "success": True,
+            "message": f"Cleaned up {rows_cleaned} expired cache entries"
+        }
+    except Exception as e:
+        print(f"[BirthChart] Error cleaning up cache: {e}")
+        raise HTTPException(status_code=500, detail="Failed to clean up cache") 
