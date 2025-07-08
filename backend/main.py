@@ -56,6 +56,15 @@ from enhanced_startup_integration import initialize_enhanced_jyotiflow
 # Import database schema fix
 from db_schema_fix import fix_database_schema
 
+# Auto-fix database schema on startup
+try:
+    import subprocess
+    print("[AUTO-FIX] Running database schema autofix...")
+    subprocess.run(["python", "backend/db_schema_autofix.py"], check=True)
+    print("[AUTO-FIX] Database schema autofix complete.")
+except Exception as e:
+    print(f"[AUTO-FIX] Schema autofix failed: {e}")
+
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
