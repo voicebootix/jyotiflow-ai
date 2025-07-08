@@ -458,27 +458,58 @@ Make it personal and practical for daily life.
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                cursor.execute("""
-                    INSERT OR REPLACE INTO users 
-                    (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
-                     birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
-                     birth_location, name, password_hash, role, credits)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    user_email,
-                    json.dumps(complete_profile),
-                    birth_hash,
-                    cached_at.isoformat(),
-                    expires_at.isoformat(),
-                    True,
-                    birth_details.get('date'),
-                    birth_details.get('time'),
-                    birth_details.get('location'),
-                    birth_details.get('name', 'User'),
-                    'temp_hash',  # This would be set during actual registration
-                    'user',
-                    50  # Default credits for new users
-                ))
+                # First check if user exists
+                cursor.execute("SELECT id FROM users WHERE email = ?", (user_email,))
+                user_exists = cursor.fetchone()
+                
+                if user_exists:
+                    # Update existing user with birth chart data only
+                    cursor.execute("""
+                        UPDATE users 
+                        SET birth_chart_data = ?, 
+                            birth_chart_hash = ?, 
+                            birth_chart_cached_at = ?, 
+                            birth_chart_expires_at = ?, 
+                            has_free_birth_chart = ?,
+                            birth_date = COALESCE(birth_date, ?),
+                            birth_time = COALESCE(birth_time, ?),
+                            birth_location = COALESCE(birth_location, ?)
+                        WHERE email = ?
+                    """, (
+                        json.dumps(complete_profile),
+                        birth_hash,
+                        cached_at.isoformat(),
+                        expires_at.isoformat(),
+                        True,
+                        birth_details.get('date'),
+                        birth_details.get('time'),
+                        birth_details.get('location'),
+                        user_email
+                    ))
+                else:
+                    # Insert new user (this should only happen during registration)
+                    cursor.execute("""
+                        INSERT INTO users 
+                        (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
+                         birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
+                         birth_location, name, password_hash, role, credits, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        user_email,
+                        json.dumps(complete_profile),
+                        birth_hash,
+                        cached_at.isoformat(),
+                        expires_at.isoformat(),
+                        True,
+                        birth_details.get('date'),
+                        birth_details.get('time'),
+                        birth_details.get('location'),
+                        birth_details.get('name', 'User'),
+                        'temp_hash',  # This should be replaced with actual password during registration
+                        'user',
+                        50,  # Default credits for new users
+                        datetime.now().isoformat()
+                    ))
                 
                 conn.commit()
             
