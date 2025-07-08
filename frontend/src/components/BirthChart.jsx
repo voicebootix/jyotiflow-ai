@@ -195,7 +195,16 @@ ${chartData.houses ? Object.entries(chartData.houses).map(([house, details]) =>
   };
 
   const renderVedicChart = () => {
-    if (!chartData?.planets) return <div className="text-gray-400">No chart data available</div>;
+    // Show 'No chart data available' only if all are missing
+    if (!chartData || (
+      Object.keys(chartData.planets || {}).length === 0 &&
+      !chartData.nakshatra &&
+      !chartData.chandra_rasi &&
+      !chartData.soorya_rasi &&
+      Object.keys(chartData.houses || {}).length === 0
+    )) {
+      return <div className="text-gray-400">No chart data available</div>;
+    }
 
     return (
       <div className="grid grid-cols-4 gap-1 w-80 h-80 mx-auto">

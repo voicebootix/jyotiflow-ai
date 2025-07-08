@@ -122,6 +122,10 @@ async def get_birth_chart(request: Request):
         return {"success": False, "message": "Prokerala API error: Unable to fetch birth chart."}
 
     # Enhance the response with additional metadata
+    # Ensure planets, houses, and chart keys are always present
+    birth_chart_data.setdefault("planets", {})
+    birth_chart_data.setdefault("houses", {})
+    birth_chart_data.setdefault("chart", {})
     enhanced_response = {
         "success": True,
         "birth_chart": {
