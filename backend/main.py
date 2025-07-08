@@ -53,6 +53,9 @@ from init_database import initialize_jyotiflow_database
 # Import enhanced startup integration
 from enhanced_startup_integration import initialize_enhanced_jyotiflow
 
+# Import database schema fix
+from db_schema_fix import fix_database_schema
+
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
@@ -93,6 +96,17 @@ async def startup_event():
         async with db_pool.acquire() as conn:
             await conn.fetchval("SELECT 1")
         print("✅ Database connection test successful")
+        
+        # Apply database schema fixes
+        try:
+            print("🔧 Applying database schema fixes...")
+            schema_fix_success = await fix_database_schema(db_pool)
+            if schema_fix_success:
+                print("✅ Database schema fixes applied successfully")
+            else:
+                print("⚠️ Database schema fixes had issues but will continue")
+        except Exception as e:
+            print(f"⚠️ Database schema fix failed: {e}")
         
         # Initialize database tables automatically
         try:

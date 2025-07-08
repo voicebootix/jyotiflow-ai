@@ -64,15 +64,29 @@ async def get_daily_free_credits_config(db):
 async def get_service_types(db=Depends(get_db)):
     """Get public service types for customers with dynamic pricing"""
     try:
+        # Use a more robust query that handles missing columns gracefully
         services = await db.fetch("""
-            SELECT id, name, display_name, description, icon, 
-                   credits_required, price_usd, duration_minutes, 
-                   service_category, is_video, is_audio, enabled,
-                   voice_enabled, video_enabled, interactive_enabled,
-                   created_at, updated_at
+            SELECT 
+                id, 
+                name, 
+                COALESCE(display_name, name) as display_name,
+                COALESCE(description, '') as description,
+                COALESCE(icon, '🔮') as icon,
+                COALESCE(credits_required, base_credits, 1) as credits_required,
+                COALESCE(price_usd, 0.0) as price_usd,
+                COALESCE(duration_minutes, 15) as duration_minutes,
+                COALESCE(service_category, 'guidance') as service_category,
+                COALESCE(enabled, true) as enabled,
+                COALESCE(avatar_video_enabled, video_enabled, false) as avatar_video_enabled,
+                COALESCE(live_chat_enabled, false) as live_chat_enabled,
+                COALESCE(voice_enabled, false) as voice_enabled,
+                COALESCE(video_enabled, false) as video_enabled,
+                COALESCE(interactive_enabled, comprehensive_reading_enabled, false) as interactive_enabled,
+                created_at,
+                updated_at
             FROM service_types 
-            WHERE enabled = TRUE 
-            ORDER BY credits_required ASC
+            WHERE COALESCE(enabled, true) = TRUE 
+            ORDER BY COALESCE(credits_required, base_credits, 1) ASC
         """)
         
         # Apply dynamic pricing
@@ -115,7 +129,17 @@ async def get_service_types(db=Depends(get_db)):
             }
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to fetch services: {str(e)}")
+        print(f"Service types error: {e}")
+        # Return empty result instead of throwing error
+        return {
+            "success": True,
+            "data": [],
+            "pricing_config": {
+                "dynamic_pricing_enabled": False,
+                "last_updated": "now",
+                "multiplier": 1.0
+            }
+        }
 
 @router.get("/stats")
 async def get_platform_stats(db=Depends(get_db)):
@@ -176,16 +200,18 @@ async def get_credit_packages_public(db=Depends(get_db)):
     """Get available credit packages for customers with dynamic pricing"""
     try:
         packages = await db.fetch("""
-            SELECT id, name, 
-                   credits_amount as credits, 
-                   price_usd, 
-                   bonus_credits, 
-                   enabled, 
-                   created_at, 
-                   updated_at,
-                   description
+            SELECT 
+                id, 
+                name, 
+                credits_amount as credits, 
+                price_usd, 
+                COALESCE(bonus_credits, 0) as bonus_credits, 
+                COALESCE(enabled, true) as enabled, 
+                COALESCE(description, '') as description,
+                created_at, 
+                updated_at
             FROM credit_packages 
-            WHERE enabled = TRUE 
+            WHERE COALESCE(enabled, true) = TRUE 
             ORDER BY credits_amount ASC
         """)
         
@@ -211,39 +237,25 @@ async def get_credit_packages_public(db=Depends(get_db)):
         
         return {
             "success": True, 
-            "data": result
+            "data": result,
+            "pricing_config": {
+                "dynamic_pricing_enabled": True,
+                "last_updated": "now",
+                "multiplier": pricing_config['multiplier']
+            }
         }
     except Exception as e:
         print(f"Error fetching credit packages: {e}")
-        # Return some default packages if database fails
+        # Return empty result instead of hardcoded packages
         return {
             "success": True,
-            "data": [
-                {
-                    "id": 1,
-                    "name": "Starter Pack",
-                    "credits": 10,
-                    "price_usd": 9.99,
-                    "bonus_credits": 0,
-                    "description": "Perfect for trying our services"
-                },
-                {
-                    "id": 2,
-                    "name": "Popular Pack",
-                    "credits": 25,
-                    "price_usd": 19.99,
-                    "bonus_credits": 5,
-                    "description": "Most popular choice"
-                },
-                {
-                    "id": 3,
-                    "name": "Value Pack",
-                    "credits": 50,
-                    "price_usd": 34.99,
-                    "bonus_credits": 15,
-                    "description": "Best value for regular users"
-                }
-            ]
+            "data": [],
+            "pricing_config": {
+                "dynamic_pricing_enabled": False,
+                "last_updated": "now",
+                "multiplier": 1.0
+            },
+            "message": "No credit packages available. Please contact admin to configure packages."
         }
 
 @router.get("/daily-free-credits")

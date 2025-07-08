@@ -425,6 +425,21 @@ const spiritualAPI = {
     return this.get('/api/credits/packages');
   },
 
+  async createCreditPackage(packageData) {
+    return this.post('/api/admin/products/credit-packages', packageData);
+  },
+
+  async updateCreditPackage(packageId, packageData) {
+    return this.request(`/api/admin/products/credit-packages/${packageId}`, {
+      method: 'PUT',
+      body: JSON.stringify(packageData)
+    });
+  },
+
+  async deleteCreditPackage(packageId) {
+    return this.request(`/api/admin/products/credit-packages/${packageId}`, { method: 'DELETE' });
+  },
+
   async purchaseCredits(packageId) {
     return this.post('/api/credits/purchase', { package_id: packageId });
   },

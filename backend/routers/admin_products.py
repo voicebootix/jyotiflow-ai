@@ -363,10 +363,10 @@ async def update_credit_package(package_id: str, package: dict = Body(...), db=D
 async def delete_credit_package(package_id: str, db=Depends(get_db)):
     print("CREDIT PACKAGE DELETE CALLED")
     result = await db.execute(
-        "UPDATE credit_packages SET enabled=FALSE WHERE id=$1",
+        "DELETE FROM credit_packages WHERE id=$1",
         package_id
     )
-    if result == "UPDATE 0":
+    if result == "DELETE 0":
         return {"success": False, "error": "Credit package not found"}, 404
     return {"success": True}
 
