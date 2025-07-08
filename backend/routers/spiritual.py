@@ -71,25 +71,11 @@ async def get_birth_chart(request: Request):
     datetime_str = f"{date}T{time_}:00+05:30"  # Default to IST
     coordinates = f"{latitude},{longitude}"
 
-    # --- Prokerala API calls for complete chart data ---
+    # --- Only use the working Prokerala API endpoint ---
     chart_data = {}
     
-    # 1. Get basic birth details
+    # Basic parameters for API call
     basic_params = {
-        "datetime": datetime_str,
-        "coordinates": coordinates,
-        "ayanamsa": "1"
-    }
-    
-    # 2. Get planets data
-    planets_params = {
-        "datetime": datetime_str,
-        "coordinates": coordinates,
-        "ayanamsa": "1"
-    }
-    
-    # 3. Get houses data  
-    houses_params = {
         "datetime": datetime_str,
         "coordinates": coordinates,
         "ayanamsa": "1"
@@ -102,54 +88,38 @@ async def get_birth_chart(request: Request):
             async with httpx.AsyncClient() as client:
                 headers = {"Authorization": f"Bearer {token}"}
                 
-                # Get basic birth details
+                # Get basic birth details (this is the only endpoint that works)
                 basic_resp = await client.get(
                     "https://api.prokerala.com/v2/astrology/birth-details",
                     headers=headers,
                     params=basic_params
                 )
-                print(f"[BirthChart] Basic details status: {basic_resp.status_code}")
-                if basic_resp.status_code == 200:
-                    chart_data.update(basic_resp.json())
+                print(f"[BirthChart] Birth details status: {basic_resp.status_code}")
                 
-                # Get planets data
-                planets_resp = await client.get(
-                    "https://api.prokerala.com/v2/astrology/planets",
-                    headers=headers,
-                    params=planets_params
-                )
-                print(f"[BirthChart] Planets status: {planets_resp.status_code}")
-                if planets_resp.status_code == 200:
-                    planets_data = planets_resp.json()
-                    if "data" in planets_data:
-                        chart_data["planets"] = planets_data["data"]
-                
-                # Get houses data
-                houses_resp = await client.get(
-                    "https://api.prokerala.com/v2/astrology/houses",
-                    headers=headers,
-                    params=houses_params
-                )
-                print(f"[BirthChart] Houses status: {houses_resp.status_code}")
-                if houses_resp.status_code == 200:
-                    houses_data = houses_resp.json()
-                    if "data" in houses_data:
-                        chart_data["houses"] = houses_data["data"]
-                
-                break
-                
+                if basic_resp.status_code == 401 and attempt == 0:
+                    # Token expired, refresh and retry
+                    await fetch_prokerala_token()
+                    continue
+                elif basic_resp.status_code == 200:
+                    basic_data = basic_resp.json()
+                    print(f"[BirthChart] Birth details response: {basic_data}")
+                    if "data" in basic_data:
+                        chart_data.update(basic_data["data"])
+                    break
+                else:
+                    print(f"[BirthChart] Birth details API error: {basic_resp.status_code} - {basic_resp.text}")
+                    raise HTTPException(status_code=503, detail=f"Prokerala API error: {basic_resp.status_code}")
+                    
         except Exception as e:
             print(f"[BirthChart] Prokerala API error: {e}")
             if attempt == 1:
-                return {"success": False, "message": f"Prokerala API error: {str(e)}"}
-    else:
-        return {"success": False, "message": "Prokerala API error: Unable to fetch chart data."}
+                raise HTTPException(status_code=503, detail=f"Failed to fetch birth chart data: {str(e)}")
 
-    # Enhance the response with additional metadata
-    # Ensure planets, houses, and chart keys are always present
-    chart_data.setdefault("planets", {})
-    chart_data.setdefault("houses", {})
-    chart_data.setdefault("chart", {})
+    # Check if we got valid data
+    if not chart_data:
+        raise HTTPException(status_code=503, detail="No birth chart data received from Prokerala API")
+    
+    # Enhanced response with metadata - NO MOCK DATA
     enhanced_response = {
         "success": True,
         "birth_chart": {
@@ -164,11 +134,14 @@ async def get_birth_chart(request: Request):
                     "coordinates": coordinates
                 },
                 "calculation_method": "Vedic Astrology (Prokerala API)",
-                "ayanamsa": "Lahiri"
+                "ayanamsa": "Lahiri",
+                "data_source": "Prokerala API v2/astrology/birth-details",
+                "note": "Real astrological data from Prokerala API"
             }
         }
     }
-    print(f"[BirthChart] Returning enhanced response: {enhanced_response}")
+    
+    print(f"[BirthChart] Returning real Prokerala data: {chart_data.keys()}")
     return enhanced_response
 
 @router.post("/guidance")
