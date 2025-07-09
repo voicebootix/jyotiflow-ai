@@ -8,7 +8,8 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 import json
-import sqlite3
+import asyncpg
+import os
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -16,8 +17,8 @@ logger = logging.getLogger(__name__)
 class DynamicComprehensivePricing:
     """Dynamic pricing engine for comprehensive readings"""
     
-    def __init__(self, db_path: str = "backend/jyotiflow.db"):
-        self.db_path = db_path
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
         self.base_cost_factors = {
             "openai_api_calls": 0.5,  # Credits per API call
             "knowledge_retrieval": 0.2,  # Credits per knowledge piece
@@ -76,44 +77,44 @@ class DynamicComprehensivePricing:
     async def _calculate_actual_costs(self) -> Dict[str, float]:
         """Calculate actual costs based on recent usage"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get recent comprehensive reading sessions
-            cursor.execute("""
-                SELECT COUNT(*) as session_count 
-                FROM sessions 
-                WHERE service_type = 'comprehensive_life_reading_30min' 
-                AND created_at > datetime('now', '-7 days')
-            """)
-            recent_sessions = cursor.fetchone()[0] or 1
-            
-            # Calculate average costs
-            costs = {
-                "openai_api_cost": self._estimate_openai_costs(),
-                "knowledge_processing_cost": self._estimate_knowledge_costs(),
-                "chart_generation_cost": self._estimate_chart_costs(),
-                "remedies_generation_cost": self._estimate_remedies_costs(),
-                "server_processing_cost": self._estimate_processing_costs(),
-                "elevenlabs_voice_cost": self._estimate_elevenlabs_costs(),
-                "did_video_generation_cost": self._estimate_did_costs(),
-                "total_operational_cost": 0
-            }
-            
-            # Sum total operational cost
-            costs["total_operational_cost"] = sum([
-                costs["openai_api_cost"],
-                costs["knowledge_processing_cost"], 
-                costs["chart_generation_cost"],
-                costs["remedies_generation_cost"],
-                costs["server_processing_cost"],
-                costs["elevenlabs_voice_cost"],
-                costs["did_video_generation_cost"]
-            ])
-            
-            conn.close()
-            return costs
-            
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Get recent comprehensive reading sessions
+                recent_sessions = await conn.fetchval("""
+                    SELECT COUNT(*) as session_count 
+                    FROM sessions 
+                    WHERE service_type = 'comprehensive_life_reading_30min' 
+                    AND created_at > NOW() - INTERVAL '7 days'
+                """) or 1
+                
+                # Calculate average costs
+                costs = {
+                    "openai_api_cost": self._estimate_openai_costs(),
+                    "knowledge_processing_cost": self._estimate_knowledge_costs(),
+                    "chart_generation_cost": self._estimate_chart_costs(),
+                    "remedies_generation_cost": self._estimate_remedies_costs(),
+                    "server_processing_cost": self._estimate_processing_costs(),
+                    "elevenlabs_voice_cost": self._estimate_elevenlabs_costs(),
+                    "did_video_generation_cost": self._estimate_did_costs(),
+                    "total_operational_cost": 0
+                }
+                
+                # Sum total operational cost
+                costs["total_operational_cost"] = sum([
+                    costs["openai_api_cost"],
+                    costs["knowledge_processing_cost"], 
+                    costs["chart_generation_cost"],
+                    costs["remedies_generation_cost"],
+                    costs["server_processing_cost"],
+                    costs["elevenlabs_voice_cost"],
+                    costs["did_video_generation_cost"]
+                ])
+                
+                return costs
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Cost calculation error: {e}")
             # Return default costs if calculation fails
@@ -180,36 +181,35 @@ class DynamicComprehensivePricing:
     async def _get_demand_factor(self) -> float:
         """Calculate demand factor based on recent usage patterns"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get sessions from last 24 hours vs previous 24 hours
-            cursor.execute("""
-                SELECT 
-                    COUNT(CASE WHEN created_at > datetime('now', '-1 day') THEN 1 END) as recent,
-                    COUNT(CASE WHEN created_at BETWEEN datetime('now', '-2 days') AND datetime('now', '-1 day') THEN 1 END) as previous
-                FROM sessions 
-                WHERE service_type = 'comprehensive_life_reading_30min'
-                AND created_at > datetime('now', '-2 days')
-            """)
-            
-            result = cursor.fetchone()
-            recent_demand = result[0] or 0
-            previous_demand = result[1] or 0
-            
-            conn.close()
-            
-            # Calculate demand factor
-            if previous_demand == 0:
-                demand_factor = 1.0 if recent_demand == 0 else 1.2
-            else:
-                demand_ratio = recent_demand / previous_demand
-                # Convert to demand factor (0.8 to 1.4 range)
-                demand_factor = 0.8 + (demand_ratio * 0.6)
-                demand_factor = max(0.8, min(1.4, demand_factor))
-            
-            return demand_factor
-            
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Get sessions from last 24 hours vs previous 24 hours
+                result = await conn.fetchrow("""
+                    SELECT 
+                        COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as recent,
+                        COUNT(CASE WHEN created_at BETWEEN NOW() - INTERVAL '2 days' AND NOW() - INTERVAL '1 day' THEN 1 END) as previous
+                    FROM sessions 
+                    WHERE service_type = 'comprehensive_life_reading_30min'
+                    AND created_at > NOW() - INTERVAL '2 days'
+                """)
+                
+                recent_demand = result['recent'] or 0
+                previous_demand = result['previous'] or 0
+                
+                # Calculate demand factor
+                if previous_demand == 0:
+                    demand_factor = 1.0 if recent_demand == 0 else 1.2
+                else:
+                    demand_ratio = recent_demand / previous_demand
+                    # Convert to demand factor (0.8 to 1.4 range)
+                    demand_factor = 0.8 + (demand_ratio * 0.6)
+                    demand_factor = max(0.8, min(1.4, demand_factor))
+                
+                return demand_factor
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Demand calculation error: {e}")
             return 1.0  # Default neutral demand
@@ -218,35 +218,34 @@ class DynamicComprehensivePricing:
         """Get AI-based pricing recommendation"""
         try:
             # Integration with existing AI pricing system
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get latest AI recommendation for comprehensive service
-            cursor.execute("""
-                SELECT recommendation_data, confidence_score 
-                FROM ai_pricing_recommendations 
-                WHERE service_type = 'comprehensive_life_reading_30min'
-                AND status = 'pending'
-                ORDER BY created_at DESC 
-                LIMIT 1
-            """)
-            
-            result = cursor.fetchone()
-            conn.close()
-            
-            if result:
-                recommendation_data = json.loads(result[0])
-                return {
-                    "recommended_price": recommendation_data.get("suggested_price", 12),
-                    "confidence": result[1],
-                    "reasoning": recommendation_data.get("reasoning", "AI analysis based on market data")
-                }
-            else:
-                return {
-                    "recommended_price": 12,
-                    "confidence": 0.7,
-                    "reasoning": "Default AI recommendation - no recent data available"
-                }
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Get latest AI recommendation for comprehensive service
+                result = await conn.fetchrow("""
+                    SELECT recommendation_data, confidence_score 
+                    FROM ai_pricing_recommendations 
+                    WHERE service_type = 'comprehensive_life_reading_30min'
+                    AND status = 'pending'
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """)
+                
+                if result:
+                    recommendation_data = json.loads(result['recommendation_data'])
+                    return {
+                        "recommended_price": recommendation_data.get("suggested_price", 12),
+                        "confidence": result['confidence_score'],
+                        "reasoning": recommendation_data.get("reasoning", "AI analysis based on market data")
+                    }
+                else:
+                    return {
+                        "recommended_price": 12,
+                        "confidence": 0.7,
+                        "reasoning": "Default AI recommendation - no recent data available"
+                    }
+                    
+            finally:
+                await conn.close()
                 
         except Exception as e:
             logger.error(f"AI recommendation error: {e}")
@@ -325,39 +324,38 @@ class DynamicComprehensivePricing:
     async def update_service_price(self, new_pricing: Dict[str, Any]) -> bool:
         """Update the service price in the database"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Update service_types table
-            cursor.execute("""
-                UPDATE service_types 
-                SET credits_required = ?, 
-                    pricing_data = ?,
-                    last_price_update = datetime('now')
-                WHERE name = 'comprehensive_life_reading_30min'
-            """, (
-                new_pricing["current_price"],
-                json.dumps(new_pricing)
-            ))
-            
-            # Log the price change
-            cursor.execute("""
-                INSERT INTO pricing_history 
-                (service_name, old_price, new_price, reasoning, changed_at)
-                VALUES (?, ?, ?, ?, datetime('now'))
-            """, (
-                "comprehensive_life_reading_30min",
-                0,  # We'll get old price in a real implementation
-                new_pricing["current_price"],
-                new_pricing["pricing_rationale"]
-            ))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Updated comprehensive reading price to {new_pricing['current_price']} credits")
-            return True
-            
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Update service_types table
+                await conn.execute("""
+                    UPDATE service_types 
+                    SET credits_required = $1, 
+                        pricing_data = $2,
+                        last_price_update = NOW()
+                    WHERE name = 'comprehensive_life_reading_30min'
+                """, 
+                    new_pricing["current_price"],
+                    json.dumps(new_pricing)
+                )
+                
+                # Log the price change
+                await conn.execute("""
+                    INSERT INTO pricing_history 
+                    (service_name, old_price, new_price, reasoning, changed_at)
+                    VALUES ($1, $2, $3, $4, NOW())
+                """, 
+                    "comprehensive_life_reading_30min",
+                    0,  # We'll get old price in a real implementation
+                    new_pricing["current_price"],
+                    new_pricing["pricing_rationale"]
+                )
+                
+                logger.info(f"Updated comprehensive reading price to {new_pricing['current_price']} credits")
+                return True
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Price update error: {e}")
             return False
@@ -365,27 +363,26 @@ class DynamicComprehensivePricing:
     async def get_current_price_info(self) -> Dict[str, Any]:
         """Get current pricing information"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT credits_required, pricing_data, last_price_update
-                FROM service_types 
-                WHERE name = 'comprehensive_life_reading_30min'
-            """)
-            
-            result = cursor.fetchone()
-            conn.close()
-            
-            if result:
-                return {
-                    "current_price": result[0],
-                    "pricing_data": json.loads(result[1]) if result[1] else {},
-                    "last_updated": result[2]
-                }
-            else:
-                # Return default if service not found
-                return await self.calculate_comprehensive_reading_price()
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                result = await conn.fetchrow("""
+                    SELECT credits_required, pricing_data, last_price_update
+                    FROM service_types 
+                    WHERE name = 'comprehensive_life_reading_30min'
+                """)
+                
+                if result:
+                    return {
+                        "current_price": result['credits_required'],
+                        "pricing_data": json.loads(result['pricing_data']) if result['pricing_data'] else {},
+                        "last_updated": result['last_price_update'].isoformat() if result['last_price_update'] else None
+                    }
+                else:
+                    # Return default if service not found
+                    return await self.calculate_comprehensive_reading_price()
+                    
+            finally:
+                await conn.close()
                 
         except Exception as e:
             logger.error(f"Price retrieval error: {e}")
@@ -498,53 +495,46 @@ async def integrate_with_ai_pricing_recommendations():
     """Generate pricing recommendations for admin review"""
     try:
         # Generate pricing recommendations (NO AUTO-UPDATE)
-        pricing_recommendation = await generate_pricing_recommendations()
-        dashboard_data = await get_pricing_dashboard_data()
+        recommendations = await generate_pricing_recommendations()
         
-        # Log recommendation for admin review
-        if pricing_recommendation["recommendation_urgency"] in ["high", "medium"]:
-            logger.info(f"ADMIN REVIEW NEEDED: Pricing recommendation generated - {pricing_recommendation['pricing_rationale']}")
-        
-        return {
-            "pricing_recommendation": pricing_recommendation,
-            "dashboard_data": dashboard_data,
-            "requires_admin_approval": True
-        }
+        logger.info("Generated pricing recommendations for admin review")
+        return recommendations
         
     except Exception as e:
-        logger.error(f"AI pricing integration error: {e}")
-        return {}
+        logger.error(f"Integration error: {e}")
+        return {
+            "error": "Failed to generate pricing recommendations",
+            "message": str(e)
+        }
 
 if __name__ == "__main__":
     async def test_dynamic_pricing():
-        """Test the dynamic pricing recommendation system"""
-        print("🧪 Testing Dynamic Comprehensive Pricing (Admin Approval Required)...")
+        """Test the dynamic pricing system"""
+        print("🧪 Testing Dynamic Comprehensive Pricing...")
         
         pricing_engine = DynamicComprehensivePricing()
         
         # Test price calculation
-        pricing = await pricing_engine.calculate_comprehensive_reading_price()
-        print(f"✅ Recommended price: {pricing['recommended_price']} credits")
-        print(f"📊 Demand factor: {pricing['demand_factor']:.2f}")
-        print(f"🤖 AI recommendation: {pricing['ai_recommendation']['recommended_price']} credits")
-        print(f"💰 Total cost breakdown: {pricing['cost_breakdown']['total_operational_cost']:.1f} credits")
-        print(f"   - OpenAI API: {pricing['cost_breakdown']['openai_api_cost']:.1f} credits")
-        print(f"   - ElevenLabs Voice: {pricing['cost_breakdown']['elevenlabs_voice_cost']:.1f} credits")
-        print(f"   - D-ID Video: {pricing['cost_breakdown']['did_video_generation_cost']:.1f} credits")
-        print(f"📝 Reasoning: {pricing['pricing_rationale']}")
-        print(f"🔒 Requires admin approval: {pricing['requires_admin_approval']}")
-        print(f"🎯 Confidence level: {pricing['confidence_level']:.2f}")
+        print("\n📊 Testing Price Calculation:")
+        pricing_result = await pricing_engine.calculate_comprehensive_reading_price()
+        print(f"   Recommended Price: {pricing_result['recommended_price']} credits")
+        print(f"   Confidence Level: {pricing_result['confidence_level']:.1%}")
+        print(f"   Demand Factor: {pricing_result['demand_factor']:.2f}x")
         
-        # Test recommendation generation
-        recommendation = await generate_pricing_recommendations()
-        print(f"\n📋 Recommendation urgency: {recommendation['recommendation_urgency']}")
-        print(f"💡 Price change: {recommendation['price_change_credits']:+.1f} credits")
+        # Test current price info
+        print("\n💰 Testing Current Price Info:")
+        current_info = await pricing_engine.get_current_price_info()
+        print(f"   Current Price: {current_info.get('current_price', 'N/A')} credits")
+        print(f"   Last Updated: {current_info.get('last_updated', 'N/A')}")
         
-        # Test dashboard data
-        dashboard = await get_pricing_dashboard_data()
-        print(f"\n📈 Dashboard ready: {len(dashboard)} data points")
+        # Test pricing recommendations
+        print("\n🤖 Testing Pricing Recommendations:")
+        recommendations = await generate_pricing_recommendations()
+        print(f"   Current: {recommendations['current_price']} credits")
+        print(f"   Recommended: {recommendations['recommended_price']} credits")
+        print(f"   Change: {recommendations['price_change_credits']:+.1f} credits")
+        print(f"   Urgency: {recommendations['recommendation_urgency']}")
         
-        print("\n🎉 Dynamic pricing recommendation system is working!")
-        print("👨‍💼 Admin approval required for all price changes")
+        print("\n✅ Dynamic Pricing Test Complete!")
     
     asyncio.run(test_dynamic_pricing())

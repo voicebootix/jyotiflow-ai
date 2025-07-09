@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 import json
-import sqlite3
+import asyncpg
 from dataclasses import dataclass
 
 logging.basicConfig(level=logging.INFO)
@@ -46,8 +46,8 @@ class PricingResult:
 class UniversalPricingEngine:
     """Universal pricing engine for all JyotiFlow services"""
     
-    def __init__(self, db_path: str = "backend/jyotiflow.db"):
-        self.db_path = db_path
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
         self.api_keys = self._load_api_keys()
         self.rate_limits = self._initialize_rate_limits()
         
@@ -316,30 +316,29 @@ class UniversalPricingEngine:
     async def _get_demand_factor(self, service_name: str) -> float:
         """Get demand factor for the service"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT 
-                    COUNT(CASE WHEN created_at > datetime('now', '-1 day') THEN 1 END) as recent,
-                    COUNT(CASE WHEN created_at BETWEEN datetime('now', '-2 days') AND datetime('now', '-1 day') THEN 1 END) as previous
-                FROM sessions 
-                WHERE service_type = ?
-                AND created_at > datetime('now', '-2 days')
-            """, (service_name,))
-            
-            result = cursor.fetchone()
-            recent_demand = result[0] if result and result[0] else 0
-            previous_demand = result[1] if result and result[1] else 0
-            
-            conn.close()
-            
-            if previous_demand == 0:
-                return 1.0 if recent_demand == 0 else 1.2
-            else:
-                demand_ratio = recent_demand / previous_demand
-                demand_factor = 0.8 + (demand_ratio * 0.6)
-                return max(0.7, min(1.5, demand_factor))
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                result = await conn.fetchrow("""
+                    SELECT 
+                        COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as recent,
+                        COUNT(CASE WHEN created_at BETWEEN NOW() - INTERVAL '2 days' AND NOW() - INTERVAL '1 day' THEN 1 END) as previous
+                    FROM sessions 
+                    WHERE service_type = $1
+                    AND created_at > NOW() - INTERVAL '2 days'
+                """, service_name)
+                
+                recent_demand = result['recent'] if result and result['recent'] else 0
+                previous_demand = result['previous'] if result and result['previous'] else 0
+                
+                if previous_demand == 0:
+                    return 1.0 if recent_demand == 0 else 1.2
+                else:
+                    demand_ratio = recent_demand / previous_demand
+                    demand_factor = 0.8 + (demand_ratio * 0.6)
+                    return max(0.7, min(1.5, demand_factor))
+                    
+            finally:
+                await conn.close()
                 
         except Exception as e:
             logger.error(f"Demand calculation error: {e}")
@@ -348,28 +347,27 @@ class UniversalPricingEngine:
     async def _get_ai_recommendation(self, service_name: str) -> Dict[str, Any]:
         """Get AI-based pricing recommendation"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT recommendation_data, confidence_score 
-                FROM ai_pricing_recommendations 
-                WHERE service_type = ?
-                AND status = 'pending'
-                ORDER BY created_at DESC 
-                LIMIT 1
-            """, (service_name,))
-            
-            result = cursor.fetchone()
-            conn.close()
-            
-            if result:
-                recommendation_data = json.loads(result[0])
-                return {
-                    "recommended_price": recommendation_data.get("suggested_price", 0),
-                    "confidence": result[1],
-                    "reasoning": recommendation_data.get("reasoning", "AI analysis")
-                }
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                result = await conn.fetchrow("""
+                    SELECT recommendation_data, confidence_score 
+                    FROM ai_pricing_recommendations 
+                    WHERE service_type = $1
+                    AND status = 'pending'
+                    ORDER BY created_at DESC 
+                    LIMIT 1
+                """, service_name)
+                
+                if result:
+                    recommendation_data = json.loads(result['recommendation_data'])
+                    return {
+                        "recommended_price": recommendation_data.get("suggested_price", 0),
+                        "confidence": result['confidence_score'],
+                        "reasoning": recommendation_data.get("reasoning", "AI analysis")
+                    }
+                
+            finally:
+                await conn.close()
             
         except Exception as e:
             logger.error(f"AI recommendation error: {e}")
@@ -468,197 +466,234 @@ class UniversalPricingEngine:
     async def get_service_config_from_db(self, service_name: str) -> Optional[ServiceConfiguration]:
         """Get service configuration from database"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT name, display_name, duration_minutes, credits_required, service_category,
-                       voice_enabled, video_enabled, comprehensive_reading_enabled as interactive_enabled,
-                       birth_chart_enabled, remedies_enabled, knowledge_domains, persona_modes,
-                       dynamic_pricing_enabled
-                FROM service_types 
-                WHERE name = ? OR display_name = ?
-            """, (service_name, service_name))
-            
-            result = cursor.fetchone()
-            conn.close()
-            
-            if result:
-                return ServiceConfiguration(
-                    name=result[0],
-                    display_name=result[1],
-                    duration_minutes=result[2],
-                    voice_enabled=bool(result[5]),
-                    video_enabled=bool(result[6]),
-                    interactive_enabled=bool(result[7]),
-                    birth_chart_enabled=bool(result[8]),
-                    remedies_enabled=bool(result[9]),
-                    knowledge_domains=json.loads(result[10]) if result[10] else [],
-                    persona_modes=json.loads(result[11]) if result[11] else [],
-                    base_credits=result[3],
-                    service_category=result[4]
-                )
-            
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                result = await conn.fetchrow("""
+                    SELECT name, display_name, duration_minutes, credits_required, service_category,
+                           voice_enabled, video_enabled, comprehensive_reading_enabled as interactive_enabled,
+                           birth_chart_enabled, remedies_enabled, knowledge_domains, persona_modes,
+                           dynamic_pricing_enabled
+                    FROM service_types 
+                    WHERE name = $1 OR display_name = $1
+                """, service_name)
+                
+                if result:
+                    return ServiceConfiguration(
+                        name=result['name'],
+                        display_name=result['display_name'],
+                        duration_minutes=result['duration_minutes'],
+                        voice_enabled=bool(result['voice_enabled']),
+                        video_enabled=bool(result['video_enabled']),
+                        interactive_enabled=bool(result['interactive_enabled']),
+                        birth_chart_enabled=bool(result['birth_chart_enabled']),
+                        remedies_enabled=bool(result['remedies_enabled']),
+                        knowledge_domains=json.loads(result['knowledge_domains']) if result['knowledge_domains'] else [],
+                        persona_modes=json.loads(result['persona_modes']) if result['persona_modes'] else [],
+                        base_credits=result['credits_required'],
+                        service_category=result['service_category']
+                    )
+                    
+            finally:
+                await conn.close()
+                
         except Exception as e:
-            logger.error(f"Error getting service config: {e}")
+            logger.error(f"Database error: {e}")
         
         return None
-    
-    async def calculate_satsang_pricing(self, satsang_type: str = "community", 
-                                      duration_minutes: int = 60,
-                                      has_donations: bool = True,
-                                      interactive_level: str = "basic") -> PricingResult:
-        """Calculate pricing for Satsang services"""
-        
-        # Create satsang service configuration
-        service_config = ServiceConfiguration(
-            name=f"satsang_{satsang_type}",
-            display_name=f"Satsang {satsang_type.title()}",
-            duration_minutes=duration_minutes,
-            voice_enabled=True,
-            video_enabled=True,
-            interactive_enabled=interactive_level in ["advanced", "premium"],
-            birth_chart_enabled=False,
-            remedies_enabled=satsang_type == "spiritual",
-            knowledge_domains=["tamil_spiritual_literature", "spiritual_guidance"],
-            persona_modes=["traditional_guru", "compassionate_healer"],
-            base_credits=5 if has_donations else 10,
-            service_category="satsang"
-        )
-        
-        # Calculate base pricing
-        pricing_result = await self.calculate_service_price(service_config)
-        
-        # Apply satsang-specific adjustments
-        if has_donations:
-            pricing_result.recommended_price *= 0.7  # Reduced for donation-based
-            pricing_result.pricing_rationale += " | Donation-based satsang"
-        
-        if interactive_level == "premium":
-            pricing_result.recommended_price *= 1.3  # Premium for advanced interaction
-            pricing_result.pricing_rationale += " | Premium interactive features"
-        
-        return pricing_result
 
-# Universal pricing functions
+async def calculate_satsang_pricing(satsang_type: str = "community", 
+                                  duration_minutes: int = 60,
+                                  has_donations: bool = True,
+                                  interactive_level: str = "basic") -> PricingResult:
+    """Calculate pricing for Satsang services"""
+    
+    # Create service configuration for Satsang
+    satsang_config = ServiceConfiguration(
+        name=f"satsang_{satsang_type}",
+        display_name=f"Satsang {satsang_type.title()}",
+        duration_minutes=duration_minutes,
+        voice_enabled=True,
+        video_enabled=True,
+        interactive_enabled=True,
+        birth_chart_enabled=False,
+        remedies_enabled=False,
+        knowledge_domains=["satsang", "community", "spiritual_guidance"],
+        persona_modes=["compassionate", "wise", "community_leader"],
+        base_credits=5,
+        service_category="satsang"
+    )
+    
+    # Calculate pricing
+    engine = UniversalPricingEngine()
+    result = await engine.calculate_service_price(satsang_config)
+    
+    # Apply satsang-specific adjustments
+    if has_donations:
+        result.recommended_price *= 0.8  # Reduced for donation-based
+    
+    if interactive_level == "premium":
+        result.recommended_price *= 1.3  # Premium for enhanced interaction
+    
+    return result
+
 async def calculate_universal_pricing(service_name: str) -> PricingResult:
     """Calculate pricing for any service"""
-    engine = UniversalPricingEngine()
-    
-    # Get service configuration
-    service_config = await engine.get_service_config_from_db(service_name)
-    
-    if not service_config:
-        logger.error(f"Service configuration not found for: {service_name}")
-        # Create fallback configuration
-        service_config = ServiceConfiguration(
-            name=service_name,
-            display_name=service_name.replace("_", " ").title(),
-            duration_minutes=15,
-            voice_enabled=False,
-            video_enabled=False,
-            interactive_enabled=False,
-            birth_chart_enabled=False,
-            remedies_enabled=False,
-            knowledge_domains=[],
-            persona_modes=[],
-            base_credits=10,
-            service_category="guidance"
-        )
-    
-    return await engine.calculate_service_price(service_config)
-
-async def get_smart_pricing_recommendations() -> Dict[str, Any]:
-    """Get smart pricing recommendations for admin dashboard"""
-    engine = UniversalPricingEngine()
-    
     try:
-        conn = sqlite3.connect(engine.db_path)
-        cursor = conn.cursor()
+        engine = UniversalPricingEngine()
         
-        # Get all services with dynamic pricing enabled
-        cursor.execute("""
-            SELECT name, display_name, credits_required, dynamic_pricing_enabled
-            FROM service_types 
-            WHERE is_active = 1
-        """)
+        # Get service configuration from database
+        service_config = await engine.get_service_config_from_db(service_name)
         
-        services = cursor.fetchall()
-        conn.close()
+        if not service_config:
+            # Create fallback configuration
+            service_config = ServiceConfiguration(
+                name=service_name,
+                display_name=service_name.title(),
+                duration_minutes=5,
+                voice_enabled=False,
+                video_enabled=False,
+                interactive_enabled=False,
+                birth_chart_enabled=False,
+                remedies_enabled=False,
+                knowledge_domains=["general"],
+                persona_modes=["standard"],
+                base_credits=5,
+                service_category="general"
+            )
         
-        recommendations = []
-        
-        for service in services:
-            service_name, display_name, current_price, dynamic_enabled = service
-            
-            if dynamic_enabled:
-                # Calculate new pricing
-                pricing_result = await calculate_universal_pricing(service_name)
-                
-                # Compare with current price
-                price_difference = pricing_result.recommended_price - current_price
-                urgency = "high" if abs(price_difference) > 2 else "medium" if abs(price_difference) > 1 else "low"
-                
-                recommendations.append({
-                    "service_name": service_name,
-                    "display_name": display_name,
-                    "current_price": current_price,
-                    "recommended_price": pricing_result.recommended_price,
-                    "price_difference": price_difference,
-                    "urgency": urgency,
-                    "confidence": pricing_result.confidence_level,
-                    "rationale": pricing_result.pricing_rationale,
-                    "cost_breakdown": pricing_result.cost_breakdown
-                })
-        
-        return {
-            "recommendations": recommendations,
-            "total_services": len(services),
-            "dynamic_services": len([s for s in services if s[3]]),
-            "high_priority": len([r for r in recommendations if r["urgency"] == "high"]),
-            "api_status": {
-                "elevenlabs": bool(engine.api_keys["elevenlabs"]),
-                "d_id": bool(engine.api_keys["d_id"]),
-                "agora": bool(engine.api_keys["agora_app_id"]),
-                "openai": bool(engine.api_keys["openai"])
-            }
-        }
+        return await engine.calculate_service_price(service_config)
         
     except Exception as e:
-        logger.error(f"Error getting smart pricing recommendations: {e}")
+        logger.error(f"Universal pricing calculation error: {e}")
+        return PricingResult(
+            service_type=service_name,
+            recommended_price=5.0,
+            cost_breakdown={"error": "Calculation failed"},
+            confidence_level=0.1,
+            pricing_rationale="Error fallback pricing",
+            requires_admin_approval=True,
+            api_costs={}
+        )
+
+async def get_smart_pricing_recommendations() -> Dict[str, Any]:
+    """Get smart pricing recommendations based on system performance"""
+    try:
+        database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        conn = await asyncpg.connect(database_url)
+        
+        try:
+            # Get pricing performance data
+            performance_data = await conn.fetchrow("""
+                SELECT 
+                    COUNT(*) as total_sessions,
+                    AVG(credits_used) as avg_credits_used,
+                    COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as recent_sessions,
+                    AVG(CASE WHEN created_at > NOW() - INTERVAL '7 days' THEN credits_used END) as weekly_avg_credits
+                FROM sessions
+                WHERE created_at > NOW() - INTERVAL '30 days'
+            """)
+            
+            # Get service popularity
+            service_popularity = await conn.fetch("""
+                SELECT 
+                    service_type,
+                    COUNT(*) as usage_count,
+                    AVG(credits_used) as avg_credits
+                FROM sessions
+                WHERE created_at > NOW() - INTERVAL '7 days'
+                GROUP BY service_type
+                ORDER BY usage_count DESC
+                LIMIT 5
+            """)
+            
+            # Generate recommendations
+            recommendations = {
+                "overall_performance": {
+                    "total_sessions": performance_data['total_sessions'],
+                    "avg_credits_used": float(performance_data['avg_credits_used'] or 0),
+                    "recent_activity": performance_data['recent_sessions'],
+                    "weekly_trend": float(performance_data['weekly_avg_credits'] or 0)
+                },
+                "popular_services": [
+                    {
+                        "service_type": row['service_type'],
+                        "usage_count": row['usage_count'],
+                        "avg_credits": float(row['avg_credits'])
+                    }
+                    for row in service_popularity
+                ],
+                "pricing_recommendations": []
+            }
+            
+            # Generate specific recommendations
+            for service in service_popularity:
+                if service['usage_count'] > 10:  # Popular service
+                    recommendations["pricing_recommendations"].append({
+                        "service": service['service_type'],
+                        "recommendation": "Consider premium pricing",
+                        "reason": f"High usage ({service['usage_count']} sessions)"
+                    })
+                elif service['usage_count'] < 3:  # Low usage
+                    recommendations["pricing_recommendations"].append({
+                        "service": service['service_type'],
+                        "recommendation": "Consider promotional pricing",
+                        "reason": f"Low usage ({service['usage_count']} sessions)"
+                    })
+            
+            return recommendations
+            
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        logger.error(f"Smart pricing recommendations error: {e}")
         return {
-            "recommendations": [],
-            "error": str(e)
+            "error": "Unable to generate recommendations",
+            "fallback_recommendations": [
+                {
+                    "service": "general",
+                    "recommendation": "Standard pricing",
+                    "reason": "System fallback"
+                }
+            ]
         }
 
-if __name__ == "__main__":
-    async def test_universal_pricing():
-        """Test the universal pricing engine"""
-        print("🧪 Testing Universal Pricing Engine...")
-        
-        # Test comprehensive reading
-        print("\n📊 Testing Comprehensive Reading:")
-        comprehensive_result = await calculate_universal_pricing("comprehensive_life_reading_30min")
-        print(f"   Price: {comprehensive_result.recommended_price} credits")
-        print(f"   API Costs: {comprehensive_result.api_costs}")
-        print(f"   Confidence: {comprehensive_result.confidence_level:.2f}")
-        
-        # Test satsang pricing
-        print("\n🙏 Testing Satsang Pricing:")
-        engine = UniversalPricingEngine()
-        satsang_result = await engine.calculate_satsang_pricing("community", 60, True, "basic")
-        print(f"   Price: {satsang_result.recommended_price} credits")
-        print(f"   API Costs: {satsang_result.api_costs}")
-        print(f"   Rationale: {satsang_result.pricing_rationale}")
-        
-        # Test smart recommendations
-        print("\n🤖 Testing Smart Recommendations:")
-        recommendations = await get_smart_pricing_recommendations()
-        print(f"   Total Services: {recommendations.get('total_services', 0)}")
-        print(f"   Dynamic Services: {recommendations.get('dynamic_services', 0)}")
-        print(f"   High Priority: {recommendations.get('high_priority', 0)}")
-        print(f"   API Status: {recommendations.get('api_status', {})}")
-        
-        print("\n✅ Universal Pricing Engine Test Complete!")
+# Test function
+async def test_universal_pricing():
+    """Test the universal pricing system"""
+    print("🧪 Testing Universal Pricing Engine...")
     
+    # Test service configurations
+    test_services = [
+        ("clarity", "Standard clarity reading"),
+        ("love", "Love and relationship guidance"),
+        ("premium", "Premium comprehensive reading"),
+        ("satsang_community", "Community satsang")
+    ]
+    
+    for service_name, description in test_services:
+        print(f"\n� Testing {service_name}: {description}")
+        
+        try:
+            result = await calculate_universal_pricing(service_name)
+            print(f"   💰 Recommended Price: {result.recommended_price:.2f} credits")
+            print(f"   🎯 Confidence Level: {result.confidence_level:.1%}")
+            print(f"   📝 Rationale: {result.pricing_rationale}")
+            print(f"   ⚠️  Requires Admin Approval: {result.requires_admin_approval}")
+            
+        except Exception as e:
+            print(f"   ❌ Error: {e}")
+    
+    # Test smart recommendations
+    print(f"\n🤖 Testing Smart Pricing Recommendations...")
+    try:
+        recommendations = await get_smart_pricing_recommendations()
+        print(f"   📈 Total Sessions: {recommendations['overall_performance']['total_sessions']}")
+        print(f"   📊 Popular Services: {len(recommendations['popular_services'])}")
+        print(f"   💡 Recommendations: {len(recommendations['pricing_recommendations'])}")
+        
+    except Exception as e:
+        print(f"   ❌ Error: {e}")
+
+if __name__ == "__main__":
     asyncio.run(test_universal_pricing())
