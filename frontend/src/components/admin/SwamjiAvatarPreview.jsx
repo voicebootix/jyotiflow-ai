@@ -50,7 +50,7 @@ const SwamjiAvatarPreview = () => {
 
   const fetchCurrentConfiguration = async () => {
     try {
-      const response = await enhanced_api.get('/admin/social-marketing/swamiji-avatar-config');
+      const response = await enhanced_api.get('/api/admin/social-marketing/swamiji-avatar-config');
       if (response.data.success) {
         setApprovedConfig(response.data.data);
         if (response.data.data.image_url) {
@@ -70,7 +70,7 @@ const SwamjiAvatarPreview = () => {
     formData.append('swamiji_image', file);
 
     try {
-      const response = await enhanced_api.post('/admin/social-marketing/upload-swamiji-image', formData);
+      const response = await enhanced_api.post('/api/admin/social-marketing/upload-swamiji-image', formData);
       if (response.data.success) {
         setUploadedImage(response.data.image_url);
         alert('✅ Swamiji photo uploaded successfully!');
@@ -89,7 +89,7 @@ const SwamjiAvatarPreview = () => {
 
     try {
       setIsGenerating(true);
-      const response = await enhanced_api.post('/admin/social-marketing/generate-avatar-preview', {
+      const response = await enhanced_api.post('/api/admin/social-marketing/generate-avatar-preview', {
         style: style,
         sample_text: "Namaste, beloved souls. Welcome to this divine spiritual guidance. May peace and wisdom be with you always. Om Namah Shivaya."
       });
@@ -134,7 +134,7 @@ const SwamjiAvatarPreview = () => {
     }
 
     try {
-      const response = await enhanced_api.post('/admin/social-marketing/approve-swamiji-avatar', {
+      const response = await enhanced_api.post('/api/admin/social-marketing/approve-swamiji-avatar', {
         image_url: uploadedImage,
         previews: avatarPreviews,
         approved_styles: Object.keys(avatarPreviews),

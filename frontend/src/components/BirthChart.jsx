@@ -1,13 +1,12 @@
-import { useState, useEffect } from 'react';
-import { 
-  Star, Sun, Moon, Circle, Triangle, Square, 
-  ArrowRight, Calendar, Clock, MapPin, Eye, Info,
-  Download, Share2, Save, Loader2, AlertCircle, CheckCircle
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Calendar, Clock, MapPin, Sun, Moon, Star, Circle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import './BirthChart.css'; // Add custom CSS for South Indian chart
 import spiritualAPI from '../lib/api';
 import FreeReportHook from './FreeReportHook';
 
 const BirthChart = () => {
+  const navigate = useNavigate();
   const [birthDetails, setBirthDetails] = useState({
     date: '',
     time: '',
@@ -307,151 +306,283 @@ Report generated on: ${new Date().toISOString()}
       );
     }
 
+    const { chart_visualization, planetary_positions, birth_details, metadata } = chartData;
+
     return (
       <div className="space-y-8">
         {/* Data Source Info */}
         <div className="bg-blue-900 border border-blue-700 text-blue-200 px-4 py-3 rounded-md text-sm">
           <div className="font-medium">✅ Real Astrological Data</div>
-          <div>Source: {chartData.metadata?.data_source || 'Prokerala API'}</div>
-          <div>Method: {chartData.metadata?.calculation_method || 'Vedic Astrology'}</div>
-          {chartData.chart_visualization && (
-            <div className="text-green-200">🎯 Chart visualization data received!</div>
-          )}
+          <div>Source: {metadata?.data_source || 'Prokerala API'}</div>
+          <div>Chart Style: {metadata?.chart_style || 'South Indian'} | Type: {metadata?.chart_type || 'Rasi'}</div>
+          <div>Ayanamsa: {metadata?.ayanamsa || 'Lahiri'}</div>
         </div>
 
-        {/* Chart Visualization */}
-        {chartData.chart_visualization ? (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
-            <div className="bg-gray-900 rounded-lg p-6">
-              {chartData.chart_visualization.chart_url ? (
-                <div className="text-center">
-                  <img 
-                    src={chartData.chart_visualization.chart_url} 
-                    alt="Vedic Birth Chart" 
-                    className="max-w-full mx-auto rounded-lg border border-gray-600"
-                  />
-                  <div className="mt-4 text-sm text-gray-400">
-                    Chart Type: {chartData.chart_visualization.chart_type || 'Rasi'}
-                  </div>
-                </div>
-              ) : chartData.chart_visualization.houses ? (
-                <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
-                  {Object.entries(chartData.chart_visualization.houses).map(([houseNum, houseData]) => (
-                    <div key={houseNum} className="bg-gray-700 p-4 rounded-lg text-center">
-                      <div className="text-yellow-400 font-semibold">House {houseNum}</div>
-                      <div className="text-white text-sm mt-1">{houseData.sign || 'N/A'}</div>
-                      {houseData.planets && houseData.planets.length > 0 && (
-                        <div className="text-gray-300 text-xs mt-2">
-                          {houseData.planets.map(planet => (
-                            <div key={planet.name} className="flex items-center justify-center">
-                              {planetIcons[planet.name] || <Circle className="w-3 h-3" />}
-                              <span className="ml-1">{planet.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center p-4">
-                  <div className="text-green-400 mb-2">📊 Chart data received from API</div>
-                  <pre className="text-xs text-gray-300 bg-gray-800 p-4 rounded overflow-auto max-h-48">
-                    {JSON.stringify(chartData.chart_visualization, null, 2)}
-                  </pre>
+        {/* South Indian Chart Visualization */}
+        {chart_visualization && renderSouthIndianChart(chart_visualization)}
+
+        {/* Birth Details Summary */}
+        {birth_details && (
+          <div className="bg-purple-900 border border-purple-700 rounded-lg p-6">
+            <h3 className="text-xl font-semibold text-purple-200 mb-4">Birth Details</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-purple-300">Nakshatra:</span>{' '}
+                <span className="text-white font-medium">
+                  {typeof birth_details.nakshatra === 'object' 
+                    ? birth_details.nakshatra?.name 
+                    : birth_details.nakshatra || 'N/A'}
+                </span>
+              </div>
+              <div>
+                <span className="text-purple-300">Moon Sign:</span>{' '}
+                <span className="text-white font-medium">
+                  {typeof birth_details.chandra_rasi === 'object'
+                    ? birth_details.chandra_rasi?.name
+                    : birth_details.chandra_rasi || 'N/A'}
+                </span>
+              </div>
+              <div>
+                <span className="text-purple-300">Sun Sign:</span>{' '}
+                <span className="text-white font-medium">
+                  {typeof birth_details.soorya_rasi === 'object'
+                    ? birth_details.soorya_rasi?.name
+                    : birth_details.soorya_rasi || birth_details.zodiac || 'N/A'}
+                </span>
+              </div>
+              {birth_details.additional_info?.ascendant && (
+                <div>
+                  <span className="text-purple-300">Ascendant:</span>{' '}
+                  <span className="text-white font-medium">
+                    {birth_details.additional_info.ascendant}
+                  </span>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Planetary Positions */}
+        {planetary_positions && renderPlanetaryPositions(planetary_positions)}
+
+        {/* Dasha Information */}
+        {chartData.dasha_periods && renderDashaInfo(chartData.dasha_periods)}
+
+        {/* Houses Information */}
+        {chart_visualization?.houses && renderHousesInfo(chart_visualization.houses)}
+      </div>
+    );
+  };
+
+  const renderSouthIndianChart = (chartViz) => {
+    const houses = chartViz.houses || [];
+    
+    return (
+      <div className="bg-indigo-900 border border-indigo-700 rounded-lg p-6">
+        <h3 className="text-xl font-semibold text-indigo-200 mb-6">
+          South Indian Rasi Chart
+        </h3>
+        
+        {houses.length > 0 ? (
+          <div className="south-indian-chart">
+            {/* South Indian Chart Grid (4x4 with center empty) */}
+            <div className="grid grid-cols-4 gap-1 max-w-md mx-auto bg-gray-800 p-2 rounded">
+              {renderSouthIndianHouses(houses)}
+            </div>
+            
+            {/* Chart Legend */}
+            <div className="mt-6 text-center">
+              <div className="text-indigo-300 text-sm">
+                Chart showing planetary positions in South Indian format
+              </div>
             </div>
           </div>
         ) : (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
-            <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
-              <div className="text-gray-400 mb-2">📊 Chart visualization loading...</div>
-              <div className="text-sm text-gray-500">
-                Attempting to fetch chart data from Prokerala API
-              </div>
-            </div>
+          <div className="text-center text-indigo-300">
+            Chart visualization data not available
           </div>
         )}
-
-        {/* Basic Birth Information */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Details</h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            {chartData.nakshatra && (
-              <div>
-                <span className="text-gray-400">Nakshatra:</span>
-                <div className="text-white font-medium">{chartData.nakshatra.name}</div>
-                <div className="text-gray-300">Pada: {chartData.nakshatra.pada}</div>
-              </div>
-            )}
-            {chartData.chandra_rasi && (
-              <div>
-                <span className="text-gray-400">Chandra Rasi (Moon Sign):</span>
-                <div className="text-white font-medium">{chartData.chandra_rasi.name}</div>
-              </div>
-            )}
-            {chartData.soorya_rasi && (
-              <div>
-                <span className="text-gray-400">Soorya Rasi (Sun Sign):</span>
-                <div className="text-white font-medium">{chartData.soorya_rasi.name}</div>
-              </div>
-            )}
-            {chartData.lagna && (
-              <div>
-                <span className="text-gray-400">Lagna (Ascendant):</span>
-                <div className="text-white font-medium">{chartData.lagna.name}</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Additional Birth Information */}
-        {(chartData.janma_ghati || chartData.ayanamsa) && (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Astrological Details</h3>
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              {chartData.janma_ghati && (
-                <div>
-                  <span className="text-gray-400">Janma Ghati:</span>
-                  <div className="text-white font-medium">{chartData.janma_ghati}</div>
-                </div>
-              )}
-              {chartData.ayanamsa && (
-                <div>
-                  <span className="text-gray-400">Ayanamsa:</span>
-                  <div className="text-white font-medium">{chartData.ayanamsa}°</div>
-                </div>
-              )}
-              {chartData.sunrise && (
-                <div>
-                  <span className="text-gray-400">Sunrise:</span>
-                  <div className="text-white font-medium">{chartData.sunrise}</div>
-                </div>
-              )}
-              {chartData.sunset && (
-                <div>
-                  <span className="text-gray-400">Sunset:</span>
-                  <div className="text-white font-medium">{chartData.sunset}</div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Raw Data Display for debugging */}
-        <details className="bg-gray-800 rounded-lg p-6">
-          <summary className="text-yellow-400 cursor-pointer font-semibold mb-4">
-            🔍 View Raw API Data (Debug)
-          </summary>
-          <pre className="text-xs text-gray-300 bg-gray-900 p-4 rounded overflow-auto max-h-96">
-            {JSON.stringify(chartData, null, 2)}
-          </pre>
-        </details>
       </div>
     );
+  };
+
+  const renderSouthIndianHouses = (houses) => {
+    // South Indian chart layout (4x4 grid)
+    // Layout:
+    // [12] [1]  [2]  [3]
+    // [11] [X]  [X]  [4] 
+    // [10] [X]  [X]  [5]
+    // [9]  [8]  [7]  [6]
+    
+    const layout = [
+      12, 1, 2, 3,
+      11, 0, 0, 4,
+      10, 0, 0, 5,
+      9, 8, 7, 6
+    ];
+
+    return layout.map((houseNum, index) => {
+      if (houseNum === 0) {
+        // Empty center cells
+        return (
+          <div key={index} className="aspect-square bg-gray-700 rounded"></div>
+        );
+      }
+
+      const house = houses.find(h => h.house_number === houseNum) || {
+        house_number: houseNum,
+        sign: getDefaultSign(houseNum - 1),
+        planets: [],
+        lord: getDefaultLord(houseNum - 1)
+      };
+
+      return (
+        <div
+          key={houseNum}
+          className="aspect-square bg-indigo-800 border border-indigo-600 rounded p-1 text-xs relative hover:bg-indigo-700 transition-colors"
+        >
+          {/* House Number */}
+          <div className="absolute top-0 left-0 bg-indigo-600 text-white text-[10px] px-1 rounded-br">
+            {houseNum}
+          </div>
+          
+          {/* Sign */}
+          <div className="text-center text-indigo-200 font-medium text-[10px] mt-2">
+            {house.sign}
+          </div>
+          
+          {/* Planets */}
+          <div className="text-center mt-1">
+            {house.planets && house.planets.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-[2px]">
+                {house.planets.map((planet, idx) => (
+                  <span
+                    key={idx}
+                    className="bg-yellow-600 text-yellow-100 text-[8px] px-1 rounded"
+                  >
+                    {getPlanetSymbol(planet)}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-[8px]">-</div>
+            )}
+          </div>
+          
+          {/* House Lord */}
+          <div className="absolute bottom-0 right-0 text-[8px] text-indigo-400">
+            {house.lord && getPlanetSymbol(house.lord)}
+          </div>
+        </div>
+      );
+    });
+  };
+
+  const renderPlanetaryPositions = (positions) => {
+    if (!positions || !positions.planets) return null;
+
+    return (
+      <div className="bg-green-900 border border-green-700 rounded-lg p-6">
+        <h3 className="text-xl font-semibold text-green-200 mb-4">Planetary Positions</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {positions.planets.map((planet, index) => (
+            <div key={index} className="bg-green-800 rounded p-3">
+              <div className="font-medium text-green-200">{planet.name}</div>
+              <div className="text-sm text-green-300">
+                Position: {planet.position || 'N/A'}
+              </div>
+              <div className="text-sm text-green-300">
+                Sign: {planet.sign || 'N/A'}
+              </div>
+              {planet.house && (
+                <div className="text-sm text-green-300">
+                  House: {planet.house}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderDashaInfo = (dashaData) => {
+    return (
+      <div className="bg-orange-900 border border-orange-700 rounded-lg p-6">
+        <h3 className="text-xl font-semibold text-orange-200 mb-4">Current Dasha Period</h3>
+        <div className="text-orange-300">
+          {dashaData.current_dasha ? (
+            <div>
+              <div>Main Period: {dashaData.current_dasha.planet}</div>
+              <div>Sub Period: {dashaData.current_dasha.sub_planet || 'N/A'}</div>
+              <div>Duration: {dashaData.current_dasha.duration || 'N/A'}</div>
+            </div>
+          ) : (
+            <div>Dasha information will be displayed here</div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderHousesInfo = (houses) => {
+    return (
+      <div className="bg-teal-900 border border-teal-700 rounded-lg p-6">
+        <h3 className="text-xl font-semibold text-teal-200 mb-4">Houses Information</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 text-sm">
+          {houses.slice(0, 12).map((house, index) => (
+            <div key={index} className="bg-teal-800 rounded p-3">
+              <div className="font-medium text-teal-200">
+                House {house.house_number || index + 1}
+              </div>
+              <div className="text-teal-300">Sign: {house.sign}</div>
+              <div className="text-teal-300">Lord: {house.lord}</div>
+              {house.planets && house.planets.length > 0 && (
+                <div className="text-teal-300">
+                  Planets: {house.planets.join(', ')}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const getPlanetSymbol = (planetName) => {
+    const symbols = {
+      'Sun': '☉',
+      'Moon': '☽',
+      'Mars': '♂',
+      'Mercury': '☿',
+      'Jupiter': '♃',
+      'Venus': '♀',
+      'Saturn': '♄',
+      'Rahu': '☊',
+      'Ketu': '☋',
+      'Uranus': '♅',
+      'Neptune': '♆',
+      'Pluto': '♇',
+      'Asc': 'As',
+      'MC': 'MC'
+    };
+    return symbols[planetName] || planetName?.substring(0, 2) || '?';
+  };
+
+  const getDefaultSign = (index) => {
+    const signs = [
+      "Ari", "Tau", "Gem", "Can", "Leo", "Vir",
+      "Lib", "Sco", "Sag", "Cap", "Aqu", "Pis"
+    ];
+    return signs[index % 12];
+  };
+
+  const getDefaultLord = (index) => {
+    const lords = [
+      "Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury",
+      "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"
+    ];
+    return lords[index % 12];
   };
 
   const renderPlanetaryTable = () => {
@@ -993,7 +1124,7 @@ Report generated on: ${new Date().toISOString()}
               <FreeReportHook 
                 size="large"
                 buttonText="Get Your Complete Personalized Reading from Swamiji FREE"
-                onButtonClick={() => window.location.href = '/register'}
+                onButtonClick={() => navigate('/register')}
               />
             </div>
           </div>
@@ -1005,7 +1136,7 @@ Report generated on: ${new Date().toISOString()}
             <FreeReportHook 
               size="default"
               buttonText="Skip the Wait - Get Your Complete Report FREE"
-              onButtonClick={() => window.location.href = '/register'}
+              onButtonClick={() => navigate('/register')}
             />
           </div>
         )}

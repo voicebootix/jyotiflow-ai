@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Card, 
   CardContent 
@@ -10,9 +11,19 @@ import { Star, Check, Gift, ArrowRight } from "lucide-react";
 const FreeReportHook = ({ 
   showButton = true, 
   buttonText = "Get Your FREE Report Now",
-  onButtonClick = () => window.location.href = '/register',
+  onButtonClick = null,
   size = 'default' // 'small', 'default', 'large'
 }) => {
+  const navigate = useNavigate();
+  
+  const handleButtonClick = () => {
+    if (onButtonClick) {
+      onButtonClick();
+    } else {
+      // Use React Router navigation instead of window.location.href
+      navigate('/register');
+    }
+  };
   
   const getSizeClasses = () => {
     switch(size) {
@@ -92,7 +103,7 @@ const FreeReportHook = ({
           {/* Call to Action Button */}
           {showButton && (
             <Button 
-              onClick={onButtonClick}
+              onClick={handleButtonClick}
               className="bg-orange-600 hover:bg-orange-700 text-white font-bold px-8 py-3 text-lg shadow-lg hover:shadow-xl transition-all"
               size="lg"
             >

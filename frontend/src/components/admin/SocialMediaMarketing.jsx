@@ -27,7 +27,7 @@ const SocialMediaMarketing = () => {
   const fetchMarketingData = async () => {
     try {
       setLoading(true);
-      const response = await enhanced_api.get('/admin/social-marketing/overview');
+      const response = await enhanced_api.getMarketingOverview();
       if (response.data.success) {
         setMarketingData(response.data.data);
         setPerformanceData(response.data.data.performance || {});
@@ -41,7 +41,7 @@ const SocialMediaMarketing = () => {
 
   const fetchContentCalendar = async () => {
     try {
-      const response = await enhanced_api.get('/admin/social-marketing/content-calendar');
+      const response = await enhanced_api.getContentCalendar();
       if (response.data.success) {
         setContentCalendar(response.data.data);
       }
@@ -52,7 +52,7 @@ const SocialMediaMarketing = () => {
 
   const fetchCampaigns = async () => {
     try {
-      const response = await enhanced_api.get('/admin/social-marketing/campaigns');
+      const response = await enhanced_api.getCampaigns();
       if (response.data.success) {
         setCampaigns(response.data.data);
       }
@@ -64,7 +64,7 @@ const SocialMediaMarketing = () => {
   const generateDailyContent = async () => {
     try {
       setLoading(true);
-      const response = await enhanced_api.post('/admin/social-marketing/generate-daily-content');
+      const response = await enhanced_api.generateDailyContent();
       if (response.data.success) {
         await fetchContentCalendar();
         alert('Daily content generated successfully!');
@@ -80,7 +80,7 @@ const SocialMediaMarketing = () => {
   const executePosting = async () => {
     try {
       setLoading(true);
-      const response = await enhanced_api.post('/admin/social-marketing/execute-posting');
+      const response = await enhanced_api.executePosting();
       if (response.data.success) {
         alert(`Posted to ${response.data.platforms_updated} platforms successfully!`);
         await fetchMarketingData();
