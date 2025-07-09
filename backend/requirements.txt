@@ -80,7 +80,7 @@ yarl==1.9.4
 orjson==3.9.10
 
 # তমিল - Optional: Configuration management
-pydantic-settings==2.1.0
+# pydantic-settings==2.1.0  # REMOVED: Duplicate version conflict
 
 # তমিল - Optional: API documentation
 fastapi-users==12.1.2
