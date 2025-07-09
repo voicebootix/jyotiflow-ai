@@ -82,9 +82,10 @@ const AdminDashboard = () => {
     return <div>Loading divine administration...</div>;
   }
 
-  // Tab labels and keys - Cleaned up from 15 to 12 tabs
+  // Tab labels and keys - Social Media Marketing moved to prominent position
   const tabs = [
     { key: 'overview', label: 'Overview' },
+    { key: 'socialMarketing', label: '📱 Social Media Marketing' },
     { key: 'products', label: 'Products' },
     { key: 'revenue', label: 'Revenue' },
     { key: 'content', label: 'Content' },
@@ -98,7 +99,6 @@ const AdminDashboard = () => {
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
     { key: 'followup', label: 'Follow-ups' },
-    { key: 'socialMarketing', label: '🤖 AI Social Media Marketing' },
   ];
 
   return (

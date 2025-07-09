@@ -7,7 +7,7 @@ import os
 import json
 import logging
 import asyncpg
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any
 
 # Setup logging
@@ -426,29 +426,27 @@ class JyotiFlowDatabaseInitializer:
                 expires_at TIMESTAMP
             );''',
             
-            # Social media content
+            # Social media content (updated for admin interface compatibility)
             '''CREATE TABLE IF NOT EXISTS social_content (
                 id SERIAL PRIMARY KEY,
                 content_id VARCHAR(100) UNIQUE NOT NULL,
                 content_type VARCHAR(50) NOT NULL,
+                platform VARCHAR(50) NOT NULL,
                 title VARCHAR(255),
                 content_text TEXT NOT NULL,
-                hashtags TEXT,
-                image_url VARCHAR(500),
-                video_url VARCHAR(500),
-                audio_url VARCHAR(500),
-                source_session_id VARCHAR(100),
-                source_user_email VARCHAR(255),
-                ai_generated BOOLEAN DEFAULT true,
-                scheduled_publish_time TIMESTAMP,
+                media_url VARCHAR(500),
+                hashtags VARCHAR(500),
+                scheduled_at TIMESTAMP,
                 published_at TIMESTAMP,
-                platforms TEXT[],
+                status VARCHAR(50) DEFAULT 'draft',
                 views INTEGER DEFAULT 0,
                 likes INTEGER DEFAULT 0,
                 shares INTEGER DEFAULT 0,
                 comments INTEGER DEFAULT 0,
-                engagement_rate DECIMAL(5,2),
-                status VARCHAR(50) DEFAULT 'draft',
+                engagement_rate DECIMAL(5,2) DEFAULT 0.0,
+                source_session_id VARCHAR(100),
+                source_user_email VARCHAR(255),
+                ai_generated BOOLEAN DEFAULT true,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (source_user_email) REFERENCES users(email)
@@ -657,7 +655,37 @@ class JyotiFlowDatabaseInitializer:
                     ON CONFLICT (key) DO NOTHING
                 """, (setting_key, json.dumps(setting_value)))
             
+            # Insert sample social media content for testing
+            now = datetime.now()
+            
+            sample_social_content = [
+                ('daily_wisdom_001', 'daily_wisdom', 'instagram', '✨ Daily Wisdom from Swamiji', 
+                 '🕉️ Test post for social media automation - Experience the divine wisdom that transforms your daily life', 
+                 None, '#wisdom #spirituality #jyotiflow #dailywisdom', 
+                 now + timedelta(hours=1), None, 'draft'),
+                
+                ('satsang_promo_001', 'satsang_promo', 'facebook', '🙏 Join Our Sacred Satsang', 
+                 'Come join us for a transformative satsang experience with Swami Jyotirananthan. Discover profound spiritual insights and connect with like-minded souls on the path of enlightenment.', 
+                 None, '#satsang #spirituality #jyotiflow #enlightenment', 
+                 now + timedelta(hours=6), None, 'scheduled'),
+                
+                ('spiritual_quote_001', 'spiritual_quote', 'twitter', '🌟 Spiritual Quote of the Day', 
+                 'Truth is not something you find, but something you become. 🙏 #SpiritualWisdom', 
+                 None, '#truth #spirituality #wisdom #transformation', 
+                 None, now - timedelta(hours=2), 'published')
+            ]
+            
+            for content in sample_social_content:
+                await conn.execute("""
+                    INSERT INTO social_content 
+                    (content_id, content_type, platform, title, content_text, media_url, hashtags, 
+                     scheduled_at, published_at, status)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    ON CONFLICT (content_id) DO NOTHING
+                """, content)
+            
             logger.info("✅ Initial data inserted")
+            logger.info("✅ Sample social media content created")
             
         except Exception as e:
             logger.error(f"Error inserting initial data: {e}")

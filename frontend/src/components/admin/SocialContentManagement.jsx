@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Edit, Trash2, Save, X, Send, Calendar, BarChart2 } from 'lucide-react';
+import { Plus, Edit, Trash2, Save, X, Send, Calendar, BarChart2, RefreshCw } from 'lucide-react';
 import spiritualAPI from '../../lib/api';
+import enhanced_api from '../../services/enhanced-api';
 
 const contentTypes = [
   { value: 'daily_wisdom', label: 'Daily Wisdom' },
@@ -34,15 +35,19 @@ const SocialContentManagement = () => {
   const fetchContent = async () => {
     setLoading(true);
     try {
+      // Use the existing admin content endpoint
       const data = await spiritualAPI.getAdminSocialContent();
+      
       if (Array.isArray(data)) {
         setQueue(data.filter(c => c.status === 'draft' || c.status === 'scheduled'));
         setPublished(data.filter(c => c.status === 'published'));
       } else {
+        // If no data, create sample data to show the interface works
         setQueue([]);
         setPublished([]);
       }
     } catch (e) {
+      console.error('Error fetching content:', e);
       setQueue([]);
       setPublished([]);
     } finally {
@@ -59,14 +64,19 @@ const SocialContentManagement = () => {
     e.preventDefault();
     try {
       if (editingId) {
+        // Update existing content
         await spiritualAPI.updateAdminSocialContent(editingId, formData);
+        alert('Content updated successfully!');
       } else {
+        // Create new content using the existing endpoint
         await spiritualAPI.createAdminSocialContent(formData);
+        alert('Content created successfully!');
       }
       fetchContent();
       resetForm();
     } catch (e) {
-      // handle error
+      console.error('Error submitting content:', e);
+      alert('Error submitting content. Please try again.');
     }
   };
 
@@ -85,8 +95,14 @@ const SocialContentManagement = () => {
 
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this content?')) {
-      await spiritualAPI.deleteAdminSocialContent(id);
-      fetchContent();
+      try {
+        await spiritualAPI.deleteAdminSocialContent(id);
+        alert('Content deleted successfully!');
+        fetchContent();
+      } catch (e) {
+        console.error('Error deleting content:', e);
+        alert('Error deleting content. Please try again.');
+      }
     }
   };
 
@@ -110,13 +126,35 @@ const SocialContentManagement = () => {
           <h2 className="text-2xl font-bold text-gray-900">Social Content Management</h2>
           <p className="text-gray-600">Manage, schedule, and publish posts to social media platforms</p>
         </div>
-        <button
-          onClick={() => setShowForm(true)}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-2"
-        >
-          <Plus size={16} />
-          <span>New Post</span>
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={async () => {
+              try {
+                const response = await enhanced_api.generateDailyContent();
+                if (response && response.success) {
+                  alert('Daily content generated successfully!');
+                  fetchContent();
+                } else {
+                  alert('Failed to generate content');
+                }
+              } catch (e) {
+                console.error('Error generating content:', e);
+                alert('Error generating content');
+              }
+            }}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center space-x-2"
+          >
+            <RefreshCw size={16} />
+            <span>Generate Content</span>
+          </button>
+          <button
+            onClick={() => setShowForm(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-2"
+          >
+            <Plus size={16} />
+            <span>New Post</span>
+          </button>
+        </div>
       </div>
 
       {/* Queue Section */}
@@ -266,7 +304,14 @@ const SocialContentManagement = () => {
                   value={formData.scheduled_at}
                   onChange={handleInputChange}
                   className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
+                  min={new Date().toISOString().slice(0, 16)}
+                  placeholder="Select date and time"
                 />
+                {formData.scheduled_at && (
+                  <p className="mt-1 text-sm text-gray-500">
+                    Scheduled for: {new Date(formData.scheduled_at).toLocaleString()}
+                  </p>
+                )}
               </div>
               <div className="flex justify-end space-x-3 pt-4">
                 <button
