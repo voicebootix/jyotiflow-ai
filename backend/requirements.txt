@@ -83,7 +83,7 @@ orjson==3.9.10
 # pydantic-settings==2.1.0  # REMOVED: Duplicate version conflict
 
 # তমিল - Optional: API documentation
-fastapi-users==12.1.2
+fastapi-users==14.0.1
 
 # তমিল - Optional: Rate limiting
 slowapi==0.1.9
