@@ -10,6 +10,9 @@ import jwt
 import uuid
 import logging
 
+# Configure logger
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
 # JWT configuration
@@ -73,32 +76,19 @@ async def get_prokerala_token():
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
 
-@router.post("/birth-chart")
-async def get_birth_chart(request: Request):
-    data = await request.json()
-    print("[BirthChart] Incoming payload:", data)
-    birth_details = data.get("birth_details")
-    if not birth_details:
-        print("[BirthChart] Error: Missing birth_details in payload")
-        raise HTTPException(status_code=400, detail="Missing birth details")
-
+async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -> dict:
+    """
+    Extract birth chart data using Prokerala API - reusable function for other modules
+    Returns the same structure as the get_birth_chart endpoint
+    """
     date = birth_details.get("date")
     time_ = birth_details.get("time")
     location = birth_details.get("location", "Jaffna, Sri Lanka")
     timezone = birth_details.get("timezone", "Asia/Colombo")
-    print(f"[BirthChart] Extracted: date={date}, time={time_}, location={location}, timezone={timezone}")
-
+    
     # Validate required fields
     if not date or not time_:
-        print("[BirthChart] Error: Missing date or time in birth_details")
         raise HTTPException(status_code=400, detail="Missing date or time in birth details")
-
-    # Get user email from Authorization header (OPTIONAL - no error if missing)
-    user_email = extract_user_email_from_token(request)
-    if not user_email:
-        # Generate a guest user ID for caching
-        user_email = f"guest_{uuid.uuid4().hex[:8]}"
-        print(f"[BirthChart] Using guest user: {user_email}")
 
     # --- CHECK CACHE FIRST ---
     if user_email:
@@ -323,8 +313,26 @@ async def get_birth_chart(request: Request):
             print(f"[BirthChart] Cache error: {e}")
             enhanced_response["birth_chart"]["metadata"]["cached"] = False
     
-    print(f"[BirthChart] Returning real Prokerala data: {chart_data.keys()}")
     return enhanced_response
+
+@router.post("/birth-chart")
+async def get_birth_chart(request: Request):
+    data = await request.json()
+    print("[BirthChart] Incoming payload:", data)
+    birth_details = data.get("birth_details")
+    if not birth_details:
+        print("[BirthChart] Error: Missing birth_details in payload")
+        raise HTTPException(status_code=400, detail="Missing birth details")
+
+    # Get user email from Authorization header (OPTIONAL - no error if missing)
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        # Generate a guest user ID for caching
+        user_email = f"guest_{uuid.uuid4().hex[:8]}"
+        print(f"[BirthChart] Using guest user: {user_email}")
+
+    # Use the extracted function
+    return await get_prokerala_birth_chart_data(user_email, birth_details)
 
 @router.post("/guidance")
 async def get_spiritual_guidance(request: Request):
