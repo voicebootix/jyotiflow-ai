@@ -20,6 +20,7 @@ const LiveChat = () => {
   const [isVideoCallActive, setIsVideoCallActive] = useState(false);
   const [videoCallError, setVideoCallError] = useState(null);
   const [availablePackages, setAvailablePackages] = useState([]);
+  const [selectedMode, setSelectedMode] = useState('video'); // 'audio' or 'video'
 
   useEffect(() => {
     checkAuthAndSubscription();
@@ -83,7 +84,8 @@ const LiveChat = () => {
       const sessionDetails = {
         session_type: 'spiritual_guidance',
         duration_minutes: 30,
-        topic: 'Live Divine Guidance'
+        topic: 'Live Divine Guidance',
+        mode: selectedMode
       };
 
       const result = await spiritualAPI.initiateLiveChat(sessionDetails);
@@ -104,7 +106,7 @@ const LiveChat = () => {
     }
   };
 
-  const hasRequiredSubscription = userProfile?.subscription_tier === 'premium' || userProfile?.subscription_tier === 'elite';
+  // All users can access live chat - only credit requirement
 
   const startVideoCall = () => {
     setIsVideoCallActive(true);
@@ -286,6 +288,46 @@ const LiveChat = () => {
                 </div>
               </div>
               
+              {/* Mode Selection */}
+              {isAuthenticated && (
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">Select Session Mode</h3>
+                  <div className="flex justify-center gap-4">
+                    <button
+                      onClick={() => setSelectedMode('audio')}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-lg border-2 transition-all duration-200 ${
+                        selectedMode === 'audio'
+                          ? 'border-green-500 bg-green-50 text-green-700'
+                          : 'border-gray-300 hover:border-green-400 text-gray-700'
+                      }`}
+                    >
+                      <div className="text-2xl">🎧</div>
+                      <div className="text-left">
+                        <div className="font-semibold">Audio Mode</div>
+                        <div className="text-sm opacity-75">Voice-only session</div>
+                        <div className="text-xs text-green-600">Lower cost option</div>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => setSelectedMode('video')}
+                      className={`flex items-center gap-2 px-6 py-3 rounded-lg border-2 transition-all duration-200 ${
+                        selectedMode === 'video'
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-300 hover:border-blue-400 text-gray-700'
+                      }`}
+                    >
+                      <div className="text-2xl">📹</div>
+                      <div className="text-left">
+                        <div className="font-semibold">Video Mode</div>
+                        <div className="text-sm opacity-75">Full video session</div>
+                        <div className="text-xs text-blue-600">Premium experience</div>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              )}
+              
               {/* Subscription Requirements */}
               {!isAuthenticated && (
                 <div className="mb-8 p-6 bg-yellow-50 rounded-lg border-2 border-yellow-200">
@@ -322,8 +364,17 @@ const LiveChat = () => {
                   </>
                 ) : (
                   <>
-                    <Video className="mr-2" size={20} />
-                    {isAuthenticated ? 'Start Live Session' : 'Sign In to Start Session'}
+                    {selectedMode === 'audio' ? (
+                      <>
+                        <div className="mr-2">🎧</div>
+                        {isAuthenticated ? 'Start Audio Session' : 'Sign In to Start Audio Session'}
+                      </>
+                    ) : (
+                      <>
+                        <Video className="mr-2" size={20} />
+                        {isAuthenticated ? 'Start Video Session' : 'Sign In to Start Video Session'}
+                      </>
+                    )}
                   </>
                 )}
               </button>
