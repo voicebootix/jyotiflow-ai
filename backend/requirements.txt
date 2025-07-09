@@ -11,22 +11,22 @@ psycopg2-binary==2.9.9
 
 
 # தமிழ் - Authentication and security
-PyJWT==2.8.0
-bcrypt==4.1.2
+PyJWT==2.10.1  # Updated JWT handling
+bcrypt==4.3.0  # Updated password hashing
 python-multipart==0.0.6
 
 # তমিল - Payment processing
-stripe==8.0.0
+stripe==12.3.0  # Updated Stripe integration
 
 # 🤖 REAL AI Integration - UPDATED VERSION
-openai==1.3.0  # IMPORTANT: Updated to latest version for real AI
-aiohttp==3.9.1  # For async HTTP requests to external APIs
+openai==1.93.2  # Updated OpenAI integration
+aiohttp==3.12.13  # Updated async HTTP client
 
 # தমিল - HTTP client for API integrations
 httpx==0.25.2
 requests==2.31.0
 
-# தமில - Data validation and serialization
+# তমিল - Data validation and serialization
 pydantic[email]==2.5.0
 
 # তমিল - Environment variables
@@ -38,7 +38,7 @@ python-dateutil==2.8.2
 # তমিল - Logging and monitoring
 structlog==23.2.0
 
-# தமில - Development and testing dependencies
+# தமিল - Development and testing dependencies
 pytest==7.4.3
 pytest-asyncio==0.21.1
 
@@ -49,12 +49,12 @@ gunicorn==21.2.0
 alembic==1.13.0
 
 # তমিল - Optional: Caching
-redis==5.0.1
+redis==6.2.0  # Updated Redis client
 
-# தமில - Optional: Email functionality
+# தமিল - Optional: Email functionality
 aiosmtplib==3.0.1
 
-# தமில - Optional: File handling
+# তমিল - Optional: File handling
 aiofiles==23.2.1
 
 # তমিল - Optional: Image processing (for future features)
@@ -110,19 +110,11 @@ google-auth==2.23.4  # YouTube authentication
 psutil==7.0.0  # Updated for system monitoring
 scikit-learn==1.7.0  # Updated for ML analytics
 jinja2==3.1.2
-python-multipart==0.0.6
 
 # 🔧 CRITICAL: Missing Dependencies for Social Media Marketing
 # These were causing 500 errors in social media marketing endpoints
 pydantic-settings==2.10.1  # Configuration management
 email-validator==2.2.0  # Updated email validation
-PyJWT==2.10.1  # Updated JWT handling
-bcrypt==4.3.0  # Updated password hashing
-openai==1.93.2  # Updated OpenAI integration
-aiohttp==3.12.13  # Updated async HTTP client
-stripe==12.3.0  # Updated Stripe integration
-redis==6.2.0  # Updated Redis client
 
 # 🙏🏼 All dependencies for Swami Jyotirananthan's REAL AI digital ashram
-prometheus-client==0.19.0
 limits==3.7.0
