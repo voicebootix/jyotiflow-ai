@@ -26,10 +26,11 @@ class RegisterForm(BaseModel):
     full_name: str = ""
 
 # தமிழ் - JWT உருவாக்கம்
-async def create_jwt_token(user_id: uuid.UUID, email: str):
+async def create_jwt_token(user_id: uuid.UUID, email: str, role: str = "user"):
     payload = {
-        "user_id": str(user_id),
+        "sub": str(user_id),  # Changed from "user_id" to "sub" for standard JWT format
         "email": email,
+        "role": role,  # Added missing role field
         "exp": datetime.utcnow() + timedelta(minutes=JWT_EXPIRY_MINUTES)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -42,7 +43,7 @@ async def login(form: LoginForm, db=Depends(get_db)):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not bcrypt.checkpw(form.password.encode(), user["password_hash"].encode()):
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = await create_jwt_token(user["id"], user["email"])
+    token = await create_jwt_token(user["id"], user["email"], user.get("role", "user"))
     return {
         "access_token": token, 
         "user": {
@@ -73,7 +74,7 @@ async def register(form: RegisterForm, db=Depends(get_db)):
             VALUES ($1, $2, $3, $4, $5, $6, NOW())
         """, user_id, form.email, password_hash, form.full_name, form.full_name, free_credits)
         
-        token = await create_jwt_token(user_id, form.email)
+        token = await create_jwt_token(user_id, form.email, "user")
         return {
             "access_token": token, 
             "user": {
