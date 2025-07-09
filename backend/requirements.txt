@@ -5,8 +5,8 @@
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 
-# தমিল - Database connectivity
-asyncpg==0.29.0
+# தமிল - Database connectivity
+asyncpg==0.30.0  # Updated PostgreSQL driver (FIXED: Removed duplicate)
 psycopg2-binary==2.9.9
 
 
@@ -114,7 +114,6 @@ python-multipart==0.0.6
 
 # 🔧 CRITICAL: Missing Dependencies for Social Media Marketing
 # These were causing 500 errors in social media marketing endpoints
-asyncpg==0.30.0  # Updated PostgreSQL driver
 pydantic-settings==2.10.1  # Configuration management
 email-validator==2.2.0  # Updated email validation
 PyJWT==2.10.1  # Updated JWT handling
