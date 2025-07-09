@@ -36,7 +36,7 @@ except ImportError:
     print("⚠️ Avatar generation router not available")
 
 try:
-    from routers.social_media_marketing_router import router as social_media_router
+    from routers.social_media_marketing_router import social_marketing_router
     SOCIAL_MEDIA_AVAILABLE = True
 except ImportError:
     SOCIAL_MEDIA_AVAILABLE = False
@@ -263,7 +263,7 @@ if AVATAR_GENERATION_AVAILABLE:
     print("✅ Avatar generation router registered")
 
 if SOCIAL_MEDIA_AVAILABLE:
-    app.include_router(social_media_router)
+    app.include_router(social_marketing_router)
     print("✅ Social media marketing router registered")
 
 if LIVECHAT_AVAILABLE:
