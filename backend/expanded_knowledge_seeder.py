@@ -3,10 +3,12 @@ Expanded Knowledge Seeding System for JyotiFlow
 Adds 50+ comprehensive spiritual knowledge pieces
 """
 
-import sqlite3
+import asyncpg
 import json
 import hashlib
 import logging
+import os
+import asyncio
 from datetime import datetime
 from typing import Dict, List, Any
 
@@ -16,67 +18,93 @@ logger = logging.getLogger(__name__)
 class ExpandedKnowledgeSeeder:
     """Expanded knowledge seeding with 50+ pieces"""
     
-    def __init__(self, db_path: str = "backend/jyotiflow.db"):
-        self.db_path = db_path
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
         
-    def seed_expanded_knowledge_base(self):
+    async def seed_expanded_knowledge_base(self):
         """Seed comprehensive knowledge base with 50+ pieces"""
         logger.info("Starting expanded knowledge base seeding...")
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
+        conn = await asyncpg.connect(self.database_url)
         
-        # Clear existing knowledge for fresh seeding
-        cursor.execute("DELETE FROM rag_knowledge_base")
-        
-        # Get all expanded knowledge pieces
-        all_knowledge = []
-        all_knowledge.extend(self._get_expanded_classical_astrology())
-        all_knowledge.extend(self._get_expanded_tamil_literature())
-        all_knowledge.extend(self._get_expanded_relationship_knowledge())
-        all_knowledge.extend(self._get_expanded_career_knowledge())
-        all_knowledge.extend(self._get_expanded_health_knowledge())
-        all_knowledge.extend(self._get_expanded_remedial_knowledge())
-        all_knowledge.extend(self._get_expanded_world_knowledge())
-        all_knowledge.extend(self._get_expanded_psychological_knowledge())
-        
-        # Insert all knowledge pieces
-        for knowledge in all_knowledge:
-            try:
-                embedding_text = f"[{','.join(['0.1'] * 10)}]"
-                
-                cursor.execute("""
-                    INSERT INTO rag_knowledge_base (
-                        id, knowledge_domain, content_type, title, content, metadata,
-                        embedding_vector, tags, source_reference, authority_level,
-                        cultural_context, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    self._generate_id(),
-                    knowledge["knowledge_domain"],
-                    knowledge["content_type"],
-                    knowledge["title"],
-                    knowledge["content"],
-                    json.dumps(knowledge.get("metadata", {})),
-                    embedding_text,
-                    ",".join(knowledge.get("tags", [])),
-                    knowledge["source_reference"],
-                    knowledge["authority_level"],
-                    knowledge["cultural_context"],
-                    datetime.now().isoformat(),
-                    datetime.now().isoformat()
-                ))
-                
-            except Exception as e:
-                logger.error(f"Failed to insert: {knowledge['title'][:50]}... - {e}")
-        
-        conn.commit()
-        cursor.execute("SELECT COUNT(*) FROM rag_knowledge_base")
-        count = cursor.fetchone()[0]
-        conn.close()
-        
-        logger.info(f"✅ Expanded knowledge seeding completed! Added {count} pieces")
-        return count
+        try:
+            # Create table if it doesn't exist
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS rag_knowledge_base (
+                    id VARCHAR(255) PRIMARY KEY,
+                    knowledge_domain VARCHAR(100) NOT NULL,
+                    content_type VARCHAR(100) NOT NULL,
+                    title VARCHAR(500) NOT NULL,
+                    content TEXT NOT NULL,
+                    metadata JSONB DEFAULT '{}'::jsonb,
+                    embedding_vector JSONB DEFAULT '[]'::jsonb,
+                    tags TEXT[] DEFAULT '{}',
+                    source_reference VARCHAR(500),
+                    authority_level INTEGER DEFAULT 3,
+                    cultural_context VARCHAR(100) DEFAULT 'universal',
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            # Clear existing knowledge for fresh seeding
+            await conn.execute("DELETE FROM rag_knowledge_base")
+            
+            # Get all expanded knowledge pieces
+            all_knowledge = []
+            all_knowledge.extend(self._get_expanded_classical_astrology())
+            all_knowledge.extend(self._get_expanded_tamil_literature())
+            all_knowledge.extend(self._get_expanded_relationship_knowledge())
+            all_knowledge.extend(self._get_expanded_career_knowledge())
+            all_knowledge.extend(self._get_expanded_health_knowledge())
+            all_knowledge.extend(self._get_expanded_remedial_knowledge())
+            all_knowledge.extend(self._get_expanded_world_knowledge())
+            all_knowledge.extend(self._get_expanded_psychological_knowledge())
+            
+            # Insert all knowledge pieces
+            inserted_count = 0
+            for knowledge in all_knowledge:
+                try:
+                    embedding_vector = [0.1] * 10  # Simple embedding for now
+                    
+                    await conn.execute("""
+                        INSERT INTO rag_knowledge_base (
+                            id, knowledge_domain, content_type, title, content, metadata,
+                            embedding_vector, tags, source_reference, authority_level,
+                            cultural_context, created_at, updated_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    """, 
+                        self._generate_id(),
+                        knowledge["knowledge_domain"],
+                        knowledge["content_type"],
+                        knowledge["title"],
+                        knowledge["content"],
+                        json.dumps(knowledge.get("metadata", {})),
+                        json.dumps(embedding_vector),
+                        knowledge.get("tags", []),
+                        knowledge["source_reference"],
+                        knowledge["authority_level"],
+                        knowledge["cultural_context"],
+                        datetime.now(),
+                        datetime.now()
+                    )
+                    inserted_count += 1
+                    
+                except Exception as e:
+                    logger.error(f"Failed to insert: {knowledge['title'][:50]}... - {e}")
+            
+            # Get final count
+            count = await conn.fetchval("SELECT COUNT(*) FROM rag_knowledge_base")
+            
+            logger.info(f"✅ Expanded knowledge seeding completed! Added {inserted_count} pieces, total: {count}")
+            return count
+            
+        except Exception as e:
+            logger.error(f"❌ Knowledge seeding failed: {e}")
+            return 0
+            
+        finally:
+            await conn.close()
     
     def _generate_id(self) -> str:
         return hashlib.md5(f"{datetime.now().isoformat()}{hash(datetime.now())}".encode()).hexdigest()
@@ -259,11 +287,11 @@ class ExpandedKnowledgeSeeder:
             # Continue with 3 more psychological pieces...
         ]
 
-def run_expanded_knowledge_seeding():
+async def run_expanded_knowledge_seeding():
     """Run the expanded knowledge seeding"""
     seeder = ExpandedKnowledgeSeeder()
-    return seeder.seed_expanded_knowledge_base()
+    return await seeder.seed_expanded_knowledge_base()
 
 if __name__ == "__main__":
-    count = run_expanded_knowledge_seeding()
+    count = asyncio.run(run_expanded_knowledge_seeding())
     print(f"🎉 Seeded {count} expanded knowledge pieces successfully!")

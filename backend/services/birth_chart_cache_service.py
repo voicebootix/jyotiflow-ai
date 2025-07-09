@@ -18,6 +18,8 @@ class BirthChartCacheService:
     def __init__(self, db_url: str):
         self.db_url = db_url
         self.cache_duration_days = 365  # Cache for 1 year
+        # In-memory cache for guest users
+        self.guest_cache = {}
     
     def generate_birth_details_hash(self, birth_details: Dict[str, Any]) -> str:
         """Generate a unique hash for birth details to use as cache key"""
@@ -40,6 +42,19 @@ class BirthChartCacheService:
         try:
             birth_hash = self.generate_birth_details_hash(birth_details)
             
+            # Handle guest users with in-memory cache
+            if user_email.startswith("guest_"):
+                cache_key = f"{user_email}_{birth_hash}"
+                cached_data = self.guest_cache.get(cache_key)
+                
+                if cached_data and cached_data['expires_at'] > datetime.now():
+                    logger.info(f"✅ Birth chart cache HIT for guest user {user_email}")
+                    return cached_data
+                else:
+                    logger.info(f"❌ Birth chart cache MISS for guest user {user_email}")
+                    return None
+            
+            # Handle registered users with database cache
             conn = await asyncpg.connect(self.db_url)
             
             # Check for cached data with matching hash and valid expiry
@@ -77,6 +92,19 @@ class BirthChartCacheService:
             cached_at = datetime.now()
             expires_at = cached_at + timedelta(days=self.cache_duration_days)
             
+            # Handle guest users with in-memory cache
+            if user_email.startswith("guest_"):
+                cache_key = f"{user_email}_{birth_hash}"
+                self.guest_cache[cache_key] = {
+                    'data': chart_data,
+                    'cached_at': cached_at,
+                    'expires_at': expires_at,
+                    'cache_hit': True
+                }
+                logger.info(f"✅ Birth chart cached for guest user {user_email}, expires at {expires_at}")
+                return True
+            
+            # Handle registered users with database cache
             conn = await asyncpg.connect(self.db_url)
             
             # Update user record with cached birth chart data
@@ -113,6 +141,16 @@ class BirthChartCacheService:
     async def invalidate_cache(self, user_email: str) -> bool:
         """Invalidate cached birth chart data"""
         try:
+            # Handle guest users
+            if user_email.startswith("guest_"):
+                # Remove all cache entries for this guest user
+                keys_to_remove = [key for key in self.guest_cache.keys() if key.startswith(f"{user_email}_")]
+                for key in keys_to_remove:
+                    del self.guest_cache[key]
+                logger.info(f"✅ Birth chart cache invalidated for guest user {user_email}")
+                return True
+            
+            # Handle registered users
             conn = await asyncpg.connect(self.db_url)
             
             await conn.execute("""
@@ -136,6 +174,23 @@ class BirthChartCacheService:
     async def get_user_birth_chart_status(self, user_email: str) -> Dict[str, Any]:
         """Get user's birth chart cache status"""
         try:
+            # Handle guest users
+            if user_email.startswith("guest_"):
+                # Count guest cache entries
+                guest_entries = [key for key in self.guest_cache.keys() if key.startswith(f"{user_email}_")]
+                has_cached_data = len(guest_entries) > 0
+                
+                return {
+                    'has_birth_details': has_cached_data,
+                    'has_cached_data': has_cached_data,
+                    'cache_valid': has_cached_data,
+                    'cached_at': datetime.now() if has_cached_data else None,
+                    'expires_at': None,
+                    'has_free_birth_chart': True,  # Guests always get free charts
+                    'user_type': 'guest'
+                }
+            
+            # Handle registered users
             conn = await asyncpg.connect(self.db_url)
             
             user_data = await conn.fetchrow("""
@@ -158,7 +213,8 @@ class BirthChartCacheService:
                     'cache_valid': user_data['cache_valid'],
                     'cached_at': user_data['birth_chart_cached_at'],
                     'expires_at': user_data['birth_chart_expires_at'],
-                    'has_free_birth_chart': user_data['has_free_birth_chart']
+                    'has_free_birth_chart': user_data['has_free_birth_chart'],
+                    'user_type': 'registered'
                 }
             else:
                 return {
@@ -167,7 +223,8 @@ class BirthChartCacheService:
                     'cache_valid': False,
                     'cached_at': None,
                     'expires_at': None,
-                    'has_free_birth_chart': False
+                    'has_free_birth_chart': False,
+                    'user_type': 'registered'
                 }
                 
         except Exception as e:
@@ -185,6 +242,19 @@ class BirthChartCacheService:
     async def cleanup_expired_cache(self) -> int:
         """Clean up expired birth chart cache entries"""
         try:
+            # Clean up guest cache
+            current_time = datetime.now()
+            expired_guest_keys = [
+                key for key, data in self.guest_cache.items() 
+                if data['expires_at'] < current_time
+            ]
+            
+            for key in expired_guest_keys:
+                del self.guest_cache[key]
+            
+            guest_cleaned = len(expired_guest_keys)
+            
+            # Clean up database cache
             conn = await asyncpg.connect(self.db_url)
             
             result = await conn.execute("""
@@ -200,9 +270,11 @@ class BirthChartCacheService:
             await conn.close()
             
             # Extract number of rows updated
-            rows_cleaned = int(result.split()[-1])
-            logger.info(f"✅ Cleaned up {rows_cleaned} expired birth chart cache entries")
-            return rows_cleaned
+            db_cleaned = int(result.split()[-1])
+            total_cleaned = guest_cleaned + db_cleaned
+            
+            logger.info(f"✅ Cleaned up {total_cleaned} expired birth chart cache entries ({guest_cleaned} guest, {db_cleaned} database)")
+            return total_cleaned
             
         except Exception as e:
             logger.error(f"Error cleaning up expired cache: {e}")
@@ -211,6 +283,15 @@ class BirthChartCacheService:
     async def get_cache_statistics(self) -> Dict[str, Any]:
         """Get birth chart cache statistics"""
         try:
+            # Count guest cache entries
+            current_time = datetime.now()
+            guest_total = len(self.guest_cache)
+            guest_valid = len([
+                key for key, data in self.guest_cache.items() 
+                if data['expires_at'] > current_time
+            ])
+            
+            # Get database cache statistics
             conn = await asyncpg.connect(self.db_url)
             
             stats = await conn.fetchrow("""
@@ -231,7 +312,9 @@ class BirthChartCacheService:
                 'users_with_valid_cache': stats['users_with_valid_cache'],
                 'users_with_free_chart': stats['users_with_free_chart'],
                 'cache_hit_ratio': stats['users_with_valid_cache'] / max(stats['total_users'], 1) * 100,
-                'avg_cache_age_days': float(stats['avg_cache_age_days'] or 0)
+                'avg_cache_age_days': float(stats['avg_cache_age_days'] or 0),
+                'guest_cache_total': guest_total,
+                'guest_cache_valid': guest_valid
             }
             
         except Exception as e:

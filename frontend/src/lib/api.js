@@ -91,10 +91,10 @@ const spiritualAPI = {
       
       // Check for access_token to determine success
       if (data.access_token && data.user) {
-        // Set admin role if admin email
+        // Trust backend role data - no more hardcoded email checking
         const user = {
           ...data.user,
-          role: this.isAdminEmail(email) ? 'admin' : (data.user.role || 'user')
+          role: data.user.role || 'user'
         };
         
         this.setAuthToken(data.access_token, user);
@@ -117,7 +117,7 @@ const spiritualAPI = {
   // Helper method to check if current user is admin
   isCurrentUserAdmin() {
     const user = JSON.parse(localStorage.getItem('jyotiflow_user') || '{}');
-    return user.role === 'admin' || this.isAdminEmail(user.email || '');
+    return user.role === 'admin';
   },
 
   async register(userData) {

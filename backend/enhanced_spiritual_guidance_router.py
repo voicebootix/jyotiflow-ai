@@ -10,7 +10,6 @@ from datetime import datetime
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
-import sqlite3
 import asyncpg
 
 # Try to import dynamic pricing system

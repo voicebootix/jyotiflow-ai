@@ -8,9 +8,9 @@ from typing import Dict, Optional, List
 from datetime import datetime, timedelta
 import asyncio
 from fastapi import HTTPException
-import sqlite3
-import aiosqlite
+import asyncpg
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +76,8 @@ class AgoraTokenGenerator:
 class AgoraChannelManager:
     """Manage Agora channels and sessions"""
     
-    def __init__(self, db_path: str = "backend/jyotiflow.db"):
-        self.db_path = db_path
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
         
     async def create_session_channel(self, user_id: int, session_type: str = "spiritual_guidance") -> Dict:
         """Create new Agora channel for live session
@@ -106,20 +106,23 @@ class AgoraChannelManager:
             }
             
             # Store in database
-            async with aiosqlite.connect(self.db_path) as conn:
+            conn = await asyncpg.connect(self.database_url)
+            try:
                 await conn.execute("""
                     INSERT INTO live_chat_sessions 
                     (session_id, user_id, channel_name, session_type, status, created_at, expires_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                """, (
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """, 
                     session_id, user_id, channel_name, session_type, 
-                    'created', session_data['created_at'], session_data['expires_at']
-                ))
-                await conn.commit()
+                    'created', datetime.now(), datetime.now() + timedelta(hours=1)
+                )
                 
-            logger.info(f"Session created: {session_id} for user {user_id}")
-            return session_data
-            
+                logger.info(f"Session created: {session_id} for user {user_id}")
+                return session_data
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Channel creation failed: {e}")
             raise HTTPException(status_code=500, detail="Channel creation failed")
@@ -136,38 +139,41 @@ class AgoraChannelManager:
         """
         try:
             # Get session details
-            async with aiosqlite.connect(self.db_path) as conn:
-                cursor = await conn.execute("""
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                session = await conn.fetchrow("""
                     SELECT channel_name, session_type, status, expires_at
                     FROM live_chat_sessions
-                    WHERE session_id = ?
-                """, (session_id,))
-                session = await cursor.fetchone()
+                    WHERE session_id = $1
+                """, session_id)
                 
-            if not session:
-                raise HTTPException(status_code=404, detail="Session not found")
+                if not session:
+                    raise HTTPException(status_code=404, detail="Session not found")
+                    
+                channel_name, session_type, status, expires_at = session
                 
-            channel_name, session_type, status, expires_at = session
-            
-            # Check if session is still active
-            if status != 'active':
-                raise HTTPException(status_code=400, detail="Session not active")
+                # Check if session is still active
+                if status != 'active':
+                    raise HTTPException(status_code=400, detail="Session not active")
+                    
+                # Check expiration
+                if expires_at < datetime.now():
+                    raise HTTPException(status_code=400, detail="Session expired")
                 
-            # Check expiration
-            if datetime.fromisoformat(expires_at) < datetime.now():
-                raise HTTPException(status_code=400, detail="Session expired")
-            
-            # Record participant join
-            await self._record_participant_join(session_id, user_id)
-            
-            return {
-                'session_id': session_id,
-                'channel_name': channel_name,
-                'session_type': session_type,
-                'user_id': user_id,
-                'status': 'ready_to_join'
-            }
-            
+                # Record participant join
+                await self._record_participant_join(session_id, user_id)
+                
+                return {
+                    'session_id': session_id,
+                    'channel_name': channel_name,
+                    'session_type': session_type,
+                    'user_id': user_id,
+                    'status': 'ready_to_join'
+                }
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Join channel failed: {e}")
             raise HTTPException(status_code=500, detail="Join channel failed")
@@ -175,13 +181,19 @@ class AgoraChannelManager:
     async def _record_participant_join(self, session_id: str, user_id: int):
         """Record user joining session"""
         try:
-            async with aiosqlite.connect(self.db_path) as conn:
+            conn = await asyncpg.connect(self.database_url)
+            try:
                 await conn.execute("""
-                    INSERT OR REPLACE INTO session_participants 
+                    INSERT INTO session_participants 
                     (session_id, user_id, joined_at, status)
-                    VALUES (?, ?, ?, ?)
-                """, (session_id, user_id, datetime.now().isoformat(), 'joined'))
-                await conn.commit()
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (session_id, user_id) 
+                    DO UPDATE SET joined_at = $3, status = $4
+                """, session_id, user_id, datetime.now(), 'joined')
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Failed to record participant join: {e}")
     
@@ -196,30 +208,32 @@ class AgoraChannelManager:
             Session end confirmation
         """
         try:
-            async with aiosqlite.connect(self.db_path) as conn:
+            conn = await asyncpg.connect(self.database_url)
+            try:
                 # Update session status
                 await conn.execute("""
                     UPDATE live_chat_sessions 
-                    SET status = 'ended', ended_at = ?
-                    WHERE session_id = ? AND user_id = ?
-                """, (datetime.now().isoformat(), session_id, user_id))
+                    SET status = 'ended', ended_at = $1
+                    WHERE session_id = $2 AND user_id = $3
+                """, datetime.now(), session_id, user_id)
                 
                 # Update participant status
                 await conn.execute("""
                     UPDATE session_participants 
-                    SET status = 'left', left_at = ?
-                    WHERE session_id = ? AND user_id = ?
-                """, (datetime.now().isoformat(), session_id, user_id))
+                    SET status = 'left', left_at = $1
+                    WHERE session_id = $2 AND user_id = $3
+                """, datetime.now(), session_id, user_id)
                 
-                await conn.commit()
+                logger.info(f"Session ended: {session_id}")
+                return {
+                    'session_id': session_id,
+                    'status': 'ended',
+                    'ended_at': datetime.now().isoformat()
+                }
                 
-            logger.info(f"Session ended: {session_id}")
-            return {
-                'session_id': session_id,
-                'status': 'ended',
-                'ended_at': datetime.now().isoformat()
-            }
-            
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"End session failed: {e}")
             raise HTTPException(status_code=500, detail="End session failed")
@@ -234,48 +248,50 @@ class AgoraChannelManager:
             Session status and participant info
         """
         try:
-            async with aiosqlite.connect(self.db_path) as conn:
+            conn = await asyncpg.connect(self.database_url)
+            try:
                 # Get session details
-                cursor = await conn.execute("""
+                session = await conn.fetchrow("""
                     SELECT session_id, user_id, channel_name, session_type, 
                            status, created_at, expires_at, ended_at
                     FROM live_chat_sessions
-                    WHERE session_id = ?
-                """, (session_id,))
-                session = await cursor.fetchone()
+                    WHERE session_id = $1
+                """, session_id)
                 
                 if not session:
                     raise HTTPException(status_code=404, detail="Session not found")
                 
                 # Get participants
-                cursor = await conn.execute("""
+                participants = await conn.fetch("""
                     SELECT user_id, joined_at, left_at, status
                     FROM session_participants
-                    WHERE session_id = ?
-                """, (session_id,))
-                participants = await cursor.fetchall()
+                    WHERE session_id = $1
+                """, session_id)
                 
-            session_data = {
-                'session_id': session[0],
-                'user_id': session[1],
-                'channel_name': session[2],
-                'session_type': session[3],
-                'status': session[4],
-                'created_at': session[5],
-                'expires_at': session[6],
-                'ended_at': session[7],
-                'participants': [
-                    {
-                        'user_id': p[0],
-                        'joined_at': p[1],
-                        'left_at': p[2],
-                        'status': p[3]
-                    } for p in participants
-                ]
-            }
-            
-            return session_data
-            
+                session_data = {
+                    'session_id': session['session_id'],
+                    'user_id': session['user_id'],
+                    'channel_name': session['channel_name'],
+                    'session_type': session['session_type'],
+                    'status': session['status'],
+                    'created_at': session['created_at'].isoformat() if session['created_at'] else None,
+                    'expires_at': session['expires_at'].isoformat() if session['expires_at'] else None,
+                    'ended_at': session['ended_at'].isoformat() if session['ended_at'] else None,
+                    'participants': [
+                        {
+                            'user_id': p['user_id'],
+                            'joined_at': p['joined_at'].isoformat() if p['joined_at'] else None,
+                            'left_at': p['left_at'].isoformat() if p['left_at'] else None,
+                            'status': p['status']
+                        } for p in participants
+                    ]
+                }
+                
+                return session_data
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Get session status failed: {e}")
             raise HTTPException(status_code=500, detail="Get session status failed")
@@ -284,11 +300,11 @@ class AgoraChannelManager:
 class AgoraServiceManager:
     """Main Agora service manager"""
     
-    def __init__(self, app_id: str, app_certificate: str, db_path: str = "backend/jyotiflow.db"):
+    def __init__(self, app_id: str, app_certificate: str, database_url: str = None):
         self.app_id = app_id
         self.app_certificate = app_certificate
         self.token_generator = AgoraTokenGenerator(app_id, app_certificate)
-        self.channel_manager = AgoraChannelManager(db_path)
+        self.channel_manager = AgoraChannelManager(database_url)
         
     async def initiate_live_session(self, user_id: int, session_type: str = "spiritual_guidance") -> Dict:
         """Complete flow to initiate live session with Agora
@@ -322,17 +338,20 @@ class AgoraServiceManager:
             })
             
             # Update session status to active
-            async with aiosqlite.connect(self.channel_manager.db_path) as conn:
+            conn = await asyncpg.connect(self.channel_manager.database_url)
+            try:
                 await conn.execute("""
                     UPDATE live_chat_sessions 
-                    SET status = 'active', agora_token = ?
-                    WHERE session_id = ?
-                """, (token, session_data['session_id']))
-                await conn.commit()
-            
-            logger.info(f"Live session initiated: {session_data['session_id']}")
-            return session_data
-            
+                    SET status = 'active', agora_token = $1
+                    WHERE session_id = $2
+                """, token, session_data['session_id'])
+                
+                logger.info(f"Live session initiated: {session_data['session_id']}")
+                return session_data
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Live session initiation failed: {e}")
             raise HTTPException(status_code=500, detail="Live session initiation failed")
@@ -340,20 +359,21 @@ class AgoraServiceManager:
     async def create_database_tables(self):
         """Create necessary database tables for Agora integration"""
         try:
-            async with aiosqlite.connect(self.channel_manager.db_path) as conn:
+            conn = await asyncpg.connect(self.channel_manager.database_url)
+            try:
                 # Live chat sessions table
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS live_chat_sessions (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_id TEXT UNIQUE NOT NULL,
+                        id SERIAL PRIMARY KEY,
+                        session_id VARCHAR(255) UNIQUE NOT NULL,
                         user_id INTEGER NOT NULL,
-                        channel_name TEXT NOT NULL,
-                        session_type TEXT DEFAULT 'spiritual_guidance',
+                        channel_name VARCHAR(255) NOT NULL,
+                        session_type VARCHAR(100) DEFAULT 'spiritual_guidance',
                         agora_token TEXT,
-                        status TEXT DEFAULT 'created',
-                        created_at TEXT NOT NULL,
-                        expires_at TEXT NOT NULL,
-                        ended_at TEXT,
+                        status VARCHAR(50) DEFAULT 'created',
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        expires_at TIMESTAMP NOT NULL,
+                        ended_at TIMESTAMP,
                         FOREIGN KEY (user_id) REFERENCES users(id)
                     )
                 """)
@@ -361,13 +381,14 @@ class AgoraServiceManager:
                 # Session participants table
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS session_participants (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_id TEXT NOT NULL,
+                        id SERIAL PRIMARY KEY,
+                        session_id VARCHAR(255) NOT NULL,
                         user_id INTEGER NOT NULL,
-                        joined_at TEXT NOT NULL,
-                        left_at TEXT,
-                        status TEXT DEFAULT 'joined',
-                        FOREIGN KEY (session_id) REFERENCES live_chat_sessions(session_id),
+                        joined_at TIMESTAMP DEFAULT NOW(),
+                        left_at TIMESTAMP,
+                        status VARCHAR(50) DEFAULT 'joined',
+                        UNIQUE(session_id, user_id),
+                        FOREIGN KEY (session_id) REFERENCES live_chat_sessions(session_id) ON DELETE CASCADE,
                         FOREIGN KEY (user_id) REFERENCES users(id)
                     )
                 """)
@@ -375,19 +396,21 @@ class AgoraServiceManager:
                 # Agora usage tracking
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS agora_usage_logs (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        session_id TEXT NOT NULL,
+                        id SERIAL PRIMARY KEY,
+                        session_id VARCHAR(255) NOT NULL,
                         user_id INTEGER NOT NULL,
                         duration_minutes INTEGER DEFAULT 0,
-                        cost_credits REAL DEFAULT 0,
-                        created_at TEXT NOT NULL,
-                        FOREIGN KEY (session_id) REFERENCES live_chat_sessions(session_id),
+                        cost_credits DECIMAL(10,2) DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        FOREIGN KEY (session_id) REFERENCES live_chat_sessions(session_id) ON DELETE CASCADE,
                         FOREIGN KEY (user_id) REFERENCES users(id)
                     )
                 """)
                 
-                await conn.commit()
                 logger.info("Agora database tables created successfully")
+                
+            finally:
+                await conn.close()
                 
         except Exception as e:
             logger.error(f"Database table creation failed: {e}")

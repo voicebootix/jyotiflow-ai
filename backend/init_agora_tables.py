@@ -1,225 +1,142 @@
 #!/usr/bin/env python3
 """
-Initialize Agora database tables for live chat functionality
+Initialize Agora tables for JyotiFlow video chat system
 """
-
-import sqlite3
+import asyncpg
+import asyncio
 import os
-from datetime import datetime
 
-# Database path
-DB_PATH = "backend/jyotiflow.db"
-
-def create_agora_tables():
-    """Create all necessary tables for Agora live chat functionality"""
-    
-    # Ensure database directory exists
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+async def init_agora_tables():
+    """Initialize all Agora-related tables in PostgreSQL"""
+    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
     
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            
-            print("🎥 Creating Agora live chat tables...")
-            
-            # Live chat sessions table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS live_chat_sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT UNIQUE NOT NULL,
-                    user_id INTEGER NOT NULL,
-                    channel_name TEXT NOT NULL,
-                    session_type TEXT DEFAULT 'spiritual_guidance',
-                    agora_token TEXT,
-                    status TEXT DEFAULT 'created',
-                    created_at TEXT NOT NULL,
-                    expires_at TEXT NOT NULL,
-                    ended_at TEXT,
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                )
-            """)
-            
-            # Session participants table
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS session_participants (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL,
-                    user_id INTEGER NOT NULL,
-                    joined_at TEXT NOT NULL,
-                    left_at TEXT,
-                    status TEXT DEFAULT 'joined',
-                    FOREIGN KEY (session_id) REFERENCES live_chat_sessions(session_id),
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                )
-            """)
-            
-            # Agora usage tracking
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS agora_usage_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    session_id TEXT NOT NULL,
-                    user_id INTEGER NOT NULL,
-                    duration_minutes INTEGER DEFAULT 0,
-                    cost_credits REAL DEFAULT 0,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (session_id) REFERENCES live_chat_sessions(session_id),
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                )
-            """)
-            
-            # Create indexes for performance
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_user_id 
-                ON live_chat_sessions(user_id)
-            """)
-            
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_live_chat_sessions_status 
-                ON live_chat_sessions(status)
-            """)
-            
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_session_participants_session_id 
-                ON session_participants(session_id)
-            """)
-            
-            cursor.execute("""
-                CREATE INDEX IF NOT EXISTS idx_agora_usage_logs_user_id 
-                ON agora_usage_logs(user_id)
-            """)
-            
-            conn.commit()
-            
-            print("✅ Agora tables created successfully!")
-            
-            # Verify tables exist
-            cursor.execute("""
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name LIKE '%live_chat%' OR name LIKE '%session_participants%' OR name LIKE '%agora_usage%'
-            """)
-            tables = cursor.fetchall()
-            
-            print(f"📋 Created tables: {[table[0] for table in tables]}")
-            
-            return True
-            
+        conn = await asyncpg.connect(database_url)
+        
+        # Create video_chat_sessions table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS video_chat_sessions (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) UNIQUE NOT NULL,
+                user_id INTEGER,
+                channel_name VARCHAR(255) NOT NULL,
+                user_token TEXT NOT NULL,
+                app_id VARCHAR(255) NOT NULL,
+                service_type VARCHAR(100) DEFAULT 'video_chat',
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                metadata JSONB DEFAULT '{}'::jsonb
+            )
+        """)
+        
+        # Create video_chat_recordings table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS video_chat_recordings (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                recording_sid VARCHAR(255) UNIQUE,
+                resource_id VARCHAR(255),
+                recording_url TEXT,
+                status VARCHAR(50) DEFAULT 'processing',
+                file_size INTEGER DEFAULT 0,
+                duration INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES video_chat_sessions(session_id)
+            )
+        """)
+        
+        # Create video_chat_analytics table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS video_chat_analytics (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                user_id INTEGER,
+                join_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                leave_time TIMESTAMP,
+                duration_seconds INTEGER DEFAULT 0,
+                quality_score INTEGER DEFAULT 0,
+                network_quality VARCHAR(50) DEFAULT 'unknown',
+                platform VARCHAR(50) DEFAULT 'web',
+                metadata JSONB DEFAULT '{}'::jsonb,
+                FOREIGN KEY (session_id) REFERENCES video_chat_sessions(session_id)
+            )
+        """)
+        
+        # Create indexes for better performance
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_sessions_user_id ON video_chat_sessions(user_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_sessions_status ON video_chat_sessions(status)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_sessions_created_at ON video_chat_sessions(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_recordings_session_id ON video_chat_recordings(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_analytics_session_id ON video_chat_analytics(session_id)")
+        
+        print("✅ Agora tables initialized successfully")
+        
     except Exception as e:
-        print(f"❌ Error creating Agora tables: {e}")
-        return False
+        print(f"❌ Error initializing Agora tables: {e}")
+        
+    finally:
+        await conn.close()
 
-def verify_agora_setup():
-    """Verify that all Agora tables are properly set up"""
+async def populate_sample_data():
+    """Populate sample data for testing"""
+    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
     
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            
-            # Check if tables exist
-            required_tables = [
-                'live_chat_sessions',
-                'session_participants', 
-                'agora_usage_logs'
-            ]
-            
-            for table in required_tables:
-                cursor.execute("""
-                    SELECT name FROM sqlite_master 
-                    WHERE type='table' AND name=?
-                """, (table,))
-                
-                if not cursor.fetchone():
-                    print(f"❌ Table {table} not found!")
-                    return False
-                else:
-                    print(f"✅ Table {table} verified")
-            
-            # Check table schemas
-            cursor.execute("PRAGMA table_info(live_chat_sessions)")
-            session_columns = [col[1] for col in cursor.fetchall()]
-            
-            required_session_columns = [
-                'id', 'session_id', 'user_id', 'channel_name', 
-                'session_type', 'agora_token', 'status', 
-                'created_at', 'expires_at', 'ended_at'
-            ]
-            
-            for col in required_session_columns:
-                if col not in session_columns:
-                    print(f"❌ Column {col} missing in live_chat_sessions!")
-                    return False
-                    
-            print("✅ All Agora tables and schemas verified successfully!")
-            return True
-            
+        conn = await asyncpg.connect(database_url)
+        
+        # Insert sample video chat session
+        await conn.execute("""
+            INSERT INTO video_chat_sessions (session_id, user_id, channel_name, user_token, app_id, service_type)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (session_id) DO NOTHING
+        """, 
+        'test_session_001', 
+        1, 
+        'jyotiflow_test_channel', 
+        'test_token_123', 
+        'your_agora_app_id',
+        'video_chat'
+        )
+        
+        print("✅ Sample data populated successfully")
+        
     except Exception as e:
-        print(f"❌ Error verifying Agora setup: {e}")
-        return False
+        print(f"❌ Error populating sample data: {e}")
+        
+    finally:
+        await conn.close()
 
-def add_demo_data():
-    """Add some demo data for testing"""
+async def cleanup_expired_sessions():
+    """Clean up expired video chat sessions"""
+    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
     
     try:
-        with sqlite3.connect(DB_PATH) as conn:
-            cursor = conn.cursor()
-            
-            # Check if users table exists and has data
-            cursor.execute("SELECT COUNT(*) FROM users")
-            user_count = cursor.fetchone()[0]
-            
-            if user_count == 0:
-                print("⚠️ No users found - cannot add demo data")
-                return
-                
-            # Get first user ID
-            cursor.execute("SELECT id FROM users LIMIT 1")
-            user_id = cursor.fetchone()[0]
-            
-            # Add demo live chat session
-            demo_session_id = "demo_session_12345"
-            demo_channel = "jyotiflow_spiritual_guidance_demo"
-            
-            cursor.execute("""
-                INSERT OR REPLACE INTO live_chat_sessions 
-                (session_id, user_id, channel_name, session_type, status, created_at, expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                demo_session_id,
-                user_id,
-                demo_channel,
-                'spiritual_guidance',
-                'ended',
-                datetime.now().isoformat(),
-                datetime.now().isoformat()
-            ))
-            
-            # Add demo usage log
-            cursor.execute("""
-                INSERT OR REPLACE INTO agora_usage_logs
-                (session_id, user_id, duration_minutes, cost_credits, created_at)
-                VALUES (?, ?, ?, ?, ?)
-            """, (
-                demo_session_id,
-                user_id,
-                30,
-                15.0,
-                datetime.now().isoformat()
-            ))
-            
-            conn.commit()
-            print("✅ Demo data added successfully!")
+        conn = await asyncpg.connect(database_url)
+        
+        # Update expired sessions
+        result = await conn.execute("""
+            UPDATE video_chat_sessions 
+            SET status = 'expired' 
+            WHERE expires_at < NOW() 
+            AND status = 'active'
+        """)
+        
+        # Get count of updated rows
+        updated_count = int(result.split()[-1])
+        
+        if updated_count > 0:
+            print(f"✅ Cleaned up {updated_count} expired sessions")
+        else:
+            print("✅ No expired sessions to clean up")
             
     except Exception as e:
-        print(f"❌ Error adding demo data: {e}")
+        print(f"❌ Error cleaning up expired sessions: {e}")
+        
+    finally:
+        await conn.close()
 
 if __name__ == "__main__":
-    print("🚀 Initializing Agora Live Chat Database...")
-    
-    if create_agora_tables():
-        if verify_agora_setup():
-            add_demo_data()
-            print("\n🎉 Agora integration database setup complete!")
-            print("You can now use the live chat functionality.")
-        else:
-            print("\n❌ Agora setup verification failed!")
-    else:
-        print("\n❌ Agora table creation failed!")
+    asyncio.run(init_agora_tables())
+    asyncio.run(populate_sample_data())
+    asyncio.run(cleanup_expired_sessions())

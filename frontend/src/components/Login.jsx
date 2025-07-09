@@ -42,11 +42,22 @@ const Login = () => {
       if (response.success) {
         console.log('✅ Login successful:', response);
         
-        // Get redirect path from URL or default
+        // Role-based redirect logic
+        const userRole = response.user?.role || 'user';
         const searchParams = new URLSearchParams(location.search);
-        const redirect = searchParams.get('redirect') || '/';
+        const redirect = searchParams.get('redirect');
         
-        navigate(redirect, { replace: true });
+        let redirectPath;
+        if (redirect) {
+          // Use specified redirect path
+          redirectPath = redirect;
+        } else {
+          // Default redirect based on user role
+          redirectPath = userRole === 'admin' ? '/admin' : '/profile';
+        }
+        
+        console.log(`🚀 Redirecting ${userRole} to:`, redirectPath);
+        navigate(redirectPath, { replace: true });
       } else {
         setError(response.message || t('loginError'));
         console.log('❌ Login failed:', response.message);

@@ -43,7 +43,16 @@ async def login(form: LoginForm, db=Depends(get_db)):
     if not bcrypt.checkpw(form.password.encode(), user["password_hash"].encode()):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     token = await create_jwt_token(user["id"], user["email"])
-    return {"access_token": token, "user": {"id": str(user["id"]), "email": user["email"], "full_name": user.get("full_name", "")}}
+    return {
+        "access_token": token, 
+        "user": {
+            "id": str(user["id"]), 
+            "email": user["email"], 
+            "full_name": user.get("full_name", ""),
+            "role": user.get("role", "user"),
+            "credits": user.get("credits", 0)
+        }
+    }
 
 # தமிழ் - பதிவு
 @router.post("/register")
@@ -71,6 +80,7 @@ async def register(form: RegisterForm, db=Depends(get_db)):
                 "id": str(user_id), 
                 "email": form.email, 
                 "full_name": form.full_name,
+                "role": "user",
                 "credits": free_credits
             }
         }

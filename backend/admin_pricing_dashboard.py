@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
-import sqlite3
+import asyncpg
+import os
 
 # Try to import dynamic pricing system
 try:
@@ -45,8 +46,8 @@ class PricingAnalyticsResponse(BaseModel):
 class AdminPricingDashboard:
     """Admin dashboard for managing dynamic pricing"""
     
-    def __init__(self, db_path: str = "backend/jyotiflow.db"):
-        self.db_path = db_path
+    def __init__(self, database_url: str = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
         
     async def get_pricing_overview(self) -> Dict[str, Any]:
         """Get comprehensive pricing overview for admin dashboard"""
@@ -102,32 +103,33 @@ class AdminPricingDashboard:
     async def _get_pricing_history(self) -> List[Dict[str, Any]]:
         """Get pricing history for the last 30 days"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            cursor.execute("""
-                SELECT service_name, old_price, new_price, reasoning, changed_at
-                FROM pricing_history
-                WHERE service_name = 'comprehensive_life_reading_30min'
-                AND changed_at > datetime('now', '-30 days')
-                ORDER BY changed_at DESC
-                LIMIT 50
-            """)
-            
-            history = []
-            for row in cursor.fetchall():
-                history.append({
-                    "service_name": row[0],
-                    "old_price": row[1],
-                    "new_price": row[2],
-                    "reasoning": row[3],
-                    "changed_at": row[4],
-                    "price_change": row[2] - row[1] if row[1] and row[2] else 0
-                })
-            
-            conn.close()
-            return history
-            
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                rows = await conn.fetch("""
+                    SELECT service_name, old_price, new_price, reasoning, changed_at
+                    FROM pricing_history
+                    WHERE service_name = 'comprehensive_life_reading_30min'
+                    AND changed_at > NOW() - INTERVAL '30 days'
+                    ORDER BY changed_at DESC
+                    LIMIT 50
+                """)
+                
+                history = []
+                for row in rows:
+                    history.append({
+                        "service_name": row['service_name'],
+                        "old_price": row['old_price'],
+                        "new_price": row['new_price'],
+                        "reasoning": row['reasoning'],
+                        "changed_at": row['changed_at'].isoformat() if row['changed_at'] else None,
+                        "price_change": row['new_price'] - row['old_price'] if row['old_price'] and row['new_price'] else 0
+                    })
+                
+                return history
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Pricing history error: {e}")
             return []
@@ -135,70 +137,70 @@ class AdminPricingDashboard:
     async def _get_demand_analytics(self) -> Dict[str, Any]:
         """Get demand analytics for pricing decisions"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get session counts by day for last 30 days
-            cursor.execute("""
-                SELECT 
-                    DATE(created_at) as session_date,
-                    COUNT(*) as session_count,
-                    AVG(credits_required) as avg_price_paid
-                FROM sessions
-                WHERE service_type = 'comprehensive_life_reading_30min'
-                AND created_at > datetime('now', '-30 days')
-                GROUP BY DATE(created_at)
-                ORDER BY session_date DESC
-            """)
-            
-            daily_demand = []
-            for row in cursor.fetchall():
-                daily_demand.append({
-                    "date": row[0],
-                    "sessions": row[1],
-                    "avg_price": row[2] or 0
-                })
-            
-            # Get hourly demand patterns
-            cursor.execute("""
-                SELECT 
-                    CAST(strftime('%H', created_at) AS INTEGER) as hour,
-                    COUNT(*) as session_count
-                FROM sessions
-                WHERE service_type = 'comprehensive_life_reading_30min'
-                AND created_at > datetime('now', '-7 days')
-                GROUP BY CAST(strftime('%H', created_at) AS INTEGER)
-                ORDER BY hour
-            """)
-            
-            hourly_demand = []
-            for row in cursor.fetchall():
-                hourly_demand.append({
-                    "hour": row[0],
-                    "sessions": row[1]
-                })
-            
-            conn.close()
-            
-            # Calculate demand trends
-            total_sessions = sum(day["sessions"] for day in daily_demand)
-            avg_daily_sessions = total_sessions / max(len(daily_demand), 1)
-            
-            recent_7_days = daily_demand[:7]
-            recent_avg = sum(day["sessions"] for day in recent_7_days) / max(len(recent_7_days), 1)
-            
-            trend = "increasing" if recent_avg > avg_daily_sessions else "decreasing"
-            
-            return {
-                "daily_demand": daily_demand,
-                "hourly_demand": hourly_demand,
-                "total_sessions_30_days": total_sessions,
-                "avg_daily_sessions": avg_daily_sessions,
-                "recent_7_day_avg": recent_avg,
-                "trend": trend,
-                "peak_hours": sorted(hourly_demand, key=lambda x: x["sessions"], reverse=True)[:3]
-            }
-            
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Get session counts by day for last 30 days
+                daily_rows = await conn.fetch("""
+                    SELECT 
+                        DATE(created_at) as session_date,
+                        COUNT(*) as session_count,
+                        AVG(credits_used) as avg_price_paid
+                    FROM sessions
+                    WHERE service_type = 'comprehensive_life_reading_30min'
+                    AND created_at > NOW() - INTERVAL '30 days'
+                    GROUP BY DATE(created_at)
+                    ORDER BY session_date DESC
+                """)
+                
+                daily_demand = []
+                for row in daily_rows:
+                    daily_demand.append({
+                        "date": row['session_date'].isoformat() if row['session_date'] else None,
+                        "sessions": row['session_count'],
+                        "avg_price": float(row['avg_price_paid']) if row['avg_price_paid'] else 0
+                    })
+                
+                # Get hourly demand patterns
+                hourly_rows = await conn.fetch("""
+                    SELECT 
+                        EXTRACT(HOUR FROM created_at)::INTEGER as hour,
+                        COUNT(*) as session_count
+                    FROM sessions
+                    WHERE service_type = 'comprehensive_life_reading_30min'
+                    AND created_at > NOW() - INTERVAL '7 days'
+                    GROUP BY EXTRACT(HOUR FROM created_at)
+                    ORDER BY hour
+                """)
+                
+                hourly_demand = []
+                for row in hourly_rows:
+                    hourly_demand.append({
+                        "hour": row['hour'],
+                        "sessions": row['session_count']
+                    })
+                
+                # Calculate demand trends
+                total_sessions = sum(day["sessions"] for day in daily_demand)
+                avg_daily_sessions = total_sessions / max(len(daily_demand), 1)
+                
+                recent_7_days = daily_demand[:7]
+                recent_avg = sum(day["sessions"] for day in recent_7_days) / max(len(recent_7_days), 1)
+                
+                trend = "increasing" if recent_avg > avg_daily_sessions else "decreasing"
+                
+                return {
+                    "daily_demand": daily_demand,
+                    "hourly_demand": hourly_demand,
+                    "total_sessions_30_days": total_sessions,
+                    "avg_daily_sessions": avg_daily_sessions,
+                    "recent_7_day_avg": recent_avg,
+                    "trend": trend,
+                    "peak_hours": sorted(hourly_demand, key=lambda x: x["sessions"], reverse=True)[:3]
+                }
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Demand analytics error: {e}")
             return {
@@ -214,79 +216,77 @@ class AdminPricingDashboard:
     async def _calculate_revenue_impact(self) -> Dict[str, Any]:
         """Calculate revenue impact of pricing changes"""
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Get revenue for last 30 days
-            cursor.execute("""
-                SELECT 
-                    SUM(credits_required) as total_revenue,
-                    COUNT(*) as total_sessions,
-                    AVG(credits_required) as avg_price_per_session
-                FROM sessions
-                WHERE service_type = 'comprehensive_life_reading_30min'
-                AND created_at > datetime('now', '-30 days')
-            """)
-            
-            revenue_data = cursor.fetchone()
-            
-            # Get revenue by price point
-            cursor.execute("""
-                SELECT 
-                    credits_required,
-                    COUNT(*) as sessions,
-                    SUM(credits_required) as revenue
-                FROM sessions
-                WHERE service_type = 'comprehensive_life_reading_30min'
-                AND created_at > datetime('now', '-30 days')
-                GROUP BY credits_required
-                ORDER BY credits_required
-            """)
-            
-            price_performance = []
-            for row in cursor.fetchall():
-                price_performance.append({
-                    "price": row[0],
-                    "sessions": row[1],
-                    "revenue": row[2],
-                    "revenue_per_session": row[0]
-                })
-            
-            conn.close()
-            
-            # Calculate projections
-            total_revenue = revenue_data[0] if revenue_data[0] else 0
-            total_sessions = revenue_data[1] if revenue_data[1] else 0
-            avg_price = revenue_data[2] if revenue_data[2] else 0
-            
-            # Simulate revenue impact of price changes
-            price_scenarios = []
-            for price_change in [-2, -1, 0, 1, 2]:
-                new_price = avg_price + price_change
-                # Estimate demand change (simple elasticity model)
-                demand_change = -0.1 * price_change  # 10% demand change per credit
-                estimated_sessions = total_sessions * (1 + demand_change)
-                estimated_revenue = estimated_sessions * new_price
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Get revenue for last 30 days
+                revenue_row = await conn.fetchrow("""
+                    SELECT 
+                        SUM(credits_used) as total_revenue,
+                        COUNT(*) as total_sessions,
+                        AVG(credits_used) as avg_price_per_session
+                    FROM sessions
+                    WHERE service_type = 'comprehensive_life_reading_30min'
+                    AND created_at > NOW() - INTERVAL '30 days'
+                """)
                 
-                price_scenarios.append({
-                    "price": new_price,
-                    "estimated_sessions": max(0, estimated_sessions),
-                    "estimated_revenue": max(0, estimated_revenue),
-                    "revenue_change": estimated_revenue - total_revenue
-                })
-            
-            return {
-                "current_revenue_30_days": total_revenue,
-                "current_sessions_30_days": total_sessions,
-                "current_avg_price": avg_price,
-                "price_performance": price_performance,
-                "price_scenarios": price_scenarios,
-                "optimal_price_range": {
-                    "min": avg_price - 1,
-                    "max": avg_price + 1
+                # Get revenue by price point
+                price_rows = await conn.fetch("""
+                    SELECT 
+                        credits_used,
+                        COUNT(*) as sessions,
+                        SUM(credits_used) as revenue
+                    FROM sessions
+                    WHERE service_type = 'comprehensive_life_reading_30min'
+                    AND created_at > NOW() - INTERVAL '30 days'
+                    GROUP BY credits_used
+                    ORDER BY credits_used
+                """)
+                
+                price_performance = []
+                for row in price_rows:
+                    price_performance.append({
+                        "price": row['credits_used'],
+                        "sessions": row['sessions'],
+                        "revenue": row['revenue'],
+                        "revenue_per_session": row['credits_used']
+                    })
+                
+                # Calculate projections
+                total_revenue = float(revenue_row['total_revenue']) if revenue_row['total_revenue'] else 0
+                total_sessions = revenue_row['total_sessions'] if revenue_row['total_sessions'] else 0
+                avg_price = float(revenue_row['avg_price_per_session']) if revenue_row['avg_price_per_session'] else 0
+                
+                # Simulate revenue impact of price changes
+                price_scenarios = []
+                for price_change in [-2, -1, 0, 1, 2]:
+                    new_price = avg_price + price_change
+                    # Estimate demand change (simple elasticity model)
+                    demand_change = -0.1 * price_change  # 10% demand change per credit
+                    estimated_sessions = total_sessions * (1 + demand_change)
+                    estimated_revenue = estimated_sessions * new_price
+                    
+                    price_scenarios.append({
+                        "price": new_price,
+                        "estimated_sessions": max(0, estimated_sessions),
+                        "estimated_revenue": max(0, estimated_revenue),
+                        "revenue_change": estimated_revenue - total_revenue
+                    })
+                
+                return {
+                    "current_revenue_30_days": total_revenue,
+                    "current_sessions_30_days": total_sessions,
+                    "current_avg_price": avg_price,
+                    "price_performance": price_performance,
+                    "price_scenarios": price_scenarios,
+                    "optimal_price_range": {
+                        "min": avg_price - 1,
+                        "max": avg_price + 1
+                    }
                 }
-            }
-            
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Revenue impact calculation error: {e}")
             return {
@@ -349,44 +349,43 @@ class AdminPricingDashboard:
                     "message": "Dynamic pricing system not available"
                 }
             
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-            
-            # Store pricing override
-            cursor.execute("""
-                INSERT INTO pricing_overrides 
-                (service_type, override_price, duration_hours, reason, created_at, expires_at, status)
-                VALUES (?, ?, ?, ?, datetime('now'), datetime('now', '+' || ? || ' hours'), 'active')
-            """, (
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Store pricing override
+                await conn.execute("""
+                    INSERT INTO pricing_overrides 
+                    (service_type, override_price, duration_hours, reason, created_at, expires_at, status)
+                    VALUES ($1, $2, $3, $4, NOW(), NOW() + INTERVAL '%s hours', 'active')
+                """, 
                 override_request.service_type,
                 override_request.override_price,
                 override_request.duration_hours,
                 override_request.reason,
                 override_request.duration_hours
-            ))
-            
-            # Update service price immediately
-            cursor.execute("""
-                UPDATE service_types 
-                SET credits_required = ?, last_price_update = datetime('now')
-                WHERE name = ?
-            """, (
+                )
+                
+                # Update service price immediately
+                await conn.execute("""
+                    UPDATE service_types 
+                    SET credits_required = $1, last_price_update = NOW()
+                    WHERE name = $2
+                """, 
                 override_request.override_price,
                 override_request.service_type
-            ))
-            
-            conn.commit()
-            conn.close()
-            
-            logger.info(f"Pricing override set: {override_request.service_type} -> {override_request.override_price} credits")
-            
-            return {
-                "success": True,
-                "message": "Pricing override set successfully",
-                "override_price": override_request.override_price,
-                "expires_at": (datetime.now() + timedelta(hours=override_request.duration_hours)).isoformat()
-            }
-            
+                )
+                
+                logger.info(f"Pricing override set: {override_request.service_type} -> {override_request.override_price} credits")
+                
+                return {
+                    "success": True,
+                    "message": "Pricing override set successfully",
+                    "override_price": override_request.override_price,
+                    "expires_at": (datetime.now() + timedelta(hours=override_request.duration_hours)).isoformat()
+                }
+                
+            finally:
+                await conn.close()
+                
         except Exception as e:
             logger.error(f"Pricing override error: {e}")
             return {
@@ -505,7 +504,7 @@ async def get_pricing_alerts():
 
 @admin_pricing_router.post("/trigger-recommendation")
 async def trigger_pricing_recommendation():
-    """Generate pricing recommendation for admin review"""
+    """Trigger a new pricing recommendation calculation"""
     try:
         if not DYNAMIC_PRICING_AVAILABLE:
             return {
@@ -513,24 +512,28 @@ async def trigger_pricing_recommendation():
                 "message": "Dynamic pricing system not available"
             }
         
-        pricing_recommendation = await generate_pricing_recommendations()
+        # Generate new pricing recommendation
+        recommendations = await generate_pricing_recommendations()
         
         return {
             "success": True,
             "message": "Pricing recommendation generated successfully",
-            "recommendation": pricing_recommendation,
-            "requires_admin_approval": True
+            "recommendations": recommendations
         }
+        
     except Exception as e:
         logger.error(f"Pricing recommendation error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "success": False,
+            "message": f"Failed to generate pricing recommendation: {str(e)}"
+        }
 
 @admin_pricing_router.post("/apply-pricing")
 async def apply_admin_approved_pricing_endpoint(
     approved_price: float,
     admin_notes: str = ""
 ):
-    """Apply admin-approved pricing change"""
+    """Apply admin-approved pricing"""
     try:
         if not DYNAMIC_PRICING_AVAILABLE:
             return {
@@ -540,28 +543,54 @@ async def apply_admin_approved_pricing_endpoint(
         
         result = await apply_admin_approved_pricing(approved_price, admin_notes)
         
-        return result
+        return {
+            "success": True,
+            "message": "Admin-approved pricing applied successfully",
+            "result": result
+        }
+        
     except Exception as e:
-        logger.error(f"Admin pricing application error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Apply pricing error: {e}")
+        return {
+            "success": False,
+            "message": f"Failed to apply pricing: {str(e)}"
+        }
 
 @admin_pricing_router.get("/health")
 async def get_pricing_system_health():
     """Get pricing system health status"""
-    return {
-        "dynamic_pricing_available": DYNAMIC_PRICING_AVAILABLE,
-        "system_status": "operational" if DYNAMIC_PRICING_AVAILABLE else "limited",
-        "last_check": datetime.now().isoformat(),
-        "capabilities": {
-            "real_time_pricing": DYNAMIC_PRICING_AVAILABLE,
-            "demand_analytics": DYNAMIC_PRICING_AVAILABLE,
-            "automated_updates": DYNAMIC_PRICING_AVAILABLE,
-            "manual_overrides": DYNAMIC_PRICING_AVAILABLE
+    try:
+        health_data = {
+            "dynamic_pricing_available": DYNAMIC_PRICING_AVAILABLE,
+            "database_connected": True,
+            "timestamp": datetime.now().isoformat()
         }
-    }
-
-# Export router for inclusion in main app
-router = admin_pricing_router
+        
+        # Test database connection
+        try:
+            conn = await asyncpg.connect(pricing_dashboard.database_url)
+            await conn.execute("SELECT 1")
+            await conn.close()
+            health_data["database_connected"] = True
+        except Exception as e:
+            health_data["database_connected"] = False
+            health_data["database_error"] = str(e)
+        
+        return {
+            "success": True,
+            "health": health_data
+        }
+        
+    except Exception as e:
+        logger.error(f"Health check error: {e}")
+        return {
+            "success": False,
+            "health": {
+                "dynamic_pricing_available": False,
+                "database_connected": False,
+                "error": str(e)
+            }
+        }
 
 if __name__ == "__main__":
     async def test_admin_dashboard():
@@ -570,14 +599,20 @@ if __name__ == "__main__":
         
         dashboard = AdminPricingDashboard()
         
-        # Test overview
+        # Test pricing overview
+        print("\n📊 Testing Pricing Overview:")
         overview = await dashboard.get_pricing_overview()
-        print(f"✅ Overview status: {overview['status']}")
+        print(f"   Status: {overview.get('status')}")
+        print(f"   Current Price: {overview.get('current_pricing', {}).get('current_price', 'N/A')}")
+        print(f"   System Health: {overview.get('system_health')}")
         
-        # Test alerts
+        # Test pricing alerts
+        print("\n🚨 Testing Pricing Alerts:")
         alerts = await dashboard.get_pricing_alerts()
-        print(f"📢 Alerts: {len(alerts)} active")
+        print(f"   Total Alerts: {len(alerts)}")
+        for alert in alerts[:3]:  # Show first 3 alerts
+            print(f"   - {alert.get('type')}: {alert.get('message')}")
         
-        print("\n🎉 Admin pricing dashboard is working!")
+        print("\n✅ Admin Pricing Dashboard Test Complete!")
     
     asyncio.run(test_admin_dashboard())
