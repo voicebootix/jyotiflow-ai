@@ -11,12 +11,12 @@ psycopg2-binary==2.9.9
 
 
 # தமிழ் - Authentication and security
-PyJWT==2.10.1  # Updated JWT handling
-bcrypt==4.3.0  # Updated password hashing
+PyJWT==2.8.0  # Stable JWT handling
+bcrypt==4.1.3  # Stable password hashing
 python-multipart==0.0.20
 
 # তমিল - Payment processing
-stripe==12.3.0  # Updated Stripe integration
+stripe==8.1.0  # Stable Stripe integration
 
 # 🤖 REAL AI Integration - UPDATED VERSION
 openai==1.93.2  # Updated OpenAI integration
@@ -49,7 +49,7 @@ gunicorn==21.2.0
 alembic==1.13.0
 
 # তমিল - Optional: Caching
-redis==6.2.0  # Updated Redis client
+redis==5.0.1  # Stable Redis Python client
 
 # தமিল - Optional: Email functionality
 aiosmtplib==3.0.1
@@ -74,7 +74,7 @@ numpy==1.26.2
 pytz==2023.3
 
 # তমিল - Optional: URL parsing
-yarl==1.17.0
+yarl==1.9.4
 
 # তমিল - Optional: JSON handling
 orjson==3.9.10
@@ -107,8 +107,8 @@ google-auth==2.23.4  # YouTube authentication
 
 # 🚀 CRITICAL: Social Media Marketing Automation Dependencies
 # These are required for social media marketing automation to work
-psutil==7.0.0  # Updated for system monitoring
-scikit-learn==1.7.0  # Updated for ML analytics
+psutil==5.9.8  # Stable version for system monitoring
+scikit-learn==1.3.2  # Compatible with numpy 1.26.x
 jinja2==3.1.2
 
 # 🔧 CRITICAL: Missing Dependencies for Social Media Marketing
