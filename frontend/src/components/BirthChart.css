@@ -1,0 +1,215 @@
+/* South Indian Birth Chart Styling */
+.south-indian-chart {
+  font-family: 'Inter', sans-serif;
+}
+
+.south-indian-chart .grid {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  padding: 8px;
+}
+
+/* Individual house cells */
+.south-indian-chart .aspect-square {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  border: 2px solid #475569;
+  background: linear-gradient(135deg, #3730a3 0%, #4338ca 100%);
+}
+
+.south-indian-chart .aspect-square:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(67, 56, 202, 0.4);
+  border-color: #6366f1;
+}
+
+/* House number styling */
+.house-number {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  background: linear-gradient(135deg, #4338ca 0%, #3730a3 100%);
+  color: white;
+  font-size: 8px;
+  font-weight: bold;
+  padding: 2px 4px;
+  border-radius: 0 0 6px 0;
+  z-index: 10;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* Sign text styling */
+.house-sign {
+  font-weight: 600;
+  color: #c7d2fe;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  letter-spacing: 0.5px;
+}
+
+/* Planet symbols styling */
+.planet-symbol {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  color: #451a03;
+  font-weight: bold;
+  border-radius: 4px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: all 0.2s ease;
+}
+
+.planet-symbol:hover {
+  transform: scale(1.1);
+  box-shadow: 0 2px 6px rgba(251, 191, 36, 0.3);
+}
+
+/* House lord styling */
+.house-lord {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  color: #a5b4fc;
+  font-size: 8px;
+  font-weight: 500;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
+}
+
+/* Empty center cells */
+.south-indian-chart .bg-gray-700 {
+  background: linear-gradient(135deg, #374151 0%, #4b5563 100%);
+  border: 1px solid #6b7280;
+}
+
+/* Chart title styling */
+.chart-title {
+  background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Legend styling */
+.chart-legend {
+  background: linear-gradient(135deg, #312e81 0%, #3730a3 100%);
+  border: 1px solid #4338ca;
+  border-radius: 8px;
+  padding: 12px;
+  margin-top: 16px;
+}
+
+/* Data cards styling */
+.data-card {
+  background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+  border: 1px solid #475569;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.data-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* Planet position cards */
+.planet-card {
+  background: linear-gradient(135deg, #065f46 0%, #047857 100%);
+  border: 1px solid #059669;
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.3s ease;
+}
+
+.planet-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
+}
+
+/* House info cards */
+.house-card {
+  background: linear-gradient(135deg, #134e4a 0%, #0f766e 100%);
+  border: 1px solid #14b8a6;
+  border-radius: 8px;
+  padding: 12px;
+  transition: all 0.3s ease;
+}
+
+.house-card:hover {
+  transform: scale(1.02);
+  box-shadow: 0 4px 12px rgba(20, 184, 166, 0.2);
+}
+
+/* Dasha info styling */
+.dasha-card {
+  background: linear-gradient(135deg, #9a3412 0%, #c2410c 100%);
+  border: 1px solid #ea580c;
+  border-radius: 12px;
+  padding: 24px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .south-indian-chart .grid {
+    max-width: 280px;
+    gap: 2px;
+  }
+  
+  .south-indian-chart .aspect-square {
+    font-size: 10px;
+  }
+  
+  .house-number {
+    font-size: 7px;
+    padding: 1px 3px;
+  }
+  
+  .planet-symbol {
+    font-size: 7px;
+    padding: 1px 2px;
+  }
+}
+
+@media (max-width: 480px) {
+  .south-indian-chart .grid {
+    max-width: 240px;
+  }
+  
+  .data-card {
+    padding: 16px;
+  }
+}
+
+/* Animation for chart loading */
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.south-indian-chart {
+  animation: fadeInScale 0.6s ease-out;
+}
+
+/* Glow effect for important elements */
+.glow-effect {
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+/* Planet symbol hover effects */
+.planet-symbol-sun { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); }
+.planet-symbol-moon { background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%); }
+.planet-symbol-mars { background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%); }
+.planet-symbol-mercury { background: linear-gradient(135deg, #10b981 0%, #059669 100%); }
+.planet-symbol-jupiter { background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); }
+.planet-symbol-venus { background: linear-gradient(135deg, #ec4899 0%, #db2777 100%); }
+.planet-symbol-saturn { background: linear-gradient(135deg, #374151 0%, #111827 100%); }
+.planet-symbol-rahu { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); }
+.planet-symbol-ketu { background: linear-gradient(135deg, #9333ea 0%, #7c3aed 100%); }
