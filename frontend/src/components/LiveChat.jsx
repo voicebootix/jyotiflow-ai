@@ -305,7 +305,7 @@ const LiveChat = () => {
                       <div className="text-left">
                         <div className="font-semibold">Audio Mode</div>
                         <div className="text-sm opacity-75">Voice-only session</div>
-                        <div className="text-xs text-green-600">3 base credits + 0.3/min</div>
+                        <div className="text-xs text-green-600">Lower cost option</div>
                       </div>
                     </button>
                     
@@ -321,7 +321,7 @@ const LiveChat = () => {
                       <div className="text-left">
                         <div className="font-semibold">Video Mode</div>
                         <div className="text-sm opacity-75">Full video session</div>
-                        <div className="text-xs text-blue-600">5 base credits + 0.5/min</div>
+                        <div className="text-xs text-blue-600">Premium experience</div>
                       </div>
                     </button>
                   </div>

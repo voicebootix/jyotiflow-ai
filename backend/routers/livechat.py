@@ -45,38 +45,42 @@ class SessionStatusResponse(BaseModel):
     ended_at: Optional[str]
     participants: List[Dict]
 
+# Import existing Universal Pricing Engine
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from universal_pricing_engine import UniversalPricingEngine, ServiceConfiguration
+
 # Helper functions
-async def get_livechat_pricing(session_type: str, duration_minutes: int, mode: str, db) -> int:
-    """Get pricing for live chat session from database or default"""
+async def get_livechat_pricing_from_universal_engine(session_type: str, duration_minutes: int, mode: str, db) -> int:
+    """Get pricing using existing Universal Pricing Engine"""
     try:
-        # Try to get from pricing_config table
-        pricing_query = await db.fetch_one("""
-            SELECT config_value FROM pricing_config 
-            WHERE config_key = ? AND is_active = true
-        """, (f"livechat_{mode}_{session_type}",))
+        # Create service configuration for live chat
+        service_config = ServiceConfiguration(
+            name=f"livechat_{mode}",
+            display_name=f"Live Chat - {mode.title()} Mode",
+            duration_minutes=duration_minutes,
+            voice_enabled=True,  # Both modes have voice
+            video_enabled=(mode == "video"),
+            interactive_enabled=True,  # Live chat is interactive
+            birth_chart_enabled=False,
+            remedies_enabled=False,
+            knowledge_domains=["spiritual_guidance"],
+            persona_modes=["compassionate_guide"],
+            base_credits=5 if mode == "video" else 3,
+            service_category="live_chat"
+        )
         
-        if pricing_query:
-            return int(pricing_query['config_value'])
+        # Use existing Universal Pricing Engine
+        engine = UniversalPricingEngine()
+        pricing_result = await engine.calculate_service_price(service_config)
         
-        # Default pricing structure
-        base_costs = {
-            "audio": 3,    # 3 credits base for audio
-            "video": 5     # 5 credits base for video
-        }
-        
-        per_minute_costs = {
-            "audio": 0.3,  # 0.3 credits per minute for audio
-            "video": 0.5   # 0.5 credits per minute for video
-        }
-        
-        base_cost = base_costs.get(mode, 5)
-        per_minute_cost = per_minute_costs.get(mode, 0.5)
-        
-        return int(base_cost + (duration_minutes * per_minute_cost))
+        logger.info(f"Universal pricing for {mode} live chat: {pricing_result.recommended_price} credits")
+        return int(pricing_result.recommended_price)
         
     except Exception as e:
-        logger.error(f"Pricing calculation failed: {e}")
-        # Fallback pricing
+        logger.error(f"Universal pricing calculation failed: {e}")
+        # Fallback to simple pricing
         return 10 if mode == "video" else 8
 
 async def validate_user_credits(user_id: int, required_credits: int, db) -> bool:
@@ -112,9 +116,9 @@ async def initiate_live_chat(
     try:
         user_id = current_user['user_id']
         
-        # Calculate required credits using dynamic pricing
+        # Calculate required credits using Universal Pricing Engine
         duration_minutes = request.duration_minutes or 30  # Default to 30 minutes
-        required_credits = await get_livechat_pricing(
+        required_credits = await get_livechat_pricing_from_universal_engine(
             request.session_type, 
             duration_minutes, 
             request.mode,
