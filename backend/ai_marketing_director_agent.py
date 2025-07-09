@@ -689,5 +689,5 @@ class AIMarketingDirectorAgent:
         return {}
 
 # Global instance for the AI Marketing Director
-ai_marketing_director = AIMarketingDirector()
+ai_marketing_director = AIMarketingDirectorAgent()
 
