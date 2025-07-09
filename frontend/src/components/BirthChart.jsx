@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, MapPin, Sun, Moon, Star, Circle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import './BirthChart.css'; // Add custom CSS for South Indian chart
 import spiritualAPI from '../lib/api';
 import FreeReportHook from './FreeReportHook';
 
 const BirthChart = () => {
+  const navigate = useNavigate();
   const [birthDetails, setBirthDetails] = useState({
     date: '',
     time: '',
@@ -1122,7 +1124,7 @@ Report generated on: ${new Date().toISOString()}
               <FreeReportHook 
                 size="large"
                 buttonText="Get Your Complete Personalized Reading from Swamiji FREE"
-                onButtonClick={() => window.location.href = '/register'}
+                onButtonClick={() => navigate('/register')}
               />
             </div>
           </div>
@@ -1134,7 +1136,7 @@ Report generated on: ${new Date().toISOString()}
             <FreeReportHook 
               size="default"
               buttonText="Skip the Wait - Get Your Complete Report FREE"
-              onButtonClick={() => window.location.href = '/register'}
+              onButtonClick={() => navigate('/register')}
             />
           </div>
         )}
