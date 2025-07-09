@@ -13,7 +13,7 @@ psycopg2-binary==2.9.9
 # தமிழ் - Authentication and security
 PyJWT==2.10.1  # Updated JWT handling
 bcrypt==4.3.0  # Updated password hashing
-python-multipart==0.0.6
+python-multipart==0.0.20
 
 # তমিল - Payment processing
 stripe==12.3.0  # Updated Stripe integration
