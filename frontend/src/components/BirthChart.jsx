@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Sun, Moon, Star, Circle } from 'lucide-react';
+import { Calendar, Clock, MapPin, Sun, Moon, Star, Circle, Triangle, Square, AlertCircle, Loader2, Save, Info, Download, Share2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './BirthChart.css'; // Add custom CSS for South Indian chart
 import spiritualAPI from '../lib/api';
