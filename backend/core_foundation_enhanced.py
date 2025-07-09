@@ -3,7 +3,6 @@ import jwt
 import bcrypt
 import string
 import asyncpg
-import aiosqlite
 import logging
 import secrets
 import sys

@@ -1,64 +1,47 @@
+import asyncpg
 import asyncio
-import aiosqlite
 import os
 
 async def create_credit_packages():
-    # Use SQLite database
-    db_path = "jyotiflow.db"
-    conn = await aiosqlite.connect(db_path)
+    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+    conn = await asyncpg.connect(database_url)
     
     try:
-        # Create credit_packages table
-        await conn.execute('''
+        # Create credit packages table if it doesn't exist
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS credit_packages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT,
-                credits INTEGER,
-                price_usd REAL,
-                bonus_credits INTEGER DEFAULT 0,
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                credits INTEGER NOT NULL,
+                price_usd DECIMAL(10, 2) NOT NULL,
                 description TEXT,
-                enabled INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
-        ''')
+        """)
         
-        # Create credit_transactions table
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS credit_transactions (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id TEXT,
-                package_id INTEGER,
-                credits_purchased INTEGER,
-                bonus_credits INTEGER,
-                total_credits INTEGER,
-                amount_usd REAL,
-                status TEXT,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
-        ''')
-        
-        # Insert sample credit packages with bonus credits
+        # Insert default credit packages
         packages = [
-            ('Starter Pack', 10, 9.99, 2, 'Perfect for beginners'),
-            ('Spiritual Seeker', 25, 19.99, 5, 'Great value for regular users'),
-            ('Divine Wisdom', 50, 34.99, 15, 'Best value with maximum bonus'),
-            ('Enlightened Master', 100, 59.99, 30, 'Ultimate spiritual journey package')
+            (10, 9.99, "Starter Package", "Perfect for trying our services"),
+            (25, 19.99, "Popular Package", "Great value for regular users"),
+            (50, 34.99, "Value Package", "Best value for frequent users"),
+            (100, 59.99, "Premium Package", "Maximum credits for power users")
         ]
         
-        for name, credits, price, bonus, description in packages:
-            await conn.execute('''
-                INSERT OR IGNORE INTO credit_packages (name, credits, price_usd, bonus_credits, description) 
-                VALUES (?, ?, ?, ?, ?)
-            ''', (name, credits, price, bonus, description))
+        for credits, price, name, description in packages:
+            await conn.execute("""
+                INSERT INTO credit_packages (name, credits, price_usd, description)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (name) DO UPDATE SET
+                    credits = $2,
+                    price_usd = $3,
+                    description = $4
+            """, name, credits, price, description)
         
-        await conn.commit()
+        print("✅ Credit packages created successfully")
         
-        print('✅ Credit packages created successfully with bonus credits!')
-        print('📦 Available packages:')
-        for name, credits, price, bonus, description in packages:
-            total = credits + bonus
-            print(f'   • {name}: {credits} credits + {bonus} bonus = {total} total (${price})')
-    
+    except Exception as e:
+        print(f"❌ Error creating credit packages: {e}")
+        
     finally:
         await conn.close()
 

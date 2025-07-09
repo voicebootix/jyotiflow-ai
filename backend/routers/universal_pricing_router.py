@@ -6,7 +6,6 @@ Handles dynamic pricing for all services and Satsang management
 from fastapi import APIRouter, Depends, HTTPException, Body
 from typing import Dict, Any, List, Optional
 import json
-import sqlite3
 from datetime import datetime, timedelta
 import sys
 import os
@@ -74,16 +73,16 @@ async def apply_pricing_change(pricing_data: Dict[str, Any] = Body(...), db=Depe
         # Update service price in database
         await db.execute("""
             UPDATE service_types 
-            SET credits_required = ?, 
-                updated_at = CURRENT_TIMESTAMP
-            WHERE name = ? OR display_name = ?
-        """, approved_price, service_name, service_name)
+            SET credits_required = $1, 
+                updated_at = NOW()
+            WHERE name = $2 OR display_name = $2
+        """, approved_price, service_name)
         
         # Log the pricing change
         await db.execute("""
             INSERT INTO ai_pricing_recommendations 
             (service_type, recommendation_data, confidence_score, status, admin_notes, applied_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            VALUES ($1, $2, $3, $4, $5, NOW())
         """, service_name, json.dumps({
             "approved_price": approved_price,
             "admin_notes": admin_notes,
@@ -107,9 +106,9 @@ async def get_pricing_history(service_name: str, limit: int = 50, db=Depends(get
         result = await db.fetch("""
             SELECT recommendation_data, admin_notes, applied_at, status
             FROM ai_pricing_recommendations
-            WHERE service_type = ?
+            WHERE service_type = $1
             ORDER BY applied_at DESC
-            LIMIT ?
+            LIMIT $2
         """, service_name, limit)
         
         history = []
@@ -136,16 +135,12 @@ async def get_pricing_history(service_name: str, limit: int = 50, db=Depends(get
 async def get_satsang_events(status: Optional[str] = None, db=Depends(get_db)):
     """Get Satsang events"""
     try:
-        query = "SELECT * FROM satsang_events"
-        params = []
-        
         if status:
-            query += " WHERE status = ?"
-            params.append(status)
-        
-        query += " ORDER BY scheduled_at DESC"
-        
-        result = await db.fetch(query, *params)
+            query = "SELECT * FROM satsang_events WHERE status = $1 ORDER BY scheduled_at DESC"
+            result = await db.fetch(query, status)
+        else:
+            query = "SELECT * FROM satsang_events ORDER BY scheduled_at DESC"
+            result = await db.fetch(query)
         
         events = []
         for row in result:
@@ -193,7 +188,7 @@ async def create_satsang_event(event_data: Dict[str, Any] = Body(...), db=Depend
             (title, description, scheduled_at, duration_minutes, theme, event_type,
              has_donations, interactive_level, voice_enabled, video_enabled, 
              base_credits, dynamic_pricing_enabled, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         """, 
             event_data.get("title"),
             event_data.get("description", ""),
@@ -224,11 +219,11 @@ async def get_satsang_pricing(event_id: int, db=Depends(get_db)):
     """Get pricing for a specific Satsang event"""
     try:
         # Get event details
-        result = await db.fetchone("""
+        result = await db.fetchrow("""
             SELECT title, duration_minutes, event_type, has_donations, 
                    interactive_level, voice_enabled, video_enabled, base_credits
             FROM satsang_events 
-            WHERE id = ?
+            WHERE id = $1
         """, event_id)
         
         if not result:
@@ -267,7 +262,7 @@ async def get_satsang_donations(event_id: int, db=Depends(get_db)):
             SELECT user_id, amount_credits, amount_usd, message, is_superchat,
                    highlight_duration, donation_type, created_at
             FROM satsang_donations 
-            WHERE satsang_event_id = ?
+            WHERE satsang_event_id = $1
             ORDER BY created_at DESC
         """, event_id)
         
@@ -334,7 +329,7 @@ async def create_satsang_donation(
             INSERT INTO satsang_donations 
             (satsang_event_id, user_id, amount_credits, amount_usd, message,
              is_superchat, highlight_duration, donation_type)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         """, 
             event_id,
             donation_data.get("user_id"),
@@ -373,10 +368,10 @@ async def get_api_usage_metrics(days: int = 7, db=Depends(get_db)):
                    AVG(average_response_time) as avg_response_time,
                    SUM(error_count) as total_errors
             FROM api_usage_metrics 
-            WHERE date >= date('now', '-{} days')
+            WHERE date >= CURRENT_DATE - INTERVAL '%s days'
             GROUP BY api_name
             ORDER BY total_cost_credits DESC
-        """.format(days))
+        """, days)
         
         metrics = []
         for row in result:
@@ -407,7 +402,7 @@ async def track_api_usage(usage_data: Dict[str, Any] = Body(...), db=Depends(get
         await db.execute("""
             INSERT INTO service_usage_logs 
             (service_type, api_name, usage_type, usage_amount, cost_usd, cost_credits, session_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
         """,
             usage_data.get("service_type"),
             usage_data.get("api_name"),
@@ -418,22 +413,21 @@ async def track_api_usage(usage_data: Dict[str, Any] = Body(...), db=Depends(get
             usage_data.get("session_id")
         )
         
-        # Update daily metrics
+        # Update daily metrics using PostgreSQL UPSERT
         today = datetime.now().date()
         await db.execute("""
-            INSERT OR REPLACE INTO api_usage_metrics 
+            INSERT INTO api_usage_metrics 
             (api_name, endpoint, calls_count, total_cost_usd, total_cost_credits, date)
-            VALUES (?, ?, 
-                COALESCE((SELECT calls_count FROM api_usage_metrics WHERE api_name = ? AND date = ?), 0) + 1,
-                COALESCE((SELECT total_cost_usd FROM api_usage_metrics WHERE api_name = ? AND date = ?), 0) + ?,
-                COALESCE((SELECT total_cost_credits FROM api_usage_metrics WHERE api_name = ? AND date = ?), 0) + ?,
-                ?)
+            VALUES ($1, $2, 1, $3, $4, $5)
+            ON CONFLICT (api_name, date) DO UPDATE SET
+                calls_count = api_usage_metrics.calls_count + 1,
+                total_cost_usd = api_usage_metrics.total_cost_usd + $3,
+                total_cost_credits = api_usage_metrics.total_cost_credits + $4
         """,
             usage_data.get("api_name"),
             usage_data.get("endpoint", ""),
-            usage_data.get("api_name"), today,
-            usage_data.get("api_name"), today, usage_data.get("cost_usd", 0),
-            usage_data.get("api_name"), today, usage_data.get("cost_credits", 0),
+            usage_data.get("cost_usd", 0),
+            usage_data.get("cost_credits", 0),
             today
         )
         
