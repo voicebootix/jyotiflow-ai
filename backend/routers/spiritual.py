@@ -140,7 +140,7 @@ async def get_birth_chart(request: Request):
         "ayanamsa": "1"
     }
     
-    # Chart-specific parameters
+    # Chart-specific parameters - try multiple endpoint variations
     chart_params = {
         "datetime": datetime_str,
         "coordinates": coordinates,
@@ -149,10 +149,17 @@ async def get_birth_chart(request: Request):
         "format": "json"
     }
     
+    # Alternative chart parameters without style/format
+    chart_params_alt = {
+        "datetime": datetime_str,
+        "coordinates": coordinates,
+        "ayanamsa": "1"
+    }
+    
     for attempt in range(2):  # Try once, refresh token and retry if 401
         try:
             token = await get_prokerala_token()
-            print(f"[BirthChart] Using Prokerala token: {token}")
+            print(f"[BirthChart] Using Prokerala token: {token[:20]}...")
             async with httpx.AsyncClient() as client:
                 headers = {"Authorization": f"Bearer {token}"}
                 
@@ -166,37 +173,110 @@ async def get_birth_chart(request: Request):
                 
                 if basic_resp.status_code == 401 and attempt == 0:
                     # Token expired, refresh and retry
+                    print("[BirthChart] Token expired, refreshing...")
                     await fetch_prokerala_token()
                     continue
                 elif basic_resp.status_code == 200:
                     basic_data = basic_resp.json()
-                    print(f"[BirthChart] Birth details response: {basic_data}")
+                    print(f"[BirthChart] Birth details response keys: {list(basic_data.keys())}")
                     if "data" in basic_data:
                         chart_data.update(basic_data["data"])
+                        print(f"[BirthChart] Birth details data keys: {list(basic_data['data'].keys())}")
                 else:
                     print(f"[BirthChart] Birth details API error: {basic_resp.status_code} - {basic_resp.text}")
                 
-                # Get chart visualization data
-                chart_resp = await client.get(
+                # Try multiple chart endpoints
+                chart_endpoints = [
                     "https://api.prokerala.com/v2/astrology/chart",
-                    headers=headers,
-                    params=chart_params
-                )
-                print(f"[BirthChart] Chart visualization status: {chart_resp.status_code}")
+                    "https://api.prokerala.com/v2/astrology/vedic-chart",
+                    "https://api.prokerala.com/v2/astrology/rasi-chart",
+                    "https://api.prokerala.com/v2/astrology/birth-chart"
+                ]
                 
-                if chart_resp.status_code == 200:
-                    chart_visual_data = chart_resp.json()
-                    print(f"[BirthChart] Chart visualization response: {chart_visual_data}")
-                    if "data" in chart_visual_data:
-                        chart_data["chart_visualization"] = chart_visual_data["data"]
+                chart_visualization_obtained = False
+                
+                for endpoint in chart_endpoints:
+                    try:
+                        print(f"[BirthChart] Trying chart endpoint: {endpoint}")
+                        
+                        # Try with detailed parameters first
+                        chart_resp = await client.get(
+                            endpoint,
+                            headers=headers,
+                            params=chart_params
+                        )
+                        print(f"[BirthChart] Chart endpoint {endpoint} status: {chart_resp.status_code}")
+                        
+                        if chart_resp.status_code == 200:
+                            chart_visual_data = chart_resp.json()
+                            print(f"[BirthChart] Chart response keys: {list(chart_visual_data.keys())}")
+                            print(f"[BirthChart] Chart response sample: {str(chart_visual_data)[:500]}...")
+                            
+                            if "data" in chart_visual_data:
+                                chart_data["chart_visualization"] = chart_visual_data["data"]
+                                print(f"[BirthChart] ✅ Chart visualization data obtained from {endpoint}")
+                                chart_visualization_obtained = True
+                                break
+                            else:
+                                # Sometimes the chart data is in the root
+                                if any(key in chart_visual_data for key in ['houses', 'planets', 'chart_url', 'chart_data']):
+                                    chart_data["chart_visualization"] = chart_visual_data
+                                    print(f"[BirthChart] ✅ Chart visualization data obtained from {endpoint} (root level)")
+                                    chart_visualization_obtained = True
+                                    break
+                        elif chart_resp.status_code == 400:
+                            # Try with simpler parameters
+                            print(f"[BirthChart] Trying {endpoint} with simpler parameters...")
+                            chart_resp = await client.get(
+                                endpoint,
+                                headers=headers,
+                                params=chart_params_alt
+                            )
+                            print(f"[BirthChart] Chart endpoint {endpoint} (alt params) status: {chart_resp.status_code}")
+                            
+                            if chart_resp.status_code == 200:
+                                chart_visual_data = chart_resp.json()
+                                print(f"[BirthChart] Chart response keys: {list(chart_visual_data.keys())}")
+                                
+                                if "data" in chart_visual_data:
+                                    chart_data["chart_visualization"] = chart_visual_data["data"]
+                                    print(f"[BirthChart] ✅ Chart visualization data obtained from {endpoint} (alt params)")
+                                    chart_visualization_obtained = True
+                                    break
+                                else:
+                                    if any(key in chart_visual_data for key in ['houses', 'planets', 'chart_url', 'chart_data']):
+                                        chart_data["chart_visualization"] = chart_visual_data
+                                        print(f"[BirthChart] ✅ Chart visualization data obtained from {endpoint} (alt params, root level)")
+                                        chart_visualization_obtained = True
+                                        break
+                            else:
+                                print(f"[BirthChart] Chart endpoint {endpoint} (alt params) failed: {chart_resp.status_code} - {chart_resp.text[:200]}...")
+                        else:
+                            print(f"[BirthChart] Chart endpoint {endpoint} failed: {chart_resp.status_code} - {chart_resp.text[:200]}...")
+                    except Exception as e:
+                        print(f"[BirthChart] Error calling {endpoint}: {e}")
+                        continue
+                
+                if not chart_visualization_obtained:
+                    print("[BirthChart] ⚠️ No chart visualization data obtained from any endpoint")
+                    # Create a basic chart structure from birth details if available
+                    if chart_data:
+                        chart_data["chart_visualization"] = {
+                            "note": "Chart visualization not available - displaying birth details only",
+                            "birth_details": {
+                                "nakshatra": chart_data.get("nakshatra", {}).get("name", "N/A"),
+                                "chandra_rasi": chart_data.get("chandra_rasi", {}).get("name", "N/A"),
+                                "soorya_rasi": chart_data.get("soorya_rasi", {}).get("name", "N/A"),
+                                "lagna": chart_data.get("lagna", {}).get("name", "N/A") if chart_data.get("lagna") else "N/A"
+                            }
+                        }
+                        print("[BirthChart] ✅ Created basic chart structure from birth details")
+                
+                # Break out of the retry loop if we got basic data
+                if basic_resp.status_code == 200:
                     break
                 else:
-                    print(f"[BirthChart] Chart visualization API error: {chart_resp.status_code} - {chart_resp.text}")
-                    # Continue with just basic data if chart endpoint fails
-                    if basic_resp.status_code == 200:
-                        break
-                    else:
-                        raise HTTPException(status_code=503, detail=f"Prokerala API error: {basic_resp.status_code}")
+                    raise HTTPException(status_code=503, detail=f"Prokerala API error: {basic_resp.status_code}")
                     
         except Exception as e:
             print(f"[BirthChart] Prokerala API error: {e}")
@@ -223,8 +303,9 @@ async def get_birth_chart(request: Request):
                 },
                 "calculation_method": "Vedic Astrology (Prokerala API)",
                 "ayanamsa": "Lahiri",
-                "data_source": "Prokerala API v2/astrology/birth-details + chart",
-                "note": "Real astrological data from Prokerala API with chart visualization",
+                "data_source": "Prokerala API v2/astrology/birth-details + chart endpoints",
+                "chart_visualization_available": bool(chart_data.get("chart_visualization")),
+                "note": "Real astrological data from Prokerala API with enhanced chart visualization support",
                 "cache_hit": False
             }
         }

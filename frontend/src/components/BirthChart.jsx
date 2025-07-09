@@ -314,67 +314,119 @@ Report generated on: ${new Date().toISOString()}
           <div className="font-medium">✅ Real Astrological Data</div>
           <div>Source: {chartData.metadata?.data_source || 'Prokerala API'}</div>
           <div>Method: {chartData.metadata?.calculation_method || 'Vedic Astrology'}</div>
-          {chartData.chart_visualization && (
-            <div className="text-green-200">🎯 Chart visualization data received!</div>
+          {chartData.metadata?.chart_visualization_available && (
+            <div className="text-green-200">🎯 Chart visualization data available!</div>
           )}
         </div>
 
         {/* Chart Visualization */}
-        {chartData.chart_visualization ? (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
-            <div className="bg-gray-900 rounded-lg p-6">
-              {chartData.chart_visualization.chart_url ? (
-                <div className="text-center">
-                  <img 
-                    src={chartData.chart_visualization.chart_url} 
-                    alt="Vedic Birth Chart" 
-                    className="max-w-full mx-auto rounded-lg border border-gray-600"
-                  />
-                  <div className="mt-4 text-sm text-gray-400">
-                    Chart Type: {chartData.chart_visualization.chart_type || 'Rasi'}
-                  </div>
-                </div>
-              ) : chartData.chart_visualization.houses ? (
-                <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
-                  {Object.entries(chartData.chart_visualization.houses).map(([houseNum, houseData]) => (
-                    <div key={houseNum} className="bg-gray-700 p-4 rounded-lg text-center">
-                      <div className="text-yellow-400 font-semibold">House {houseNum}</div>
-                      <div className="text-white text-sm mt-1">{houseData.sign || 'N/A'}</div>
-                      {houseData.planets && houseData.planets.length > 0 && (
-                        <div className="text-gray-300 text-xs mt-2">
-                          {houseData.planets.map(planet => (
-                            <div key={planet.name} className="flex items-center justify-center">
-                              {planetIcons[planet.name] || <Circle className="w-3 h-3" />}
-                              <span className="ml-1">{planet.name}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+        <div className="bg-gray-800 rounded-lg p-6">
+          <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
+          <div className="bg-gray-900 rounded-lg p-6">
+            {chartData.chart_visualization ? (
+              <div>
+                {/* Check if we have chart URL */}
+                {chartData.chart_visualization.chart_url ? (
+                  <div className="text-center">
+                    <img 
+                      src={chartData.chart_visualization.chart_url} 
+                      alt="Vedic Birth Chart" 
+                      className="max-w-full mx-auto rounded-lg border border-gray-600"
+                    />
+                    <div className="mt-4 text-sm text-gray-400">
+                      Chart Type: {chartData.chart_visualization.chart_type || 'Rasi'}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center p-4">
-                  <div className="text-green-400 mb-2">📊 Chart data received from API</div>
-                  <pre className="text-xs text-gray-300 bg-gray-800 p-4 rounded overflow-auto max-h-48">
-                    {JSON.stringify(chartData.chart_visualization, null, 2)}
-                  </pre>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-gray-800 rounded-lg p-6">
-            <h3 className="text-xl font-semibold mb-4 text-yellow-400">Birth Chart Visualization</h3>
-            <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
-              <div className="text-gray-400 mb-2">📊 Chart visualization loading...</div>
-              <div className="text-sm text-gray-500">
-                Attempting to fetch chart data from Prokerala API
+                  </div>
+                ) : chartData.chart_visualization.houses ? (
+                  /* House-based chart display */
+                  <div>
+                    <h4 className="text-lg font-medium text-white mb-4">House Positions</h4>
+                    <div className="grid grid-cols-3 gap-4 max-w-2xl mx-auto">
+                      {Array.from({length: 12}, (_, i) => {
+                        const houseNum = i + 1;
+                        const houseData = chartData.chart_visualization.houses[houseNum.toString()] || {};
+                        return (
+                          <div key={houseNum} className="bg-gray-700 p-4 rounded-lg text-center">
+                            <div className="text-yellow-400 font-semibold">House {houseNum}</div>
+                            <div className="text-white text-sm mt-1">{houseData.sign || 'N/A'}</div>
+                            {houseData.planets && houseData.planets.length > 0 && (
+                              <div className="text-gray-300 text-xs mt-2">
+                                {houseData.planets.map((planet, idx) => (
+                                  <div key={idx} className="flex items-center justify-center">
+                                    {planetIcons[planet.name] || <Circle className="w-3 h-3" />}
+                                    <span className="ml-1">{planet.name}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : chartData.chart_visualization.planets ? (
+                  /* Planet-based chart display */
+                  <div>
+                    <h4 className="text-lg font-medium text-white mb-4">Planetary Positions</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      {chartData.chart_visualization.planets.map((planet, index) => (
+                        <div key={index} className="bg-gray-700 p-4 rounded-lg">
+                          <div className="flex items-center text-white font-medium">
+                            {planetIcons[planet.name] || <Circle className="w-4 h-4" />}
+                            <span className="ml-2">{planet.name}</span>
+                          </div>
+                          <div className="text-gray-300 text-sm mt-1">
+                            {planet.sign && <div>Sign: {planet.sign}</div>}
+                            {planet.house && <div>House: {planet.house}</div>}
+                            {planet.degree && <div>Degree: {planet.degree}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : chartData.chart_visualization.birth_details ? (
+                  /* Fallback birth details display */
+                  <div>
+                    <h4 className="text-lg font-medium text-white mb-4">Birth Chart Information</h4>
+                    <div className="bg-yellow-900 border border-yellow-700 text-yellow-200 px-4 py-3 rounded-md mb-4">
+                      <div className="font-medium">⚠️ Limited Visualization Available</div>
+                      <div className="text-sm">{chartData.chart_visualization.note || 'Chart visualization endpoint not accessible'}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      {Object.entries(chartData.chart_visualization.birth_details).map(([key, value]) => (
+                        <div key={key} className="bg-gray-700 p-4 rounded-lg">
+                          <div className="text-yellow-400 font-medium capitalize">{key.replace('_', ' ')}</div>
+                          <div className="text-white">{value}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  /* Raw chart data display */
+                  <div className="text-center p-4">
+                    <div className="text-green-400 mb-2">📊 Chart data received from API</div>
+                    <div className="text-sm text-gray-400 mb-4">
+                      Raw chart visualization data - structure may vary
+                    </div>
+                    <pre className="text-xs text-gray-300 bg-gray-800 p-4 rounded overflow-auto max-h-48">
+                      {JSON.stringify(chartData.chart_visualization, null, 2)}
+                    </pre>
+                  </div>
+                )}
               </div>
-            </div>
+            ) : (
+              <div className="text-center p-8 border-2 border-dashed border-gray-600 rounded-lg">
+                <div className="text-gray-400 mb-2">📊 Chart visualization loading...</div>
+                <div className="text-sm text-gray-500">
+                  Attempting to fetch chart data from Prokerala API
+                </div>
+                <div className="text-xs text-gray-600 mt-2">
+                  Note: Chart visualization depends on API endpoint availability
+                </div>
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Basic Birth Information */}
         <div className="bg-gray-800 rounded-lg p-6">
@@ -409,7 +461,7 @@ Report generated on: ${new Date().toISOString()}
         </div>
 
         {/* Additional Birth Information */}
-        {(chartData.janma_ghati || chartData.ayanamsa) && (
+        {(chartData.janma_ghati || chartData.ayanamsa || chartData.sunrise || chartData.sunset) && (
           <div className="bg-gray-800 rounded-lg p-6">
             <h3 className="text-xl font-semibold mb-4 text-yellow-400">Astrological Details</h3>
             <div className="grid grid-cols-2 gap-4 text-sm">
