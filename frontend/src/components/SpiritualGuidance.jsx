@@ -14,6 +14,7 @@ const SpiritualGuidance = () => {
     birthLocation: '',
     question: ''
   });
+  const [formErrors, setFormErrors] = useState({});
   const [guidance, setGuidance] = useState(null);
   const [avatarVideo, setAvatarVideo] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -142,15 +143,144 @@ const SpiritualGuidance = () => {
     await refreshData();
   };
 
+  // Time validation and normalization function
+  const normalizeTime = (timeString) => {
+    if (!timeString) return '';
+    
+    // Remove extra spaces and convert to lowercase
+    const cleanTime = timeString.trim().toLowerCase();
+    
+    // Handle 12-hour format (10:30 am/pm)
+    const time12Match = cleanTime.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
+    if (time12Match) {
+      let [, hours, minutes, period] = time12Match;
+      hours = parseInt(hours);
+      
+      // Convert to 24-hour format
+      if (period === 'pm' && hours !== 12) {
+        hours += 12;
+      } else if (period === 'am' && hours === 12) {
+        hours = 0;
+      }
+      
+      return `${hours.toString().padStart(2, '0')}:${minutes}`;
+    }
+    
+    // Handle 24-hour format (22:30)
+    const time24Match = cleanTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (time24Match) {
+      const [, hours, minutes] = time24Match;
+      const hoursNum = parseInt(hours);
+      const minutesNum = parseInt(minutes);
+      
+      // Validate time range
+      if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
+        return `${hoursNum.toString().padStart(2, '0')}:${minutes}`;
+      }
+    }
+    
+    // Return original value if no valid format found
+    return timeString;
+  };
+
+  // Validate time format
+  const validateTimeFormat = (timeString) => {
+    if (!timeString) return { isValid: false, message: 'Birth time is required' };
+    
+    const cleanTime = timeString.trim().toLowerCase();
+    
+    // Check for 12-hour format (10:30 am/pm)
+    const time12Match = cleanTime.match(/^(\d{1,2}):(\d{2})\s*(am|pm)$/);
+    if (time12Match) {
+      const [, hours, minutes] = time12Match;
+      const hoursNum = parseInt(hours);
+      const minutesNum = parseInt(minutes);
+      
+      if (hoursNum >= 1 && hoursNum <= 12 && minutesNum >= 0 && minutesNum <= 59) {
+        return { isValid: true, message: '' };
+      }
+    }
+    
+    // Check for 24-hour format (22:30)
+    const time24Match = cleanTime.match(/^(\d{1,2}):(\d{2})$/);
+    if (time24Match) {
+      const [, hours, minutes] = time24Match;
+      const hoursNum = parseInt(hours);
+      const minutesNum = parseInt(minutes);
+      
+      if (hoursNum >= 0 && hoursNum <= 23 && minutesNum >= 0 && minutesNum <= 59) {
+        return { isValid: true, message: '' };
+      }
+    }
+    
+    return { 
+      isValid: false, 
+      message: 'Please enter time in format "10:30 AM" or "22:30"' 
+    };
+  };
+
   const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    const { name, value } = e.target;
+    
+    // Special handling for birth time
+    if (name === 'birthTime') {
+      const normalizedTime = normalizeTime(value);
+      setFormData({
+        ...formData,
+        [name]: normalizedTime
+      });
+      
+      // Validate time format and show error if invalid
+      const validation = validateTimeFormat(value);
+      setFormErrors(prev => ({
+        ...prev,
+        birthTime: validation.isValid ? '' : validation.message
+      }));
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      });
+      
+      // Clear error for other fields
+      setFormErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate all fields before submission
+    const birthTimeValidation = validateTimeFormat(formData.birthTime);
+    const errors = {};
+    
+    if (!birthTimeValidation.isValid) {
+      errors.birthTime = birthTimeValidation.message;
+    }
+    
+    if (!formData.birthDate) {
+      errors.birthDate = 'Birth date is required';
+    }
+    
+    if (!formData.birthLocation) {
+      errors.birthLocation = 'Birth location is required';
+    }
+    
+    if (!formData.question) {
+      errors.question = 'Please enter your question';
+    }
+    
+    // If there are errors, don't submit
+    if (Object.keys(errors).length > 0) {
+      setFormErrors(errors);
+      return;
+    }
+    
+    // Clear any previous errors
+    setFormErrors({});
     
     setIsLoading(true);
     setGuidance(null);
@@ -602,9 +732,16 @@ const SpiritualGuidance = () => {
                     name="birthDate"
                     value={formData.birthDate}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 ${
+                      formErrors.birthDate ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     required
                   />
+                  {formErrors.birthDate && (
+                    <div className="text-red-500 text-sm mt-1">
+                      {formErrors.birthDate}
+                    </div>
+                  )}
                 </div>
                 
                 <div>
@@ -612,13 +749,25 @@ const SpiritualGuidance = () => {
                     Birth Time
                   </label>
                   <input
-                    type="time"
+                    type="text"
                     name="birthTime"
                     value={formData.birthTime}
                     onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    placeholder="10:30 AM or 22:30"
+                    pattern="^(0?[1-9]|1[0-2]):[0-5][0-9]\s?(AM|PM|am|pm)$|^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 ${
+                      formErrors.birthTime ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     required
                   />
+                  {formErrors.birthTime && (
+                    <div className="text-red-500 text-sm mt-1">
+                      {formErrors.birthTime}
+                    </div>
+                  )}
+                  <div className="text-xs text-gray-500 mt-1">
+                    Enter time in 24-hour format (22:30) or 12-hour format (10:30 PM)
+                  </div>
                 </div>
                 
                 <div>
@@ -631,9 +780,16 @@ const SpiritualGuidance = () => {
                     value={formData.birthLocation}
                     onChange={handleInputChange}
                     placeholder="City, Country"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 ${
+                      formErrors.birthLocation ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     required
                   />
+                  {formErrors.birthLocation && (
+                    <div className="text-red-500 text-sm mt-1">
+                      {formErrors.birthLocation}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -648,9 +804,16 @@ const SpiritualGuidance = () => {
                   onChange={handleInputChange}
                   rows={4}
                   placeholder="Share what guidance you seek from the divine wisdom..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-yellow-500 ${
+                    formErrors.question ? 'border-red-500' : 'border-gray-300'
+                  }`}
                   required
                 />
+                {formErrors.question && (
+                  <div className="text-red-500 text-sm mt-1">
+                    {formErrors.question}
+                  </div>
+                )}
               </div>
 
               {/* Submit Button */}
