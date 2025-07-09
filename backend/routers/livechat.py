@@ -21,6 +21,7 @@ class LiveChatSessionRequest(BaseModel):
     session_type: str = "spiritual_guidance"
     duration_minutes: Optional[int] = 30
     topic: Optional[str] = None
+    mode: str = "video"  # "audio" or "video"
     
 class LiveChatSessionResponse(BaseModel):
     session_id: str
@@ -29,36 +30,54 @@ class LiveChatSessionResponse(BaseModel):
     agora_token: str
     user_role: str
     session_type: str
+    mode: str
     expires_at: str
     status: str
+    credits_used: int
 
 class SessionStatusResponse(BaseModel):
     session_id: str
     status: str
     channel_name: str
+    mode: str
     created_at: str
     expires_at: str
     ended_at: Optional[str]
     participants: List[Dict]
 
-# Validation helpers
-async def validate_user_subscription(user_id: int, db) -> bool:
-    """Validate user has Premium/Elite subscription for live chat"""
+# Helper functions
+async def get_livechat_pricing(session_type: str, duration_minutes: int, mode: str, db) -> int:
+    """Get pricing for live chat session from database or default"""
     try:
-        # Check user subscription tier
-        user_subscription = await db.fetch_one("""
-            SELECT subscription_tier FROM users WHERE id = ?
-        """, (user_id,))
+        # Try to get from pricing_config table
+        pricing_query = await db.fetch_one("""
+            SELECT config_value FROM pricing_config 
+            WHERE config_key = ? AND is_active = true
+        """, (f"livechat_{mode}_{session_type}",))
         
-        if not user_subscription:
-            return False
-            
-        tier = user_subscription['subscription_tier']
-        return tier in ['premium', 'elite']
+        if pricing_query:
+            return int(pricing_query['config_value'])
+        
+        # Default pricing structure
+        base_costs = {
+            "audio": 3,    # 3 credits base for audio
+            "video": 5     # 5 credits base for video
+        }
+        
+        per_minute_costs = {
+            "audio": 0.3,  # 0.3 credits per minute for audio
+            "video": 0.5   # 0.5 credits per minute for video
+        }
+        
+        base_cost = base_costs.get(mode, 5)
+        per_minute_cost = per_minute_costs.get(mode, 0.5)
+        
+        return int(base_cost + (duration_minutes * per_minute_cost))
         
     except Exception as e:
-        logger.error(f"Subscription validation failed: {e}")
-        return False
+        logger.error(f"Pricing calculation failed: {e}")
+        # Fallback pricing
+        return 10 if mode == "video" else 8
 
 async def validate_user_credits(user_id: int, required_credits: int, db) -> bool:
     """Validate user has sufficient credits"""
@@ -86,27 +105,23 @@ async def initiate_live_chat(
     """Initiate a live chat session with Swamiji
     
     This endpoint:
-    1. Validates user subscription (Premium/Elite required)
-    2. Validates user credits
-    3. Creates Agora channel and generates token
-    4. Returns session credentials for frontend
+    1. Validates user credits (NO subscription requirement)
+    2. Creates Agora channel and generates token
+    3. Returns session credentials for frontend
     """
     try:
         user_id = current_user['user_id']
         
-        # Validate subscription
-        if not await validate_user_subscription(user_id, db):
-            raise HTTPException(
-                status_code=403, 
-                detail="Premium या Elite सदस्यता आवश्यक है लाइव चैट के लिए"
-            )
+        # Calculate required credits using dynamic pricing
+        duration_minutes = request.duration_minutes or 30  # Default to 30 minutes
+        required_credits = await get_livechat_pricing(
+            request.session_type, 
+            duration_minutes, 
+            request.mode,
+            db
+        )
         
-        # Calculate required credits (basic cost calculation)
-        base_cost = 5  # 5 credits for live session
-        duration_cost = request.duration_minutes * 0.5  # 0.5 credits per minute
-        required_credits = int(base_cost + duration_cost)
-        
-        # Validate credits
+        # Validate credits (ONLY requirement)
         if not await validate_user_credits(user_id, required_credits, db):
             raise HTTPException(
                 status_code=402,
@@ -129,7 +144,7 @@ async def initiate_live_chat(
             WHERE id = ?
         """, (required_credits, user_id))
         
-        # Log the session creation
+        # Log the session creation with mode information
         await db.execute("""
             INSERT INTO agora_usage_logs 
             (session_id, user_id, duration_minutes, cost_credits, created_at)
@@ -137,12 +152,12 @@ async def initiate_live_chat(
         """, (
             session_data['session_id'],
             user_id,
-            request.duration_minutes,
+            duration_minutes,
             required_credits,
             datetime.now().isoformat()
         ))
         
-        logger.info(f"Live chat session created: {session_data['session_id']} for user {user_id}")
+        logger.info(f"Live chat session created: {session_data['session_id']} for user {user_id} (mode: {request.mode})")
         
         return LiveChatSessionResponse(
             session_id=session_data['session_id'],
@@ -151,8 +166,10 @@ async def initiate_live_chat(
             agora_token=session_data['agora_token'],
             user_role=session_data['user_role'],
             session_type=session_data['session_type'],
+            mode=request.mode,
             expires_at=session_data['expires_at'],
-            status=session_data['status']
+            status=session_data['status'],
+            credits_used=required_credits
         )
         
     except HTTPException:
@@ -188,6 +205,7 @@ async def get_session_status(
             session_id=session_data['session_id'],
             status=session_data['status'],
             channel_name=session_data['channel_name'],
+            mode=session_data.get('mode', 'video'),
             created_at=session_data['created_at'],
             expires_at=session_data['expires_at'],
             ended_at=session_data.get('ended_at'),

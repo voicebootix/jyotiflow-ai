@@ -106,8 +106,10 @@ class EnhancedSettings(BaseSettings):
     d_id_api_url: str = "https://api.d-id.com"
     elevenlabs_api_key: str = "your-elevenlabs-api-key"
     elevenlabs_voice_id: str = "your-custom-swamiji-voice-id"
-    agora_app_id: str = "your-agora-app-id"
-    agora_app_certificate: str = "your-agora-app-certificate"
+    
+    # REAL AGORA CREDENTIALS - Use environment variables
+    agora_app_id: str = Field(default_factory=lambda: os.getenv("AGORA_APP_ID", ""))
+    agora_app_certificate: str = Field(default_factory=lambda: os.getenv("AGORA_APP_CERTIFICATE", ""))
 
     # NEW: Video Storage Configuration
     avatar_storage_bucket: str = "jyotiflow-avatar-videos"
