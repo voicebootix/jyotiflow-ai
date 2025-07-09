@@ -27,7 +27,7 @@ httpx==0.25.2
 requests==2.31.0
 
 # তমিল - Data validation and serialization
-pydantic[email]==2.5.0
+pydantic[email]==2.7.4
 
 # তমিল - Environment variables
 python-dotenv==1.0.0
