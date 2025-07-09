@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from services.birth_chart_cache_service import BirthChartCacheService
 import jwt
+import uuid
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
@@ -14,26 +15,20 @@ router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 JWT_SECRET_KEY = os.getenv("JWT_SECRET", "jyotiflow_secret")
 JWT_ALGORITHM = "HS256"
 
-# --- Helper function to extract user email from JWT token ---
+# --- Helper function to extract user email from JWT token (OPTIONAL) ---
 def extract_user_email_from_token(request: Request) -> str:
-    """Extract user email from JWT token in Authorization header"""
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization header required")
-    
-    token = auth_header.split(" ")[1]
+    """Extract user email from JWT token in Authorization header - OPTIONAL"""
     try:
+        auth_header = request.headers.get("Authorization")
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return None
+        
+        token = auth_header.split(" ")[1]
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         user_email = payload.get("email")
-        if not user_email:
-            raise HTTPException(status_code=401, detail="Invalid token: missing email")
         return user_email
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.DecodeError:
-        raise HTTPException(status_code=401, detail="Invalid token format")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except:
+        return None
 
 # --- Prokerala Token Management ---
 PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
@@ -97,27 +92,35 @@ async def get_birth_chart(request: Request):
         print("[BirthChart] Error: Missing date or time in birth_details")
         raise HTTPException(status_code=400, detail="Missing date or time in birth details")
 
-    # Get user email from Authorization header
+    # Get user email from Authorization header (OPTIONAL - no error if missing)
     user_email = extract_user_email_from_token(request)
+    if not user_email:
+        # Generate a guest user ID for caching
+        user_email = f"guest_{uuid.uuid4().hex[:8]}"
+        print(f"[BirthChart] Using guest user: {user_email}")
 
     # --- CHECK CACHE FIRST ---
     if user_email:
-        cached_chart = await birth_chart_cache.get_cached_birth_chart(user_email, birth_details)
-        if cached_chart:
-            print(f"[BirthChart] ✅ Using cached data for user {user_email}")
-            return {
-                "success": True,
-                "birth_chart": {
-                    **cached_chart['data'],
-                    "metadata": {
-                        **cached_chart['data'].get('metadata', {}),
-                        "cache_hit": True,
-                        "cached_at": cached_chart['cached_at'].isoformat(),
-                        "expires_at": cached_chart['expires_at'].isoformat(),
-                        "data_source": "Cached Prokerala API data"
+        try:
+            cached_chart = await birth_chart_cache.get_cached_birth_chart(user_email, birth_details)
+            if cached_chart:
+                print(f"[BirthChart] ✅ Using cached data for user {user_email}")
+                return {
+                    "success": True,
+                    "birth_chart": {
+                        **cached_chart['data'],
+                        "metadata": {
+                            **cached_chart['data'].get('metadata', {}),
+                            "cache_hit": True,
+                            "cached_at": cached_chart['cached_at'].isoformat(),
+                            "expires_at": cached_chart['expires_at'].isoformat(),
+                            "data_source": "Cached Prokerala API data"
+                        }
                     }
                 }
-            }
+        except Exception as e:
+            print(f"[BirthChart] Cache check failed: {e}")
+            # Continue without cache if cache fails
 
     # Default coordinates for Jaffna (can be enhanced with geocoding)
     latitude = "9.66845"   # Jaffna latitude
@@ -229,12 +232,16 @@ async def get_birth_chart(request: Request):
     
     # --- CACHE THE DATA FOR FUTURE USE ---
     if user_email and chart_data:
-        cache_success = await birth_chart_cache.cache_birth_chart(user_email, birth_details, enhanced_response["birth_chart"])
-        if cache_success:
-            print(f"[BirthChart] ✅ Data cached for user {user_email}")
-            enhanced_response["birth_chart"]["metadata"]["cached"] = True
-        else:
-            print(f"[BirthChart] ❌ Failed to cache data for user {user_email}")
+        try:
+            cache_success = await birth_chart_cache.cache_birth_chart(user_email, birth_details, enhanced_response["birth_chart"])
+            if cache_success:
+                print(f"[BirthChart] ✅ Data cached for user {user_email}")
+                enhanced_response["birth_chart"]["metadata"]["cached"] = True
+            else:
+                print(f"[BirthChart] ❌ Failed to cache data for user {user_email}")
+                enhanced_response["birth_chart"]["metadata"]["cached"] = False
+        except Exception as e:
+            print(f"[BirthChart] Cache error: {e}")
             enhanced_response["birth_chart"]["metadata"]["cached"] = False
     
     print(f"[BirthChart] Returning real Prokerala data: {chart_data.keys()}")
@@ -308,8 +315,10 @@ async def get_spiritual_guidance(request: Request):
 @router.get("/birth-chart/cache-status")
 async def get_birth_chart_cache_status(request: Request):
     """Get user's birth chart cache status"""
-    # Get user email from Authorization header
+    # Get user email from Authorization header (OPTIONAL)
     user_email = extract_user_email_from_token(request)
+    if not user_email:
+        return {"success": False, "message": "Authentication required"}
     
     try:
         status = await birth_chart_cache.get_user_birth_chart_status(user_email)
@@ -324,8 +333,10 @@ async def get_birth_chart_cache_status(request: Request):
 @router.delete("/birth-chart/cache")
 async def clear_birth_chart_cache(request: Request):
     """Clear user's birth chart cache"""
-    # Get user email from Authorization header
+    # Get user email from Authorization header (OPTIONAL)
     user_email = extract_user_email_from_token(request)
+    if not user_email:
+        return {"success": False, "message": "Authentication required"}
     
     try:
         success = await birth_chart_cache.invalidate_cache(user_email)
