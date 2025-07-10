@@ -17,7 +17,8 @@ def get_user_id_from_token(request: Request) -> str:
     token = auth.split(" ")[1]
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload["user_id"]
+        # SURGICAL FIX: Use 'sub' field to match livechat and deps.py
+        return payload.get("sub") or payload.get("user_id")
     except Exception:
         raise HTTPException(status_code=401, detail="தவறான அங்கீகாரம் - தயவுசெய்து மீண்டும் உள்நுழையவும்")
 

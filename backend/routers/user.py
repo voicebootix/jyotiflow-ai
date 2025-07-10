@@ -19,7 +19,8 @@ def get_user_id_from_token(request: Request) -> str:
             return None
         token = auth.split(" ")[1]
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload["user_id"]
+        # SURGICAL FIX: Use 'sub' field to match livechat and deps.py
+        return payload.get("sub") or payload.get("user_id")
     except Exception:
         return None
 
