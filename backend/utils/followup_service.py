@@ -42,12 +42,43 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 class FollowUpService:
-    """Follow-up system service for JyotiFlow.ai - PostgreSQL Only"""
+    """
+    Follow-up system service for JyotiFlow.ai - PostgreSQL Only
+    
+    USAGE PATTERN:
+    --------------
+    # Option 1: Explicit initialization (recommended for long-lived services)
+    service = FollowUpService(db_manager)
+    await service.initialize()  # Load settings from database
+    
+    # Option 2: Lazy initialization (automatic on first use)
+    service = FollowUpService(db_manager)
+    # Settings will be loaded automatically when schedule_followup() is called
+    
+    IMPORTANT NOTES:
+    ---------------
+    - Settings are loaded from the database on first use or explicit initialization
+    - If database loading fails, service falls back to safe default settings
+    - All failures are logged with clear error messages (no silent failures)
+    - Service remains functional even if settings table is missing/corrupted
+    """
     
     def __init__(self, db_manager):
         self.db = db_manager
         self.settings = {}
-        asyncio.create_task(self._load_settings())
+        self._settings_loaded = False
+    
+    async def initialize(self):
+        """Initialize the service by loading settings from database"""
+        if not self._settings_loaded:
+            await self._load_settings()
+            self._settings_loaded = True
+    
+    async def _ensure_settings_loaded(self):
+        """Ensure settings are loaded before proceeding with operations"""
+        if not self._settings_loaded:
+            await self._load_settings()
+            self._settings_loaded = True
     
     async def _load_settings(self):
         """Load follow-up system settings"""
@@ -55,22 +86,45 @@ class FollowUpService:
             conn = await self.db.get_connection()
             try:
                 rows = await conn.fetch("SELECT setting_key, setting_value, setting_type FROM follow_up_settings WHERE is_active = TRUE")
+                
+                # Start with default settings
+                default_settings = {
+                    'auto_followup_enabled': True,
+                    'default_credits_cost': 5,
+                    'max_followups_per_session': 3,
+                    'min_interval_hours': 24,
+                    'max_interval_days': 30,
+                    'enable_credit_charging': True
+                }
+                self.settings = default_settings.copy()
+                
+                # Override with database settings
                 for row in rows:
                     key = row['setting_key']
                     value = row['setting_value']
                     value_type = row['setting_type']
                     
-                    if value_type == 'boolean':
-                        self.settings[key] = value.lower() == 'true'
-                    elif value_type == 'integer':
-                        self.settings[key] = int(value)
-                    else:
-                        self.settings[key] = value
+                    try:
+                        if value_type == 'boolean':
+                            self.settings[key] = value.lower() == 'true'
+                        elif value_type == 'integer':
+                            self.settings[key] = int(value)
+                        else:
+                            self.settings[key] = value
+                    except (ValueError, AttributeError) as e:
+                        logger.warning(f"Invalid setting value for {key}: {value} ({value_type}). Using default. Error: {e}")
+                
+                logger.info(f"Successfully loaded {len(rows)} follow-up settings from database")
+                
             finally:
                 await self.db.release_connection(conn)
+                
         except Exception as e:
-            logger.error(f"Failed to load follow-up settings: {e}")
-            # Set default settings
+            logger.error(f"❌ CRITICAL: Failed to load follow-up settings from database: {e}")
+            logger.warning("⚠️ Follow-up service will operate with DEFAULT SETTINGS ONLY")
+            logger.warning("⚠️ This may result in unexpected behavior. Please check database connectivity and follow_up_settings table.")
+            
+            # Set default settings to ensure service remains functional
             self.settings = {
                 'auto_followup_enabled': True,
                 'default_credits_cost': 5,
@@ -79,10 +133,17 @@ class FollowUpService:
                 'max_interval_days': 30,
                 'enable_credit_charging': True
             }
+            
+            # Mark that settings loading failed for monitoring
+            self.settings['_settings_load_failed'] = True
+            self.settings['_settings_load_error'] = str(e)
     
     async def schedule_followup(self, request) -> Dict[str, Any]:
         """Schedule a follow-up for a user"""
         try:
+            # Ensure settings are loaded
+            await self._ensure_settings_loaded()
+            
             # Validate user exists and has enough credits
             user = await self._get_user_by_email(request.user_email)
             if not user:
@@ -350,6 +411,9 @@ class FollowUpService:
     
     async def _validate_scheduling_constraints(self, request, template: Dict):
         """Validate scheduling constraints"""
+        # Ensure settings are loaded
+        await self._ensure_settings_loaded()
+        
         # Check max follow-ups per session
         session_id = getattr(request, 'session_id', None)
         if session_id:
