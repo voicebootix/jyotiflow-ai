@@ -269,8 +269,8 @@ class BirthChartCacheService:
             
             await conn.close()
             
-            # Extract number of rows updated
-            db_cleaned = int(result.split()[-1])
+            # Extract number of rows updated using robust parsing
+            db_cleaned = self._parse_affected_rows(result)
             total_cleaned = guest_cleaned + db_cleaned
             
             logger.info(f"✅ Cleaned up {total_cleaned} expired birth chart cache entries ({guest_cleaned} guest, {db_cleaned} database)")
@@ -278,6 +278,56 @@ class BirthChartCacheService:
             
         except Exception as e:
             logger.error(f"Error cleaning up expired cache: {e}")
+            return 0
+    
+    def _parse_affected_rows(self, command_tag: str) -> int:
+        """
+        Parse asyncpg command tag to extract the number of affected rows.
+        
+        Command tag formats:
+        - UPDATE: "UPDATE n" where n = affected rows
+        - DELETE: "DELETE n" where n = affected rows  
+        - INSERT: "INSERT oid n" where n = affected rows
+        - SELECT: "SELECT n" where n = selected rows
+        
+        Args:
+            command_tag: Command tag string returned by asyncpg.execute()
+            
+        Returns:
+            Number of affected rows, or 0 if parsing fails
+        """
+        try:
+            parts = command_tag.strip().split()
+            
+            if not parts:
+                logger.warning(f"Empty command tag received: '{command_tag}'")
+                return 0
+            
+            command = parts[0].upper()
+            
+            if command in ('UPDATE', 'DELETE', 'SELECT'):
+                # Format: "COMMAND n"
+                if len(parts) >= 2:
+                    return int(parts[1])
+                else:
+                    logger.warning(f"Unexpected {command} command tag format: '{command_tag}'")
+                    return 0
+                    
+            elif command == 'INSERT':
+                # Format: "INSERT oid n" where we want n
+                if len(parts) >= 3:
+                    return int(parts[2])
+                else:
+                    logger.warning(f"Unexpected INSERT command tag format: '{command_tag}'")
+                    return 0
+                    
+            else:
+                # Unknown command type
+                logger.warning(f"Unknown command type in tag: '{command_tag}'")
+                return 0
+                
+        except (ValueError, IndexError) as e:
+            logger.error(f"Failed to parse command tag '{command_tag}': {e}")
             return 0
     
     async def get_cache_statistics(self) -> Dict[str, Any]:

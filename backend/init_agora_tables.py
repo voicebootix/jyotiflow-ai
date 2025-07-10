@@ -5,6 +5,59 @@ Initialize Agora tables for JyotiFlow video chat system
 import asyncpg
 import asyncio
 import os
+import logging
+
+logger = logging.getLogger(__name__)
+
+def _parse_affected_rows(command_tag: str) -> int:
+    """
+    Parse asyncpg command tag to extract the number of affected rows.
+    
+    Command tag formats:
+    - UPDATE: "UPDATE n" where n = affected rows
+    - DELETE: "DELETE n" where n = affected rows  
+    - INSERT: "INSERT oid n" where n = affected rows
+    - SELECT: "SELECT n" where n = selected rows
+    
+    Args:
+        command_tag: Command tag string returned by asyncpg.execute()
+        
+    Returns:
+        Number of affected rows, or 0 if parsing fails
+    """
+    try:
+        parts = command_tag.strip().split()
+        
+        if not parts:
+            logger.warning(f"Empty command tag received: '{command_tag}'")
+            return 0
+        
+        command = parts[0].upper()
+        
+        if command in ('UPDATE', 'DELETE', 'SELECT'):
+            # Format: "COMMAND n"
+            if len(parts) >= 2:
+                return int(parts[1])
+            else:
+                logger.warning(f"Unexpected {command} command tag format: '{command_tag}'")
+                return 0
+                
+        elif command == 'INSERT':
+            # Format: "INSERT oid n" where we want n
+            if len(parts) >= 3:
+                return int(parts[2])
+            else:
+                logger.warning(f"Unexpected INSERT command tag format: '{command_tag}'")
+                return 0
+                
+        else:
+            # Unknown command type
+            logger.warning(f"Unknown command type in tag: '{command_tag}'")
+            return 0
+            
+    except (ValueError, IndexError) as e:
+        logger.error(f"Failed to parse command tag '{command_tag}': {e}")
+        return 0
 
 async def init_agora_tables():
     """Initialize all Agora-related tables in PostgreSQL"""
@@ -122,8 +175,8 @@ async def cleanup_expired_sessions():
             AND status = 'active'
         """)
         
-        # Get count of updated rows
-        updated_count = int(result.split()[-1])
+        # Get count of updated rows using robust parsing
+        updated_count = _parse_affected_rows(result)
         
         if updated_count > 0:
             print(f"✅ Cleaned up {updated_count} expired sessions")

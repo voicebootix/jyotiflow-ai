@@ -539,6 +539,57 @@ class FollowUpService:
                 WHERE id = $1 AND user_email = $2 AND status = 'pending'
             """, followup_id, user_email)
             
-            return result.split()[1] != '0'  # Check if any rows were affected
+            # Parse asyncpg command tag to get affected row count
+            return self._parse_affected_rows(result) > 0
         finally:
-            await self.db.release_connection(conn) 
+            await self.db.release_connection(conn)
+    
+    def _parse_affected_rows(self, command_tag: str) -> int:
+        """
+        Parse asyncpg command tag to extract the number of affected rows.
+        
+        Command tag formats:
+        - UPDATE: "UPDATE n" where n = affected rows
+        - DELETE: "DELETE n" where n = affected rows  
+        - INSERT: "INSERT oid n" where n = affected rows
+        - SELECT: "SELECT n" where n = selected rows
+        
+        Args:
+            command_tag: Command tag string returned by asyncpg.execute()
+            
+        Returns:
+            Number of affected rows, or 0 if parsing fails
+        """
+        try:
+            parts = command_tag.strip().split()
+            
+            if not parts:
+                logger.warning(f"Empty command tag received: '{command_tag}'")
+                return 0
+            
+            command = parts[0].upper()
+            
+            if command in ('UPDATE', 'DELETE', 'SELECT'):
+                # Format: "COMMAND n"
+                if len(parts) >= 2:
+                    return int(parts[1])
+                else:
+                    logger.warning(f"Unexpected {command} command tag format: '{command_tag}'")
+                    return 0
+                    
+            elif command == 'INSERT':
+                # Format: "INSERT oid n" where we want n
+                if len(parts) >= 3:
+                    return int(parts[2])
+                else:
+                    logger.warning(f"Unexpected INSERT command tag format: '{command_tag}'")
+                    return 0
+                    
+            else:
+                # Unknown command type
+                logger.warning(f"Unknown command type in tag: '{command_tag}'")
+                return 0
+                
+        except (ValueError, IndexError) as e:
+            logger.error(f"Failed to parse command tag '{command_tag}': {e}")
+            return 0 
