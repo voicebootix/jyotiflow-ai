@@ -21,8 +21,10 @@ const PlatformConfiguration = () => {
   const fetchCurrentKeys = async () => {
     try {
       const response = await enhanced_api.get('/api/admin/social-marketing/platform-config');
-      if (response.data.success) {
-        setApiKeys(response.data.data);
+      // SURGICAL FIX: Handle StandardResponse format correctly
+      const responseData = response.data;
+      if (responseData && responseData.success && responseData.data) {
+        setApiKeys(responseData.data);
       }
     } catch (error) {
       console.error('Error fetching API keys:', error);
@@ -47,13 +49,19 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
-      if (response.data.success) {
+      // SURGICAL FIX: Handle StandardResponse format correctly
+      const responseData = response.data;
+      if (responseData && responseData.success) {
         alert(`✅ ${platform.charAt(0).toUpperCase() + platform.slice(1)} configuration saved successfully!`);
         await fetchCurrentKeys();
+      } else {
+        const errorMessage = responseData?.message || 'Failed to save configuration';
+        alert(`❌ ${errorMessage}`);
       }
     } catch (error) {
       console.error('Error saving configuration:', error);
-      alert('❌ Failed to save configuration');
+      const errorMessage = error.response?.data?.message || 'Failed to save configuration';
+      alert(`❌ ${errorMessage}`);
     } finally {
       setLoading(false);
     }
@@ -67,15 +75,21 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
+      // SURGICAL FIX: Handle StandardResponse format correctly
+      const responseData = response.data;
+      const isSuccess = responseData && responseData.success;
+      
       setTestResults(prev => ({
         ...prev,
-        [platform]: response.data.success ? 'success' : 'error'
+        [platform]: isSuccess ? 'success' : 'error'
       }));
       
-      alert(response.data.success ? '✅ Connection successful!' : '❌ Connection failed');
+      const message = responseData?.message || (isSuccess ? 'Connection successful!' : 'Connection failed');
+      alert(isSuccess ? `✅ ${message}` : `❌ ${message}`);
     } catch (error) {
       setTestResults(prev => ({ ...prev, [platform]: 'error' }));
-      alert('❌ Connection test failed');
+      const errorMessage = error.response?.data?.message || 'Connection test failed';
+      alert(`❌ ${errorMessage}`);
     } finally {
       setLoading(false);
     }
