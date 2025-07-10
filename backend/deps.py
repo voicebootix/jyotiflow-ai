@@ -18,6 +18,7 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     """
     try:
         token = credentials.credentials
+        print(f"DEBUG: JWT_SECRET_KEY={JWT_SECRET_KEY}, Token={token[:50]}...")
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
