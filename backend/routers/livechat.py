@@ -115,9 +115,10 @@ async def get_livechat_pricing_from_universal_engine(session_type: str, duration
 async def validate_user_credits(user_id: int, required_credits: int, db) -> bool:
     """Validate user has sufficient credits"""
     try:
-        user_credits = await db.fetch_one("""
-            SELECT credits FROM users WHERE id = ?
-        """, (user_id,))
+        # SURGICAL FIX: Use fetchrow instead of fetch_one for PostgreSQL asyncpg
+        user_credits = await db.fetchrow("""
+            SELECT credits FROM users WHERE id = $1
+        """, user_id)
         
         if not user_credits:
             return False
