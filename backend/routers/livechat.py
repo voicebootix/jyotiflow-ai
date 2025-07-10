@@ -168,8 +168,12 @@ async def initiate_live_chat(
     
     SURGICAL FIX: Enhanced error handling and fallback mechanisms
     """
+    # SURGICAL FIX: Extract user_id at the very beginning to avoid scope issues
+    user_id = None
     try:
-        user_id = current_user['user_id']
+        user_id = current_user.get('user_id') or current_user.get('id')
+        if not user_id:
+            raise HTTPException(status_code=401, detail="User ID not found in token")
         
         # Calculate required credits using Universal Pricing Engine
         duration_minutes = request.duration_minutes or 30  # Default to 30 minutes
@@ -263,7 +267,9 @@ async def initiate_live_chat(
         logger.error(f"Live chat initiation failed: {e}")
         # SURGICAL FIX: Enhanced fallback with better error handling
         try:
-            # Generate emergency fallback session data
+            # SURGICAL FIX: Ensure user_id is available for emergency session
+            if not user_id:
+                user_id = current_user.get('user_id') or current_user.get('id') or 'unknown_user'
             emergency_session_id = f"emergency_{user_id}_{int(time.time())}"
             emergency_channel = f"jyotiflow_emergency_{user_id}_{int(time.time())}"
             emergency_token = f"emergency_token_{secrets.token_urlsafe(16)}"
