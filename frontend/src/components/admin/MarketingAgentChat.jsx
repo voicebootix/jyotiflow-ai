@@ -44,7 +44,7 @@ const MarketingAgentChat = () => {
       if (response.data.success) {
         setMessages(prev => [...prev, { 
           sender: 'agent', 
-          text: response.data.data.message  // SURGICAL FIX: Use 'message' field instead of 'reply'
+          text: response.data.data.message || response.data.data.reply || response.data.message || 'Response received'
         }]);
       } else {
         setMessages(prev => [...prev, { 

@@ -78,7 +78,41 @@ async def ensure_base_credits_column():
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
-app = FastAPI(title="JyotiFlow AI", version="1.0.0")
+import asyncio
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan manager with automatic migrations"""
+    # Startup: Apply migrations
+    try:
+        print("🚀 JyotiFlow Backend starting up...")
+        
+        # Apply database migrations automatically
+        try:
+            from apply_migrations import apply_migrations
+            await apply_migrations()
+        except Exception as migration_error:
+            print(f"⚠️ Migration warning: {migration_error}")
+            # Continue startup even if migrations fail
+        
+        print("✅ JyotiFlow Backend startup complete")
+        
+    except Exception as startup_error:
+        print(f"💥 Startup error: {startup_error}")
+    
+    yield
+    
+    # Shutdown
+    print("🔄 JyotiFlow Backend shutting down...")
+
+# Create FastAPI app with automatic migrations
+app = FastAPI(
+    title="🕉️ JyotiFlow.ai - Divine Digital Guidance API", 
+    description="Spiritual guidance platform with AI-powered insights and live consultations",
+    version="2.0.0",
+    lifespan=lifespan
+)
 
 # Global database pool
 db_pool = None
