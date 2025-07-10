@@ -9,14 +9,16 @@ Automatically generates complete birth chart profiles on registration:
 import asyncio
 from datetime import datetime
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, HTTPException, status, BackgroundTasks, Depends
 from pydantic import BaseModel, EmailStr, validator
 import bcrypt
-import sqlite3
+import asyncpg
 import json
 import logging
+import os
 
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
+import db
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +77,9 @@ class RegistrationResponse(BaseModel):
 class EnhancedRegistrationService:
     """Service for handling enhanced user registration"""
     
-    def __init__(self, db_path: str = "jyotiflow.db"):
-        self.db_path = db_path
-        self.birth_chart_service = EnhancedBirthChartCacheService(db_path)
+    def __init__(self, database_url: Optional[str] = None):
+        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
+        self.birth_chart_service = EnhancedBirthChartCacheService(self.database_url)
     
     async def register_user_with_birth_chart(self, user_data: EnhancedUserRegistration) -> RegistrationResponse:
         """Register user and automatically generate complete birth chart profile"""
@@ -112,25 +114,25 @@ class EnhancedRegistrationService:
             # Hash password
             password_hash = bcrypt.hashpw(user_data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
+            conn = await asyncpg.connect(self.database_url)
+            try:
                 # Check if user already exists
-                cursor.execute("SELECT id FROM users WHERE email = ?", (user_data.email,))
-                if cursor.fetchone():
+                existing_user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)
+                if existing_user:
                     raise HTTPException(
                         status_code=status.HTTP_400_BAD_REQUEST,
                         detail="User already exists"
                     )
                 
                 # Insert new user
-                cursor.execute("""
+                user_id = await conn.fetchval("""
                     INSERT INTO users (
                         name, email, password_hash, phone, birth_date, birth_time, 
                         birth_location, spiritual_level, preferred_language, 
                         role, credits, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                    RETURNING id
+                """, 
                     user_data.name,
                     user_data.email,
                     password_hash,
@@ -141,17 +143,16 @@ class EnhancedRegistrationService:
                     user_data.spiritual_level,
                     user_data.preferred_language,
                     'user',
-                    50,  # Welcome credits
-                    datetime.now().isoformat()
-                ))
-                
-                user_id = cursor.lastrowid
-                conn.commit()
+                    50  # Welcome credits
+                )
                 
                 if user_id is None:
                     raise ValueError("Failed to get user ID after insertion")
                 
                 return user_id
+                
+            finally:
+                await conn.close()
                 
         except Exception as e:
             logger.error(f"User account creation failed: {e}")
@@ -269,63 +270,59 @@ async def enhanced_register(
         )
 
 @router.get("/profile/{email}/birth-chart")
-async def get_user_birth_chart_profile(email: str):
+async def get_user_birth_chart_profile(email: str, conn: asyncpg.Connection = Depends(db.get_db)):
     """Get user's complete birth chart profile"""
     try:
         # Get user's birth details from database
-        with sqlite3.connect("jyotiflow.db") as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT birth_date, birth_time, birth_location, 
-                       birth_chart_data, has_free_birth_chart
-                FROM users 
-                WHERE email = ?
-            """, (email,))
-            
-            result = cursor.fetchone()
-            
-            if not result:
-                raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="User not found"
-                )
-            
-            birth_date, birth_time, birth_location, cached_data, has_free_chart = result
-            
-            if not (birth_date and birth_time and birth_location):
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User birth details incomplete"
-                )
-            
-            # Check if cached data exists
-            if cached_data and has_free_chart:
-                profile_data = json.loads(cached_data)
-                return {
-                    "status": "success",
-                    "cached": True,
-                    "profile": profile_data,
-                    "message": "Your complete birth chart profile is ready!"
-                }
-            
-            # Generate new profile if not cached
-            birth_details = {
-                'date': birth_date,
-                'time': birth_time,
-                'location': birth_location,
-                'timezone': 'Asia/Colombo'
-            }
-            
-            service = EnhancedBirthChartCacheService()
-            profile_data = await service.generate_and_cache_complete_profile(email, birth_details)
-            
+        result = await conn.fetchrow("""
+            SELECT birth_date, birth_time, birth_location, 
+                   birth_chart_data, has_free_birth_chart
+            FROM users 
+            WHERE email = $1
+        """, email)
+        
+        if not result:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        birth_date, birth_time, birth_location, cached_data, has_free_chart = result
+        
+        if not (birth_date and birth_time and birth_location):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="User birth details incomplete"
+            )
+        
+        # Check if cached data exists
+        if cached_data and has_free_chart:
+            profile_data = cached_data if isinstance(cached_data, dict) else json.loads(cached_data)
             return {
                 "status": "success",
-                "cached": False,
+                "cached": True,
                 "profile": profile_data,
-                "message": "Your birth chart profile has been generated!"
+                "message": "Your complete birth chart profile is ready!"
             }
-            
+        
+        # Generate new profile if not cached
+        birth_details = {
+            'date': birth_date,
+            'time': birth_time,
+            'location': birth_location,
+            'timezone': 'Asia/Colombo'
+        }
+        
+        service = EnhancedBirthChartCacheService()
+        profile_data = await service.generate_and_cache_complete_profile(email, birth_details)
+        
+        return {
+            "status": "success",
+            "cached": False,
+            "profile": profile_data,
+            "message": "Your birth chart profile has been generated!"
+        }
+        
     except Exception as e:
         logger.error(f"Profile retrieval failed for {email}: {e}")
         raise HTTPException(

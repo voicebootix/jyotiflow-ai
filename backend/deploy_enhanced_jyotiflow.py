@@ -122,32 +122,39 @@ class JyotiFlowDeployment:
             if os.path.exists(migration_file):
                 logger.info("Running database migration...")
                 
-                # For SQLite (development/testing)
-                if os.path.exists('./backend/jyotiflow.db'):
-                    import sqlite3
-                    conn = sqlite3.connect('./backend/jyotiflow.db')
-                    
-                    # Read and execute migration
-                    with open(migration_file, 'r') as f:
-                        migration_sql = f.read()
-                    
-                    # Split by statements and execute (simplified for SQLite)
-                    statements = migration_sql.split(';')
-                    for statement in statements:
-                        if statement.strip():
-                            try:
-                                conn.execute(statement)
-                            except Exception as e:
-                                if "already exists" not in str(e).lower():
-                                    logger.warning(f"Migration statement failed: {e}")
-                    
-                    conn.commit()
-                    conn.close()
-                    
-                    logger.info("Database migration completed")
-                    self._log_deployment_step(phase_name, True, "Database migration successful")
+                # For PostgreSQL (production)
+                database_url = os.getenv("DATABASE_URL")
+                if database_url:
+                    try:
+                        import asyncpg
+                        
+                        # Connect to PostgreSQL
+                        conn = await asyncpg.connect(database_url)
+                        
+                        # Read and execute migration
+                        with open(migration_file, 'r') as f:
+                            migration_sql = f.read()
+                        
+                        # Execute migration
+                        try:
+                            await conn.execute(migration_sql)
+                            logger.info("PostgreSQL migration completed")
+                            self._log_deployment_step(phase_name, True, "Database migration successful")
+                        except Exception as e:
+                            if "already exists" not in str(e).lower():
+                                logger.warning(f"Migration statement failed: {e}")
+                            self._log_deployment_step(phase_name, True, "Database migration completed (some warnings)")
+                        
+                        await conn.close()
+                        
+                    except ImportError:
+                        logger.warning("asyncpg not available for PostgreSQL migration")
+                        self._log_deployment_step(phase_name, False, "asyncpg dependency missing")
+                    except Exception as e:
+                        logger.error(f"PostgreSQL migration failed: {e}")
+                        self._log_deployment_step(phase_name, False, f"PostgreSQL migration failed: {e}")
                 else:
-                    self._log_deployment_step(phase_name, False, "Database file not found")
+                    self._log_deployment_step(phase_name, False, "DATABASE_URL not configured")
             else:
                 self._log_deployment_step(phase_name, False, "Migration file not found")
                 
