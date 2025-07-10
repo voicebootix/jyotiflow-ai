@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from contextlib import asynccontextmanager
 import asyncpg
 from datetime import datetime
 import os
@@ -11,6 +12,9 @@ from routers import auth, user, spiritual, sessions, followup, donations, credit
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
 from routers import content
 import db
+
+# Import the migration runner
+from run_migrations import MigrationRunner
 
 # Import enhanced spiritual guidance router
 try:
@@ -75,37 +79,40 @@ async def ensure_base_credits_column():
     finally:
         await conn.close()
 
+async def apply_migrations():
+    """Apply database migrations using the migration runner"""
+    try:
+        print("🔄 Applying database migrations...")
+        migration_runner = MigrationRunner(DATABASE_URL)
+        success = await migration_runner.run_migrations()
+        
+        if success:
+            print("✅ Database migrations applied successfully")
+            return True
+        else:
+            print("⚠️ Some migrations failed but continuing startup")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Migration system failed: {e}")
+        return False
+
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
-
-# Create FastAPI app
-app = FastAPI(
-    title="🕉️ JyotiFlow.ai - Divine Digital Guidance API", 
-    description="Spiritual guidance platform with AI-powered insights and live consultations",
-    version="2.0.0"
-)
 
 # Global database pool
 db_pool = None
 
-# --- CORS Middleware (English & Tamil) ---
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "https://jyotiflow-ai-frontend.onrender.com",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# --- Database Connection Management ---
-@app.on_event("startup")
-async def startup_event():
-    """Initialize database connections and services"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """FastAPI lifespan manager for startup and shutdown"""
+    # Startup
     try:
+        print("🚀 Starting JyotiFlow.ai backend...")
+        
+        # Apply database migrations first
+        await apply_migrations()
+        
         # Initialize database connection pool
         global db_pool
         db_pool = await asyncpg.create_pool(
@@ -169,19 +176,45 @@ async def startup_event():
             except Exception as e:
                 print(f"⚠️ Enhanced system initialization failed: {e}")
         
+        print("🎉 JyotiFlow.ai backend startup completed successfully!")
+        
     except Exception as e:
-        print(f"❌ Database initialization failed: {e}")
+        print(f"❌ Backend startup failed: {e}")
         raise
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Clean up database connections"""
+    
+    # Yield control to the application
+    yield
+    
+    # Shutdown
     try:
-        if 'db_pool' in globals() and db_pool is not None:
+        print("🛑 Shutting down JyotiFlow.ai backend...")
+        if db_pool is not None:
             await db_pool.close()
             print("✅ Database connections closed")
+        print("👋 JyotiFlow.ai backend shutdown completed")
     except Exception as e:
-        print(f"❌ Database shutdown error: {e}")
+        print(f"❌ Backend shutdown error: {e}")
+
+# Create FastAPI app with lifespan manager
+app = FastAPI(
+    title="🕉️ JyotiFlow.ai - Divine Digital Guidance API", 
+    description="Spiritual guidance platform with AI-powered insights and live consultations",
+    version="2.0.0",
+    lifespan=lifespan
+)
+
+# --- CORS Middleware (English & Tamil) ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://jyotiflow-ai-frontend.onrender.com",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # --- Global Exception Handler ---
 @app.exception_handler(Exception)
