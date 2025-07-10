@@ -122,7 +122,7 @@ async def get_content_calendar(
         
         return StandardResponse(
             success=True,
-            data=calendar_data,
+            data={"calendar": calendar_data},  # SURGICAL FIX: Wrap list in dictionary
             message="Content calendar retrieved successfully"
         )
         
@@ -209,7 +209,7 @@ async def get_campaigns(
         
         return StandardResponse(
             success=True,
-            data=campaigns,
+            data={"campaigns": campaigns},  # SURGICAL FIX: Wrap list in dictionary
             message="Campaigns retrieved successfully"
         )
         
@@ -655,7 +655,12 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
     """Chat with the AI Marketing Director Agent - give instructions and get reports"""
     try:
         reply = await ai_marketing_director.handle_instruction(request.message)
-        return StandardResponse(success=True, data=reply, message="Agent reply")
+        # SURGICAL FIX: Safe extraction of reply text for frontend compatibility
+        if isinstance(reply, dict):
+            response_text = reply.get("reply", str(reply))
+        else:
+            response_text = str(reply) if reply is not None else "No response from agent"
+        return StandardResponse(success=True, data={"message": response_text}, message="Agent reply")
     except Exception as e:
         logger.error(f"Agent chat failed: {e}")
         raise HTTPException(status_code=500, detail=f"Agent chat failed: {str(e)}")
