@@ -655,8 +655,11 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
     """Chat with the AI Marketing Director Agent - give instructions and get reports"""
     try:
         reply = await ai_marketing_director.handle_instruction(request.message)
-        # SURGICAL FIX: Extract reply text for frontend compatibility
-        response_text = reply.get("reply", str(reply))
+        # SURGICAL FIX: Safe extraction of reply text for frontend compatibility
+        if isinstance(reply, dict):
+            response_text = reply.get("reply", str(reply))
+        else:
+            response_text = str(reply) if reply is not None else "No response from agent"
         return StandardResponse(success=True, data={"message": response_text}, message="Agent reply")
     except Exception as e:
         logger.error(f"Agent chat failed: {e}")
