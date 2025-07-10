@@ -208,12 +208,12 @@ class EnhancedJyotiFlowStartup:
                         persona_config = EXCLUDED.persona_config,
                         knowledge_domains = EXCLUDED.knowledge_domains,
                         cached_at = CURRENT_TIMESTAMP
-                """, (
+                """, 
                     service["service_name"],
                     json.dumps(service["configuration"]),  # Convert to JSON for PostgreSQL
                     json.dumps(service["persona_config"]),
                     service["knowledge_domains"]
-                ))
+                )
             
             await conn.close()
             

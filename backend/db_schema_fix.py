@@ -1,268 +1,235 @@
 """
-Database Schema Fix Module
-Handles schema inconsistencies during application startup
+Database Schema Fix Script for JyotiFlow
+Fixes all database issues including table structures, constraints, and data integrity
 """
 
+import os
+import json
 import logging
-from typing import Optional
+import asyncpg
+from datetime import datetime
+from typing import Dict, Any, List
 
+# Setup logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def fix_database_schema(db_pool) -> bool:
-    """Fix database schema issues during startup"""
-    try:
+class DatabaseSchemaFixer:
+    """Handles database schema fixes and migrations"""
+    
+    def __init__(self):
+        self.database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+    
+    async def fix_all_database_issues(self):
+        """Fix all known database issues"""
         logger.info("🔧 Applying database schema fixes...")
         
-        async with db_pool.acquire() as conn:
-            # Fix 1: Add missing columns to service_types table
-            await _fix_service_types_columns(conn)
+        try:
+            conn = await asyncpg.connect(self.database_url)
             
-            # Fix 2: Add missing columns to credit_packages table
-            await _fix_credit_packages_columns(conn)
+            # Step 1: Fix table structure issues
+            await self._fix_table_structures(conn)
             
-            # Fix 3: Add missing columns to users table
-            await _fix_users_columns(conn)
+            # Step 2: Fix constraint issues
+            await self._fix_constraint_issues(conn)
             
-            # Fix 4: Update existing records with proper values
-            await _update_existing_records(conn)
-        
-        logger.info("✅ Database schema fixes applied successfully")
-        return True
-        
-    except Exception as e:
-        logger.error(f"❌ Database schema fix failed: {e}")
-        return False
+            # Step 3: Fix data integrity issues
+            await self._fix_data_integrity(conn)
+            
+            # Step 4: Ensure proper indexes
+            await self._ensure_indexes(conn)
+            
+            await conn.close()
+            logger.info("✅ Database schema fixes applied successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Database schema fix failed: {e}")
+            return False
+    
+    async def _fix_table_structures(self, conn):
+        """Fix table structure issues"""
+        try:
+            # Fix sessions table - ensure it has the required columns
+            await conn.execute("""
+                DO $$
+                BEGIN
+                    -- Add duration_minutes column if it doesn't exist
+                    IF NOT EXISTS (SELECT FROM information_schema.columns 
+                                  WHERE table_name = 'sessions' AND column_name = 'duration_minutes') THEN
+                        ALTER TABLE sessions ADD COLUMN duration_minutes INTEGER DEFAULT 0;
+                    END IF;
+                    
+                    -- Add session_data column if it doesn't exist
+                    IF NOT EXISTS (SELECT FROM information_schema.columns 
+                                  WHERE table_name = 'sessions' AND column_name = 'session_data') THEN
+                        ALTER TABLE sessions ADD COLUMN session_data TEXT;
+                    END IF;
+                END $$;
+            """)
+            
+            # Fix service_types table - ensure it has all required columns
+            await conn.execute("""
+                DO $$
+                BEGIN
+                    -- Add base_credits column if it doesn't exist
+                    IF NOT EXISTS (SELECT FROM information_schema.columns 
+                                  WHERE table_name = 'service_types' AND column_name = 'base_credits') THEN
+                        ALTER TABLE service_types ADD COLUMN base_credits INTEGER DEFAULT 5;
+                    END IF;
+                    
+                    -- Add duration_minutes column if it doesn't exist
+                    IF NOT EXISTS (SELECT FROM information_schema.columns 
+                                  WHERE table_name = 'service_types' AND column_name = 'duration_minutes') THEN
+                        ALTER TABLE service_types ADD COLUMN duration_minutes INTEGER DEFAULT 15;
+                    END IF;
+                END $$;
+            """)
+            
+            # Fix users table - ensure it has all required columns
+            await conn.execute("""
+                DO $$
+                BEGIN
+                    -- Add credits column if it doesn't exist
+                    IF NOT EXISTS (SELECT FROM information_schema.columns 
+                                  WHERE table_name = 'users' AND column_name = 'credits') THEN
+                        ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 0;
+                    END IF;
+                    
+                    -- Add role column if it doesn't exist
+                    IF NOT EXISTS (SELECT FROM information_schema.columns 
+                                  WHERE table_name = 'users' AND column_name = 'role') THEN
+                        ALTER TABLE users ADD COLUMN role VARCHAR(50) DEFAULT 'user';
+                    END IF;
+                END $$;
+            """)
+            
+            logger.info("✅ Table structures fixed")
+            
+        except Exception as e:
+            logger.error(f"Table structure fix error: {e}")
+            raise
+    
+    async def _fix_constraint_issues(self, conn):
+        """Fix foreign key constraint issues"""
+        try:
+            # Create service_usage_logs table if it doesn't exist
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS service_usage_logs (
+                    id SERIAL PRIMARY KEY,
+                    service_type TEXT NOT NULL,
+                    api_name TEXT NOT NULL,
+                    usage_type TEXT NOT NULL,
+                    usage_amount REAL NOT NULL,
+                    cost_usd REAL NOT NULL,
+                    cost_credits REAL NOT NULL,
+                    session_id INTEGER,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            
+            # Add foreign key constraint safely
+            await conn.execute("""
+                DO $$
+                BEGIN
+                    -- Check if foreign key constraint doesn't already exist
+                    IF NOT EXISTS (SELECT FROM information_schema.table_constraints 
+                                  WHERE table_name = 'service_usage_logs' 
+                                  AND constraint_type = 'FOREIGN KEY'
+                                  AND constraint_name = 'service_usage_logs_session_id_fkey') THEN
+                        
+                        -- Only add if sessions table exists with id column
+                        IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions') AND
+                           EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'sessions' AND column_name = 'id') THEN
+                            ALTER TABLE service_usage_logs 
+                            ADD CONSTRAINT service_usage_logs_session_id_fkey 
+                            FOREIGN KEY (session_id) REFERENCES sessions(id);
+                        END IF;
+                    END IF;
+                END $$;
+            """)
+            
+            logger.info("✅ Constraint issues fixed")
+            
+        except Exception as e:
+            logger.error(f"Constraint fix error: {e}")
+            # Don't raise - system can work without constraints
+            pass
+    
+    async def _fix_data_integrity(self, conn):
+        """Fix data integrity issues"""
+        try:
+            # Ensure default service types exist
+            default_services = [
+                ('clarity', 'Basic spiritual clarity session', 5, 15, True),
+                ('love', 'Love and relationship guidance', 8, 20, True),
+                ('premium', 'Premium comprehensive reading', 12, 30, True),
+                ('elite', 'Elite personalized consultation', 20, 45, True),
+                ('comprehensive_life_reading_30min', 'Comprehensive 30-minute life reading', 15, 30, True),
+                ('horoscope_reading_quick', 'Quick horoscope reading', 8, 10, True),
+                ('satsang_community', 'Community satsang session', 5, 60, True)
+            ]
+            
+            # Check if service_types table exists
+            table_exists = await conn.fetchval(
+                "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'service_types')"
+            )
+            
+            if table_exists:
+                for service in default_services:
+                    try:
+                        await conn.execute("""
+                            INSERT INTO service_types (name, description, base_credits, duration_minutes, video_enabled)
+                            VALUES ($1, $2, $3, $4, $5)
+                            ON CONFLICT (name) DO UPDATE SET
+                                description = EXCLUDED.description,
+                                base_credits = EXCLUDED.base_credits,
+                                duration_minutes = EXCLUDED.duration_minutes,
+                                video_enabled = EXCLUDED.video_enabled
+                        """, *service)
+                    except Exception as e:
+                        logger.warning(f"Could not insert service {service[0]}: {e}")
+            
+            logger.info("✅ Data integrity fixed")
+            
+        except Exception as e:
+            logger.error(f"Data integrity fix error: {e}")
+            # Don't raise - system can work without initial data
+            pass
+    
+    async def _ensure_indexes(self, conn):
+        """Ensure proper database indexes exist"""
+        try:
+            indexes = [
+                "CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON sessions(service_type)",
+                "CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON sessions(user_email)",
+                "CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at)",
+                "CREATE INDEX IF NOT EXISTS idx_service_usage_logs_service_type ON service_usage_logs(service_type)",
+                "CREATE INDEX IF NOT EXISTS idx_service_usage_logs_api_name ON service_usage_logs(api_name)",
+                "CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)",
+                "CREATE INDEX IF NOT EXISTS idx_users_role ON users(role)"
+            ]
+            
+            for index_sql in indexes:
+                try:
+                    await conn.execute(index_sql)
+                except Exception as e:
+                    logger.warning(f"Could not create index: {e}")
+            
+            logger.info("✅ Indexes ensured")
+            
+        except Exception as e:
+            logger.error(f"Index creation error: {e}")
+            # Don't raise - system can work without indexes
+            pass
 
-async def _fix_service_types_columns(conn):
-    """Add missing columns to service_types table"""
-    try:
-        # Add missing columns with COALESCE to handle existing data
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS display_name VARCHAR(200)
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS description TEXT
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS credits_required INTEGER DEFAULT 1
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS price_usd DECIMAL(10,2) DEFAULT 0.0
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS service_category VARCHAR(50) DEFAULT 'guidance'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT true
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS avatar_video_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS live_chat_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS icon VARCHAR(50) DEFAULT '🔮'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS color_gradient VARCHAR(100) DEFAULT 'from-purple-500 to-indigo-600'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS voice_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS video_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS interactive_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS comprehensive_reading_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS birth_chart_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS remedies_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS dynamic_pricing_enabled BOOLEAN DEFAULT false
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS knowledge_domains TEXT[] DEFAULT '{}'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE service_types 
-            ADD COLUMN IF NOT EXISTS persona_modes TEXT[] DEFAULT '{}'
-        """)
-        
-        logger.info("✅ Service types columns fixed")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Could not fix service_types columns: {e}")
+# Global instance
+schema_fixer = DatabaseSchemaFixer()
 
-async def _fix_credit_packages_columns(conn):
-    """Add missing columns to credit_packages table"""
-    try:
-        await conn.execute("""
-            ALTER TABLE credit_packages 
-            ADD COLUMN IF NOT EXISTS description TEXT
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE credit_packages 
-            ADD COLUMN IF NOT EXISTS enabled BOOLEAN DEFAULT true
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE credit_packages 
-            ADD COLUMN IF NOT EXISTS bonus_credits INTEGER DEFAULT 0
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE credit_packages 
-            ADD COLUMN IF NOT EXISTS stripe_product_id VARCHAR(255)
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE credit_packages 
-            ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(255)
-        """)
-        
-        logger.info("✅ Credit packages columns fixed")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Could not fix credit_packages columns: {e}")
+async def fix_database_schema():
+    """Main function to fix all database schema issues"""
+    return await schema_fixer.fix_all_database_issues()
 
-async def _fix_users_columns(conn):
-    """Add missing columns to users table"""
-    try:
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS referral_code VARCHAR(50)
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS marketing_source VARCHAR(100)
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'Asia/Kolkata'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS language VARCHAR(10) DEFAULT 'en'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS total_sessions INTEGER DEFAULT 0
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS avatar_sessions_count INTEGER DEFAULT 0
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS total_avatar_minutes INTEGER DEFAULT 0
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS spiritual_level VARCHAR(50) DEFAULT 'beginner'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS preferred_avatar_style VARCHAR(50) DEFAULT 'traditional'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS voice_preference VARCHAR(50) DEFAULT 'compassionate'
-        """)
-        
-        await conn.execute("""
-            ALTER TABLE users 
-            ADD COLUMN IF NOT EXISTS video_quality_preference VARCHAR(20) DEFAULT 'high'
-        """)
-        
-        logger.info("✅ Users columns fixed")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Could not fix users columns: {e}")
-
-async def _update_existing_records(conn):
-    """Update existing records with proper values"""
-    try:
-        # Update service_types records
-        await conn.execute("""
-            UPDATE service_types 
-            SET 
-                display_name = COALESCE(display_name, name),
-                credits_required = COALESCE(credits_required, base_credits, 1),
-                price_usd = COALESCE(price_usd, 0.0),
-                enabled = COALESCE(enabled, true),
-                is_active = COALESCE(is_active, true)
-            WHERE display_name IS NULL OR credits_required IS NULL OR price_usd IS NULL
-        """)
-        
-        # Update credit_packages records
-        await conn.execute("""
-            UPDATE credit_packages 
-            SET 
-                enabled = COALESCE(enabled, true),
-                bonus_credits = COALESCE(bonus_credits, 0)
-            WHERE enabled IS NULL OR bonus_credits IS NULL
-        """)
-        
-        logger.info("✅ Existing records updated")
-        
-    except Exception as e:
-        logger.warning(f"⚠️ Could not update existing records: {e}") 
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(fix_database_schema()) 
