@@ -131,19 +131,34 @@ class JyotiFlowDeployment:
                         # Connect to PostgreSQL
                         conn = await asyncpg.connect(database_url)
                         
-                        # Read and execute migration
+                        # Read migration file
                         with open(migration_file, 'r') as f:
                             migration_sql = f.read()
                         
-                        # Execute migration
-                        try:
-                            await conn.execute(migration_sql)
-                            logger.info("PostgreSQL migration completed")
-                            self._log_deployment_step(phase_name, True, "Database migration successful")
-                        except Exception as e:
-                            if "already exists" not in str(e).lower():
-                                logger.warning(f"Migration statement failed: {e}")
-                            self._log_deployment_step(phase_name, True, "Database migration completed (some warnings)")
+                        # Split migration into individual statements and execute
+                        statements = migration_sql.split(';')
+                        executed_statements = 0
+                        failed_statements = 0
+                        
+                        for statement in statements:
+                            if statement.strip():  # Skip empty statements
+                                try:
+                                    await conn.execute(statement.strip())
+                                    executed_statements += 1
+                                except Exception as e:
+                                    failed_statements += 1
+                                    if "already exists" not in str(e).lower():
+                                        logger.warning(f"Migration statement failed: {str(e)[:100]}...")
+                                    else:
+                                        logger.debug(f"Statement skipped (already exists): {statement.strip()[:50]}...")
+                        
+                        # Log results
+                        if failed_statements == 0:
+                            logger.info(f"PostgreSQL migration completed successfully - {executed_statements} statements executed")
+                            self._log_deployment_step(phase_name, True, f"Database migration successful - {executed_statements} statements executed")
+                        else:
+                            logger.info(f"PostgreSQL migration completed with warnings - {executed_statements} executed, {failed_statements} failed/skipped")
+                            self._log_deployment_step(phase_name, True, f"Database migration completed - {executed_statements} executed, {failed_statements} warnings")
                         
                         await conn.close()
                         
