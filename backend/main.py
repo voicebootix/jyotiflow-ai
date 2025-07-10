@@ -192,6 +192,21 @@ async def global_exception_handler(request: Request, exc: Exception):
         }
     )
 
+# --- Root Endpoint ---
+@app.get("/")
+async def root():
+    """Root endpoint for JyotiFlow AI Backend"""
+    return {
+        "message": "🕉️ JyotiFlow AI Backend - Divine Digital Guidance API",
+        "status": "active",
+        "version": "1.0.0",
+        "endpoints": {
+            "health": "/health",
+            "api": "/api/*",
+            "docs": "/docs"
+        }
+    }
+
 # --- Health Check Endpoint ---
 @app.get("/health")
 async def health_check():
