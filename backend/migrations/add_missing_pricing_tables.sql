@@ -1,19 +1,39 @@
 -- Add missing tables for universal pricing engine
 -- Migration: Add missing pricing and session tables
 -- FIXED: PostgreSQL syntax (SERIAL instead of AUTOINCREMENT, TIMESTAMP instead of DATETIME)
+-- FIXED: Ensure sessions table compatibility with existing structure
 
--- Sessions table for demand tracking
-CREATE TABLE IF NOT EXISTS sessions (
-    id SERIAL PRIMARY KEY,
-    user_id TEXT,
-    service_type TEXT NOT NULL,
-    duration_minutes INTEGER DEFAULT 0,
-    credits_used INTEGER DEFAULT 0,
-    session_data TEXT, -- JSON data
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status TEXT DEFAULT 'active'
-);
+-- Sessions table for demand tracking (only if not exists or add missing columns)
+-- First, try to add columns to existing sessions table if it exists
+DO $$
+BEGIN
+    -- Check if sessions table exists
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions') THEN
+        -- Add missing columns if they don't exist
+        IF NOT EXISTS (SELECT FROM information_schema.columns 
+                      WHERE table_name = 'sessions' AND column_name = 'duration_minutes') THEN
+            ALTER TABLE sessions ADD COLUMN duration_minutes INTEGER DEFAULT 0;
+        END IF;
+        
+        IF NOT EXISTS (SELECT FROM information_schema.columns 
+                      WHERE table_name = 'sessions' AND column_name = 'session_data') THEN
+            ALTER TABLE sessions ADD COLUMN session_data TEXT;
+        END IF;
+    ELSE
+        -- Create sessions table if it doesn't exist
+        CREATE TABLE sessions (
+            id SERIAL PRIMARY KEY,
+            user_id TEXT,
+            service_type TEXT NOT NULL,
+            duration_minutes INTEGER DEFAULT 0,
+            credits_used INTEGER DEFAULT 0,
+            session_data TEXT, -- JSON data
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT DEFAULT 'active'
+        );
+    END IF;
+END $$;
 
 -- AI pricing recommendations table
 CREATE TABLE IF NOT EXISTS ai_pricing_recommendations (
@@ -37,9 +57,26 @@ CREATE TABLE IF NOT EXISTS service_usage_logs (
     cost_usd REAL NOT NULL,
     cost_credits REAL NOT NULL,
     session_id INTEGER,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (session_id) REFERENCES sessions(id)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Add foreign key constraint separately to handle existing sessions table
+DO $$
+BEGIN
+    -- Only add foreign key if sessions table exists and has id column
+    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions') AND
+       EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'sessions' AND column_name = 'id') THEN
+        
+        -- Check if foreign key constraint doesn't already exist
+        IF NOT EXISTS (SELECT FROM information_schema.table_constraints 
+                      WHERE table_name = 'service_usage_logs' 
+                      AND constraint_name = 'service_usage_logs_session_id_fkey') THEN
+            ALTER TABLE service_usage_logs 
+            ADD CONSTRAINT service_usage_logs_session_id_fkey 
+            FOREIGN KEY (session_id) REFERENCES sessions(id);
+        END IF;
+    END IF;
+END $$;
 
 -- API usage metrics for real-time monitoring
 CREATE TABLE IF NOT EXISTS api_usage_metrics (

@@ -565,7 +565,7 @@ class JyotiFlowDatabaseInitializer:
                     INSERT INTO service_types (name, description, base_credits, duration_minutes, video_enabled)
                     VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (name) DO NOTHING
-                """, service)
+                """, *service)
             
             # Insert default avatar templates
             avatar_templates = [
@@ -580,7 +580,7 @@ class JyotiFlowDatabaseInitializer:
                     INSERT INTO avatar_templates (template_name, avatar_style, voice_tone, background_style, clothing_style)
                     VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (template_name) DO NOTHING
-                """, template)
+                """, *template)
             
             # Insert default service configurations
             service_configs = [
