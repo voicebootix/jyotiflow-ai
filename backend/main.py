@@ -53,6 +53,14 @@ except ImportError:
     LIVECHAT_AVAILABLE = False
     print("⚠️ Live chat router not available")
 
+# Debug router for testing
+try:
+    from debug_auth_endpoint import debug_router
+    DEBUG_ROUTER_AVAILABLE = True
+except ImportError:
+    DEBUG_ROUTER_AVAILABLE = False
+    print("⚠️ Debug router not available")
+
 # Import database initialization
 from init_database import initialize_jyotiflow_database
 
@@ -343,6 +351,11 @@ if SOCIAL_MEDIA_AVAILABLE:
 if LIVECHAT_AVAILABLE:
     app.include_router(livechat_router)
     print("✅ Live chat router registered")
+
+# Debug router for testing AI Marketing Director
+if DEBUG_ROUTER_AVAILABLE:
+    app.include_router(debug_router)
+    print("✅ Debug router registered")
 
 if __name__ == "__main__":
     import uvicorn
