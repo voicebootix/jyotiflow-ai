@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS credit_packages (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     credits_amount INTEGER NOT NULL,
+    credits INTEGER NOT NULL, -- ALIAS for backwards compatibility
     price_usd DECIMAL(10,2) NOT NULL,
     bonus_credits INTEGER DEFAULT 0,
     description TEXT,
@@ -15,6 +16,18 @@ CREATE TABLE IF NOT EXISTS credit_packages (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- Ensure credits column matches credits_amount for compatibility
+CREATE OR REPLACE FUNCTION sync_credits_columns() RETURNS trigger AS $$
+BEGIN
+    NEW.credits := NEW.credits_amount;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER sync_credits_trigger
+BEFORE INSERT OR UPDATE ON credit_packages
+FOR EACH ROW EXECUTE FUNCTION sync_credits_columns();
 
 -- 2. Fix users table column naming (last_login -> last_login_at)
 DO $$
@@ -204,9 +217,25 @@ BEGIN
     END IF;
 END $$;
 
--- 11. Add missing indexes for performance
+-- 11. Create credit_transactions table (referenced in credits.py)
+CREATE TABLE IF NOT EXISTS credit_transactions (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    package_id INTEGER,
+    credits_purchased INTEGER NOT NULL,
+    bonus_credits INTEGER DEFAULT 0,
+    total_credits INTEGER NOT NULL,
+    amount_usd DECIMAL(10,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'completed',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (package_id) REFERENCES credit_packages(id) ON DELETE SET NULL
+);
+
+-- 12. Add missing indexes for performance
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON sessions(user_email);
 CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON sessions(service_type);
 CREATE INDEX IF NOT EXISTS idx_payments_user_email ON payments(user_email);
 CREATE INDEX IF NOT EXISTS idx_credit_packages_enabled ON credit_packages(enabled);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user ON credit_transactions(user_id);

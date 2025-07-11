@@ -324,80 +324,13 @@ class SafeDatabaseInitializer:
             """)
             logger.info("✅ Created ai_insights_cache table")
         
-        # Social media tables
-        if 'social_campaigns' not in existing_tables:
-            await conn.execute("""
-                CREATE TABLE social_campaigns (
-                    id SERIAL PRIMARY KEY,
-                    campaign_id VARCHAR(100) UNIQUE NOT NULL,
-                    name VARCHAR(255) NOT NULL,
-                    platform VARCHAR(50) NOT NULL,
-                    campaign_type VARCHAR(50) NOT NULL,
-                    budget DECIMAL(10,2),
-                    target_audience JSONB,
-                    duration_days INTEGER,
-                    status VARCHAR(50) DEFAULT 'active',
-                    start_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    end_date TIMESTAMP,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Created social_campaigns table")
-        
-        if 'social_posts' not in existing_tables:
-            await conn.execute("""
-                CREATE TABLE social_posts (
-                    id SERIAL PRIMARY KEY,
-                    post_id VARCHAR(100) UNIQUE NOT NULL,
-                    platform VARCHAR(50) NOT NULL,
-                    platform_post_id VARCHAR(255),
-                    title VARCHAR(500),
-                    content TEXT NOT NULL,
-                    hashtags TEXT,
-                    media_url VARCHAR(500),
-                    scheduled_time TIMESTAMP,
-                    posted_time TIMESTAMP,
-                    status VARCHAR(50) DEFAULT 'scheduled',
-                    engagement_metrics JSONB DEFAULT '{}',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Created social_posts table")
-        
-        if 'social_content' not in existing_tables:
-            await conn.execute("""
-                CREATE TABLE social_content (
-                    id SERIAL PRIMARY KEY,
-                    content_id VARCHAR(100) UNIQUE NOT NULL,
-                    title VARCHAR(255) NOT NULL,
-                    content TEXT NOT NULL,
-                    content_type VARCHAR(50) NOT NULL,
-                    platform VARCHAR(50) NOT NULL,
-                    hashtags TEXT,
-                    media_urls TEXT[],
-                    engagement_score DECIMAL(5,2),
-                    performance_metrics JSONB DEFAULT '{}',
-                    status VARCHAR(50) DEFAULT 'draft',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Created social_content table")
-        
-        # Platform settings table
-        if 'platform_settings' not in existing_tables:
-            await conn.execute("""
-                CREATE TABLE platform_settings (
-                    id SERIAL PRIMARY KEY,
-                    key VARCHAR(100) UNIQUE NOT NULL,
-                    value JSONB NOT NULL,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            logger.info("✅ Created platform_settings table")
+        # Note: Social media tables are created by migrations to avoid duplication
+        # The migration system will handle:
+        # - social_campaigns
+        # - social_posts  
+        # - social_content
+        # - platform_settings
+        # This avoids schema conflicts from multiple creation attempts
     
     async def _fix_column_issues(self, conn):
         """Fix column naming and missing columns"""

@@ -155,6 +155,42 @@ If something goes wrong:
 4. **Maintainable**: Easy to add new migrations
 5. **Debuggable**: Clear error messages and logging
 
+## Validation Before Deployment
+
+**CRITICAL**: Run this validation script before deploying to ensure nothing breaks:
+
+```bash
+cd backend
+python validate_database_state.py
+```
+
+This will check:
+- All required tables exist
+- Column names are correct
+- Foreign key dependencies are valid  
+- No duplicate table creations
+- Data integrity is maintained
+
+## Issues Fixed Without Breaking Changes
+
+1. **Column Inconsistency (`credits` vs `credits_amount`)**
+   - Added BOTH columns with a trigger to keep them in sync
+   - No code changes needed
+
+2. **Missing `credit_transactions` table**
+   - Added in migration 002
+   - Referenced by credits.py
+
+3. **Table Creation Duplications**
+   - Removed duplicates from safe_database_init.py
+   - Migrations handle social media tables
+   - Using `CREATE TABLE IF NOT EXISTS` to prevent conflicts
+
+4. **Foreign Key Dependencies**
+   - Tables created in correct order
+   - service_types before sessions
+   - users before all dependent tables
+
 ## Common Issues and Solutions
 
 ### Issue: "relation credit_packages does not exist"
