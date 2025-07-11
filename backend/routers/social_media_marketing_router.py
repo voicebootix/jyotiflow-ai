@@ -34,13 +34,21 @@ try:
 except ImportError:
     avatar_engine = None
 
+# SURGICAL FIX: Use simplified AI Marketing Director that works without complex dependencies
 try:
-    from ai_marketing_director_agent_fixed import ai_marketing_director
+    from simple_ai_marketing_director import ai_marketing_director
+    print("✅ Using simplified AI Marketing Director")
 except ImportError:
     try:
-        from ai_marketing_director_agent import ai_marketing_director
+        from ai_marketing_director_agent_fixed import ai_marketing_director
+        print("✅ Using complex AI Marketing Director")
     except ImportError:
-        ai_marketing_director = None
+        try:
+            from ai_marketing_director_agent import ai_marketing_director
+            print("✅ Using fallback AI Marketing Director")
+        except ImportError:
+            ai_marketing_director = None
+            print("❌ No AI Marketing Director available")
 
 logger = logging.getLogger(__name__)
 
