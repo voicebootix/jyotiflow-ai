@@ -11,6 +11,7 @@ from pathlib import Path
 
 async def apply_schema_fix():
     """Apply the schema fix migration"""
+    conn = None
     try:
         # Connect to database
         DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/jyotiflow')
@@ -27,8 +28,11 @@ async def apply_schema_fix():
         with open(migration_file, 'r') as f:
             migration_sql = f.read()
         
-        # Apply the migration
-        await conn.execute(migration_sql)
+        # Apply the migration within a transaction
+        async with conn.transaction():
+            # Execute the migration as a script (handles multiple statements)
+            await conn.execute(migration_sql)
+        
         print("✅ Schema fix migration applied successfully!")
         
         # Verify the fix by checking for is_premium column
@@ -57,12 +61,14 @@ async def apply_schema_fix():
         else:
             print("⚠️ Some service types still have null display_name")
         
-        await conn.close()
         return True
         
     except Exception as e:
         print(f"❌ Schema fix migration failed: {e}")
         return False
+    finally:
+        if conn:
+            await conn.close()
 
 if __name__ == "__main__":
     success = asyncio.run(apply_schema_fix())
