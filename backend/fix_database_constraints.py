@@ -18,7 +18,9 @@ class DatabaseConstraintFixer:
     """Fixes database constraint and schema issues"""
     
     def __init__(self):
-        self.database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = os.getenv("DATABASE_URL")
+        if not self.database_url:
+            raise ValueError("DATABASE_URL environment variable is required")
     
     async def fix_all_constraints(self):
         """Fix all database constraint issues"""
