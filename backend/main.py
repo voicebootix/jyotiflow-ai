@@ -53,6 +53,13 @@ except ImportError:
     LIVECHAT_AVAILABLE = False
     print("⚠️ Live chat router not available")
 
+try:
+    from surgical_frontend_auth_fix import surgical_auth_router
+    SURGICAL_AUTH_AVAILABLE = True
+except ImportError:
+    SURGICAL_AUTH_AVAILABLE = False
+    print("⚠️ Surgical auth router not available")
+
 # Debug router for testing
 try:
     from debug_auth_endpoint import debug_router
@@ -181,17 +188,17 @@ async def lifespan(app: FastAPI):
             except Exception as fallback_error:
                 print(f"⚠️ Fallback initialization also failed: {fallback_error}")
         
-        # Fix admin user authentication and role
+        # Surgical fix for admin user authentication
         try:
-            print("🔧 Fixing admin user authentication...")
-            from fix_admin_auth import fix_admin_authentication
-            admin_auth_success = await fix_admin_authentication()
+            print("🔧 Applying surgical admin authentication fix...")
+            from surgical_admin_auth_fix import surgical_admin_auth_fix
+            admin_auth_success = await surgical_admin_auth_fix()
             if admin_auth_success:
-                print("✅ Admin authentication fix completed successfully")
+                print("✅ Surgical admin authentication fix completed successfully")
             else:
-                print("⚠️ Admin authentication fix had issues but will continue")
+                print("⚠️ Surgical admin authentication fix had issues but will continue")
         except Exception as e:
-            print(f"⚠️ Admin authentication fix failed: {e}")
+            print(f"⚠️ Surgical admin authentication fix failed: {e}")
         
         # Initialize enhanced system if available
         if ENHANCED_ROUTER_AVAILABLE:
@@ -356,6 +363,11 @@ if LIVECHAT_AVAILABLE:
 if DEBUG_ROUTER_AVAILABLE:
     app.include_router(debug_router)
     print("✅ Debug router registered")
+
+# Surgical auth router for frontend authentication fix
+if SURGICAL_AUTH_AVAILABLE:
+    app.include_router(surgical_auth_router)
+    print("✅ Surgical auth router registered")
 
 if __name__ == "__main__":
     import uvicorn
