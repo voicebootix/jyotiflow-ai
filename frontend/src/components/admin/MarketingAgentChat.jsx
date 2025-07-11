@@ -37,26 +37,67 @@ const MarketingAgentChat = () => {
     setLoading(true);
 
     try {
+      console.log('Sending message to AI Marketing Director:', input);
       const response = await enhanced_api.post('/api/admin/social-marketing/agent-chat', { 
         message: input 
       });
       
-      if (response.data.success) {
-        setMessages(prev => [...prev, { 
-          sender: 'agent', 
-          text: response.data.data.message || response.data.data.reply || response.data.message || 'Response received'
-        }]);
+      console.log('AI Marketing Director response:', response);
+      
+      // Enhanced response handling with multiple fallbacks
+      let responseText = '';
+      
+      if (response && response.data) {
+        if (response.data.success) {
+          // Try multiple paths to get the response text
+          responseText = response.data.data?.message || 
+                        response.data.data?.reply || 
+                        response.data.message || 
+                        response.data.reply ||
+                        'Response received successfully';
+        } else {
+          // Handle unsuccessful response
+          responseText = response.data.message || 
+                        response.data.error || 
+                        'Agent responded but with an error';
+        }
       } else {
-        setMessages(prev => [...prev, { 
-          sender: 'agent', 
-          text: '⚠️ Error: Could not get response from agent.' 
-        }]);
+        responseText = 'Invalid response format received';
       }
-    } catch (error) {
-      console.error('Chat error:', error);
+      
+      console.log('Processed response text:', responseText);
+      
       setMessages(prev => [...prev, { 
         sender: 'agent', 
-        text: '⚠️ Error: Could not reach the AI Marketing Director. Please try again.' 
+        text: responseText
+      }]);
+      
+    } catch (error) {
+      console.error('AI Marketing Director chat error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      
+      let errorMessage = '⚠️ Error: Could not reach the AI Marketing Director. Please try again.';
+      
+      // More specific error messages based on error type
+      if (error.response) {
+        if (error.response.status === 401 || error.response.status === 403) {
+          errorMessage = '⚠️ Authentication error. Please refresh the page and try again.';
+        } else if (error.response.status === 500) {
+          errorMessage = '⚠️ Server error. The AI Marketing Director is temporarily unavailable.';
+        } else if (error.response.data?.message) {
+          errorMessage = `⚠️ Error: ${error.response.data.message}`;
+        }
+      } else if (error.request) {
+        errorMessage = '⚠️ Network error. Please check your connection and try again.';
+      }
+      
+      setMessages(prev => [...prev, { 
+        sender: 'agent', 
+        text: errorMessage
       }]);
     } finally {
       setLoading(false);
