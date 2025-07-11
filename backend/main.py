@@ -173,6 +173,18 @@ async def lifespan(app: FastAPI):
             except Exception as fallback_error:
                 print(f"⚠️ Fallback initialization also failed: {fallback_error}")
         
+        # Fix admin user role and credits
+        try:
+            print("🔧 Fixing admin user role and credits...")
+            from fix_admin_user import fix_admin_user
+            admin_fix_success = await fix_admin_user()
+            if admin_fix_success:
+                print("✅ Admin user fix completed successfully")
+            else:
+                print("⚠️ Admin user fix had issues but will continue")
+        except Exception as e:
+            print(f"⚠️ Admin user fix failed: {e}")
+        
         # Initialize enhanced system if available
         if ENHANCED_ROUTER_AVAILABLE:
             try:
