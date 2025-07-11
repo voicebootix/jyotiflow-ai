@@ -12,6 +12,14 @@ import asyncpg
 import logging
 import os
 
+# REAL AGORA SDK IMPORT
+try:
+    from agora_token_builder import RtcTokenBuilder
+    AGORA_SDK_AVAILABLE = True
+except ImportError:
+    AGORA_SDK_AVAILABLE = False
+    RtcTokenBuilder = None
+
 logger = logging.getLogger(__name__)
 
 class AgoraTokenGenerator:
@@ -40,33 +48,46 @@ class AgoraTokenGenerator:
                 # Fallback to mock token for development
                 return f"mock_token_{self.app_id}_{channel_name}_{uid}_{int(time.time())}"
             
-            # Real token generation using Agora algorithm
-            current_timestamp = int(time.time())
-            expire_timestamp = current_timestamp + expire_time
-            
-            # Build the token using real Agora token generation logic
-            # This is a simplified version - in production, use agora-python-server-sdk
-            token_parts = [
-                self.app_id,
-                channel_name,
-                str(uid),
-                str(role),
-                str(expire_timestamp)
-            ]
-            
-            # Generate signature using HMAC-SHA256
-            message = ''.join(token_parts)
-            signature = hmac.new(
-                self.app_certificate.encode('utf-8'),
-                message.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            
-            # Create real-format token
-            token = f"006{self.app_id}IAA{signature[:32]}"
-            
-            logger.info(f"Generated real Agora token for channel {channel_name}")
-            return token
+            # Use real Agora SDK if available
+            if AGORA_SDK_AVAILABLE and RtcTokenBuilder:
+                # Generate real token using Agora SDK
+                token = RtcTokenBuilder.buildTokenWithUid(
+                    self.app_id,
+                    self.app_certificate,
+                    channel_name,
+                    uid,
+                    role,
+                    expire_time
+                )
+                logger.info(f"Generated real Agora token using SDK for channel {channel_name}")
+                return token
+            else:
+                # Fallback to manual token generation
+                current_timestamp = int(time.time())
+                expire_timestamp = current_timestamp + expire_time
+                
+                # Build the token using real Agora token generation logic
+                token_parts = [
+                    self.app_id,
+                    channel_name,
+                    str(uid),
+                    str(role),
+                    str(expire_timestamp)
+                ]
+                
+                # Generate signature using HMAC-SHA256
+                message = ''.join(token_parts)
+                signature = hmac.new(
+                    self.app_certificate.encode('utf-8'),
+                    message.encode('utf-8'),
+                    hashlib.sha256
+                ).hexdigest()
+                
+                # Create real-format token
+                token = f"006{self.app_id}IAA{signature[:32]}"
+                
+                logger.info(f"Generated real Agora token manually for channel {channel_name}")
+                return token
             
         except Exception as e:
             logger.error(f"Token generation failed: {e}")

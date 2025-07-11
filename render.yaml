@@ -9,6 +9,11 @@ services:
         value: 3.11.0
       - key: PORT
         value: 8000
+      # 🎥 AGORA VIDEO/AUDIO INTEGRATION
+      - key: AGORA_APP_ID
+        value: "your-agora-app-id"  # Replace with your real Agora App ID
+      - key: AGORA_APP_CERTIFICATE
+        value: "your-agora-app-certificate"  # Replace with your real Agora App Certificate
       # 🕉️ Notification System Environment Variables
       - key: SMTP_HOST
         value: "smtp.gmail.com"  # Replace with your SMTP host

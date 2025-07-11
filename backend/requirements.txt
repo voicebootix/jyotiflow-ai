@@ -22,6 +22,9 @@ stripe==12.3.0  # Latest version as per PyPI
 openai==1.93.2  # Updated OpenAI integration
 aiohttp==3.12.13  # Updated async HTTP client
 
+# 🎥 AGORA VIDEO/AUDIO INTEGRATION
+agora-python-server-sdk==1.4.8  # Real Agora token generation and channel management
+
 # தமিல - HTTP client for API integrations
 httpx==0.25.2
 requests==2.31.0
@@ -35,38 +38,38 @@ python-dotenv==1.0.0
 # তমিল - Date and time handling
 python-dateutil==2.8.2
 
-# তমிল - Logging and monitoring
+# তমিল - Logging and monitoring
 structlog==23.2.0
 
-# தமில - Development and testing dependencies
+# தமিল - Development and testing dependencies
 pytest==7.4.3
 pytest-asyncio==0.21.1
 
 # তমিল - Optional: Production deployment
 gunicorn==21.2.0
 
-# তமிল - Optional: Database migrations
+# তমিল - Optional: Database migrations
 alembic==1.13.0
 
-# தமிল - Optional: Caching
+# தমিল - Optional: Caching
 redis==5.0.1  # Stable Redis Python client
 
-# தமிল - Optional: Email functionality
+# தমিল - Optional: Email functionality
 aiosmtplib==3.0.1
 
-# তমிল - Optional: File handling
+# তমিল - Optional: File handling
 aiofiles==23.2.1
 
-# তমிল - Optional: Image processing (for future features)
+# তমিল - Optional: Image processing (for future features)
 Pillow==10.1.0
 
-# তமிল - Optional: PDF generation (for reports)
+# তমিল - Optional: PDF generation (for reports)
 reportlab==4.0.7
 
-# তমிল - Optional: Excel file handling
+# তমিল - Optional: Excel file handling
 openpyxl==3.1.2
 
-# তমிল - Optional: Data analysis
+# তমিল - Optional: Data analysis
 pandas==2.1.4
 numpy==1.26.2
 
@@ -82,7 +85,7 @@ orjson==3.9.10
 # তমিল - Optional: Configuration management
 # pydantic-settings==2.1.0  # REMOVED: Duplicate version conflict
 
-# தமில - Optional: API documentation
+# தமিল - Optional: API documentation
 fastapi-users==14.0.1
 
 # তমিল - Optional: Rate limiting

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Video, VideoOff, Mic, MicOff, Phone, PhoneOff, Users, Settings, Volume2, VolumeX } from 'lucide-react';
+import { useRTCClient, usePublish, useRemoteUsers, useLocalMicrophoneTrack, useLocalCameraTrack } from 'agora-rtc-react';
 
-// Real Agora SDK integration (will use real Agora SDK when available)
+// Real Agora SDK integration
 const AgoraVideoCall = ({ 
     sessionData, 
     onEndCall, 
@@ -20,6 +21,13 @@ const AgoraVideoCall = ({
     const remoteVideoRef = useRef(null);
     const connectionTimerRef = useRef(null);
     const durationTimerRef = useRef(null);
+    
+    // Real Agora RTC Client
+    const rtcClient = useRTCClient();
+    const { localMicrophoneTrack } = useLocalMicrophoneTrack();
+    const { localCameraTrack } = useLocalCameraTrack();
+    const remoteUsers = useRemoteUsers();
+    const { publish } = usePublish();
     
     // Initialize Agora connection
     useEffect(() => {
@@ -50,7 +58,7 @@ const AgoraVideoCall = ({
                 setCallDuration(prev => prev + 1);
             }, 1000);
             
-            // Simulate remote video after 2 seconds
+            // Simulate remote video after 2 seconds (for Swamiji)
             setTimeout(() => {
                 setRemoteVideoVisible(true);
                 setParticipants([
@@ -71,54 +79,106 @@ const AgoraVideoCall = ({
     };
     
     const connectToAgoraChannel = async () => {
-        // Real Agora connection process
-        return new Promise((resolve, reject) => {
-            // Check if we have real Agora credentials
-            if (!sessionData.agora_token || !sessionData.agora_channel || !sessionData.agora_app_id) {
-                reject(new Error('Invalid Agora credentials'));
-                return;
-            }
-            
-            // Check if token is not a mock token
-            if (sessionData.agora_token.startsWith('mock_token_')) {
-                console.warn('Using mock Agora token - real connection not available');
-                // For development with mock tokens, simulate connection
-                setTimeout(() => resolve(), 1500);
-                return;
-            }
-            
-            // TODO: Implement real Agora SDK connection here
-            // For now, simulate connection while we have real credentials
-            console.log('Connecting to Agora with real credentials:', {
-                appId: sessionData.agora_app_id,
-                channel: sessionData.agora_channel,
-                token: sessionData.agora_token.substring(0, 20) + '...'
-            });
-            
-            setTimeout(() => {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // Check if we have real Agora credentials
+                if (!sessionData.agora_token || !sessionData.agora_channel || !sessionData.agora_app_id) {
+                    reject(new Error('Invalid Agora credentials'));
+                    return;
+                }
+                
+                // Check if token is not a mock token
+                if (sessionData.agora_token.startsWith('mock_token_')) {
+                    console.warn('Using mock Agora token - real connection not available');
+                    // For development with mock tokens, simulate connection
+                    setTimeout(() => resolve(), 1500);
+                    return;
+                }
+                
+                // REAL AGORA CONNECTION
+                console.log('Connecting to Agora with real credentials:', {
+                    appId: sessionData.agora_app_id,
+                    channel: sessionData.agora_channel,
+                    token: sessionData.agora_token.substring(0, 20) + '...'
+                });
+                
+                // Join the channel
+                await rtcClient.join(
+                    sessionData.agora_app_id,
+                    sessionData.agora_channel,
+                    sessionData.agora_token,
+                    null // uid (null for auto-assign)
+                );
+                
+                // Publish local tracks
+                if (localMicrophoneTrack && isAudioEnabled) {
+                    await publish(localMicrophoneTrack);
+                }
+                if (localCameraTrack && isVideoEnabled) {
+                    await publish(localCameraTrack);
+                }
+                
+                console.log('Successfully connected to Agora channel');
                 resolve();
-            }, 1500);
+                
+            } catch (error) {
+                console.error('Real Agora connection failed:', error);
+                reject(error);
+            }
         });
     };
     
-    const cleanup = () => {
+    const cleanup = async () => {
         if (durationTimerRef.current) {
             clearInterval(durationTimerRef.current);
         }
         if (connectionTimerRef.current) {
             clearInterval(connectionTimerRef.current);
         }
-        // In production, clean up Agora client
+        
+        // Clean up Agora client
+        try {
+            await rtcClient.leave();
+            console.log('Agora client cleaned up');
+        } catch (error) {
+            console.error('Error cleaning up Agora client:', error);
+        }
     };
     
-    const toggleVideo = () => {
-        setIsVideoEnabled(!isVideoEnabled);
-        // In production, toggle local video stream
+    const toggleVideo = async () => {
+        try {
+            if (localCameraTrack) {
+                if (isVideoEnabled) {
+                    await localCameraTrack.setEnabled(false);
+                } else {
+                    await localCameraTrack.setEnabled(true);
+                    if (!isConnected) {
+                        await publish(localCameraTrack);
+                    }
+                }
+            }
+            setIsVideoEnabled(!isVideoEnabled);
+        } catch (error) {
+            console.error('Error toggling video:', error);
+        }
     };
     
-    const toggleAudio = () => {
-        setIsAudioEnabled(!isAudioEnabled);
-        // In production, toggle local audio stream
+    const toggleAudio = async () => {
+        try {
+            if (localMicrophoneTrack) {
+                if (isAudioEnabled) {
+                    await localMicrophoneTrack.setEnabled(false);
+                } else {
+                    await localMicrophoneTrack.setEnabled(true);
+                    if (!isConnected) {
+                        await publish(localMicrophoneTrack);
+                    }
+                }
+            }
+            setIsAudioEnabled(!isAudioEnabled);
+        } catch (error) {
+            console.error('Error toggling audio:', error);
+        }
     };
     
     const toggleSpeaker = () => {
@@ -337,21 +397,21 @@ const AgoraVideoCall = ({
                     
                     {/* Session Info */}
                     <div className="mt-4 text-center text-sm text-gray-600">
-                                            <div className="flex justify-center space-x-6">
-                        <div>
-                            <span className="font-medium">Session Type:</span> {sessionData?.session_type}
+                        <div className="flex justify-center space-x-6">
+                            <div>
+                                <span className="font-medium">Session Type:</span> {sessionData?.session_type}
+                            </div>
+                            <div>
+                                <span className="font-medium">Mode:</span> {sessionData?.mode || 'video'}
+                            </div>
+                            <div>
+                                <span className="font-medium">Duration:</span> {formatDuration(callDuration)}
+                            </div>
+                            <div>
+                                <span className="font-medium">Quality:</span> 
+                                <span className="text-green-600 ml-1">HD</span>
+                            </div>
                         </div>
-                        <div>
-                            <span className="font-medium">Mode:</span> {sessionData?.mode || 'video'}
-                        </div>
-                        <div>
-                            <span className="font-medium">Duration:</span> {formatDuration(callDuration)}
-                        </div>
-                        <div>
-                            <span className="font-medium">Quality:</span> 
-                            <span className="text-green-600 ml-1">HD</span>
-                        </div>
-                    </div>
                     </div>
                 </div>
             </div>
