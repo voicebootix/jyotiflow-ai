@@ -132,3 +132,22 @@
 2025-07-09 02:14:15,080 - social_media_marketing_automation - INFO - 🚀 Social Media Marketing Engine initialized
 2025-07-09 02:14:15,088 - core_foundation_enhanced - INFO - ✅ Festival calendar loaded with 7 festivals
 2025-07-09 02:14:15,088 - core_foundation_enhanced - INFO - 🌍 AI Marketing Director Agent initialized for WORLD DOMINATION
+2025-07-11 08:51:30,782 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-11 08:51:30,783 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-11 08:51:30,783 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-11 08:51:30,783 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-11 08:51:30,783 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-11 08:54:05,134 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-11 08:54:05,135 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-11 08:54:05,135 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-11 08:54:05,135 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-11 08:54:05,135 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-11 08:54:05,257 - root - WARNING - Existing spiritual guidance not available
+2025-07-11 08:54:06,386 - spiritual_avatar_generation_engine - INFO - 🎭 Swamiji Avatar Generation Engine initialized
+2025-07-11 08:54:06,453 - core_foundation_enhanced - INFO - ✅ Festival calendar loaded with 7 festivals
+2025-07-11 08:54:06,514 - core_foundation_enhanced - INFO - ✅ Festival calendar loaded with 7 festivals
+2025-07-11 08:54:06,514 - social_media_marketing_automation - INFO - 🚀 Social Media Marketing Engine initialized
+2025-07-11 08:54:06,515 - real_ai_marketing_director - WARNING - ⚠️ OpenAI API key not found
+2025-07-11 08:54:06,515 - real_ai_marketing_director - INFO - 🤖 Real AI Marketing Director initialized
+2025-07-11 08:54:06,537 - simple_ai_marketing_director - INFO - 🤖 Simple AI Marketing Director initialized
+2025-07-11 08:54:06,612 - run_migrations - ERROR - 💥 Migration runner failed: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
