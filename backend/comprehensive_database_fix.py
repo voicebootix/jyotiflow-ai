@@ -1,378 +1,360 @@
-#!/usr/bin/env python3
 """
-Comprehensive Database Fix Script for JyotiFlow
-Addresses all database issues identified in the deployment logs:
-1. Foreign key constraint issues
-2. Parameter mismatch errors
-3. Table structure inconsistencies
-4. Data integrity issues
+Comprehensive Database Fix Script for JyotiFlow.ai
+Addresses missing tables, column inconsistencies, and schema issues
+identified in deployment log analysis.
 """
 
-import os
-import sys
-import json
-import logging
 import asyncio
 import asyncpg
+import os
+import logging
 from datetime import datetime
-from typing import Dict, Any, List, Optional
 
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class ComprehensiveDatabaseFixer:
-    """Comprehensive database fixer for JyotiFlow"""
-    
+class DatabaseFixer:
     def __init__(self):
-        self.database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
-        self.conn = None
+        self.db_url = os.getenv('DATABASE_URL', 'postgresql://user:password@localhost:5432/jyotiflow')
+        self.connection = None
     
     async def connect(self):
         """Establish database connection"""
         try:
-            self.conn = await asyncpg.connect(self.database_url)
-            logger.info("✅ Database connection established")
+            self.connection = await asyncpg.connect(self.db_url)
+            logger.info("✅ Connected to database successfully")
             return True
         except Exception as e:
-            logger.error(f"❌ Database connection failed: {e}")
+            logger.error(f"❌ Failed to connect to database: {e}")
             return False
     
-    async def disconnect(self):
+    async def close(self):
         """Close database connection"""
-        if self.conn:
-            await self.conn.close()
+        if self.connection:
+            await self.connection.close()
             logger.info("✅ Database connection closed")
     
-    async def fix_all_issues(self):
-        """Fix all database issues comprehensively"""
+    async def table_exists(self, table_name):
+        """Check if a table exists"""
+        query = """
+        SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_schema = 'public' 
+            AND table_name = $1
+        );
+        """
+        result = await self.connection.fetchval(query, table_name)
+        return result
+    
+    async def column_exists(self, table_name, column_name):
+        """Check if a column exists in a table"""
+        query = """
+        SELECT EXISTS (
+            SELECT FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+            AND table_name = $1 
+            AND column_name = $2
+        );
+        """
+        result = await self.connection.fetchval(query, table_name, column_name)
+        return result
+    
+    async def create_credit_packages_table(self):
+        """Create the missing credit_packages table"""
+        logger.info("🔧 Creating credit_packages table...")
+        
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS credit_packages (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            description TEXT,
+            credits_amount INTEGER NOT NULL,
+            price_usd DECIMAL(10, 2) NOT NULL,
+            price_inr DECIMAL(10, 2),
+            discount_percentage INTEGER DEFAULT 0,
+            is_active BOOLEAN DEFAULT true,
+            is_featured BOOLEAN DEFAULT false,
+            validity_days INTEGER DEFAULT 365,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """
+        
+        await self.connection.execute(create_table_sql)
+        
+        # Insert default credit packages
+        insert_packages_sql = """
+        INSERT INTO credit_packages (name, description, credits_amount, price_usd, price_inr, discount_percentage, is_featured)
+        VALUES 
+            ('Starter Pack', 'Perfect for trying out our services', 100, 9.99, 799, 0, false),
+            ('Popular Pack', 'Most popular choice for regular users', 500, 39.99, 3199, 20, true),
+            ('Premium Pack', 'Best value for power users', 1000, 69.99, 5599, 30, false),
+            ('Ultimate Pack', 'Maximum credits for unlimited access', 2500, 149.99, 11999, 40, false)
+        ON CONFLICT DO NOTHING;
+        """
+        
+        await self.connection.execute(insert_packages_sql)
+        logger.info("✅ Credit packages table created and populated")
+    
+    async def create_donations_table(self):
+        """Create the missing donations table"""
+        logger.info("🔧 Creating donations table...")
+        
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS donations (
+            id SERIAL PRIMARY KEY,
+            donor_name VARCHAR(255),
+            donor_email VARCHAR(255),
+            amount_usd DECIMAL(10, 2) NOT NULL,
+            amount_inr DECIMAL(10, 2),
+            currency VARCHAR(3) DEFAULT 'USD',
+            payment_method VARCHAR(50),
+            payment_status VARCHAR(50) DEFAULT 'pending',
+            payment_id VARCHAR(255),
+            transaction_id VARCHAR(255),
+            message TEXT,
+            is_anonymous BOOLEAN DEFAULT false,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """
+        
+        await self.connection.execute(create_table_sql)
+        logger.info("✅ Donations table created")
+    
+    async def create_service_configuration_cache_table(self):
+        """Create the missing service_configuration_cache table"""
+        logger.info("🔧 Creating service_configuration_cache table...")
+        
+        create_table_sql = """
+        CREATE TABLE IF NOT EXISTS service_configuration_cache (
+            id SERIAL PRIMARY KEY,
+            service_name VARCHAR(255) NOT NULL,
+            config_key VARCHAR(255) NOT NULL,
+            config_value JSONB,
+            expires_at TIMESTAMP WITH TIME ZONE,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            UNIQUE(service_name, config_key)
+        );
+        """
+        
+        await self.connection.execute(create_table_sql)
+        
+        # Insert default service configurations
+        insert_configs_sql = """
+        INSERT INTO service_configuration_cache (service_name, config_key, config_value)
+        VALUES 
+            ('spiritual_guidance', 'max_session_duration', '{"value": 3600, "unit": "seconds"}'),
+            ('spiritual_guidance', 'default_credits_cost', '{"value": 10, "currency": "credits"}'),
+            ('live_chat', 'max_participants', '{"value": 2, "type": "one_on_one"}'),
+            ('live_chat', 'audio_credits_per_minute', '{"value": 5, "currency": "credits"}'),
+            ('live_chat', 'video_credits_per_minute', '{"value": 10, "currency": "credits"}'),
+            ('ai_marketing', 'max_requests_per_hour', '{"value": 100, "type": "rate_limit"}')
+        ON CONFLICT (service_name, config_key) DO NOTHING;
+        """
+        
+        await self.connection.execute(insert_configs_sql)
+        logger.info("✅ Service configuration cache table created and populated")
+    
+    async def fix_service_types_table(self):
+        """Add missing credits_required column to service_types table"""
+        logger.info("🔧 Fixing service_types table...")
+        
+        # Check if table exists
+        if not await self.table_exists('service_types'):
+            logger.info("📝 Creating service_types table...")
+            create_table_sql = """
+            CREATE TABLE IF NOT EXISTS service_types (
+                id SERIAL PRIMARY KEY,
+                name VARCHAR(255) NOT NULL,
+                description TEXT,
+                category VARCHAR(100),
+                credits_required INTEGER DEFAULT 0,
+                is_active BOOLEAN DEFAULT true,
+                created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+                updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+            );
+            """
+            await self.connection.execute(create_table_sql)
+            
+            # Insert default service types
+            insert_services_sql = """
+            INSERT INTO service_types (name, description, category, credits_required)
+            VALUES 
+                ('Spiritual Guidance', 'Personalized spiritual guidance and readings', 'spiritual', 10),
+                ('Birth Chart Analysis', 'Detailed astrological birth chart analysis', 'astrology', 25),
+                ('Live Chat Text', 'Text-based live chat with spiritual advisor', 'communication', 5),
+                ('Live Chat Audio', 'Audio chat with spiritual advisor', 'communication', 15),
+                ('Live Chat Video', 'Video chat with spiritual advisor', 'communication', 25),
+                ('AI Marketing Director', 'AI-powered marketing intelligence', 'business', 20)
+            ON CONFLICT DO NOTHING;
+            """
+            await self.connection.execute(insert_services_sql)
+        else:
+            # Add credits_required column if it doesn't exist
+            if not await self.column_exists('service_types', 'credits_required'):
+                logger.info("📝 Adding credits_required column to service_types...")
+                alter_table_sql = """
+                ALTER TABLE service_types 
+                ADD COLUMN IF NOT EXISTS credits_required INTEGER DEFAULT 0;
+                """
+                await self.connection.execute(alter_table_sql)
+                
+                # Update existing records with appropriate credit values
+                update_credits_sql = """
+                UPDATE service_types 
+                SET credits_required = CASE 
+                    WHEN name ILIKE '%spiritual%' THEN 10
+                    WHEN name ILIKE '%chart%' THEN 25
+                    WHEN name ILIKE '%video%' THEN 25
+                    WHEN name ILIKE '%audio%' THEN 15
+                    WHEN name ILIKE '%chat%' THEN 5
+                    WHEN name ILIKE '%marketing%' THEN 20
+                    ELSE 5
+                END
+                WHERE credits_required = 0;
+                """
+                await self.connection.execute(update_credits_sql)
+        
+        logger.info("✅ Service types table fixed")
+    
+    async def fix_user_analytics_columns(self):
+        """Fix column name inconsistencies in user analytics"""
+        logger.info("🔧 Fixing user analytics column names...")
+        
+        # Check if users table exists and has the correct column
+        if await self.table_exists('users'):
+            has_last_login = await self.column_exists('users', 'last_login')
+            has_last_login_at = await self.column_exists('users', 'last_login_at')
+            
+            if has_last_login and not has_last_login_at:
+                # Add last_login_at as an alias or rename the column
+                logger.info("📝 Adding last_login_at column...")
+                alter_sql = """
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP WITH TIME ZONE;
+                """
+                await self.connection.execute(alter_sql)
+                
+                # Copy data from last_login to last_login_at
+                update_sql = """
+                UPDATE users 
+                SET last_login_at = last_login 
+                WHERE last_login_at IS NULL AND last_login IS NOT NULL;
+                """
+                await self.connection.execute(update_sql)
+            
+            elif has_last_login_at and not has_last_login:
+                # Add last_login column
+                logger.info("📝 Adding last_login column...")
+                alter_sql = """
+                ALTER TABLE users 
+                ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
+                """
+                await self.connection.execute(alter_sql)
+                
+                # Copy data from last_login_at to last_login
+                update_sql = """
+                UPDATE users 
+                SET last_login = last_login_at 
+                WHERE last_login IS NULL AND last_login_at IS NOT NULL;
+                """
+                await self.connection.execute(update_sql)
+        
+        logger.info("✅ User analytics columns fixed")
+    
+    async def create_knowledge_base_tables(self):
+        """Create knowledge base tables for spiritual guidance"""
+        logger.info("🔧 Creating knowledge base tables...")
+        
+        # Spiritual wisdom table
+        create_wisdom_sql = """
+        CREATE TABLE IF NOT EXISTS spiritual_wisdom (
+            id SERIAL PRIMARY KEY,
+            title VARCHAR(255) NOT NULL,
+            content TEXT NOT NULL,
+            category VARCHAR(100),
+            tags TEXT[],
+            source VARCHAR(255),
+            language VARCHAR(10) DEFAULT 'en',
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """
+        await self.connection.execute(create_wisdom_sql)
+        
+        # Astrological data table
+        create_astro_sql = """
+        CREATE TABLE IF NOT EXISTS astrological_data (
+            id SERIAL PRIMARY KEY,
+            planet VARCHAR(50),
+            sign VARCHAR(50),
+            house INTEGER,
+            degree DECIMAL(5, 2),
+            interpretation TEXT,
+            category VARCHAR(100),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        """
+        await self.connection.execute(create_astro_sql)
+        
+        # Insert sample spiritual wisdom
+        insert_wisdom_sql = """
+        INSERT INTO spiritual_wisdom (title, content, category, tags, source)
+        VALUES 
+            ('Inner Peace', 'True peace comes from within. When we align our thoughts with our higher purpose, we find serenity even in chaos.', 'meditation', ARRAY['peace', 'meditation', 'mindfulness'], 'Ancient Wisdom'),
+            ('Karma and Action', 'Every action has consequences. Act with compassion and wisdom, for what you give to the world returns to you.', 'karma', ARRAY['karma', 'action', 'dharma'], 'Vedic Teachings'),
+            ('Divine Connection', 'The divine resides within each soul. Through prayer and meditation, we strengthen our connection to the universal consciousness.', 'spirituality', ARRAY['divine', 'prayer', 'consciousness'], 'Spiritual Masters')
+        ON CONFLICT DO NOTHING;
+        """
+        await self.connection.execute(insert_wisdom_sql)
+        
+        logger.info("✅ Knowledge base tables created and seeded")
+    
+    async def run_comprehensive_fix(self):
+        """Run all database fixes in sequence"""
+        logger.info("🚀 Starting comprehensive database fix...")
+        
+        if not await self.connect():
+            return False
+        
         try:
-            if not await self.connect():
-                return False
+            # Fix missing tables
+            await self.create_credit_packages_table()
+            await self.create_donations_table()
+            await self.create_service_configuration_cache_table()
             
-            logger.info("🔧 Starting comprehensive database fix...")
+            # Fix existing table issues
+            await self.fix_service_types_table()
+            await self.fix_user_analytics_columns()
             
-            # Step 1: Fix table structure inconsistencies
-            await self._fix_table_structures()
+            # Create knowledge base
+            await self.create_knowledge_base_tables()
             
-            # Step 2: Fix foreign key constraints
-            await self._fix_foreign_key_constraints()
-            
-            # Step 3: Fix data integrity issues
-            await self._fix_data_integrity()
-            
-            # Step 4: Create missing tables
-            await self._create_missing_tables()
-            
-            # Step 5: Add missing indexes
-            await self._add_missing_indexes()
-            
-            # Step 6: Insert default data
-            await self._insert_default_data()
-            
-            logger.info("✅ Comprehensive database fix completed successfully!")
+            logger.info("🎉 Comprehensive database fix completed successfully!")
             return True
             
         except Exception as e:
-            logger.error(f"❌ Comprehensive database fix failed: {e}")
+            logger.error(f"❌ Database fix failed: {e}")
             return False
+        
         finally:
-            await self.disconnect()
-    
-    async def _fix_table_structures(self):
-        """Fix table structure inconsistencies"""
-        logger.info("🔧 Fixing table structures...")
-        
-        try:
-            # Fix sessions table structure
-            await self.conn.execute("""
-                DO $$
-                BEGIN
-                    -- Ensure sessions table has proper structure
-                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions') THEN
-                        -- Add missing columns
-                        IF NOT EXISTS (SELECT FROM information_schema.columns 
-                                      WHERE table_name = 'sessions' AND column_name = 'duration_minutes') THEN
-                            ALTER TABLE sessions ADD COLUMN duration_minutes INTEGER DEFAULT 0;
-                        END IF;
-                        
-                        IF NOT EXISTS (SELECT FROM information_schema.columns 
-                                      WHERE table_name = 'sessions' AND column_name = 'session_data') THEN
-                            ALTER TABLE sessions ADD COLUMN session_data TEXT;
-                        END IF;
-                        
-                        IF NOT EXISTS (SELECT FROM information_schema.columns 
-                                      WHERE table_name = 'sessions' AND column_name = 'user_id') THEN
-                            ALTER TABLE sessions ADD COLUMN user_id TEXT;
-                        END IF;
-                    END IF;
-                END $$;
-            """)
-            
-            # Fix service_types table structure
-            await self.conn.execute("""
-                DO $$
-                BEGIN
-                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'service_types') THEN
-                        -- Add missing columns
-                        IF NOT EXISTS (SELECT FROM information_schema.columns 
-                                      WHERE table_name = 'service_types' AND column_name = 'base_credits') THEN
-                            ALTER TABLE service_types ADD COLUMN base_credits INTEGER DEFAULT 5;
-                        END IF;
-                        
-                        IF NOT EXISTS (SELECT FROM information_schema.columns 
-                                      WHERE table_name = 'service_types' AND column_name = 'duration_minutes') THEN
-                            ALTER TABLE service_types ADD COLUMN duration_minutes INTEGER DEFAULT 15;
-                        END IF;
-                        
-                        IF NOT EXISTS (SELECT FROM information_schema.columns 
-                                      WHERE table_name = 'service_types' AND column_name = 'video_enabled') THEN
-                            ALTER TABLE service_types ADD COLUMN video_enabled BOOLEAN DEFAULT true;
-                        END IF;
-                    END IF;
-                END $$;
-            """)
-            
-            logger.info("✅ Table structures fixed")
-            
-        except Exception as e:
-            logger.error(f"❌ Table structure fix failed: {e}")
-            raise
-    
-    async def _fix_foreign_key_constraints(self):
-        """Fix foreign key constraint issues"""
-        logger.info("🔧 Fixing foreign key constraints...")
-        
-        try:
-            # Drop existing problematic constraints
-            await self.conn.execute("""
-                DO $$
-                BEGIN
-                    -- Drop foreign key constraint if it exists and is problematic
-                    IF EXISTS (SELECT FROM information_schema.table_constraints 
-                              WHERE table_name = 'service_usage_logs' 
-                              AND constraint_name = 'service_usage_logs_session_id_fkey') THEN
-                        ALTER TABLE service_usage_logs DROP CONSTRAINT service_usage_logs_session_id_fkey;
-                    END IF;
-                END $$;
-            """)
-            
-            # Recreate foreign key constraints properly
-            await self.conn.execute("""
-                DO $$
-                BEGIN
-                    -- Add foreign key constraint only if both tables exist properly
-                    IF EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'sessions') AND
-                       EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'service_usage_logs') AND
-                       EXISTS (SELECT FROM information_schema.columns WHERE table_name = 'sessions' AND column_name = 'id') THEN
-                        
-                        -- Add the constraint
-                        ALTER TABLE service_usage_logs 
-                        ADD CONSTRAINT service_usage_logs_session_id_fkey 
-                        FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE SET NULL;
-                    END IF;
-                END $$;
-            """)
-            
-            logger.info("✅ Foreign key constraints fixed")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Foreign key constraint fix warning: {e}")
-            # Don't raise - system can work without constraints
-    
-    async def _fix_data_integrity(self):
-        """Fix data integrity issues"""
-        logger.info("🔧 Fixing data integrity...")
-        
-        try:
-            # Update existing records with proper values
-            await self.conn.execute("""
-                UPDATE sessions 
-                SET duration_minutes = COALESCE(duration_minutes, 0),
-                    session_data = COALESCE(session_data, '{}')
-                WHERE duration_minutes IS NULL OR session_data IS NULL
-            """)
-            
-            # Update service_types records
-            await self.conn.execute("""
-                UPDATE service_types 
-                SET base_credits = COALESCE(base_credits, 5),
-                    duration_minutes = COALESCE(duration_minutes, 15),
-                    video_enabled = COALESCE(video_enabled, true)
-                WHERE base_credits IS NULL OR duration_minutes IS NULL OR video_enabled IS NULL
-            """)
-            
-            logger.info("✅ Data integrity fixed")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Data integrity fix warning: {e}")
-            # Don't raise - system can work with existing data
-    
-    async def _create_missing_tables(self):
-        """Create missing tables needed for the application"""
-        logger.info("🔧 Creating missing tables...")
-        
-        try:
-            # Create service_usage_logs table
-            await self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS service_usage_logs (
-                    id SERIAL PRIMARY KEY,
-                    service_type TEXT NOT NULL,
-                    api_name TEXT NOT NULL,
-                    usage_type TEXT NOT NULL,
-                    usage_amount REAL NOT NULL,
-                    cost_usd REAL NOT NULL,
-                    cost_credits REAL NOT NULL,
-                    session_id INTEGER,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                );
-            """)
-            
-            # Create ai_pricing_recommendations table
-            await self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS ai_pricing_recommendations (
-                    id SERIAL PRIMARY KEY,
-                    service_type TEXT NOT NULL,
-                    recommendation_data TEXT NOT NULL,
-                    confidence_score REAL DEFAULT 0.5,
-                    status TEXT DEFAULT 'pending',
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    admin_notes TEXT,
-                    applied_at TIMESTAMP
-                );
-            """)
-            
-            # Create api_usage_metrics table
-            await self.conn.execute("""
-                CREATE TABLE IF NOT EXISTS api_usage_metrics (
-                    id SERIAL PRIMARY KEY,
-                    api_name TEXT NOT NULL,
-                    endpoint TEXT,
-                    calls_count INTEGER DEFAULT 0,
-                    total_cost_usd REAL DEFAULT 0,
-                    total_cost_credits REAL DEFAULT 0,
-                    average_response_time REAL DEFAULT 0,
-                    error_count INTEGER DEFAULT 0,
-                    date DATE DEFAULT CURRENT_DATE,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(api_name, endpoint, date)
-                );
-            """)
-            
-            logger.info("✅ Missing tables created")
-            
-        except Exception as e:
-            logger.error(f"❌ Missing tables creation failed: {e}")
-            raise
-    
-    async def _add_missing_indexes(self):
-        """Add missing indexes for performance"""
-        logger.info("🔧 Adding missing indexes...")
-        
-        try:
-            indexes = [
-                "CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON sessions(service_type)",
-                "CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at)",
-                "CREATE INDEX IF NOT EXISTS idx_service_usage_logs_service_type ON service_usage_logs(service_type)",
-                "CREATE INDEX IF NOT EXISTS idx_service_usage_logs_api_name ON service_usage_logs(api_name)",
-                "CREATE INDEX IF NOT EXISTS idx_api_usage_metrics_date ON api_usage_metrics(date, api_name)",
-                "CREATE INDEX IF NOT EXISTS idx_ai_pricing_recommendations_service ON ai_pricing_recommendations(service_type, status)"
-            ]
-            
-            for index_sql in indexes:
-                try:
-                    await self.conn.execute(index_sql)
-                except Exception as e:
-                    logger.warning(f"⚠️ Index creation warning: {e}")
-            
-            logger.info("✅ Missing indexes added")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Index addition warning: {e}")
-            # Don't raise - system can work without indexes
-    
-    async def _insert_default_data(self):
-        """Insert default data needed for the application"""
-        logger.info("🔧 Inserting default data...")
-        
-        try:
-            # Insert default service types
-            default_services = [
-                ('comprehensive_life_reading_30min', 'Comprehensive 30-minute life reading', 15, 30, True),
-                ('horoscope_reading_quick', 'Quick horoscope reading', 8, 10, True),
-                ('satsang_community', 'Community satsang session', 5, 60, True),
-                ('clarity', 'Basic spiritual clarity session', 5, 15, True),
-                ('love', 'Love and relationship guidance', 8, 20, True),
-                ('premium', 'Premium comprehensive reading', 12, 30, True),
-                ('elite', 'Elite personalized consultation', 20, 45, True)
-            ]
-            
-            for service in default_services:
-                try:
-                    await self.conn.execute("""
-                        INSERT INTO service_types (name, description, base_credits, duration_minutes, video_enabled)
-                        VALUES ($1, $2, $3, $4, $5)
-                        ON CONFLICT (name) DO UPDATE SET
-                            description = EXCLUDED.description,
-                            base_credits = EXCLUDED.base_credits,
-                            duration_minutes = EXCLUDED.duration_minutes,
-                            video_enabled = EXCLUDED.video_enabled
-                    """, *service)
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not insert service {service[0]}: {e}")
-            
-            # Insert sample sessions data for testing
-            sample_sessions = [
-                ('comprehensive_life_reading_30min', 30, 15),
-                ('horoscope_reading_quick', 10, 8),
-                ('satsang_community', 60, 5)
-            ]
-            
-            for session in sample_sessions:
-                try:
-                    await self.conn.execute("""
-                        INSERT INTO sessions (service_type, duration_minutes, credits_used, session_data, created_at)
-                        VALUES ($1, $2, $3, '{}', CURRENT_TIMESTAMP - INTERVAL '1 day')
-                        ON CONFLICT DO NOTHING
-                    """, *session)
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not insert sample session: {e}")
-            
-            # Insert AI pricing recommendations
-            sample_recommendations = [
-                ('comprehensive_life_reading_30min', '{"suggested_price": 16.5, "reasoning": "High demand and increased API costs"}', 0.78, 'pending'),
-                ('horoscope_reading_quick', '{"suggested_price": 9.0, "reasoning": "Stable demand, optimized costs"}', 0.65, 'pending')
-            ]
-            
-            for recommendation in sample_recommendations:
-                try:
-                    await self.conn.execute("""
-                        INSERT INTO ai_pricing_recommendations (service_type, recommendation_data, confidence_score, status)
-                        VALUES ($1, $2, $3, $4)
-                        ON CONFLICT DO NOTHING
-                    """, *recommendation)
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not insert recommendation: {e}")
-            
-            logger.info("✅ Default data inserted")
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Default data insertion warning: {e}")
-            # Don't raise - system can work without sample data
+            await self.close()
 
 async def main():
-    """Main function to run the comprehensive database fix"""
-    logger.info("🚀 Starting comprehensive database fix...")
-    
-    fixer = ComprehensiveDatabaseFixer()
-    success = await fixer.fix_all_issues()
+    """Main execution function"""
+    fixer = DatabaseFixer()
+    success = await fixer.run_comprehensive_fix()
     
     if success:
-        logger.info("🎉 Comprehensive database fix completed successfully!")
-        sys.exit(0)
+        print("✅ Database fixes applied successfully!")
+        print("🔄 Please restart the application to apply changes.")
     else:
-        logger.error("💥 Comprehensive database fix failed!")
-        sys.exit(1)
+        print("❌ Database fixes failed. Check logs for details.")
 
 if __name__ == "__main__":
     asyncio.run(main())
+
