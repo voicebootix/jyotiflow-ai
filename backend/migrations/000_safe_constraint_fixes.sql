@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS service_usage_logs (
     usage_amount DECIMAL(10,2) NOT NULL,
     cost_usd DECIMAL(10,2) NOT NULL,
     cost_credits DECIMAL(10,2) NOT NULL,
-    session_id VARCHAR(100),
+    session_reference VARCHAR(100), -- Changed from session_id to avoid foreign key issues
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
