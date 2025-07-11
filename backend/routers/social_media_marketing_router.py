@@ -35,18 +35,18 @@ try:
 except ImportError:
     avatar_engine = None
 
-# SURGICAL FIX: Use simplified AI Marketing Director that works without complex dependencies
+# RESTORE: Use the real AI Marketing Director with OpenAI integration
 try:
-    from simple_ai_marketing_director import ai_marketing_director
-    print("✅ Using simplified AI Marketing Director")
+    from real_ai_marketing_director import real_ai_marketing_director as ai_marketing_director
+    print("✅ Using REAL AI Marketing Director with OpenAI integration")
 except ImportError:
     try:
         from ai_marketing_director_agent_fixed import ai_marketing_director
-        print("✅ Using complex AI Marketing Director")
+        print("✅ Using sophisticated AI Marketing Director with real AI capabilities")
     except ImportError:
         try:
             from ai_marketing_director_agent import ai_marketing_director
-            print("✅ Using fallback AI Marketing Director")
+            print("✅ Using fallback sophisticated AI Marketing Director")
         except ImportError:
             ai_marketing_director = None
             print("❌ No AI Marketing Director available")
