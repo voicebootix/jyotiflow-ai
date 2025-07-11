@@ -36,13 +36,28 @@ async def surgical_admin_auth_fix():
         
         if not admin_user:
             print("❌ Admin user not found - creating admin user")
-            # Create admin user with proper role
+            # Create admin user with proper role and robust datetime handling
             password_hash = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt()).decode()
-            admin_id = await conn.fetchval("""
-                INSERT INTO users (email, password_hash, full_name, role, credits, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING id
-            """, "admin@jyotiflow.ai", password_hash, "Admin User", "admin", 1000, datetime.now(timezone.utc))
+            
+            # Try different datetime approaches for compatibility
+            try:
+                # First try with timezone-aware datetime
+                current_time = datetime.now(timezone.utc)
+                admin_id = await conn.fetchval("""
+                    INSERT INTO users (email, password_hash, full_name, role, credits, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    RETURNING id
+                """, "admin@jyotiflow.ai", password_hash, "Admin User", "admin", 1000, current_time)
+            except Exception as e:
+                print(f"⚠️ Timezone-aware datetime failed: {e}")
+                # Fallback to naive datetime
+                current_time = datetime.now()
+                admin_id = await conn.fetchval("""
+                    INSERT INTO users (email, password_hash, full_name, role, credits, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    RETURNING id
+                """, "admin@jyotiflow.ai", password_hash, "Admin User", "admin", 1000, current_time)
+            
             print(f"✅ Created admin user with ID: {admin_id}")
             
             # Fetch the newly created user
