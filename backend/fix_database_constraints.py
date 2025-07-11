@@ -26,6 +26,7 @@ class DatabaseConstraintFixer:
         """Fix all database constraint issues"""
         logger.info("🔧 Starting comprehensive database constraint fixes...")
         
+        conn = None
         try:
             conn = await asyncpg.connect(self.database_url)
             
@@ -36,13 +37,20 @@ class DatabaseConstraintFixer:
             await self._fix_missing_columns(conn)
             await self._fix_migration_dependencies(conn)
             
-            await conn.close()
             logger.info("✅ All database constraint fixes completed successfully!")
             return True
             
         except Exception as e:
             logger.error(f"❌ Database constraint fix failed: {e}")
             return False
+        finally:
+            # Ensure connection is always closed
+            if conn:
+                try:
+                    await conn.close()
+                    logger.info("🔗 Database connection closed properly")
+                except Exception as close_error:
+                    logger.error(f"⚠️ Error closing database connection: {close_error}")
     
     async def _fix_sessions_table_constraints(self, conn):
         """Fix sessions table constraints for foreign key references"""

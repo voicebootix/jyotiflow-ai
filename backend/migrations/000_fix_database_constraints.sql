@@ -102,12 +102,25 @@ BEGIN
     END IF;
 END $$;
 
--- Ensure ID sequence exists and is properly set
+-- Ensure ID sequence exists and is properly set (PostgreSQL handles SERIAL automatically)
 DO $$ 
 BEGIN
-    IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'service_types_id_seq') THEN
-        CREATE SEQUENCE service_types_id_seq;
+    -- PostgreSQL automatically creates sequences for SERIAL columns
+    -- Only manually set if sequence doesn't exist or isn't properly linked
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_depend d 
+        JOIN pg_class c ON d.objid = c.oid 
+        JOIN pg_attribute a ON d.refobjid = a.attrelid AND d.refobjsubid = a.attnum
+        WHERE c.relname = 'service_types_id_seq' 
+        AND a.attname = 'id' 
+        AND a.attrelid = 'service_types'::regclass
+    ) THEN
+        -- Only create sequence if it doesn't exist and isn't linked
+        IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'service_types_id_seq') THEN
+            CREATE SEQUENCE service_types_id_seq;
+        END IF;
         ALTER TABLE service_types ALTER COLUMN id SET DEFAULT nextval('service_types_id_seq');
+        ALTER SEQUENCE service_types_id_seq OWNED BY service_types.id;
     END IF;
 END $$;
 
@@ -185,7 +198,7 @@ END $$;
 -- 5. ADD MISSING COLUMNS
 -- ========================================
 
--- Add service_type column to tables that need it
+-- Add service_type column to tables that need it (with proper table existence checks)
 DO $$ 
 BEGIN
     -- Add service_type to service_usage_logs if table exists
@@ -209,12 +222,44 @@ BEGIN
     END IF;
     
     -- Add base_credits column to users if missing
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'users' AND column_name = 'base_credits'
-    ) THEN
-        ALTER TABLE users ADD COLUMN base_credits INTEGER DEFAULT 0;
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'users' AND column_name = 'base_credits'
+        ) THEN
+            ALTER TABLE users ADD COLUMN base_credits INTEGER DEFAULT 0;
+        END IF;
     END IF;
+    
+    -- Add unique constraints only if tables exist
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'api_usage_metrics') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint 
+            WHERE conname = 'api_usage_metrics_unique_daily'
+        ) THEN
+            ALTER TABLE api_usage_metrics ADD CONSTRAINT api_usage_metrics_unique_daily UNIQUE (api_name, endpoint, date);
+        END IF;
+    END IF;
+    
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'satsang_attendees') THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint 
+            WHERE conname = 'satsang_attendees_unique_attendance'
+        ) THEN
+            ALTER TABLE satsang_attendees ADD CONSTRAINT satsang_attendees_unique_attendance UNIQUE (satsang_event_id, user_id);
+        END IF;
+    END IF;
+    
+EXCEPTION 
+    WHEN undefined_table THEN
+        -- Table doesn't exist, skip gracefully
+        RAISE NOTICE 'Skipping constraint addition for non-existent table';
+    WHEN undefined_column THEN
+        -- Column doesn't exist, skip gracefully  
+        RAISE NOTICE 'Skipping constraint addition for non-existent column';
+    WHEN duplicate_table THEN
+        -- Constraint already exists, skip gracefully
+        RAISE NOTICE 'Constraint already exists, skipping';
 END $$;
 
 -- ========================================
