@@ -145,7 +145,7 @@ async def lifespan(app: FastAPI):
         # Apply database schema fixes
         try:
             print("🔧 Applying database schema fixes...")
-            schema_fix_success = await fix_database_schema(db_pool)
+            schema_fix_success = await fix_database_schema()
             if schema_fix_success:
                 print("✅ Database schema fixes applied successfully")
             else:

@@ -561,11 +561,15 @@ class JyotiFlowDatabaseInitializer:
             ]
             
             for service in default_services:
-                await conn.execute("""
-                    INSERT INTO service_types (name, description, base_credits, duration_minutes, video_enabled)
-                    VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (name) DO NOTHING
-                """, *service)
+                # Check if service already exists
+                existing = await conn.fetchrow(
+                    "SELECT id FROM service_types WHERE name = $1", service[0]
+                )
+                if not existing:
+                    await conn.execute("""
+                        INSERT INTO service_types (name, description, base_credits, duration_minutes, video_enabled)
+                        VALUES ($1, $2, $3, $4, $5)
+                    """, *service)
             
             # Insert default avatar templates
             avatar_templates = [
@@ -576,11 +580,15 @@ class JyotiFlowDatabaseInitializer:
             ]
             
             for template in avatar_templates:
-                await conn.execute("""
-                    INSERT INTO avatar_templates (template_name, avatar_style, voice_tone, background_style, clothing_style)
-                    VALUES ($1, $2, $3, $4, $5)
-                    ON CONFLICT (template_name) DO NOTHING
-                """, *template)
+                # Check if template already exists
+                existing = await conn.fetchrow(
+                    "SELECT id FROM avatar_templates WHERE template_name = $1", template[0]
+                )
+                if not existing:
+                    await conn.execute("""
+                        INSERT INTO avatar_templates (template_name, avatar_style, voice_tone, background_style, clothing_style)
+                        VALUES ($1, $2, $3, $4, $5)
+                    """, *template)
             
             # Insert default service configurations
             service_configs = [
@@ -615,16 +623,21 @@ class JyotiFlowDatabaseInitializer:
             ]
             
             for config in service_configs:
-                await conn.execute("""
-                    INSERT INTO service_configuration_cache (service_name, configuration, persona_config, knowledge_domains)
-                    VALUES ($1, $2, $3, $4)
-                    ON CONFLICT (service_name) DO NOTHING
-                """, (
-                    config["service_name"],
-                    json.dumps(config["configuration"]),
-                    json.dumps(config["persona_config"]),
-                    config["knowledge_domains"]
-                ))
+                # Check if service configuration already exists
+                existing = await conn.fetchrow(
+                    "SELECT service_name FROM service_configuration_cache WHERE service_name = $1", 
+                    config["service_name"]
+                )
+                if not existing:
+                    await conn.execute("""
+                        INSERT INTO service_configuration_cache (service_name, configuration, persona_config, knowledge_domains)
+                        VALUES ($1, $2, $3, $4)
+                    """, (
+                        config["service_name"],
+                        json.dumps(config["configuration"]),
+                        json.dumps(config["persona_config"]),
+                        config["knowledge_domains"]
+                    ))
             
             # Insert initial platform settings
             platform_settings = [
@@ -649,11 +662,15 @@ class JyotiFlowDatabaseInitializer:
             ]
             
             for setting_key, setting_value in platform_settings:
-                await conn.execute("""
-                    INSERT INTO platform_settings (key, value)
-                    VALUES ($1, $2)
-                    ON CONFLICT (key) DO NOTHING
-                """, (setting_key, json.dumps(setting_value)))
+                # Check if platform setting already exists
+                existing = await conn.fetchrow(
+                    "SELECT id FROM platform_settings WHERE key = $1", setting_key
+                )
+                if not existing:
+                    await conn.execute("""
+                        INSERT INTO platform_settings (key, value)
+                        VALUES ($1, $2)
+                    """, (setting_key, json.dumps(setting_value)))
             
             # Insert sample social media content for testing
             now = datetime.now()
@@ -676,13 +693,17 @@ class JyotiFlowDatabaseInitializer:
             ]
             
             for content in sample_social_content:
-                await conn.execute("""
-                    INSERT INTO social_content 
-                    (content_id, content_type, platform, title, content_text, media_url, hashtags, 
-                     scheduled_at, published_at, status)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-                    ON CONFLICT (content_id) DO NOTHING
-                """, content)
+                # Check if social content already exists
+                existing = await conn.fetchrow(
+                    "SELECT id FROM social_content WHERE content_id = $1", content[0]
+                )
+                if not existing:
+                    await conn.execute("""
+                        INSERT INTO social_content 
+                        (content_id, content_type, platform, title, content_text, media_url, hashtags, 
+                         scheduled_at, published_at, status)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    """, content)
             
             logger.info("✅ Initial data inserted")
             logger.info("✅ Sample social media content created")
