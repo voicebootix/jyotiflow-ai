@@ -111,9 +111,9 @@ You provide expert marketing analysis, strategy, and recommendations. Always be 
 
 Please provide detailed marketing analysis and recommendations for this spiritual guidance platform. Include specific strategies, metrics, and actionable steps."""
 
-            # Call OpenAI API
+            # Call OpenAI API with supported model
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4.1-mini",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
