@@ -169,16 +169,8 @@ class DatabaseConstraintFixer:
                 END $$;
             ''')
             
-            # Ensure ID sequence exists and is properly set
-            await conn.execute('''
-                DO $$ 
-                BEGIN
-                    IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'service_types_id_seq') THEN
-                        CREATE SEQUENCE service_types_id_seq;
-                        ALTER TABLE service_types ALTER COLUMN id SET DEFAULT nextval('service_types_id_seq');
-                    END IF;
-                END $$;
-            ''')
+            # PostgreSQL SERIAL columns automatically create and manage their own sequences
+            # No manual sequence management needed - SERIAL handles everything automatically
             
             logger.info("✅ Service_types table fixed")
             

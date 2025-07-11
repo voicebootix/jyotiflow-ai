@@ -257,9 +257,12 @@ EXCEPTION
     WHEN undefined_column THEN
         -- Column doesn't exist, skip gracefully  
         RAISE NOTICE 'Skipping constraint addition for non-existent column';
-    WHEN duplicate_table THEN
+    WHEN duplicate_object THEN
         -- Constraint already exists, skip gracefully
         RAISE NOTICE 'Constraint already exists, skipping';
+    WHEN unique_violation THEN
+        -- Unique constraint violation, skip gracefully
+        RAISE NOTICE 'Unique constraint violation, skipping';
 END $$;
 
 -- ========================================
