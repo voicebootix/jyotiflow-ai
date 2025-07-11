@@ -168,15 +168,17 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️ Database schema fix failed: {e}")
         
-        # Initialize database with comprehensive reset (ONE-SHOT SOLUTION)
+        # Safe database initialization (NO DESTRUCTIVE OPERATIONS)
         try:
-            print("🚀 Starting comprehensive database reset...")
-            from comprehensive_database_reset import ComprehensiveDatabaseReset
-            reset = ComprehensiveDatabaseReset()
-            await reset.execute_reset()
-            print("✅ Comprehensive database reset completed - ALL TABLES CREATED!")
+            print("🚀 Starting safe database initialization...")
+            from safe_database_init import safe_initialize_database
+            success = await safe_initialize_database()
+            if success:
+                print("✅ Safe database initialization completed successfully!")
+            else:
+                print("⚠️ Safe initialization had issues but will continue")
         except Exception as e:
-            print(f"❌ Comprehensive reset failed: {e}")
+            print(f"❌ Safe initialization failed: {e}")
             # Fallback to original initialization
             try:
                 print("🔄 Falling back to original database initialization...")
