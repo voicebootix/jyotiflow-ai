@@ -153,16 +153,25 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️ Database schema fix failed: {e}")
         
-        # Initialize database tables automatically
+        # Initialize database with comprehensive reset (ONE-SHOT SOLUTION)
         try:
-            print("🔄 Initializing database tables...")
-            success = await initialize_jyotiflow_database()
-            if success:
-                print("✅ Database tables initialized successfully")
-            else:
-                print("⚠️ Database table initialization had issues but will continue")
+            print("🚀 Starting comprehensive database reset...")
+            from comprehensive_database_reset import ComprehensiveDatabaseReset
+            reset = ComprehensiveDatabaseReset()
+            await reset.execute_reset()
+            print("✅ Comprehensive database reset completed - ALL TABLES CREATED!")
         except Exception as e:
-            print(f"⚠️ Database table initialization failed: {e}")
+            print(f"❌ Comprehensive reset failed: {e}")
+            # Fallback to original initialization
+            try:
+                print("🔄 Falling back to original database initialization...")
+                success = await initialize_jyotiflow_database()
+                if success:
+                    print("✅ Fallback database initialization completed")
+                else:
+                    print("⚠️ Fallback initialization had issues but will continue")
+            except Exception as fallback_error:
+                print(f"⚠️ Fallback initialization also failed: {fallback_error}")
         
         # Initialize enhanced system if available
         if ENHANCED_ROUTER_AVAILABLE:
