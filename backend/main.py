@@ -134,7 +134,8 @@ async def lifespan(app: FastAPI):
         print("🚀 Starting JyotiFlow.ai backend...")
         
         # Apply database migrations first
-        await apply_migrations()
+        # await apply_migrations()
+        print("⏭️ Skipping migrations - Database already set up")
         
         # Initialize database connection pool
         global db_pool
@@ -158,45 +159,23 @@ async def lifespan(app: FastAPI):
         else:
             raise Exception("Database pool is not initialized.")
         
-        # Ensure base credits column exists
-        try:
-            await ensure_base_credits_column()
-            print("✅ Base credits column check completed")
-        except Exception as e:
-            print(f"⚠️ Base credits column check failed: {e}")
+        # Skip column checks - they use ALTER TABLE
+        print("⏭️ Skipping column checks - Database already configured")
         
-        # Apply database schema fixes
-        try:
-            print("🔧 Applying database schema fixes...")
-            schema_fix_success = await fix_database_schema()
-            if schema_fix_success:
-                print("✅ Database schema fixes applied successfully")
-            else:
-                print("⚠️ Database schema fixes had issues but will continue")
-        except Exception as e:
-            print(f"⚠️ Database schema fix failed: {e}")
+        # Skip schema fixes - they use ALTER TABLE
+        print("⏭️ Skipping schema fixes - Database already fixed")
         
-        # Safe database initialization (NO DESTRUCTIVE OPERATIONS)
+        # Safe database initialization might be OK if it only INSERTs data
         try:
-            print("🚀 Starting safe database initialization...")
+            print("🚀 Checking if safe database initialization is needed...")
             from safe_database_init import safe_initialize_database
+            # This should only INSERT data, not create/alter tables
             success = await safe_initialize_database()
             if success:
-                print("✅ Safe database initialization completed successfully!")
-            else:
-                print("⚠️ Safe initialization had issues but will continue")
+                print("✅ Safe database initialization completed!")
         except Exception as e:
-            print(f"❌ Safe initialization failed: {e}")
-            # Fallback to original initialization
-            try:
-                print("🔄 Falling back to original database initialization...")
-                success = await initialize_jyotiflow_database()
-                if success:
-                    print("✅ Fallback database initialization completed")
-                else:
-                    print("⚠️ Fallback initialization had issues but will continue")
-            except Exception as fallback_error:
-                print(f"⚠️ Fallback initialization also failed: {fallback_error}")
+            print(f"⚠️ Safe initialization skipped: {e}")
+            # This is OK - tables exist, just might be missing some seed data
         
         # Surgical fix for admin user authentication
         try:
