@@ -134,7 +134,7 @@ async def lifespan(app: FastAPI):
         print("🚀 Starting JyotiFlow.ai backend...")
         
         # Apply database migrations first
-        # await apply_migrations()  # Skip this - it might have ALTER TABLE commands
+        # await apply_migrations()
         print("⏭️ Skipping migrations - Database already set up")
         
         # Initialize database connection pool
