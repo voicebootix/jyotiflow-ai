@@ -78,6 +78,17 @@ function App() {
           {/* Navigation */}
           <Navigation />    
           
+          {/* Sentry Test Button - Remove this after testing */}
+          <div className="fixed top-4 right-4 z-50">
+            <button 
+              onClick={() => {throw new Error("Test error!");}}
+              className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded shadow-lg transition-colors"
+              title="Test Sentry Error Monitoring"
+            >
+              Test Sentry
+            </button>
+          </div>
+          
           {/* Main Content */}
           <main className="relative z-10">
             <Routes>
