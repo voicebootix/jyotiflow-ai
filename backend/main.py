@@ -68,6 +68,14 @@ except ImportError:
     DEBUG_ROUTER_AVAILABLE = False
     print("⚠️ Debug router not available")
 
+# Environment debug router
+try:
+    from debug_env_check import router as env_debug_router
+    ENV_DEBUG_AVAILABLE = True
+except ImportError:
+    ENV_DEBUG_AVAILABLE = False
+    print("⚠️ Environment debug router not available")
+
 # Import database initialization
 from init_database import initialize_jyotiflow_database
 
@@ -365,6 +373,11 @@ if LIVECHAT_AVAILABLE:
 if DEBUG_ROUTER_AVAILABLE:
     app.include_router(debug_router)
     print("✅ Debug router registered")
+
+# Environment debug router for checking environment variables
+if ENV_DEBUG_AVAILABLE:
+    app.include_router(env_debug_router)
+    print("✅ Environment debug router registered")
 
 # Surgical auth router for frontend authentication fix
 if SURGICAL_AUTH_AVAILABLE:
