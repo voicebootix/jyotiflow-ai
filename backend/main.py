@@ -7,25 +7,37 @@ from datetime import datetime
 import os
 import asyncio
 
-# Initialize Sentry for error monitoring
+# Sentry initialization
 import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
-from sentry_sdk.integrations.asyncpg import AsyncPGIntegration
 
-# Initialize Sentry
-sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN", "https://576bf026f026fecadcd12bef7f020e18@o4509655767056384.ingest.us.sentry.io/4509655863132160"),
-    environment=os.getenv("APP_ENV", "development"),
-    integrations=[
-        FastApiIntegration(auto_enabling_integrations=True),
-        SqlalchemyIntegration(),
-        AsyncPGIntegration(),
-    ],
-    traces_sample_rate=1.0,
-    profiles_sample_rate=1.0,
-    send_default_pii=True,
-)
+# Initialize Sentry if DSN is available
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    # Read Sentry configuration from environment variables with production-safe defaults
+    # Parse traces_sample_rate with proper error handling
+    try:
+        traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+        # Validate that the value is within the valid range (0.0 to 1.0)
+        if not (0.0 <= traces_sample_rate <= 1.0):
+            print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: {traces_sample_rate}. Must be between 0.0 and 1.0. Using default: 0.1")
+            traces_sample_rate = 0.1
+    except (ValueError, TypeError) as e:
+        env_value = os.getenv("SENTRY_TRACES_SAMPLE_RATE")
+        print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{env_value}'. Must be a number between 0.0 and 1.0. Using default: 0.1")
+        traces_sample_rate = 0.1
+    
+    send_default_pii = os.getenv("SENTRY_SEND_DEFAULT_PII", "false").lower() in ("true", "1", "yes", "on")
+    
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        # FastAPI integration is auto-enabled by default when FastAPI is detected
+        # No need to manually specify integrations unless custom configuration is needed
+        traces_sample_rate=traces_sample_rate,
+        send_default_pii=send_default_pii,
+    )
+    print(f"✅ Sentry initialized successfully (traces_sample_rate={traces_sample_rate}, send_default_pii={send_default_pii})")
+else:
+    print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
