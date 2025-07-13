@@ -429,41 +429,77 @@ class KnowledgeSeeder:
         try:
             # Generate embedding if OpenAI is available
             embedding = None
-            if self.openai_client:
-                response = await self.openai_client.embeddings.create(
-                    model="text-embedding-ada-002",
-                    input=knowledge_data["content"]
-                )
-                embedding = response.data[0].embedding
+            if self.openai_client and OPENAI_AVAILABLE:
+                try:
+                    response = await self.openai_client.embeddings.create(
+                        model="text-embedding-ada-002",
+                        input=knowledge_data["content"]
+                    )
+                    embedding = response.data[0].embedding
+                except Exception as embed_error:
+                    logger.warning(f"OpenAI embedding failed: {embed_error}, using fallback")
+                    embedding = [0.0] * 1536
             else:
                 # Fallback to zero vector if OpenAI not available
                 embedding = [0.0] * 1536
             
-            # Add to database
-            async with self.db_pool.acquire() as conn:
-                await conn.execute("""
-                    INSERT INTO rag_knowledge_base (
-                        knowledge_domain, content_type, title, content, metadata,
-                        embedding_vector, tags, source_reference, authority_level,
-                        cultural_context, created_at, updated_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-                    ON CONFLICT (title) DO UPDATE SET
-                        content = EXCLUDED.content,
-                        metadata = EXCLUDED.metadata,
-                        embedding_vector = EXCLUDED.embedding_vector,
-                        updated_at = NOW()
-                """, 
-                    knowledge_data["knowledge_domain"],
-                    knowledge_data["content_type"],
-                    knowledge_data["title"],
-                    knowledge_data["content"],
-                    json.dumps(knowledge_data.get("metadata", {})),
-                    embedding,
-                    knowledge_data.get("tags", []),
-                    knowledge_data["source_reference"],
-                    knowledge_data["authority_level"],
-                    knowledge_data["cultural_context"]
-                )
+            # Add to database - handle both pool and direct connection
+            if self.db_pool:
+                async with self.db_pool.acquire() as conn:
+                    await conn.execute("""
+                        INSERT INTO rag_knowledge_base (
+                            knowledge_domain, content_type, title, content, metadata,
+                            embedding_vector, tags, source_reference, authority_level,
+                            cultural_context, created_at, updated_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                        ON CONFLICT (title) DO UPDATE SET
+                            content = EXCLUDED.content,
+                            metadata = EXCLUDED.metadata,
+                            embedding_vector = EXCLUDED.embedding_vector,
+                            updated_at = NOW()
+                    """, 
+                        knowledge_data["knowledge_domain"],
+                        knowledge_data["content_type"],
+                        knowledge_data["title"],
+                        knowledge_data["content"],
+                        json.dumps(knowledge_data.get("metadata", {})),
+                        embedding,
+                        knowledge_data.get("tags", []),
+                        knowledge_data["source_reference"],
+                        knowledge_data["authority_level"],
+                        knowledge_data["cultural_context"]
+                    )
+            else:
+                # Fallback to direct connection if no pool
+                if ASYNCPG_AVAILABLE:
+                    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
+                    conn = await asyncpg.connect(DATABASE_URL)
+                try:
+                    await conn.execute("""
+                        INSERT INTO rag_knowledge_base (
+                            knowledge_domain, content_type, title, content, metadata,
+                            embedding_vector, tags, source_reference, authority_level,
+                            cultural_context, created_at, updated_at
+                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                        ON CONFLICT (title) DO UPDATE SET
+                            content = EXCLUDED.content,
+                            metadata = EXCLUDED.metadata,
+                            embedding_vector = EXCLUDED.embedding_vector,
+                            updated_at = NOW()
+                    """, 
+                        knowledge_data["knowledge_domain"],
+                        knowledge_data["content_type"],
+                        knowledge_data["title"],
+                        knowledge_data["content"],
+                        json.dumps(knowledge_data.get("metadata", {})),
+                        embedding,
+                        knowledge_data.get("tags", []),
+                        knowledge_data["source_reference"],
+                        knowledge_data["authority_level"],
+                        knowledge_data["cultural_context"]
+                    )
+                finally:
+                    await conn.close()
             
             logger.info(f"Added knowledge: {knowledge_data['title'][:50]}...")
             

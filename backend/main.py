@@ -145,6 +145,14 @@ from init_database import initialize_jyotiflow_database
 # Import enhanced startup integration
 from enhanced_startup_integration import initialize_enhanced_jyotiflow
 
+# Import comprehensive startup fixes
+try:
+    from fix_startup_issues import JyotiFlowStartupFixer
+    STARTUP_FIXER_AVAILABLE = True
+except ImportError:
+    STARTUP_FIXER_AVAILABLE = False
+    print("⚠️ Startup fixer not available")
+
 # Import database schema fix
 from db_schema_fix import fix_database_schema
 
@@ -263,6 +271,16 @@ async def lifespan(app: FastAPI):
                     print("⚠️ Enhanced system initialization had issues but will continue in fallback mode")
             except Exception as e:
                 print(f"⚠️ Enhanced system initialization failed: {e}")
+        
+        # Run comprehensive startup fixes if available
+        if STARTUP_FIXER_AVAILABLE:
+            try:
+                from fix_startup_issues import JyotiFlowStartupFixer
+                startup_fixer = JyotiFlowStartupFixer()
+                await startup_fixer.fix_all_issues()
+                print("✅ Comprehensive startup fixes applied successfully")
+            except Exception as e:
+                print(f"⚠️ Comprehensive startup fixes failed: {e}")
         
         print("🎉 JyotiFlow.ai backend startup completed successfully!")
         
