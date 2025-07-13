@@ -349,6 +349,49 @@ class SafeDatabaseInitializer:
         except:
             pass
         
+        # Fix knowledge_domain column in rag_knowledge_base table
+        try:
+            logger.info("🔍 Checking rag_knowledge_base table schema...")
+            
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'rag_knowledge_base'
+            """)
+            
+            if table_exists:
+                # Check if knowledge_domain column exists
+                column_exists = await conn.fetchval("""
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'rag_knowledge_base' 
+                    AND column_name = 'knowledge_domain'
+                """)
+                
+                if not column_exists:
+                    logger.info("⚠️ knowledge_domain column missing in rag_knowledge_base. Adding it...")
+                    await conn.execute("""
+                        ALTER TABLE rag_knowledge_base 
+                        ADD COLUMN knowledge_domain VARCHAR(100) NOT NULL DEFAULT 'general'
+                    """)
+                    logger.info("✅ knowledge_domain column added to rag_knowledge_base")
+                    
+                    # Update existing records if any
+                    records_count = await conn.fetchval("SELECT COUNT(*) FROM rag_knowledge_base")
+                    if records_count > 0:
+                        await conn.execute("""
+                            UPDATE rag_knowledge_base 
+                            SET knowledge_domain = 'classical_astrology' 
+                            WHERE knowledge_domain = 'general'
+                        """)
+                        logger.info(f"✅ Updated {records_count} existing records with default domain")
+                else:
+                    logger.info("✅ knowledge_domain column already exists in rag_knowledge_base")
+            else:
+                logger.info("⚠️ rag_knowledge_base table does not exist yet")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fix knowledge_domain column: {e}")
+        
         # Add missing columns to service_types
         columns_to_add = [
             ("enabled", "BOOLEAN DEFAULT true"),
