@@ -15,21 +15,36 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 # Initialize Sentry if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
+    # Build integrations list with available integrations
+    integrations = [
+        FastApiIntegration(auto_error=True),
+        StarletteIntegration(auto_error=True),
+    ]
     try:
-        # Use environment-based sample rate with fallback to production-safe default
-        sample_rate_env = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
-        try:
-            traces_sample_rate = float(sample_rate_env)
-        except ValueError:
-            print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{sample_rate_env}', falling back to 0.1")
-            traces_sample_rate = 0.1
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration  # type: ignore
+        integrations.append(SqlalchemyIntegration())
+    except ImportError:
+        pass
 
+    try:
+        from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
+        integrations.append(AsyncPGIntegration())
+    except ImportError:
+        pass
+
+    # Parse traces_sample_rate with error handling
+    sample_rate_env = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
+    try:
+        traces_sample_rate = float(sample_rate_env)
+    except ValueError:
+        print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{sample_rate_env}', falling back to 0.1")
+        traces_sample_rate = 0.1
+
+    try:
         sentry_sdk.init(
             dsn=sentry_dsn,
-            integrations=[
-                FastApiIntegration(auto_error=True),
-                StarletteIntegration(auto_error=True),
-            ],
+            environment=os.getenv("APP_ENV", "development"),
+            integrations=integrations,
             traces_sample_rate=traces_sample_rate,
             send_default_pii=True,
         )
