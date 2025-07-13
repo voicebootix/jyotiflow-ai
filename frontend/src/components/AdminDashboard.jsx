@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, RefreshCw, Download, Database, Shield, Globe, Zap, TrendingUp, Users, Settings as SettingsIcon, Bell, CreditCard, MessageCircle, BarChart3, DollarSign, Heart, Video, Brain, Cpu, Activity, AlertTriangle } from 'lucide-react';
 
+// Import the custom notification hook
+import { useNotification } from '../hooks/useNotification';
+
 // Import existing components
 import Overview from './admin/Overview';
 import Products from './admin/Products';
@@ -31,7 +34,9 @@ const AdminDashboard = () => {
   const [knowledgeStats, setKnowledgeStats] = useState({});
   const [sessionMonitoring, setSessionMonitoring] = useState({});
   const [apiIntegrations, setApiIntegrations] = useState({});
-  const [notification, setNotification] = useState(null);
+  
+  // Use the custom notification hook
+  const { notification, showNotification, clearNotification } = useNotification();
 
   // Reusable data fetching function
   const fetchComprehensiveAdminData = async (showRefreshIndicator = false) => {
@@ -87,11 +92,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // Notification helper function
-  const showNotification = (message, type = 'info') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
-  };
+  // Notification helper function is now provided by the useNotification hook
 
   useEffect(() => {
     fetchComprehensiveAdminData();
@@ -116,15 +117,46 @@ const AdminDashboard = () => {
         integrations: apiIntegrations
       };
       
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      // Convert to JSON string to check size
+      const jsonString = JSON.stringify(exportData, null, 2);
+      const sizeInBytes = new Blob([jsonString]).size;
+      const sizeInMB = sizeInBytes / (1024 * 1024);
+      
+      // Check if data exceeds reasonable size threshold (50MB)
+      const MAX_SIZE_MB = 50;
+      if (sizeInMB > MAX_SIZE_MB) {
+        showNotification(
+          `Export data too large (${sizeInMB.toFixed(2)}MB). Maximum allowed size is ${MAX_SIZE_MB}MB. Please contact support for assistance.`,
+          'error'
+        );
+        console.warn('Export aborted - data size exceeds limit:', { sizeInMB, maxSizeMB: MAX_SIZE_MB });
+        return;
+      }
+      
+      // Create and download the file
+      const blob = new Blob([jsonString], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       a.download = `jyotiflow-admin-export-${new Date().toISOString().split('T')[0]}.json`;
+      
+      // Ensure the download element is properly handled
+      document.body.appendChild(a);
       a.click();
+      document.body.removeChild(a);
       URL.revokeObjectURL(url);
+      
+      showNotification(
+        `Export completed successfully! File size: ${sizeInMB.toFixed(2)}MB`,
+        'success'
+      );
+      
     } catch (error) {
       console.error('Export error:', error);
+      showNotification(
+        'Export failed. Please try again or contact support if the issue persists.',
+        'error'
+      );
     }
   };
 
@@ -201,7 +233,7 @@ const AdminDashboard = () => {
           <div className="flex items-center justify-between">
             <span>{notification.message}</span>
             <button 
-              onClick={() => setNotification(null)}
+              onClick={clearNotification}
               aria-label="Dismiss notification"
               className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 ${
                 notification.type === 'success' ? 'text-green-100 hover:text-white hover:bg-green-600' :
@@ -261,15 +293,25 @@ const AdminDashboard = () => {
 
       {/* Enhanced Tab Navigation */}
       <div className="max-w-7xl mx-auto px-4 pt-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-8">
+        <div 
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-3 mb-8"
+          role="tablist"
+          aria-label="Admin dashboard navigation"
+        >
           {tabs.map(tab => {
             const Icon = tab.icon;
+            const isActive = activeTab === tab.key;
             return (
               <button
                 key={tab.key}
+                id={`tab-${tab.key}`}
+                role="tab"
+                aria-selected={isActive}
+                aria-controls={`tabpanel-${tab.key}`}
+                tabIndex={isActive ? 0 : -1}
                 onClick={() => setActiveTab(tab.key)}
                 className={`p-4 rounded-lg border-2 transition-all duration-200 text-left ${
-                  activeTab === tab.key 
+                  isActive 
                     ? 'bg-purple-600 text-white border-purple-600 shadow-lg' 
                     : 'bg-white text-gray-700 border-gray-200 hover:border-purple-300 hover:shadow-md'
                 }`}
@@ -278,7 +320,7 @@ const AdminDashboard = () => {
                   <Icon size={20} />
                   <span className="font-medium">{tab.label}</span>
                 </div>
-                <p className={`text-xs ${activeTab === tab.key ? 'text-purple-100' : 'text-gray-500'}`}>
+                <p className={`text-xs ${isActive ? 'text-purple-100' : 'text-gray-500'}`}>
                   {tab.description}
                 </p>
               </button>
@@ -289,7 +331,12 @@ const AdminDashboard = () => {
 
       {/* Tab Content */}
       <div className="max-w-7xl mx-auto px-4 pb-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-96">
+        <div 
+          className="bg-white rounded-lg shadow-sm border border-gray-200 min-h-96"
+          role="tabpanel"
+          id={`tabpanel-${activeTab}`}
+          aria-labelledby={`tab-${activeTab}`}
+        >
           {renderTabContent()}
         </div>
       </div>
@@ -304,13 +351,9 @@ const KnowledgeBaseManagement = () => {
   const [seedingStatus, setSeedingStatus] = useState({});
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
-  const [notification, setNotification] = useState(null);
-
-  // Notification helper function
-  const showNotification = (message, type = 'info') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
-  };
+  
+  // Use the custom notification hook
+  const { notification, showNotification, clearNotification } = useNotification();
 
   const fetchKnowledgeData = async () => {
     try {
@@ -367,7 +410,7 @@ const KnowledgeBaseManagement = () => {
           <div className="flex items-center justify-between">
             <span>{notification.message}</span>
             <button 
-              onClick={() => setNotification(null)}
+              onClick={clearNotification}
               aria-label="Dismiss notification"
               className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
                 notification.type === 'success' ? 'text-green-600 hover:text-green-800 hover:bg-green-200 focus:ring-green-500' :
@@ -616,13 +659,9 @@ const SystemHealth = () => {
   const [dbStats, setDbStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [migrating, setMigrating] = useState(false);
-  const [notification, setNotification] = useState(null);
-
-  // Notification helper function
-  const showNotification = (message, type = 'info') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 5000);
-  };
+  
+  // Use the custom notification hook
+  const { notification, showNotification, clearNotification } = useNotification();
 
   const fetchHealthData = async () => {
     try {
@@ -645,6 +684,22 @@ const SystemHealth = () => {
   }, []);
 
   const runMigrations = async () => {
+    // Show confirmation dialog before proceeding
+    const confirmed = window.confirm(
+      'Are you sure you want to run database migrations?\n\n' +
+      'This operation will:\n' +
+      '• Apply pending database schema changes\n' +
+      '• Modify database structure\n' +
+      '• Cannot be easily undone\n\n' +
+      'Make sure you have a database backup before proceeding.\n\n' +
+      'Click OK to continue or Cancel to abort.'
+    );
+    
+    if (!confirmed) {
+      showNotification('Database migration cancelled by user.', 'info');
+      return;
+    }
+    
     try {
       setMigrating(true);
       const result = await spiritualAPI.request('/api/admin/database/migrate', { method: 'POST' });
@@ -679,7 +734,7 @@ const SystemHealth = () => {
           <div className="flex items-center justify-between">
             <span>{notification.message}</span>
             <button 
-              onClick={() => setNotification(null)}
+              onClick={clearNotification}
               aria-label="Dismiss notification"
               className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
                 notification.type === 'success' ? 'text-green-600 hover:text-green-800 hover:bg-green-200 focus:ring-green-500' :
