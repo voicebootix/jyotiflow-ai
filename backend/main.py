@@ -7,6 +7,26 @@ from datetime import datetime
 import os
 import asyncio
 
+# Initialize Sentry for error monitoring
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.asyncpg import AsyncPGIntegration
+
+# Initialize Sentry
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN", "https://576bf026f026fecadcd12bef7f020e18@o4509655767056384.ingest.us.sentry.io/4509655863132160"),
+    environment=os.getenv("APP_ENV", "development"),
+    integrations=[
+        FastApiIntegration(auto_enabling_integrations=True),
+        SqlalchemyIntegration(),
+        AsyncPGIntegration(),
+    ],
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+    send_default_pii=True,
+)
+
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
@@ -293,6 +313,26 @@ async def health_check():
                 "status": "unhealthy",
                 "database": "disconnected",
                 "error": str(e)
+            }
+        )
+
+# --- Sentry Test Endpoint ---
+@app.get("/test-sentry")
+async def test_sentry():
+    """Test endpoint to verify Sentry error tracking is working"""
+    try:
+        # This will raise an exception to test Sentry integration
+        raise Exception("Test backend error for Sentry integration - this should appear in Sentry dashboard")
+    except Exception as e:
+        # Log the error to Sentry
+        sentry_sdk.capture_exception(e)
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message": "Test error sent to Sentry",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
             }
         )
 
