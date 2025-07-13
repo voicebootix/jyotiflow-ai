@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, HTTPException
 import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from datetime import datetime, timedelta
 from services.birth_chart_cache_service import BirthChartCacheService
 import jwt
 import uuid
@@ -38,7 +38,7 @@ def extract_user_email_from_token(request: Request) -> str:
 PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
 PROKERALA_CLIENT_SECRET = os.getenv("PROKERALA_CLIENT_SECRET", "your-client-secret")
 PROKERALA_TOKEN_URL = "https://api.prokerala.com/token"
-PROKERALA_API_BASE = "https://api.prokerala.com/v2/astrology/vedic-chart"
+PROKERALA_API_BASE = "https://api.prokerala.com/v2/astrology/birth-details"
 
 # Global token cache (for demo; use Redis or DB for production)
 prokerala_token = None
@@ -352,7 +352,7 @@ async def get_spiritual_guidance(request: Request):
     timezone = "Asia/Colombo"
 
     # --- Prokerala API call with token refresh logic ---
-    params = {
+    payload = {
         "datetime": f"{date}T{time_}:00+05:30",
         "coordinates": f"{latitude},{longitude}",
         "ayanamsa": "1"
@@ -361,10 +361,10 @@ async def get_spiritual_guidance(request: Request):
         token = await get_prokerala_token()
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    "https://api.prokerala.com/v2/astrology/vedic-chart",
+                resp = await client.post(
+                    "https://api.prokerala.com/v2/astrology/birth-details",
                     headers={"Authorization": f"Bearer {token}"},
-                    params=params
+                    json=payload
                 )
                 if resp.status_code == 401 and attempt == 0:
                     await fetch_prokerala_token()
@@ -383,7 +383,7 @@ async def get_spiritual_guidance(request: Request):
         openai.api_key = OPENAI_API_KEY
         prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in {language}."
         openai_resp = openai.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a spiritual guru."},
                 {"role": "user", "content": prompt}
@@ -454,17 +454,171 @@ async def get_birth_chart_cache_statistics(request: Request):
 
 @router.post("/birth-chart/cache-cleanup")
 async def cleanup_expired_birth_chart_cache(request: Request):
-    """Clean up expired birth chart cache entries (admin only)"""
+    """Clean up expired birth chart cache entries"""
     # TODO: Add admin authentication check
     try:
-        rows_cleaned = await birth_chart_cache.cleanup_expired_cache()
+        cleanup_count = await birth_chart_cache.cleanup_expired_cache()
         return {
             "success": True,
-            "message": f"Cleaned up {rows_cleaned} expired cache entries"
+            "message": f"Cleaned up {cleanup_count} expired cache entries"
         }
     except Exception as e:
         print(f"[BirthChart] Error cleaning up cache: {e}")
-        raise HTTPException(status_code=500, detail="Failed to clean up cache") 
+        raise HTTPException(status_code=500, detail="Failed to cleanup cache")
+
+@router.post("/birth-chart/link-to-user")
+async def link_anonymous_chart_to_user(request: Request):
+    """Link anonymous birth chart to user account after signup"""
+    # Get user email from Authorization header
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        data = await request.json()
+        session_id = data.get("session_id")
+        birth_details = data.get("birth_details")
+        chart_data = data.get("chart_data")
+        
+        if not all([session_id, birth_details, chart_data]):
+            raise HTTPException(status_code=400, detail="Missing required data")
+        
+        # Use the enhanced birth chart cache service to store the chart
+        from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
+        
+        cache_service = EnhancedBirthChartCacheService()
+        
+        # Store the chart data with user association
+        success = await cache_service._cache_complete_profile(
+            user_email, 
+            birth_details, 
+            {
+                "birth_chart": chart_data,
+                "session_id": session_id,
+                "linked_from_anonymous": True,
+                "linked_at": datetime.now().isoformat()
+            }
+        )
+        
+        if success:
+            print(f"[BirthChart] Successfully linked anonymous chart {session_id} to user {user_email}")
+            return {
+                "success": True,
+                "message": "Birth chart successfully linked to user account",
+                "session_id": session_id
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to link chart to user")
+            
+    except Exception as e:
+        print(f"[BirthChart] Error linking chart to user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to link chart to user")
+
+@router.get("/progress/{user_id}")
+async def get_spiritual_progress(user_id: str, request: Request):
+    """Get user's spiritual progress and journey metrics"""
+    # Verify the user is accessing their own data or is admin
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Connect to database to get user sessions and progress
+        from db import get_db
+        
+        db_connection = get_db()
+        db = await db_connection.__anext__()
+        
+        # Get user's sessions
+        sessions = await db.fetch("""
+            SELECT s.*, st.name as service_name, st.credits_required
+            FROM sessions s
+            LEFT JOIN service_types st ON s.service_type_id = st.id
+            WHERE s.user_email = $1
+            ORDER BY s.created_at DESC
+        """, user_email)
+        
+        # Calculate spiritual progress metrics
+        total_sessions = len(sessions)
+        completed_sessions = len([s for s in sessions if s['status'] == 'completed'])
+        completion_rate = (completed_sessions / total_sessions * 100) if total_sessions > 0 else 0
+        
+        # Calculate spiritual level
+        spiritual_levels = [
+            (0, "New Seeker"),
+            (5, "Committed Learner"),
+            (10, "Growing Student"),
+            (25, "Dedicated Seeker"),
+            (50, "Advanced Practitioner"),
+            (100, "Enlightened")
+        ]
+        
+        spiritual_level = "New Seeker"
+        for threshold, level in spiritual_levels:
+            if total_sessions >= threshold:
+                spiritual_level = level
+        
+        # Calculate recent activity
+        recent_sessions = [s for s in sessions if s['created_at'] > datetime.now() - timedelta(days=30)]
+        
+        # Calculate preferred service types
+        service_usage = {}
+        for session in sessions:
+            service_name = session['service_name'] or 'Unknown'
+            service_usage[service_name] = service_usage.get(service_name, 0) + 1
+        
+        preferred_service = None
+        if service_usage:
+            max_count = max(service_usage.values())
+            preferred_service = next(service for service, count in service_usage.items() if count == max_count)
+        
+        progress_data = {
+            "total_sessions": total_sessions,
+            "completed_sessions": completed_sessions,
+            "completion_rate": completion_rate,
+            "spiritual_level": spiritual_level,
+            "progress_percentage": min((total_sessions * 5), 100),
+            "milestones_achieved": total_sessions // 5,
+            "next_milestone": ((total_sessions // 5) + 1) * 5,
+            "recent_activity": len(recent_sessions),
+            "preferred_service": preferred_service,
+            "service_usage": service_usage,
+            "journey_insights": generate_journey_insights(total_sessions, completion_rate, spiritual_level)
+        }
+        
+        return {
+            "success": True,
+            "data": progress_data
+        }
+        
+    except Exception as e:
+        print(f"[SpiritualProgress] Error getting progress: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get spiritual progress")
+
+def generate_journey_insights(session_count, completion_rate, spiritual_level):
+    """Generate personalized journey insights"""
+    insights = []
+    
+    if session_count == 0:
+        insights.append("Welcome to your spiritual journey! Your first session will be a transformative experience.")
+    elif session_count < 5:
+        insights.append(f"You're building a strong foundation with {session_count} sessions. Consistency is key to spiritual growth.")
+    elif session_count < 20:
+        insights.append(f"Your dedication is showing! With {session_count} sessions, you're developing deeper spiritual understanding.")
+    else:
+        insights.append(f"You're a committed spiritual seeker with {session_count} sessions. Your wisdom is growing beautifully.")
+    
+    if completion_rate > 80:
+        insights.append("Your session completion rate is excellent! You're truly committed to your spiritual growth.")
+    elif completion_rate > 60:
+        insights.append("You're doing well with your sessions. Consider setting aside dedicated time for spiritual practice.")
+    else:
+        insights.append("Remember, consistency in spiritual practice leads to profound transformation.")
+    
+    if spiritual_level in ["Advanced Practitioner", "Enlightened"]:
+        insights.append("Your spiritual maturity is evident. Consider sharing your wisdom with other seekers.")
+    
+    return insights
 
 def create_south_indian_chart_structure(birth_details: dict) -> dict:
     """Create South Indian chart structure from birth details"""

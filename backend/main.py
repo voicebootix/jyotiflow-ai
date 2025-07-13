@@ -7,6 +7,26 @@ from datetime import datetime
 import os
 import asyncio
 
+# Initialize Sentry for error monitoring
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+from sentry_sdk.integrations.asyncpg import AsyncPGIntegration
+
+# Initialize Sentry
+sentry_sdk.init(
+    dsn=os.getenv("SENTRY_DSN", "https://576bf026f026fecadcd12bef7f020e18@o4509655767056384.ingest.us.sentry.io/4509655863132160"),
+    environment=os.getenv("APP_ENV", "development"),
+    integrations=[
+        FastApiIntegration(auto_enabling_integrations=True),
+        SqlalchemyIntegration(),
+        AsyncPGIntegration(),
+    ],
+    traces_sample_rate=1.0,
+    profiles_sample_rate=1.0,
+    send_default_pii=True,
+)
+
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
@@ -218,16 +238,75 @@ app = FastAPI(
 )
 
 # --- CORS Middleware (English & Tamil) ---
+# Configure CORS based on environment
+def get_cors_origins():
+    """Get CORS origins based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow specific trusted origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS", 
+            "https://jyotiflow.ai,https://www.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com"
+        ).split(",")
+    elif app_env == "staging":
+        # Staging: Allow staging and development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "https://staging.jyotiflow.ai,https://dev.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com,http://localhost:3000,http://localhost:5173"
+        ).split(",")
+    else:
+        # Development: Allow common development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173,https://jyotiflow-ai-frontend.onrender.com"
+        ).split(",")
+    
+    # Clean up any whitespace from split
+    return [origin.strip() for origin in cors_origins if origin.strip()]
+
+def get_cors_methods():
+    """Get allowed CORS methods based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow necessary methods
+        return ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    else:
+        # Development/Staging: Allow all methods for flexibility
+        return ["*"]
+
+def get_cors_headers():
+    """Get allowed CORS headers based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow necessary headers
+        return [
+            "Accept",
+            "Accept-Language",
+            "Content-Language",
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "Cache-Control"
+        ]
+    else:
+        # Development/Staging: Allow all headers for flexibility
+        return ["*"]
+
+# Add CORS middleware with environment-based configuration
+cors_origins = get_cors_origins()
+cors_methods = get_cors_methods()
+cors_headers = get_cors_headers()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://jyotiflow-ai-frontend.onrender.com",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=cors_methods,
+    allow_headers=cors_headers,
 )
 
 # --- Global Exception Handler ---
@@ -293,6 +372,26 @@ async def health_check():
                 "status": "unhealthy",
                 "database": "disconnected",
                 "error": str(e)
+            }
+        )
+
+# --- Sentry Test Endpoint ---
+@app.get("/test-sentry")
+async def test_sentry():
+    """Test endpoint to verify Sentry error tracking is working"""
+    try:
+        # This will raise an exception to test Sentry integration
+        raise Exception("Test backend error for Sentry integration - this should appear in Sentry dashboard")
+    except Exception as e:
+        # Log the error to Sentry
+        sentry_sdk.capture_exception(e)
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message": "Test error sent to Sentry",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
             }
         )
 
