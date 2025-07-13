@@ -7,6 +7,27 @@ from datetime import datetime
 import os
 import asyncio
 
+# Sentry initialization
+import sentry_sdk
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
+
+# Initialize Sentry if DSN is available
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    sentry_sdk.init(
+        dsn=sentry_dsn,
+        integrations=[
+            FastApiIntegration(auto_error=True),
+            StarletteIntegration(auto_error=True),
+        ],
+        traces_sample_rate=1.0,
+        send_default_pii=True,
+    )
+    print("✅ Sentry initialized successfully")
+else:
+    print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
+
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
