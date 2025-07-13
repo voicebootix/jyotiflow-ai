@@ -53,12 +53,9 @@ except ImportError:
     LIVECHAT_AVAILABLE = False
     print("⚠️ Live chat router not available")
 
-try:
-    from surgical_frontend_auth_fix import surgical_auth_router
-    SURGICAL_AUTH_AVAILABLE = True
-except ImportError:
-    SURGICAL_AUTH_AVAILABLE = False
-    print("⚠️ Surgical auth router not available")
+# Surgical auth router - REMOVED (conflicting authentication system)
+SURGICAL_AUTH_AVAILABLE = False
+print("⚠️ Surgical auth router disabled - using main auth system only")
 
 # Debug router for testing
 try:
@@ -350,10 +347,9 @@ if ENV_DEBUG_AVAILABLE:
     app.include_router(env_debug_router)
     print("✅ Environment debug router registered")
 
-# Surgical auth router for frontend authentication fix
-if SURGICAL_AUTH_AVAILABLE:
-    app.include_router(surgical_auth_router)
-    print("✅ Surgical auth router registered")
+# Surgical auth router - REMOVED (conflicting authentication system)
+# Using main auth system only (routers/auth.py)
+print("⏭️ Surgical auth router disabled - using main auth system only")
 
 if __name__ == "__main__":
     import uvicorn
