@@ -238,16 +238,75 @@ app = FastAPI(
 )
 
 # --- CORS Middleware (English & Tamil) ---
+# Configure CORS based on environment
+def get_cors_origins():
+    """Get CORS origins based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow specific trusted origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS", 
+            "https://jyotiflow.ai,https://www.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com"
+        ).split(",")
+    elif app_env == "staging":
+        # Staging: Allow staging and development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "https://staging.jyotiflow.ai,https://dev.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com,http://localhost:3000,http://localhost:5173"
+        ).split(",")
+    else:
+        # Development: Allow common development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173,https://jyotiflow-ai-frontend.onrender.com"
+        ).split(",")
+    
+    # Clean up any whitespace from split
+    return [origin.strip() for origin in cors_origins if origin.strip()]
+
+def get_cors_methods():
+    """Get allowed CORS methods based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow necessary methods
+        return ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    else:
+        # Development/Staging: Allow all methods for flexibility
+        return ["*"]
+
+def get_cors_headers():
+    """Get allowed CORS headers based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow necessary headers
+        return [
+            "Accept",
+            "Accept-Language",
+            "Content-Language",
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "Cache-Control"
+        ]
+    else:
+        # Development/Staging: Allow all headers for flexibility
+        return ["*"]
+
+# Add CORS middleware with environment-based configuration
+cors_origins = get_cors_origins()
+cors_methods = get_cors_methods()
+cors_headers = get_cors_headers()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://jyotiflow-ai-frontend.onrender.com",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=cors_methods,
+    allow_headers=cors_headers,
 )
 
 # --- Global Exception Handler ---

@@ -25,13 +25,54 @@ sentry_sdk.init(
 
 app = FastAPI(title="Sentry Test API", version="1.0.0")
 
-# Add CORS middleware
+# Configure CORS based on environment
+def get_cors_origins():
+    """Get CORS origins based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow specific trusted origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS", 
+            "https://jyotiflow.ai,https://www.jyotiflow.ai,https://api.jyotiflow.ai"
+        ).split(",")
+    elif app_env == "staging":
+        # Staging: Allow staging and development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "https://staging.jyotiflow.ai,https://dev.jyotiflow.ai,http://localhost:3000,http://localhost:5173"
+        ).split(",")
+    else:
+        # Development: Allow common development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173"
+        ).split(",")
+    
+    # Clean up any whitespace from split
+    return [origin.strip() for origin in cors_origins if origin.strip()]
+
+def get_cors_methods():
+    """Get allowed CORS methods based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow necessary methods
+        return ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    else:
+        # Development/Staging: Allow all methods for flexibility
+        return ["*"]
+
+# Add CORS middleware with environment-based configuration
+cors_origins = get_cors_origins()
+cors_methods = get_cors_methods()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=cors_methods,
+    allow_headers=["*"],  # Headers can remain flexible for API usage
 )
 
 @app.get("/")
