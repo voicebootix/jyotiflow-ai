@@ -12,7 +12,6 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
-# Initialize Sentry if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     # Build integrations list with available integrations
