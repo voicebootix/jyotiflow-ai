@@ -2,7 +2,7 @@
 # தமிழ் - Python dependencies for real spiritual AI platform
 
 # தமிழ் - Core FastAPI framework and ASGI server
-fastapi==0.104.1
+fastapi==0.109.1
 uvicorn[standard]==0.24.0
 
 # தமில - Database connectivity
@@ -37,7 +37,7 @@ python-dateutil==2.8.2
 
 # তমিল - Logging and monitoring
 structlog==23.2.0
-sentry-sdk[fastapi]==1.40.0
+sentry-sdk==2.8.0
 
 # தமில - Development and testing dependencies
 pytest==7.4.3
@@ -119,3 +119,7 @@ email-validator==2.2.0  # Updated email validation
 
 # 🙏🏼 All dependencies for Swami Jyotirananthan's REAL AI digital ashram
 limits==3.7.0
+anyio>=4.4.0 # not directly required, pinned by Snyk to avoid a vulnerability
+starlette>=0.40.0 # not directly required, pinned by Snyk to avoid a vulnerability
+urllib3>=2.5.0 # not directly required, pinned by Snyk to avoid a vulnerability
+zipp>=3.19.1 # not directly required, pinned by Snyk to avoid a vulnerability
