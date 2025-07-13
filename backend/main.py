@@ -7,24 +7,42 @@ from datetime import datetime
 import os
 import asyncio
 
-# Sentry initialization
+# Sentry initialization - Enhanced version with comprehensive integrations
 import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
-# Initialize Sentry if DSN is available
+# Initialize Sentry with comprehensive integrations if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
+    # Build integrations list with available integrations
+    integrations = [
+        FastApiIntegration(auto_enabling_integrations=True),
+        StarletteIntegration(),
+    ]
+    
+    # Add optional integrations if available
+    try:
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration  # type: ignore
+        integrations.append(SqlalchemyIntegration())
+    except ImportError:
+        pass
+    
+    try:
+        from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
+        integrations.append(AsyncPGIntegration())
+    except ImportError:
+        pass
+    
     sentry_sdk.init(
         dsn=sentry_dsn,
-        integrations=[
-            FastApiIntegration(auto_error=True),
-            StarletteIntegration(auto_error=True),
-        ],
+        environment=os.getenv("APP_ENV", "development"),
+        integrations=integrations,
         traces_sample_rate=1.0,
+        profiles_sample_rate=1.0,
         send_default_pii=True,
     )
-    print("✅ Sentry initialized successfully")
+    print(f"✅ Sentry initialized successfully with {len(integrations)} integrations")
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
