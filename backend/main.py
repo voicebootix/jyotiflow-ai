@@ -7,35 +7,48 @@ from datetime import datetime
 import os
 import asyncio
 
-# Sentry initialization
+# Sentry initialization - Enhanced version with comprehensive integrations
 import sentry_sdk
 
-# Initialize Sentry if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
-    # Read Sentry configuration from environment variables with production-safe defaults
-    # Parse traces_sample_rate with proper error handling
+    # Build integrations list with available integrations
+    integrations = [
+        FastApiIntegration(auto_error=True),
+        StarletteIntegration(auto_error=True),
+    ]
     try:
-        traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
-        # Validate that the value is within the valid range (0.0 to 1.0)
-        if not (0.0 <= traces_sample_rate <= 1.0):
-            print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: {traces_sample_rate}. Must be between 0.0 and 1.0. Using default: 0.1")
-            traces_sample_rate = 0.1
-    except (ValueError, TypeError) as e:
-        env_value = os.getenv("SENTRY_TRACES_SAMPLE_RATE")
-        print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{env_value}'. Must be a number between 0.0 and 1.0. Using default: 0.1")
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration  # type: ignore
+        integrations.append(SqlalchemyIntegration())
+    except ImportError:
+        pass
+
+    try:
+        from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
+        integrations.append(AsyncPGIntegration())
+    except ImportError:
+        pass
+
+    # Parse traces_sample_rate with error handling
+    sample_rate_env = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
+    try:
+        traces_sample_rate = float(sample_rate_env)
+    except ValueError:
+        print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{sample_rate_env}', falling back to 0.1")
         traces_sample_rate = 0.1
-    
-    send_default_pii = os.getenv("SENTRY_SEND_DEFAULT_PII", "false").lower() in ("true", "1", "yes", "on")
-    
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        # FastAPI integration is auto-enabled by default when FastAPI is detected
-        # No need to manually specify integrations unless custom configuration is needed
-        traces_sample_rate=traces_sample_rate,
-        send_default_pii=send_default_pii,
-    )
-    print(f"✅ Sentry initialized successfully (traces_sample_rate={traces_sample_rate}, send_default_pii={send_default_pii})")
+
+    try:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=os.getenv("APP_ENV", "development"),
+            integrations=integrations,
+            traces_sample_rate=traces_sample_rate,
+            send_default_pii=True,
+        )
+        print(f"✅ Sentry initialized successfully with traces_sample_rate={traces_sample_rate}")
+    except Exception as e:
+        print(f"❌ Failed to initialize Sentry: {e}")
+        print("⚠️ Continuing without Sentry - application will run normally")
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
@@ -110,6 +123,14 @@ from init_database import initialize_jyotiflow_database
 
 # Import enhanced startup integration
 from enhanced_startup_integration import initialize_enhanced_jyotiflow
+
+# Import comprehensive startup fixes
+try:
+    from fix_startup_issues import JyotiFlowStartupFixer
+    STARTUP_FIXER_AVAILABLE = True
+except ImportError:
+    STARTUP_FIXER_AVAILABLE = False
+    print("⚠️ Startup fixer not available")
 
 # Import database schema fix
 from db_schema_fix import fix_database_schema
@@ -221,6 +242,16 @@ async def lifespan(app: FastAPI):
                     print("⚠️ Enhanced system initialization had issues but will continue in fallback mode")
             except Exception as e:
                 print(f"⚠️ Enhanced system initialization failed: {e}")
+        
+        # Run comprehensive startup fixes if available
+        if STARTUP_FIXER_AVAILABLE:
+            try:
+                from fix_startup_issues import JyotiFlowStartupFixer
+                startup_fixer = JyotiFlowStartupFixer()
+                await startup_fixer.fix_all_issues()
+                print("✅ Comprehensive startup fixes applied successfully")
+            except Exception as e:
+                print(f"⚠️ Comprehensive startup fixes failed: {e}")
         
         print("🎉 JyotiFlow.ai backend startup completed successfully!")
         

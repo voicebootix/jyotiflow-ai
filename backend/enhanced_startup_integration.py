@@ -109,11 +109,37 @@ class EnhancedJyotiFlowStartup:
             if count == 0:
                 logger.info("🧠 Knowledge base empty, seeding with spiritual wisdom...")
                 
-                # For now, we'll skip the SQLite seeder and just log that knowledge base is empty
-                # In a full implementation, you would create a PostgreSQL version of the seeder
-                logger.info("⚠️ Knowledge base seeding not implemented for PostgreSQL yet")
-                logger.info("✅ System will work without knowledge base in fallback mode")
-                self.knowledge_seeded = False
+                # Import and run PostgreSQL knowledge seeding
+                try:
+                    from knowledge_seeding_system import KnowledgeSeeder
+                    import os
+                    
+                    openai_api_key = os.getenv("OPENAI_API_KEY")
+                    db_pool = None
+                    
+                    if not openai_api_key or openai_api_key == "fallback_key":
+                        logger.info("⚠️ OpenAI API key not available - using basic seeding without embeddings")
+                        # Create a basic seeder without OpenAI
+                        seeder = KnowledgeSeeder(None, "fallback_key")
+                    else:
+                        # Create database pool for seeder
+                        db_pool = await asyncpg.create_pool(self.database_url)
+                        seeder = KnowledgeSeeder(db_pool, openai_api_key)
+                    
+                    try:
+                        # Run the seeding process
+                        await seeder.seed_complete_knowledge_base()
+                        logger.info("✅ Knowledge base seeded successfully with spiritual wisdom")
+                        self.knowledge_seeded = True
+                    finally:
+                        # Always close the pool if it was created
+                        if db_pool:
+                            await db_pool.close()
+                    
+                except Exception as seeding_error:
+                    logger.error(f"Knowledge seeding error: {seeding_error}")
+                    logger.info("✅ System will work without knowledge base in fallback mode")
+                    self.knowledge_seeded = False
             else:
                 logger.info(f"✅ Knowledge base already contains {count} pieces")
                 self.knowledge_seeded = True
@@ -123,7 +149,7 @@ class EnhancedJyotiFlowStartup:
         except Exception as e:
             logger.error(f"Knowledge base seeding error: {e}")
             # Don't raise - system can work without knowledge base
-            pass
+            self.knowledge_seeded = False
     
     async def _initialize_rag_system(self):
         """Initialize RAG system (simplified for SQLite)"""
@@ -150,6 +176,9 @@ class EnhancedJyotiFlowStartup:
         """Ensure default service configurations exist"""
         try:
             conn = await asyncpg.connect(self.database_url)
+            
+            # First, ensure the table schema is correct
+            await self._fix_service_configuration_cache_schema(conn)
             
             # Define default service configurations
             default_services = [
@@ -222,6 +251,48 @@ class EnhancedJyotiFlowStartup:
         except Exception as e:
             logger.error(f"Service configuration error: {e}")
             # Don't raise - system can work without configurations
+            pass
+    
+    async def _fix_service_configuration_cache_schema(self, conn):
+        """Fix service_configuration_cache table schema issues"""
+        try:
+            # Check if cached_at column exists
+            cached_at_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns 
+                    WHERE table_name = 'service_configuration_cache' 
+                    AND column_name = 'cached_at'
+                )
+            """)
+            
+            if not cached_at_exists:
+                logger.info("➕ Adding cached_at column to service_configuration_cache...")
+                await conn.execute("""
+                    ALTER TABLE service_configuration_cache 
+                    ADD COLUMN cached_at TIMESTAMP DEFAULT NOW()
+                """)
+                logger.info("✅ cached_at column added")
+            
+            # Check if expires_at column exists
+            expires_at_exists = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT FROM information_schema.columns 
+                    WHERE table_name = 'service_configuration_cache' 
+                    AND column_name = 'expires_at'
+                )
+            """)
+            
+            if not expires_at_exists:
+                logger.info("➕ Adding expires_at column to service_configuration_cache...")
+                await conn.execute("""
+                    ALTER TABLE service_configuration_cache 
+                    ADD COLUMN expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '1 hour')
+                """)
+                logger.info("✅ expires_at column added")
+                
+        except Exception as e:
+            logger.error(f"Schema fix error: {e}")
+            # Don't raise - continue with existing schema
             pass
     
     def get_system_status(self) -> Dict[str, Any]:
