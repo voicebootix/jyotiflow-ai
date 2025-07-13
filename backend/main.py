@@ -13,14 +13,18 @@ import sentry_sdk
 # Initialize Sentry if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
+    # Read Sentry configuration from environment variables with production-safe defaults
+    traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+    send_default_pii = os.getenv("SENTRY_SEND_DEFAULT_PII", "false").lower() in ("true", "1", "yes", "on")
+    
     sentry_sdk.init(
         dsn=sentry_dsn,
         # FastAPI integration is auto-enabled by default when FastAPI is detected
         # No need to manually specify integrations unless custom configuration is needed
-        traces_sample_rate=1.0,
-        send_default_pii=True,
+        traces_sample_rate=traces_sample_rate,
+        send_default_pii=send_default_pii,
     )
-    print("✅ Sentry initialized successfully")
+    print(f"✅ Sentry initialized successfully (traces_sample_rate={traces_sample_rate}, send_default_pii={send_default_pii})")
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
