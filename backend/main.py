@@ -9,18 +9,14 @@ import asyncio
 
 # Sentry initialization
 import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.starlette import StarletteIntegration
 
 # Initialize Sentry if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     sentry_sdk.init(
         dsn=sentry_dsn,
-        integrations=[
-            FastApiIntegration(auto_error=True),
-            StarletteIntegration(auto_error=True),
-        ],
+        # FastAPI integration is auto-enabled by default when FastAPI is detected
+        # No need to manually specify integrations unless custom configuration is needed
         traces_sample_rate=1.0,
         send_default_pii=True,
     )
