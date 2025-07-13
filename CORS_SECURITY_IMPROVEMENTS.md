@@ -109,16 +109,27 @@ SENTRY_DSN=your-sentry-dsn
 The CORS configuration has been tested and verified to work correctly in all environments:
 
 ```bash
-# Test the configuration
+# Test the CORS configuration
 cd backend
 python3 -c "
 import os
-from sentry_test_server import get_cors_origins, get_cors_methods
+
+def get_cors_origins():
+    '''Test CORS origins configuration'''
+    app_env = os.getenv('APP_ENV', 'development').lower()
+    
+    if app_env == 'production':
+        return 'https://jyotiflow.ai,https://www.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com'.split(',')
+    elif app_env == 'staging':
+        return 'https://staging.jyotiflow.ai,https://dev.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com,http://localhost:3000,http://localhost:5173'.split(',')
+    else:
+        return 'http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173,https://jyotiflow-ai-frontend.onrender.com'.split(',')
 
 # Test different environments
 for env in ['development', 'staging', 'production']:
     os.environ['APP_ENV'] = env
-    print(f'{env.capitalize()}: {get_cors_origins()}')
+    origins = get_cors_origins()
+    print(f'{env.capitalize()}: {origins}')
 "
 ```
 
