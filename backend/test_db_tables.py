@@ -38,10 +38,19 @@ async def test_database():
         ]
         
         print(f"\n🔍 Checking admin tables:")
+        # Whitelist of expected table names to prevent SQL injection
+        expected_tables = [
+            'ai_recommendations', 'monetization_experiments', 'ai_insights_cache',
+            'payments', 'users', 'service_types', 'credit_packages', 'donations'
+        ]
+        
         for table in admin_tables:
-            exists = await conn.fetchval(f"SELECT 1 FROM information_schema.tables WHERE table_name = '{table}'")
-            status = "✅ EXISTS" if exists else "❌ MISSING"
-            print(f"  {table}: {status}")
+            if table in expected_tables:
+                exists = await conn.fetchval("SELECT 1 FROM information_schema.tables WHERE table_name = $1", table)
+                status = "✅ EXISTS" if exists else "❌ MISSING"
+                print(f"  {table}: {status}")
+            else:
+                print(f"  {table}: ⚠️ NOT IN WHITELIST")
         
         # Test basic queries
         print(f"\n🧪 Testing basic queries:")

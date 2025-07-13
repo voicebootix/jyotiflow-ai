@@ -50,21 +50,37 @@ async def verify_admin_tables():
         tables_with_data = []
         tables_without_data = []
         
+        # Whitelist of expected table names to prevent SQL injection
+        expected_table_names = [
+            'users', 'service_types', 'credit_packages', 'payments', 'donations',
+            'donation_transactions', 'ai_recommendations', 'monetization_experiments',
+            'ai_insights_cache', 'subscription_plans', 'admin_analytics',
+            'admin_notifications', 'social_campaigns', 'social_posts',
+            'social_content', 'platform_settings', 'pricing_config',
+            'revenue_analytics', 'performance_analytics', 'sessions',
+            'followup_interactions'
+        ]
+        
         for table_name, expected_columns in admin_tables:
             try:
-                # Check if table exists
-                table_exists = await conn.fetchval(f"""
+                # Validate table name against whitelist
+                if table_name not in expected_table_names:
+                    print(f"  ⚠️  {table_name}: Not in whitelist - skipping")
+                    continue
+                
+                # Check if table exists using parameterized query
+                table_exists = await conn.fetchval("""
                     SELECT 1 FROM information_schema.tables 
-                    WHERE table_name = '{table_name}' AND table_schema = 'public'
-                """)
+                    WHERE table_name = $1 AND table_schema = 'public'
+                """, table_name)
                 
                 if table_exists:
-                    # Check table structure
-                    columns = await conn.fetch(f"""
+                    # Check table structure using parameterized query
+                    columns = await conn.fetch("""
                         SELECT column_name FROM information_schema.columns 
-                        WHERE table_name = '{table_name}' AND table_schema = 'public'
+                        WHERE table_name = $1 AND table_schema = 'public'
                         ORDER BY ordinal_position
-                    """)
+                    """, table_name)
                     column_names = [col['column_name'] for col in columns]
                     
                     # Check if expected columns exist
@@ -75,14 +91,17 @@ async def verify_admin_tables():
                     else:
                         print(f"  ✅ {table_name}: Structure OK")
                     
-                    # Check if table has data
-                    row_count = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
-                    if row_count > 0:
-                        tables_with_data.append((table_name, row_count))
-                        print(f"     📊 Has {row_count} rows")
+                    # Check if table has data - use safe table name validation
+                    if table_name in expected_table_names:
+                        row_count = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
+                        if row_count > 0:
+                            tables_with_data.append((table_name, row_count))
+                            print(f"     📊 Has {row_count} rows")
+                        else:
+                            tables_without_data.append(table_name)
+                            print(f"     📭 No data")
                     else:
-                        tables_without_data.append(table_name)
-                        print(f"     📭 No data")
+                        print(f"     ⚠️  Skipping row count - table not in whitelist")
                         
                 else:
                     print(f"  ❌ {table_name}: Table missing")
