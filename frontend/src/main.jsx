@@ -7,8 +7,8 @@ import App from './App.jsx'
 import * as Sentry from "@sentry/react";
 
 Sentry.init({
-  dsn: "https://576bf026f026fecadcd12bef7f020e18@o4509655767056384.ingest.us.sentry.io/4509655863132160",
-  environment: import.meta.env.MODE || "development",
+  dsn: import.meta.env.VITE_SENTRY_DSN || "",
+  environment: import.meta.env.VITE_APP_ENV || import.meta.env.MODE || "development",
   tracesSampleRate: 1.0,
   // Setting this option to true will send default PII data to Sentry.
   // For example, automatic IP address collection on events
