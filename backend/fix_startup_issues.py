@@ -176,15 +176,27 @@ class JyotiFlowStartupFixer:
             if not table_exists:
                 logger.info("📦 Creating rag_knowledge_base table...")
                 
-                # Check if pgvector extension is available
-                vector_available = await conn.fetchval("""
-                    SELECT EXISTS (
-                        SELECT FROM pg_extension WHERE extname = 'vector'
-                    )
-                """)
+                # Ensure required extensions are available
+                logger.info("🔧 Ensuring required PostgreSQL extensions...")
+                
+                # Enable pgcrypto extension for gen_random_uuid()
+                try:
+                    await conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto;")
+                    logger.info("✅ pgcrypto extension enabled")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not enable pgcrypto extension: {e}")
+                
+                # Check if pgvector extension is available and try to enable it
+                try:
+                    await conn.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                    vector_available = True
+                    logger.info("✅ pgvector extension enabled")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not enable pgvector extension: {e}")
+                    vector_available = False
                 
                 if vector_available:
-                    logger.info("✅ pgvector extension found, creating table with vector support")
+                    logger.info("✅ Creating table with vector support")
                     await conn.execute("""
                         CREATE TABLE rag_knowledge_base (
                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -203,7 +215,7 @@ class JyotiFlowStartupFixer:
                         )
                     """)
                 else:
-                    logger.info("⚠️ pgvector extension not found, creating table without vector support")
+                    logger.info("⚠️ Creating table without vector support (using fallback)")
                     await conn.execute("""
                         CREATE TABLE rag_knowledge_base (
                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -235,6 +247,8 @@ class JyotiFlowStartupFixer:
                     from knowledge_seeding_system import KnowledgeSeeder
                     
                     openai_api_key = os.getenv("OPENAI_API_KEY")
+                    db_pool = None
+                    
                     if not openai_api_key or openai_api_key == "fallback_key":
                         logger.info("⚠️ OpenAI API key not available - using basic seeding")
                         seeder = KnowledgeSeeder(None, "fallback_key")
@@ -243,9 +257,15 @@ class JyotiFlowStartupFixer:
                         db_pool = await asyncpg.create_pool(self.database_url)
                         seeder = KnowledgeSeeder(db_pool, openai_api_key)
                     
-                    # Run seeding
-                    await seeder.seed_complete_knowledge_base()
-                    logger.info("✅ Knowledge base seeded successfully!")
+                    try:
+                        # Run seeding
+                        await seeder.seed_complete_knowledge_base()
+                        logger.info("✅ Knowledge base seeded successfully!")
+                    finally:
+                        # Always close the pool if it was created
+                        if db_pool:
+                            await db_pool.close()
+                            logger.info("✅ Database pool closed")
                     
                 except Exception as seeding_error:
                     logger.error(f"Knowledge seeding error: {seeding_error}")
@@ -280,13 +300,17 @@ class JyotiFlowStartupFixer:
         try:
             conn = await asyncpg.connect(self.database_url)
             
-            # Delete expired entries
-            deleted_count = await conn.fetchval("""
+            # Delete expired entries and count them
+            result = await conn.execute("""
                 DELETE FROM service_configuration_cache 
                 WHERE expires_at < NOW()
             """)
             
-            if deleted_count:
+            # Extract the number of deleted rows from the result
+            # Result format is "DELETE n" where n is the number of deleted rows
+            deleted_count = int(result.split()[-1]) if result and result.startswith("DELETE") else 0
+            
+            if deleted_count > 0:
                 logger.info(f"🧹 Cleaned up {deleted_count} expired cache entries")
             else:
                 logger.info("✅ No expired cache entries to clean up")
