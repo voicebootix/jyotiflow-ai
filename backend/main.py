@@ -431,7 +431,6 @@ async def health_check():
             }
         )
 
-<<<<<<< HEAD
 # --- Sentry Test Endpoint ---
 @app.get("/test-sentry")
 async def test_sentry():
@@ -451,13 +450,12 @@ async def test_sentry():
                 "timestamp": datetime.now().isoformat()
             }
         )
-=======
+
 # Add API health endpoint for frontend compatibility
 @app.get("/api/health")
 async def api_health_check():
     """API health check endpoint for frontend compatibility"""
     return await health_check()
->>>>>>> cursor/evaluate-admin-dashboard-functionality-cadc
 
 # Register routers
 app.include_router(auth.router)
