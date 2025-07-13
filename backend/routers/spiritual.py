@@ -352,7 +352,7 @@ async def get_spiritual_guidance(request: Request):
     timezone = "Asia/Colombo"
 
     # --- Prokerala API call with token refresh logic ---
-    params = {
+    payload = {
         "datetime": f"{date}T{time_}:00+05:30",
         "coordinates": f"{latitude},{longitude}",
         "ayanamsa": "1"
@@ -361,10 +361,10 @@ async def get_spiritual_guidance(request: Request):
         token = await get_prokerala_token()
         try:
             async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    "https://api.prokerala.com/v2/astrology/vedic-chart",
+                resp = await client.post(
+                    "https://api.prokerala.com/v2/astrology/birth-details",
                     headers={"Authorization": f"Bearer {token}"},
-                    params=params
+                    json=payload
                 )
                 if resp.status_code == 401 and attempt == 0:
                     await fetch_prokerala_token()
@@ -383,7 +383,7 @@ async def get_spiritual_guidance(request: Request):
         openai.api_key = OPENAI_API_KEY
         prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in {language}."
         openai_resp = openai.chat.completions.create(
-            model="gpt-4.1-mini",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are a spiritual guru."},
                 {"role": "user", "content": prompt}
