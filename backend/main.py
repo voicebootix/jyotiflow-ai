@@ -14,7 +14,18 @@ import sentry_sdk
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     # Read Sentry configuration from environment variables with production-safe defaults
-    traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+    # Parse traces_sample_rate with proper error handling
+    try:
+        traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+        # Validate that the value is within the valid range (0.0 to 1.0)
+        if not (0.0 <= traces_sample_rate <= 1.0):
+            print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: {traces_sample_rate}. Must be between 0.0 and 1.0. Using default: 0.1")
+            traces_sample_rate = 0.1
+    except (ValueError, TypeError) as e:
+        env_value = os.getenv("SENTRY_TRACES_SAMPLE_RATE")
+        print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{env_value}'. Must be a number between 0.0 and 1.0. Using default: 0.1")
+        traces_sample_rate = 0.1
+    
     send_default_pii = os.getenv("SENTRY_SEND_DEFAULT_PII", "false").lower() in ("true", "1", "yes", "on")
     
     sentry_sdk.init(

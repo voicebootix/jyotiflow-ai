@@ -19,10 +19,21 @@ sentry_sdk.init(
 )
 ```
 
-### After (Environment Variables):
+### After (Environment Variables with Error Handling):
 ```python
 # Read Sentry configuration from environment variables with production-safe defaults
-traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+# Parse traces_sample_rate with proper error handling
+try:
+    traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+    # Validate that the value is within the valid range (0.0 to 1.0)
+    if not (0.0 <= traces_sample_rate <= 1.0):
+        print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: {traces_sample_rate}. Must be between 0.0 and 1.0. Using default: 0.1")
+        traces_sample_rate = 0.1
+except (ValueError, TypeError) as e:
+    env_value = os.getenv("SENTRY_TRACES_SAMPLE_RATE")
+    print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{env_value}'. Must be a number between 0.0 and 1.0. Using default: 0.1")
+    traces_sample_rate = 0.1
+
 send_default_pii = os.getenv("SENTRY_SEND_DEFAULT_PII", "false").lower() in ("true", "1", "yes", "on")
 
 sentry_sdk.init(
@@ -145,10 +156,32 @@ The initialization now provides detailed logging showing the actual configuratio
 - Complies with privacy regulations
 - Configurable for specific compliance requirements
 
+## Error Handling
+
+### `SENTRY_TRACES_SAMPLE_RATE` Error Handling
+The application now includes robust error handling for invalid `traces_sample_rate` values:
+
+**Handled Error Cases:**
+- **Non-numeric values**: `"abc"`, `"invalid"`, `""`
+- **Out-of-range values**: `"-0.1"`, `"1.5"`, `"2.0"`
+- **Empty or missing values**: Uses default `0.1`
+
+**Example Error Messages:**
+```
+⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: 'abc'. Must be a number between 0.0 and 1.0. Using default: 0.1
+⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: 1.5. Must be between 0.0 and 1.0. Using default: 0.1
+```
+
+**Graceful Fallback:**
+- Application continues to start normally
+- Falls back to safe default value (0.1)
+- Logs warning message for debugging
+- No application crashes or startup failures
+
 ## Troubleshooting
 
 ### Invalid `traces_sample_rate` value
-If an invalid value is provided, Python will raise a `ValueError`. Valid values are floats between 0.0 and 1.0.
+The application now gracefully handles invalid values and will not crash. Check the logs for warning messages about invalid values.
 
 ### Boolean parsing for `send_default_pii`
 The following values are considered `true` (case-insensitive):
@@ -160,6 +193,6 @@ The following values are considered `true` (case-insensitive):
 All other values (including empty string) are considered `false`.
 
 ### Verification
-Check the application logs for the Sentry initialization message to verify the configuration is being applied correctly.
+Check the application logs for the Sentry initialization message to verify the configuration is being applied correctly. Warning messages will appear for invalid values.
 
 This configuration provides a robust, production-ready Sentry setup that balances observability with performance and privacy requirements.
