@@ -40,6 +40,12 @@ async def get_overview(db=Depends(get_db)):
     active_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days'")
     total_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='completed'")
     monthly_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='completed' AND created_at >= NOW() - INTERVAL '30 days'")
+    
+    # Get total sessions from sessions table
+    total_sessions = await db.fetchval("SELECT COUNT(*) FROM sessions")
+    
+    # Get total donations from donation_transactions table
+    total_donations = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM donation_transactions WHERE status='completed'")
     growth_rate = 12.5  # mock
     conversion_rate = 7.8  # mock
     system_health = "healthy"
@@ -54,6 +60,8 @@ async def get_overview(db=Depends(get_db)):
             "active_users": active_users or 0,
             "total_revenue": float(total_revenue or 0),
             "monthly_revenue": float(monthly_revenue or 0),
+            "total_sessions": total_sessions or 0,
+            "total_donations": float(total_donations or 0),
             "growth_rate": growth_rate,
             "conversion_rate": conversion_rate,
             "system_health": system_health,

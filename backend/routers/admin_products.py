@@ -24,8 +24,8 @@ async def get_products(db=Depends(get_db)):
                 "id": str(row["id"]),
                 "sku_code": f"SVC_{row['name'].upper()}",
                 "name": row["display_name"] or row["name"],
-                "price": float(row["price_usd"]),
-                "credits_allocated": row["credits_required"],
+                "price": float(row["price_usd"] or 0),
+                "credits_allocated": row["base_credits"] or row["credits_required"] or 1,
                 "is_active": row["enabled"],
                 "type": "service",
                 "category": row["service_category"]
