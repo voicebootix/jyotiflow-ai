@@ -36,10 +36,17 @@ async def ab_test_results(db=Depends(get_db)):
 # தமிழ் - மேலோட்டம் மற்றும் பகுப்பாய்வு
 @router.get("/overview")
 async def get_overview(db=Depends(get_db)):
+    """Get admin dashboard overview statistics"""
     total_users = await db.fetchval("SELECT COUNT(*) FROM users")
     active_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days'")
     total_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='completed'")
     monthly_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='completed' AND created_at >= NOW() - INTERVAL '30 days'")
+    
+    # Get total sessions from sessions table
+    total_sessions = await db.fetchval("SELECT COUNT(*) FROM sessions")
+    
+    # Get total donations from donation_transactions table
+    total_donations = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM donation_transactions WHERE status='completed'")
     growth_rate = 12.5  # mock
     conversion_rate = 7.8  # mock
     system_health = "healthy"
@@ -54,6 +61,8 @@ async def get_overview(db=Depends(get_db)):
             "active_users": active_users or 0,
             "total_revenue": float(total_revenue or 0),
             "monthly_revenue": float(monthly_revenue or 0),
+            "total_sessions": total_sessions or 0,
+            "total_donations": float(total_donations or 0),
             "growth_rate": growth_rate,
             "conversion_rate": conversion_rate,
             "system_health": system_health,
@@ -61,9 +70,80 @@ async def get_overview(db=Depends(get_db)):
         }
     }
 
+# Add missing sessions endpoint
+@router.get("/sessions")
+async def get_sessions(db=Depends(get_db)):
+    """Get session analytics for admin dashboard"""
+    try:
+        # Get recent sessions
+        recent_sessions = await db.fetch("""
+            SELECT 
+                s.session_id,
+                s.user_email,
+                s.service_type,
+                s.status,
+                s.start_time,
+                s.end_time,
+                s.duration_minutes,
+                s.credits_used,
+                u.full_name as user_name
+            FROM sessions s
+            LEFT JOIN users u ON s.user_email = u.email
+            ORDER BY s.start_time DESC
+            LIMIT 50
+        """)
+        
+        # Get session statistics
+        total_sessions = await db.fetchval("SELECT COUNT(*) FROM sessions")
+        active_sessions = await db.fetchval("SELECT COUNT(*) FROM sessions WHERE status = 'active'")
+        completed_sessions = await db.fetchval("SELECT COUNT(*) FROM sessions WHERE status = 'completed'")
+        
+        # Get sessions by service type
+        sessions_by_service = await db.fetch("""
+            SELECT 
+                service_type,
+                COUNT(*) as count,
+                AVG(duration_minutes) as avg_duration,
+                SUM(credits_used) as total_credits
+            FROM sessions 
+            WHERE start_time >= NOW() - INTERVAL '30 days'
+            GROUP BY service_type
+            ORDER BY count DESC
+        """)
+        
+        return {
+            "success": True,
+            "data": {
+                "recent_sessions": [dict(session) for session in recent_sessions],
+                "statistics": {
+                    "total_sessions": total_sessions or 0,
+                    "active_sessions": active_sessions or 0,
+                    "completed_sessions": completed_sessions or 0
+                },
+                "by_service_type": [dict(service) for service in sessions_by_service]
+            }
+        }
+        
+    except Exception as e:
+        print(f"Sessions endpoint error: {e}")
+        return {
+            "success": False,
+            "error": str(e),
+            "data": {
+                "recent_sessions": [],
+                "statistics": {
+                    "total_sessions": 0,
+                    "active_sessions": 0,
+                    "completed_sessions": 0
+                },
+                "by_service_type": []
+            }
+        }
+
 # தமிழ் - AI நுண்ணறிவு பரிந்துரைகள்
 @router.get("/ai-insights")
 async def get_ai_insights(db=Depends(get_db)):
+    """Get AI insights and recommendations for admin dashboard"""
     try:
         # Get real AI recommendations from database
         recommendations = await db.fetch("""

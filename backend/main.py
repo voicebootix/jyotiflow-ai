@@ -12,22 +12,34 @@ import sentry_sdk
 
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
-    # Build integrations list with available integrations
-    integrations = [
-        FastApiIntegration(auto_error=True),
-        StarletteIntegration(auto_error=True),
-    ]
+    # Initialize integrations list as empty, then add integrations individually
+    integrations = []
+    
+    # Add base integrations with error handling
+    try:
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        integrations.append(FastApiIntegration(auto_error=True))
+    except ImportError:
+        print("⚠️ FastAPI integration not available")
+    
+    try:
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+        integrations.append(StarletteIntegration(auto_error=True))
+    except ImportError:
+        print("⚠️ Starlette integration not available")
+    
+    # Add optional database integrations
     try:
         from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration  # type: ignore
         integrations.append(SqlalchemyIntegration())
     except ImportError:
-        pass
-
+        print("⚠️ SQLAlchemy integration not available")
+    
     try:
         from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
         integrations.append(AsyncPGIntegration())
     except ImportError:
-        pass
+        print("⚠️ AsyncPG integration not available")
 
     # Parse traces_sample_rate with error handling
     sample_rate_env = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
@@ -45,7 +57,7 @@ if sentry_dsn:
             traces_sample_rate=traces_sample_rate,
             send_default_pii=True,
         )
-        print(f"✅ Sentry initialized successfully with traces_sample_rate={traces_sample_rate}")
+        print(f"✅ Sentry initialized successfully with {len(integrations)} integrations, traces_sample_rate={traces_sample_rate}")
     except Exception as e:
         print(f"❌ Failed to initialize Sentry: {e}")
         print("⚠️ Continuing without Sentry - application will run normally")
@@ -55,6 +67,7 @@ else:
 # Import routers
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
+from routers import admin_overview, admin_integrations
 from routers import content
 import db
 
@@ -418,6 +431,7 @@ async def health_check():
             }
         )
 
+<<<<<<< HEAD
 # --- Sentry Test Endpoint ---
 @app.get("/test-sentry")
 async def test_sentry():
@@ -437,6 +451,13 @@ async def test_sentry():
                 "timestamp": datetime.now().isoformat()
             }
         )
+=======
+# Add API health endpoint for frontend compatibility
+@app.get("/api/health")
+async def api_health_check():
+    """API health check endpoint for frontend compatibility"""
+    return await health_check()
+>>>>>>> cursor/evaluate-admin-dashboard-functionality-cadc
 
 # Register routers
 app.include_router(auth.router)
@@ -456,6 +477,8 @@ app.include_router(admin_credits.router)
 app.include_router(admin_analytics.router)
 app.include_router(admin_content.router)
 app.include_router(admin_settings.router)
+app.include_router(admin_overview.router)
+app.include_router(admin_integrations.router)
 
 # Enhanced spiritual guidance router
 if ENHANCED_ROUTER_AVAILABLE:

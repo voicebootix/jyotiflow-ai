@@ -24,11 +24,11 @@ async def get_products(db=Depends(get_db)):
                 "id": str(row["id"]),
                 "sku_code": f"SVC_{row['name'].upper()}",
                 "name": row["display_name"] or row["name"],
-                "price": float(row["price_usd"]),
-                "credits_allocated": row["credits_required"],
+                "price": float(row["price_usd"] or 0),
+                "credits_allocated": row.get("base_credits") or row.get("credits_required") or 1,
                 "is_active": row["enabled"],
                 "type": "service",
-                "category": row["service_category"]
+                "category": row.get("service_category")
             })
         
         # Add credit packages as products
@@ -44,11 +44,19 @@ async def get_products(db=Depends(get_db)):
                 "category": "credits"
             })
         
-        return products
+        return {
+            "success": True,
+            "data": {
+                "service_types": [dict(row) for row in service_types],
+                "credit_packages": [dict(row) for row in credit_packages],
+                "products": products,
+                "total_count": len(service_types) + len(credit_packages)
+            }
+        }
         
     except Exception as e:
         print(f"Products endpoint error: {e}")
-        return []
+        return {"success": False, "error": str(e), "data": []}
 
 # --- SERVICE TYPES ENDPOINTS (with real DB logic) ---
 @router.post("/service-types")

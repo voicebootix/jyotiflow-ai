@@ -13,8 +13,27 @@ export default function Products() {
 
   function fetchProducts() {
     setLoading(true);
-    spiritualAPI.getAdminProducts().then(data => {
-      setProducts(data);
+    spiritualAPI.getAdminProducts().then(response => {
+      if (response && response.success && response.data) {
+        // Handle the new API response format
+        if (response.data.products) {
+          setProducts(response.data.products);
+        } else if (Array.isArray(response.data)) {
+          setProducts(response.data);
+        } else {
+          setProducts([]);
+        }
+      } else if (Array.isArray(response)) {
+        // Handle legacy response format
+        setProducts(response);
+      } else {
+        console.error('Invalid products response:', response);
+        setProducts([]);
+      }
+      setLoading(false);
+    }).catch(error => {
+      console.error('Error fetching products:', error);
+      setProducts([]);
       setLoading(false);
     });
   }
