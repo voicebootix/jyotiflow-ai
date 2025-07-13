@@ -4,7 +4,6 @@ from db import get_db
 import bcrypt
 import jwt
 import os
-import uuid
 from datetime import datetime, timedelta
 
 # தமிழ் - ரகசியம் (SECRET)
@@ -26,7 +25,7 @@ class RegisterForm(BaseModel):
     full_name: str = ""
 
 # தமிழ் - JWT உருவாக்கம்
-async def create_jwt_token(user_id: uuid.UUID, email: str, role: str = "user"):
+async def create_jwt_token(user_id: int, email: str, role: str = "user"):
     payload = {
         "sub": str(user_id),  # Changed from "user_id" to "sub" for standard JWT format
         "email": email,
@@ -64,15 +63,16 @@ async def register(form: RegisterForm, db=Depends(get_db)):
             raise HTTPException(status_code=400, detail="இந்த மின்னஞ்சல் ஏற்கனவே பதிவு செய்யப்பட்டுள்ளது")
         
         password_hash = bcrypt.hashpw(form.password.encode(), bcrypt.gensalt()).decode()
-        user_id = uuid.uuid4()
         
         # Give new users 5 free credits
         free_credits = 5
         
-        await db.execute("""
-            INSERT INTO users (id, email, password_hash, name, full_name, credits, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, NOW())
-        """, user_id, form.email, password_hash, form.full_name, form.full_name, free_credits)
+        # ✅ FIXED: Let database auto-generate integer ID
+        user_id = await db.fetchval("""
+            INSERT INTO users (email, password_hash, full_name, credits, role, is_active, created_at)
+            VALUES ($1, $2, $3, $4, 'user', true, NOW())
+            RETURNING id
+        """, form.email, password_hash, form.full_name, free_credits)
         
         token = await create_jwt_token(user_id, form.email, "user")
         return {
