@@ -17,8 +17,13 @@ sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     try:
         # Use environment-based sample rate with fallback to production-safe default
-        traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
-        
+        sample_rate_env = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
+        try:
+            traces_sample_rate = float(sample_rate_env)
+        except ValueError:
+            print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{sample_rate_env}', falling back to 0.1")
+            traces_sample_rate = 0.1
+
         sentry_sdk.init(
             dsn=sentry_dsn,
             integrations=[
