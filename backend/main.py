@@ -12,37 +12,61 @@ import sentry_sdk
 from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sentry_sdk.integrations.starlette import StarletteIntegration
 
-# Initialize Sentry with comprehensive integrations if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     # Build integrations list with available integrations
     integrations = [
-        FastApiIntegration(auto_enabling_integrations=True),
-        StarletteIntegration(),
-    ]
-    
-    # Add optional integrations if available
     try:
         from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration  # type: ignore
         integrations.append(SqlalchemyIntegration())
     except ImportError:
         pass
-    
     try:
         from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
         integrations.append(AsyncPGIntegration())
     except ImportError:
         pass
-    
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        environment=os.getenv("APP_ENV", "development"),
-        integrations=integrations,
-        traces_sample_rate=1.0,
-        profiles_sample_rate=1.0,
-        send_default_pii=True,
-    )
-    print(f"✅ Sentry initialized successfully with {len(integrations)} integrations")
+sentry_dsn = os.getenv("SENTRY_DSN")
+if sentry_dsn:
+    # Build integrations list with available integrations
+    integrations = [
+        FastApiIntegration(auto_error=True),
+        StarletteIntegration(auto_error=True),
+    ]
+    try:
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration  # type: ignore
+        integrations.append(SqlalchemyIntegration())
+    except ImportError:
+        pass
+
+    try:
+        from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
+        integrations.append(AsyncPGIntegration())
+    except ImportError:
+        pass
+
+    # Parse traces_sample_rate with error handling
+    sample_rate_env = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
+    try:
+        traces_sample_rate = float(sample_rate_env)
+    except ValueError:
+        print(f"⚠️ Invalid SENTRY_TRACES_SAMPLE_RATE value: '{sample_rate_env}', falling back to 0.1")
+        traces_sample_rate = 0.1
+
+    try:
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            environment=os.getenv("APP_ENV", "development"),
+            integrations=integrations,
+            traces_sample_rate=traces_sample_rate,
+            send_default_pii=True,
+        )
+        print(f"✅ Sentry initialized successfully with traces_sample_rate={traces_sample_rate}")
+    except Exception as e:
+        print(f"❌ Failed to initialize Sentry: {e}")
+        print("⚠️ Continuing without Sentry - application will run normally")
+else:
+    print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
