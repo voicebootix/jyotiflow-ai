@@ -7,12 +7,18 @@ import os
 import sys
 import ast
 
+def get_test_file_path(filename):
+    """Get absolute path to a file relative to this test file's directory"""
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(test_dir, filename)
+
 def test_sentry_initialization_fix():
     """Test that the Sentry initialization syntax errors are fixed"""
     print("🔧 Testing Sentry Initialization Fix...")
     
     try:
-        with open('main.py', 'r') as f:
+        file_path = get_test_file_path('main.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if the malformed integrations list is removed
@@ -58,7 +64,8 @@ def test_extension_creation_fix():
     print("🔧 Testing Extension Creation Fix...")
     
     try:
-        with open('fix_startup_issues.py', 'r') as f:
+        file_path = get_test_file_path('fix_startup_issues.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if pgcrypto extension creation is implemented
@@ -100,7 +107,8 @@ def test_pool_management_fix_startup_issues():
     print("🔧 Testing Pool Management Fix (Startup Issues)...")
     
     try:
-        with open('fix_startup_issues.py', 'r') as f:
+        file_path = get_test_file_path('fix_startup_issues.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if db_pool is properly initialized
@@ -136,7 +144,8 @@ def test_delete_query_fix():
     print("🔧 Testing DELETE Query Fix...")
     
     try:
-        with open('fix_startup_issues.py', 'r') as f:
+        file_path = get_test_file_path('fix_startup_issues.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if execute() is used instead of fetchval() for DELETE
@@ -172,7 +181,8 @@ def test_enhanced_error_handling():
     print("🔧 Testing Enhanced Error Handling...")
     
     try:
-        with open('fix_startup_issues.py', 'r') as f:
+        file_path = get_test_file_path('fix_startup_issues.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if extension warnings are implemented

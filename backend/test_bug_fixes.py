@@ -7,12 +7,18 @@ import os
 import sys
 import ast
 
+def get_test_file_path(filename):
+    """Get absolute path to a file relative to this test file's directory"""
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(test_dir, filename)
+
 def test_conditional_variable_usage_fix():
     """Test that the conditional variable usage bug is fixed"""
     print("🔧 Testing Conditional Variable Usage Fix...")
     
     try:
-        with open('knowledge_seeding_system.py', 'r') as f:
+        file_path = get_test_file_path('knowledge_seeding_system.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if conn is properly initialized before use
@@ -48,14 +54,15 @@ def test_vector_extension_fix():
     print("🔧 Testing Vector Extension Fix...")
     
     try:
-        with open('fix_startup_issues.py', 'r') as f:
+        file_path = get_test_file_path('fix_startup_issues.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
-        # Check if pgvector extension check is implemented
-        if 'pg_extension WHERE extname = \'vector\'' in content:
-            print("✅ pgvector extension check implemented")
+        # Check if pgvector extension creation is implemented
+        if 'CREATE EXTENSION IF NOT EXISTS vector' in content:
+            print("✅ pgvector extension creation implemented")
         else:
-            print("❌ pgvector extension check not implemented")
+            print("❌ pgvector extension creation not implemented")
             return False
             
         # Check if fallback table creation is implemented
@@ -84,7 +91,8 @@ def test_pool_management_fix():
     print("🔧 Testing Pool Management Fix...")
     
     try:
-        with open('enhanced_startup_integration.py', 'r') as f:
+        file_path = get_test_file_path('enhanced_startup_integration.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if db_pool is properly initialized
@@ -120,7 +128,8 @@ def test_knowledge_seeding_vector_support():
     print("🔧 Testing Knowledge Seeding Vector Support...")
     
     try:
-        with open('knowledge_seeding_system.py', 'r') as f:
+        file_path = get_test_file_path('knowledge_seeding_system.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if vector support detection is implemented
@@ -156,7 +165,8 @@ def test_error_handling_improvements():
     print("🔧 Testing Error Handling Improvements...")
     
     try:
-        with open('knowledge_seeding_system.py', 'r') as f:
+        file_path = get_test_file_path('knowledge_seeding_system.py')
+        with open(file_path, 'r') as f:
             content = f.read()
             
         # Check if AsyncPG availability is checked
@@ -187,6 +197,128 @@ def test_error_handling_improvements():
         print("❌ knowledge_seeding_system.py not found")
         return False
 
+def test_knowledge_seeding_fix():
+    """Test that knowledge seeding fix is implemented"""
+    print("🧠 Testing Knowledge Base Seeding Fix...")
+    
+    # Check if the enhanced startup integration has the fix
+    try:
+        file_path = get_test_file_path('enhanced_startup_integration.py')
+        with open(file_path, 'r') as f:
+            content = f.read()
+            
+        if 'from knowledge_seeding_system import KnowledgeSeeder' in content:
+            print("✅ Knowledge seeding import found")
+        else:
+            print("❌ Knowledge seeding import missing")
+            return False
+            
+        if 'await seeder.seed_complete_knowledge_base()' in content:
+            print("✅ Knowledge seeding call found")
+        else:
+            print("❌ Knowledge seeding call missing")
+            return False
+            
+        print("✅ Knowledge base seeding fix is properly implemented")
+        return True
+        
+    except FileNotFoundError:
+        print("❌ enhanced_startup_integration.py not found")
+        return False
+
+def test_service_configuration_cache_fix():
+    """Test that service configuration cache fix is implemented"""
+    print("🔧 Testing Service Configuration Cache Fix...")
+    
+    # Check if the fix files exist
+    fix_files = [
+        'fix_service_configuration_cache.py',
+        'fix_startup_issues.py'
+    ]
+    
+    for file in fix_files:
+        file_path = get_test_file_path(file)
+        if os.path.exists(file_path):
+            print(f"✅ {file} exists")
+        else:
+            print(f"❌ {file} missing")
+            return False
+    
+    # Check if enhanced startup integration has schema validation
+    try:
+        file_path = get_test_file_path('enhanced_startup_integration.py')
+        with open(file_path, 'r') as f:
+            content = f.read()
+            
+        if '_fix_service_configuration_cache_schema' in content:
+            print("✅ Schema validation method found")
+        else:
+            print("❌ Schema validation method missing")
+            return False
+            
+        if 'cached_at' in content and 'expires_at' in content:
+            print("✅ Column validation found")
+        else:
+            print("❌ Column validation missing")
+            return False
+            
+        print("✅ Service configuration cache fix is properly implemented")
+        return True
+        
+    except FileNotFoundError:
+        print("❌ enhanced_startup_integration.py not found")
+        return False
+
+def test_sentry_configuration_guide():
+    """Test that Sentry configuration guide exists"""
+    print("� Testing Sentry Configuration Guide...")
+    
+    file_path = get_test_file_path('sentry_configuration_guide.md')
+    if os.path.exists(file_path):
+        print("✅ Sentry configuration guide exists")
+        
+        # Check if it has useful content
+        with open(file_path, 'r') as f:
+            content = f.read()
+            
+        if 'SENTRY_DSN' in content and 'sentry.io' in content:
+            print("✅ Sentry guide has proper content")
+            return True
+        else:
+            print("❌ Sentry guide content incomplete")
+            return False
+    else:
+        print("❌ Sentry configuration guide missing")
+        return False
+
+def test_main_integration():
+    """Test that main.py has the fixes integrated"""
+    print("� Testing Main Integration...")
+    
+    try:
+        file_path = get_test_file_path('main.py')
+        with open(file_path, 'r') as f:
+            content = f.read()
+            
+        if 'JyotiFlowStartupFixer' in content:
+            print("✅ Startup fixer import found")
+        else:
+            print("❌ Startup fixer import missing")
+            return False
+            
+        if 'await startup_fixer.fix_all_issues()' in content:
+            print("✅ Startup fixer call found")
+        else:
+            print("❌ Startup fixer call missing")
+            return False
+            
+        print("✅ Main integration is properly implemented")
+        return True
+        
+    except FileNotFoundError:
+        print("❌ main.py not found")
+        return False
+
 def main():
     """Run all bug fix tests"""
     print("🚀 Testing JyotiFlow.ai Bug Fixes...")
@@ -197,7 +329,11 @@ def main():
         test_vector_extension_fix,
         test_pool_management_fix,
         test_knowledge_seeding_vector_support,
-        test_error_handling_improvements
+        test_error_handling_improvements,
+        test_knowledge_seeding_fix,
+        test_service_configuration_cache_fix,
+        test_sentry_configuration_guide,
+        test_main_integration
     ]
     
     passed = 0
