@@ -9,11 +9,13 @@ import UserManagement from './admin/UserManagement';
 import Donations from './admin/Donations';
 import ServiceTypes from './admin/ServiceTypes';
 import spiritualAPI from '../lib/api';
-import SocialContentManagement from './admin/SocialContentManagement';
 import Notifications from './admin/Notifications';
 import CreditPackages from './admin/CreditPackages';
 import AdminPricingDashboard from './AdminPricingDashboard';
 import SocialMediaMarketing from './admin/SocialMediaMarketing';
+import BusinessIntelligence from './admin/BusinessIntelligence';
+import PlatformConfiguration from './admin/PlatformConfiguration';
+import FollowUpManagement from './admin/FollowUpManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -82,23 +84,22 @@ const AdminDashboard = () => {
     return <div>Loading divine administration...</div>;
   }
 
-  // Tab labels and keys - Social Media Marketing moved to prominent position
+  // Tab labels and keys - Consolidated structure with no duplicates
   const tabs = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'socialMarketing', label: '📱 Social Media Marketing' },
-    { key: 'products', label: 'Products' },
-    { key: 'revenue', label: 'Revenue' },
-    { key: 'content', label: 'Content' },
-    { key: 'insights', label: 'Insights' },
-    { key: 'settings', label: 'Settings' },
-    { key: 'users', label: 'Users' },
-    { key: 'donations', label: 'Donations' },
-    { key: 'serviceTypes', label: 'Service Types' },
-    { key: 'pricing', label: 'Pricing' },
-    { key: 'comprehensivePricing', label: 'Smart Pricing' },
-    { key: 'notifications', label: 'Notifications' },
-    { key: 'creditPackages', label: 'Credit Packages' },
-    { key: 'followup', label: 'Follow-ups' },
+    { key: 'overview', label: '📊 Dashboard' },
+    { key: 'socialMarketing', label: '📱 Social Marketing' },
+    { key: 'pricing', label: '💰 Dynamic Pricing' },
+    { key: 'products', label: '📦 Products & Services' },
+    { key: 'revenue', label: '📈 Revenue Analytics' },
+    { key: 'users', label: '👥 User Management' },
+    { key: 'analytics', label: '🧠 Business Intelligence' },
+    { key: 'platformConfig', label: '⚙️ Platform Config' },
+    { key: 'followup', label: '📧 Follow-ups' },
+    { key: 'donations', label: '💝 Donations' },
+    { key: 'serviceTypes', label: '🔧 Service Types' },
+    { key: 'notifications', label: '🔔 Notifications' },
+    { key: 'creditPackages', label: '🎁 Credit Packages' },
+    { key: 'settings', label: '⚙️ Settings' },
   ];
 
   return (
@@ -234,17 +235,20 @@ const AdminDashboard = () => {
             </div>
           </div>
         )}
+        {/* Consolidated Tab Rendering - No Duplicates */}
+        {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
+        {activeTab === 'pricing' && <AdminPricingDashboard />}
         {activeTab === 'products' && <Products />}
         {activeTab === 'revenue' && <RevenueAnalytics />}
-        {activeTab === 'content' && <SocialContentManagement />}
-        {activeTab === 'settings' && <Settings />}
         {activeTab === 'users' && <UserManagement />}
+        {activeTab === 'analytics' && <BusinessIntelligence />}
+        {activeTab === 'platformConfig' && <PlatformConfiguration />}
+        {activeTab === 'followup' && <FollowUpManagement />}
         {activeTab === 'donations' && <Donations />}
         {activeTab === 'serviceTypes' && <ServiceTypes />}
-        {activeTab === 'pricing' && <AdminPricingDashboard />}
         {activeTab === 'notifications' && <Notifications />}
         {activeTab === 'creditPackages' && <CreditPackages />}
-        {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
+        {activeTab === 'settings' && <Settings />}
       </div>
     </div>
   );

@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { Tabs } from '@radix-ui/react-tabs';
-import PricingConfig from './PricingConfig';
 
 export default function Settings() {
   const [settings, setSettings] = useState(null);
@@ -42,7 +41,6 @@ export default function Settings() {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <Tabs.List>
           <Tabs.Tab value="general">General</Tabs.Tab>
-          <Tabs.Tab value="pricing">Pricing Config</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="general">
           <pre className="bg-white p-4 rounded">{JSON.stringify(settings, null, 2)}</pre>
@@ -71,9 +69,6 @@ export default function Settings() {
               </div>
             )}
           </div>
-        </Tabs.Panel>
-        <Tabs.Panel value="pricing">
-          <PricingConfig />
         </Tabs.Panel>
       </Tabs>
     </div>
