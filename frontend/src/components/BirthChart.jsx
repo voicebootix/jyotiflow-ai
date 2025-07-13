@@ -50,23 +50,93 @@ const BirthChart = () => {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setBirthDetails(prev => ({ ...prev, [name]: value }));
+    
+    // SURGICAL FIX: Enhanced input handling with format normalization
+    let normalizedValue = value;
+    
+    if (name === 'date') {
+      // Ensure date is in YYYY-MM-DD format
+      if (value && !value.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        const date = new Date(value);
+        if (!isNaN(date.getTime())) {
+          normalizedValue = date.toISOString().split('T')[0];
+        }
+      }
+    }
+    
+    if (name === 'time') {
+      // Ensure time is in HH:MM format
+      if (value && !value.match(/^\d{1,2}:\d{2}$/)) {
+        const timeParts = value.split(':');
+        if (timeParts.length === 2) {
+          const hours = parseInt(timeParts[0]);
+          const minutes = parseInt(timeParts[1]);
+          if (hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59) {
+            normalizedValue = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+          }
+        }
+      }
+    }
+    
+    if (name === 'location') {
+      // Normalize location input
+      normalizedValue = value.trim();
+    }
+    
+    setBirthDetails(prev => ({ ...prev, [name]: normalizedValue }));
     setError(''); // Clear error when user types
   };
 
   const validateForm = () => {
+    // SURGICAL FIX: Enhanced validation with better error messages
     if (!birthDetails.date) {
       setError('Please select your birth date');
       return false;
     }
+    
+    // Validate date format and range
+    const selectedDate = new Date(birthDetails.date);
+    const currentDate = new Date();
+    const minDate = new Date('1900-01-01');
+    
+    if (isNaN(selectedDate.getTime())) {
+      setError('Please enter a valid birth date');
+      return false;
+    }
+    
+    if (selectedDate > currentDate) {
+      setError('Birth date cannot be in the future');
+      return false;
+    }
+    
+    if (selectedDate < minDate) {
+      setError('Birth date must be after 1900');
+      return false;
+    }
+    
     if (!birthDetails.time) {
       setError('Please select your birth time');
       return false;
     }
+    
+    // Validate time format
+    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
+    if (!timeRegex.test(birthDetails.time)) {
+      setError('Please enter a valid birth time (HH:MM format)');
+      return false;
+    }
+    
     if (!birthDetails.location.trim()) {
       setError('Please enter your birth location');
       return false;
     }
+    
+    // SURGICAL FIX: Remove overly restrictive validation
+    if (birthDetails.location.trim().length < 3) {
+      setError('Birth location must be at least 3 characters long');
+      return false;
+    }
+    
     return true;
   };
 

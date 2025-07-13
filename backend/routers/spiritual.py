@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
-# JWT configuration
-JWT_SECRET_KEY = os.getenv("JWT_SECRET", "jyotiflow_secret")
+# SURGICAL FIX: Use consistent JWT secret configuration
+JWT_SECRET_KEY = os.getenv("JWT_SECRET", "1cdc8d78417b8fc61716ccc3d5e169cc")
 JWT_ALGORITHM = "HS256"
 
 # --- Helper function to extract user email from JWT token (OPTIONAL) ---
@@ -336,68 +336,106 @@ async def get_birth_chart(request: Request):
 
 @router.post("/guidance")
 async def get_spiritual_guidance(request: Request):
-    data = await request.json()
-    user_question = data.get("question")
-    birth_details = data.get("birth_details")
-    language = data.get("language", "ta")  # Default to Tamil if not provided
-
-    if not user_question or not birth_details:
-        raise HTTPException(status_code=400, detail="Missing question or birth details")
-
-    date = birth_details.get("date")
-    time_ = birth_details.get("time")
-    location = birth_details.get("location")
-    latitude = "9.66845"
-    longitude = "80.00742"
-    timezone = "Asia/Colombo"
-
-    # --- Prokerala API call with token refresh logic ---
-    payload = {
-        "datetime": f"{date}T{time_}:00+05:30",
-        "coordinates": f"{latitude},{longitude}",
-        "ayanamsa": "1"
-    }
-    for attempt in range(2):
-        token = await get_prokerala_token()
-        try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(
-                    "https://api.prokerala.com/v2/astrology/birth-details",
-                    headers={"Authorization": f"Bearer {token}"},
-                    json=payload
-                )
-                if resp.status_code == 401 and attempt == 0:
-                    await fetch_prokerala_token()
-                    continue
-                resp.raise_for_status()
-                prokerala_data = resp.json()
-                break
-        except Exception as e:
-            if attempt == 1:
-                return {"success": False, "message": f"Prokerala API error: {str(e)}"}
-    else:
-        return {"success": False, "message": "Prokerala API error: Unable to fetch astrology info."}
-
-    # 2. OpenAI API call (generate guidance)
+    """SURGICAL FIX: Enhanced spiritual guidance endpoint with comprehensive logging"""
+    logger.info("🕉️ Spiritual guidance endpoint called")
+    
     try:
-        openai.api_key = OPENAI_API_KEY
-        prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in {language}."
-        openai_resp = openai.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "You are a spiritual guru."},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        answer = openai_resp.choices[0].message.content
-    except Exception as e:
-        return {"success": False, "message": f"OpenAI API error: {str(e)}"}
+        # Log request details
+        logger.info(f"Request method: {request.method}")
+        logger.info(f"Request URL: {request.url}")
+        logger.info(f"Request headers: {dict(request.headers)}")
+        
+        # Parse request body
+        data = await request.json()
+        logger.info(f"Request data: {data}")
+        
+        user_question = data.get("question")
+        birth_details = data.get("birth_details")
+        language = data.get("language", "ta")  # Default to Tamil if not provided
 
-    return {
-        "success": True,
-        "guidance": answer,
-        "astrology": prokerala_data
-    }
+        logger.info(f"User question: {user_question}")
+        logger.info(f"Birth details: {birth_details}")
+        logger.info(f"Language: {language}")
+
+        if not user_question or not birth_details:
+            logger.error("❌ Missing question or birth details")
+            raise HTTPException(status_code=400, detail="Missing question or birth details")
+
+        date = birth_details.get("date")
+        time_ = birth_details.get("time")
+        location = birth_details.get("location")
+        latitude = "9.66845"
+        longitude = "80.00742"
+        timezone = "Asia/Colombo"
+
+        logger.info(f"Processing request for date: {date}, time: {time_}, location: {location}")
+
+        # --- Prokerala API call with token refresh logic ---
+        payload = {
+            "datetime": f"{date}T{time_}:00+05:30",
+            "coordinates": f"{latitude},{longitude}",
+            "ayanamsa": "1"
+        }
+        
+        logger.info(f"Prokerala payload: {payload}")
+        
+        for attempt in range(2):
+            logger.info(f"Prokerala API attempt {attempt + 1}")
+            token = await get_prokerala_token()
+            try:
+                async with httpx.AsyncClient() as client:
+                    resp = await client.post(
+                        "https://api.prokerala.com/v2/astrology/birth-details",
+                        headers={"Authorization": f"Bearer {token}"},
+                        json=payload
+                    )
+                    logger.info(f"Prokerala response status: {resp.status_code}")
+                    
+                    if resp.status_code == 401 and attempt == 0:
+                        logger.info("Token expired, refreshing...")
+                        await fetch_prokerala_token()
+                        continue
+                    resp.raise_for_status()
+                    prokerala_data = resp.json()
+                    logger.info("✅ Prokerala API call successful")
+                    break
+            except Exception as e:
+                logger.error(f"Prokerala API error on attempt {attempt + 1}: {e}")
+                if attempt == 1:
+                    logger.error("❌ Prokerala API failed after 2 attempts")
+                    return {"success": False, "message": f"Prokerala API error: {str(e)}"}
+        else:
+            logger.error("❌ Prokerala API error: Unable to fetch astrology info")
+            return {"success": False, "message": "Prokerala API error: Unable to fetch astrology info."}
+
+        # 2. OpenAI API call (generate guidance)
+        logger.info("🤖 Calling OpenAI API for guidance generation")
+        try:
+            openai.api_key = OPENAI_API_KEY
+            prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in {language}."
+            openai_resp = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": "You are a spiritual guru."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
+            answer = openai_resp.choices[0].message.content
+            logger.info("✅ OpenAI API call successful")
+        except Exception as e:
+            logger.error(f"❌ OpenAI API error: {e}")
+            return {"success": False, "message": f"OpenAI API error: {str(e)}"}
+
+        logger.info("🎉 Spiritual guidance generated successfully")
+        return {
+            "success": True,
+            "guidance": answer,
+            "astrology": prokerala_data
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Unexpected error in spiritual guidance endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @router.get("/birth-chart/cache-status")
 async def get_birth_chart_cache_status(request: Request):
