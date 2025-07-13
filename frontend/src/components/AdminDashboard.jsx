@@ -202,7 +202,12 @@ const AdminDashboard = () => {
             <span>{notification.message}</span>
             <button 
               onClick={() => setNotification(null)}
-              className="ml-4 text-white hover:text-gray-200"
+              aria-label="Dismiss notification"
+              className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50 ${
+                notification.type === 'success' ? 'text-green-100 hover:text-white hover:bg-green-600' :
+                notification.type === 'error' ? 'text-red-100 hover:text-white hover:bg-red-600' :
+                'text-blue-100 hover:text-white hover:bg-blue-600'
+              }`}
             >
               ×
             </button>
@@ -363,7 +368,12 @@ const KnowledgeBaseManagement = () => {
             <span>{notification.message}</span>
             <button 
               onClick={() => setNotification(null)}
-              className="ml-4 text-current hover:opacity-70"
+              aria-label="Dismiss notification"
+              className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
+                notification.type === 'success' ? 'text-green-600 hover:text-green-800 hover:bg-green-200 focus:ring-green-500' :
+                notification.type === 'error' ? 'text-red-600 hover:text-red-800 hover:bg-red-200 focus:ring-red-500' :
+                'text-blue-600 hover:text-blue-800 hover:bg-blue-200 focus:ring-blue-500'
+              }`}
             >
               ×
             </button>
@@ -605,37 +615,51 @@ const SystemHealth = () => {
   const [healthData, setHealthData] = useState({});
   const [dbStats, setDbStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [migrating, setMigrating] = useState(false);
+  const [notification, setNotification] = useState(null);
+
+  // Notification helper function
+  const showNotification = (message, type = 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const fetchHealthData = async () => {
+    try {
+      const [health, db] = await Promise.all([
+        spiritualAPI.request('/api/health').catch(() => ({})),
+        spiritualAPI.request('/api/admin/database/stats').catch(() => ({}))
+      ]);
+      
+      setHealthData(health);
+      setDbStats(db);
+    } catch (error) {
+      console.error('Health data fetch error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchHealthData = async () => {
-      try {
-        const [health, db] = await Promise.all([
-          spiritualAPI.request('/api/health').catch(() => ({})),
-          spiritualAPI.request('/api/admin/database/stats').catch(() => ({}))
-        ]);
-        
-        setHealthData(health);
-        setDbStats(db);
-      } catch (error) {
-        console.error('Health data fetch error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchHealthData();
   }, []);
 
   const runMigrations = async () => {
     try {
+      setMigrating(true);
       const result = await spiritualAPI.request('/api/admin/database/migrate', { method: 'POST' });
       if (result.success) {
-        alert('Database migrations completed successfully!');
-        window.location.reload();
+        showNotification('Database migrations completed successfully!', 'success');
+        // Refresh the data instead of reloading the page
+        await fetchHealthData();
+      } else {
+        showNotification('Migration failed. Please check the logs.', 'error');
       }
     } catch (error) {
       console.error('Migration error:', error);
-      alert('Migration failed. Please check the logs.');
+      showNotification('Migration failed. Please check the logs.', 'error');
+    } finally {
+      setMigrating(false);
     }
   };
 
@@ -645,14 +669,39 @@ const SystemHealth = () => {
 
   return (
     <div className="p-8 space-y-6">
+      {/* Notification Component */}
+      {notification && (
+        <div className={`p-4 rounded-lg shadow-lg ${
+          notification.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+          notification.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+          'bg-blue-100 text-blue-800 border border-blue-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)}
+              aria-label="Dismiss notification"
+              className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
+                notification.type === 'success' ? 'text-green-600 hover:text-green-800 hover:bg-green-200 focus:ring-green-500' :
+                notification.type === 'error' ? 'text-red-600 hover:text-red-800 hover:bg-red-200 focus:ring-red-500' :
+                'text-blue-600 hover:text-blue-800 hover:bg-blue-200 focus:ring-blue-500'
+              }`}
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">System Health</h2>
         <button
           onClick={runMigrations}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+          disabled={migrating}
+          className={`bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 ${migrating ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Database size={16} />
-          <span>Run Migrations</span>
+          <Database size={16} className={migrating ? 'animate-spin' : ''} />
+          <span>{migrating ? 'Running Migrations...' : 'Run Migrations'}</span>
         </button>
       </div>
 
