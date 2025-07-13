@@ -19,7 +19,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
-JWT_SECRET = os.getenv("JWT_SECRET", "jyotiflow_secret")
+# SURGICAL FIX: Use consistent JWT secret configuration
+JWT_SECRET = os.getenv("JWT_SECRET", "1cdc8d78417b8fc61716ccc3d5e169cc")
 JWT_ALGORITHM = "HS256"
 
 logger = logging.getLogger(__name__)

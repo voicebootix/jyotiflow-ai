@@ -1116,7 +1116,74 @@ app = FastAPI(
 
 @app.on_event("startup")
 async def startup():
-    await db_manager.initialize_tables()
+    """Enhanced startup with database migration and initialization"""
+    try:
+        logger.info("🚀 Starting JyotiFlow Enhanced Application...")
+        
+        # Initialize database
+        db = await get_database()
+        await db.initialize()
+        
+        # SURGICAL FIX: Add missing credits_required column
+        try:
+            conn = await db.get_connection()
+            try:
+                # Check if credits_required column exists
+                result = await conn.fetchrow("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_name = 'service_types' AND column_name = 'credits_required'
+                """)
+                
+                if not result:
+                    logger.info("🔧 Adding missing credits_required column to service_types table...")
+                    
+                    # Add the column
+                    await conn.execute("""
+                        ALTER TABLE service_types 
+                        ADD COLUMN credits_required INTEGER DEFAULT 5
+                    """)
+                    
+                    # Update existing records with appropriate credit values
+                    await conn.execute("""
+                        UPDATE service_types 
+                        SET credits_required = CASE 
+                            WHEN name LIKE '%clarity%' THEN 3
+                            WHEN name LIKE '%love%' THEN 5
+                            WHEN name LIKE '%premium%' THEN 8
+                            WHEN name LIKE '%elite%' THEN 15
+                            WHEN name LIKE '%live%' THEN 10
+                            WHEN name LIKE '%avatar%' THEN 12
+                            ELSE 5
+                        END
+                        WHERE credits_required = 5
+                    """)
+                    
+                    logger.info("✅ credits_required column added and populated successfully")
+                else:
+                    logger.info("✅ credits_required column already exists")
+                    
+            finally:
+                await db.release_connection(conn)
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Database migration warning: {e}")
+        
+        # Initialize tables
+        await db.initialize_enhanced_tables()
+        
+        # Initialize sample data
+        await _initialize_enhanced_sample_data()
+        
+        # Set database pool for other modules
+        from db import set_db_pool
+        set_db_pool(db.pool)
+        
+        logger.info("✅ JyotiFlow Enhanced Application started successfully!")
+        
+    except Exception as e:
+        logger.error(f"❌ Startup failed: {e}")
+        raise
 
 # Create APIRouter for auth and user endpoints
 from fastapi import APIRouter
