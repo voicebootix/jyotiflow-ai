@@ -197,6 +197,18 @@ body {
   }
 }
 
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .divine-glow {
   animation: divine-glow 2s ease-in-out infinite;
 }
@@ -458,15 +470,23 @@ body {
 /* Accessibility improvements */
 @media (prefers-reduced-motion: reduce) {
   * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
   }
   
   /* Completely disable particle animation for motion-sensitive users */
   .particle {
     animation: none !important;
     display: none !important;
+  }
+  
+  /* Disable specific animations */
+  .divine-glow,
+  .consciousness-pulse,
+  .sacred-float,
+  .divine-entrance,
+  .divine-text {
+    animation: none !important;
   }
 }
 
