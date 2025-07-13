@@ -562,10 +562,432 @@ const spiritualAPI = {
   },
 
   async getSystemHealth() {
-    return this.get('/api/spiritual/enhanced/system-health');
+    return this.get('/api/health');
   },
 
+  // Enhanced admin dashboard methods
+  async getAdminAnalytics() {
+    return this.get('/api/admin/analytics/overview');
+  },
 
+  async getSessionAnalytics() {
+    return this.get('/api/admin/analytics/sessions');
+  },
+
+  async getActiveSessions() {
+    return this.get('/api/admin/analytics/sessions/active');
+  },
+
+  async getSessionStats() {
+    return this.get('/api/admin/analytics/sessions/stats');
+  },
+
+  async getIntegrationsStatus() {
+    return this.get('/api/admin/analytics/integrations/status');
+  },
+
+  async getDatabaseStats() {
+    return this.get('/api/admin/analytics/database/stats');
+  },
+
+  async runDatabaseMigrations() {
+    return this.post('/api/admin/analytics/database/migrate', {});
+  },
+
+  async getKnowledgeSeedingStatus() {
+    return this.get('/api/admin/analytics/knowledge/seeding-status');
+  },
+
+  async seedKnowledgeBase() {
+    return this.post('/api/admin/analytics/knowledge/seed', {});
+  },
+
+  async getKnowledgeDomainsAdmin() {
+    return this.get('/api/spiritual/enhanced/knowledge-domains');
+  },
+
+  async getEnhancedSystemHealth() {
+    return this.get('/api/spiritual/enhanced/health');
+  },
+
+  async getPersonaModesAdmin() {
+    return this.get('/api/spiritual/enhanced/persona-modes');
+  },
+
+  async getAIInsights() {
+    return this.get('/api/admin/analytics/ai-insights');
+  },
+
+  async getAIPricingRecommendationsAdmin() {
+    return this.get('/api/admin/analytics/ai-pricing-recommendations');
+  },
+
+  async updateAIPricingRecommendation(recommendationId, action) {
+    return this.post(`/api/admin/analytics/ai-pricing-recommendations/${recommendationId}/${action}`, {});
+  },
+
+  // Follow-up system methods
+  async getFollowUpTemplates() {
+    return this.get('/api/admin/followup/templates');
+  },
+
+  async createFollowUpTemplate(templateData) {
+    return this.post('/api/admin/followup/templates', templateData);
+  },
+
+  async updateFollowUpTemplate(templateId, templateData) {
+    return this.request(`/api/admin/followup/templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(templateData)
+    });
+  },
+
+  async deleteFollowUpTemplate(templateId) {
+    return this.request(`/api/admin/followup/templates/${templateId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getFollowUpSchedules() {
+    return this.get('/api/admin/followup/schedules');
+  },
+
+  async scheduleFollowUp(scheduleData) {
+    return this.post('/api/admin/followup/schedules', scheduleData);
+  },
+
+  async cancelFollowUp(scheduleId) {
+    return this.request(`/api/admin/followup/schedules/${scheduleId}/cancel`, {
+      method: 'POST'
+    });
+  },
+
+  async getFollowUpAnalytics() {
+    return this.get('/api/admin/followup/analytics');
+  },
+
+  async getFollowUpSettings() {
+    return this.get('/api/admin/followup/settings');
+  },
+
+  async updateFollowUpSettings(settingsData) {
+    return this.request('/api/admin/followup/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settingsData)
+    });
+  },
+
+  // Enhanced social media methods
+  async getSocialMediaCampaigns() {
+    return this.get('/api/admin/social-media/campaigns');
+  },
+
+  async createSocialMediaCampaign(campaignData) {
+    return this.post('/api/admin/social-media/campaigns', campaignData);
+  },
+
+  async updateSocialMediaCampaign(campaignId, campaignData) {
+    return this.request(`/api/admin/social-media/campaigns/${campaignId}`, {
+      method: 'PUT',
+      body: JSON.stringify(campaignData)
+    });
+  },
+
+  async deleteSocialMediaCampaign(campaignId) {
+    return this.request(`/api/admin/social-media/campaigns/${campaignId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async getSocialMediaAnalytics() {
+    return this.get('/api/admin/social-media/analytics');
+  },
+
+  async getSocialMediaPerformance() {
+    return this.get('/api/admin/social-media/performance');
+  },
+
+  async getAutomationSettings() {
+    return this.get('/api/admin/social-media/automation/settings');
+  },
+
+  async updateAutomationSettings(settingsData) {
+    return this.request('/api/admin/social-media/automation/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settingsData)
+    });
+  },
+
+  async triggerAutomation(automationType) {
+    return this.post(`/api/admin/social-media/automation/trigger/${automationType}`, {});
+  },
+
+  // Enhanced user management methods
+  async getUsersWithDetails() {
+    return this.get('/api/admin/users/detailed');
+  },
+
+  async updateUserRole(userId, role) {
+    return this.request(`/api/admin/users/${userId}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role })
+    });
+  },
+
+  async updateUserCredits(userId, credits) {
+    return this.request(`/api/admin/users/${userId}/credits`, {
+      method: 'PUT',
+      body: JSON.stringify({ credits })
+    });
+  },
+
+  async getUserSessionHistory(userId) {
+    return this.get(`/api/admin/users/${userId}/sessions`);
+  },
+
+  async getUserCreditHistory(userId) {
+    return this.get(`/api/admin/users/${userId}/credits/history`);
+  },
+
+  async suspendUser(userId, reason) {
+    return this.post(`/api/admin/users/${userId}/suspend`, { reason });
+  },
+
+  async unsuspendUser(userId) {
+    return this.post(`/api/admin/users/${userId}/unsuspend`, {});
+  },
+
+  // Enhanced product management methods
+  async getProductsWithAnalytics() {
+    return this.get('/api/admin/products/analytics');
+  },
+
+  async getProductPerformance(productId) {
+    return this.get(`/api/admin/products/${productId}/performance`);
+  },
+
+  async updateProductStatus(productId, status) {
+    return this.request(`/api/admin/products/${productId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status })
+    });
+  },
+
+  async duplicateProduct(productId) {
+    return this.post(`/api/admin/products/${productId}/duplicate`, {});
+  },
+
+  // Enhanced revenue analytics methods
+  async getRevenueBreakdown(period = '30d') {
+    return this.get(`/api/admin/revenue/breakdown?period=${period}`);
+  },
+
+  async getRevenueForecasting() {
+    return this.get('/api/admin/revenue/forecasting');
+  },
+
+  async getRevenueByProduct(period = '30d') {
+    return this.get(`/api/admin/revenue/by-product?period=${period}`);
+  },
+
+  async getRevenueByUser(period = '30d') {
+    return this.get(`/api/admin/revenue/by-user?period=${period}`);
+  },
+
+  async getRevenueMetrics() {
+    return this.get('/api/admin/revenue/metrics');
+  },
+
+  async exportRevenueData(period = '30d', format = 'csv') {
+    return this.get(`/api/admin/revenue/export?period=${period}&format=${format}`);
+  },
+
+  // Enhanced notifications methods
+  async getNotificationTemplates() {
+    return this.get('/api/admin/notifications/templates');
+  },
+
+  async createNotificationTemplate(templateData) {
+    return this.post('/api/admin/notifications/templates', templateData);
+  },
+
+  async updateNotificationTemplate(templateId, templateData) {
+    return this.request(`/api/admin/notifications/templates/${templateId}`, {
+      method: 'PUT',
+      body: JSON.stringify(templateData)
+    });
+  },
+
+  async deleteNotificationTemplate(templateId) {
+    return this.request(`/api/admin/notifications/templates/${templateId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  async sendBulkNotification(notificationData) {
+    return this.post('/api/admin/notifications/bulk', notificationData);
+  },
+
+  async getNotificationAnalytics() {
+    return this.get('/api/admin/notifications/analytics');
+  },
+
+  async getNotificationHistory() {
+    return this.get('/api/admin/notifications/history');
+  },
+
+  // Enhanced settings methods
+  async getSystemSettings() {
+    return this.get('/api/admin/settings/system');
+  },
+
+  async updateSystemSettings(settingsData) {
+    return this.request('/api/admin/settings/system', {
+      method: 'PUT',
+      body: JSON.stringify(settingsData)
+    });
+  },
+
+  async getAPISettings() {
+    return this.get('/api/admin/settings/api');
+  },
+
+  async updateAPISettings(settingsData) {
+    return this.request('/api/admin/settings/api', {
+      method: 'PUT',
+      body: JSON.stringify(settingsData)
+    });
+  },
+
+  async getSecuritySettings() {
+    return this.get('/api/admin/settings/security');
+  },
+
+  async updateSecuritySettings(settingsData) {
+    return this.request('/api/admin/settings/security', {
+      method: 'PUT',
+      body: JSON.stringify(settingsData)
+    });
+  },
+
+  async getBackupSettings() {
+    return this.get('/api/admin/settings/backup');
+  },
+
+  async createBackup() {
+    return this.post('/api/admin/settings/backup/create', {});
+  },
+
+  async restoreBackup(backupId) {
+    return this.post(`/api/admin/settings/backup/restore/${backupId}`, {});
+  },
+
+  async getBackupHistory() {
+    return this.get('/api/admin/settings/backup/history');
+  },
+
+  // Enhanced monitoring methods
+  async getSystemLogs(level = 'info', limit = 100) {
+    return this.get(`/api/admin/logs?level=${level}&limit=${limit}`);
+  },
+
+  async getErrorLogs(limit = 50) {
+    return this.get(`/api/admin/logs/errors?limit=${limit}`);
+  },
+
+  async getPerformanceMetrics() {
+    return this.get('/api/admin/monitoring/performance');
+  },
+
+  async getResourceUsage() {
+    return this.get('/api/admin/monitoring/resources');
+  },
+
+  async getAPIUsageStats() {
+    return this.get('/api/admin/monitoring/api-usage');
+  },
+
+  async getUptime() {
+    return this.get('/api/admin/monitoring/uptime');
+  },
+
+  // Enhanced testing methods
+  async testAllIntegrations() {
+    return this.post('/api/admin/test/integrations', {});
+  },
+
+  async testSpecificIntegration(integrationName) {
+    return this.post(`/api/admin/test/integration/${integrationName}`, {});
+  },
+
+  async runSystemHealthCheck() {
+    return this.post('/api/admin/test/health-check', {});
+  },
+
+  async validateConfiguration() {
+    return this.post('/api/admin/test/validate-config', {});
+  },
+
+  async runDatabaseCheck() {
+    return this.post('/api/admin/test/database', {});
+  },
+
+  // Enhanced export methods
+  async exportUserData(format = 'csv', filters = {}) {
+    return this.post('/api/admin/export/users', { format, filters });
+  },
+
+  async exportSessionData(format = 'csv', filters = {}) {
+    return this.post('/api/admin/export/sessions', { format, filters });
+  },
+
+  async exportAnalyticsData(format = 'csv', period = '30d') {
+    return this.post('/api/admin/export/analytics', { format, period });
+  },
+
+  async exportSystemData(format = 'json') {
+    return this.post('/api/admin/export/system', { format });
+  },
+
+  // Enhanced bulk operations
+  async bulkUpdateUsers(updates) {
+    return this.post('/api/admin/bulk/users/update', { updates });
+  },
+
+  async bulkDeleteUsers(userIds) {
+    return this.post('/api/admin/bulk/users/delete', { userIds });
+  },
+
+  async bulkUpdateProducts(updates) {
+    return this.post('/api/admin/bulk/products/update', { updates });
+  },
+
+  async bulkUpdatePricing(updates) {
+    return this.post('/api/admin/bulk/pricing/update', { updates });
+  },
+
+  // Enhanced analytics methods
+  async getAdvancedAnalytics(type, period = '30d') {
+    return this.get(`/api/admin/analytics/advanced/${type}?period=${period}`);
+  },
+
+  async getCustomReport(reportConfig) {
+    return this.post('/api/admin/analytics/custom-report', reportConfig);
+  },
+
+  async scheduleReport(reportConfig) {
+    return this.post('/api/admin/analytics/schedule-report', reportConfig);
+  },
+
+  async getScheduledReports() {
+    return this.get('/api/admin/analytics/scheduled-reports');
+  },
+
+  async deleteScheduledReport(reportId) {
+    return this.request(`/api/admin/analytics/scheduled-reports/${reportId}`, {
+      method: 'DELETE'
+    });
+  }
 };
 
 export default spiritualAPI;
