@@ -137,7 +137,9 @@ class EnhancedJyotiFlowStartup:
                             await db_pool.close()
                     
                 except Exception as seeding_error:
+                    import traceback
                     logger.error(f"Knowledge seeding error: {seeding_error}")
+                    logger.error(f"Full traceback: {traceback.format_exc()}")
                     logger.info("✅ System will work without knowledge base in fallback mode")
                     self.knowledge_seeded = False
             else:

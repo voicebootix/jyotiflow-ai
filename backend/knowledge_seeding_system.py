@@ -35,10 +35,45 @@ class KnowledgeSeeder:
         self.db_pool = database_pool
         self.openai_client = AsyncOpenAI(api_key=openai_api_key) if OPENAI_AVAILABLE else None
         
+        # Log initialization status
+        logger.info(f"KnowledgeSeeder initialized with:")
+        logger.info(f"  - Database pool: {'✅ Available' if database_pool else '❌ None'}")
+        logger.info(f"  - OpenAI available: {'✅ Yes' if OPENAI_AVAILABLE else '❌ No'}")
+        logger.info(f"  - OpenAI client: {'✅ Initialized' if self.openai_client else '❌ None'}")
+        logger.info(f"  - API key: {'✅ Provided' if openai_api_key and openai_api_key != 'fallback_key' else '❌ Fallback'}")
+        
     async def seed_complete_knowledge_base(self):
         """Main seeding process for complete knowledge base"""
         try:
             logger.info("Starting comprehensive knowledge base seeding...")
+            
+            # Validate database connection first
+            if self.db_pool:
+                async with self.db_pool.acquire() as conn:
+                    # Check if table exists
+                    table_exists = await conn.fetchval("""
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.tables 
+                            WHERE table_name = 'rag_knowledge_base'
+                        )
+                    """)
+                    if not table_exists:
+                        logger.error("❌ rag_knowledge_base table does not exist")
+                        raise Exception("Database table 'rag_knowledge_base' not found")
+                    logger.info("✅ Database table validated successfully")
+            
+            # Test OpenAI API if available
+            if self.openai_client and OPENAI_AVAILABLE:
+                try:
+                    logger.info("Testing OpenAI API connection...")
+                    test_response = await self.openai_client.embeddings.create(
+                        model="text-embedding-ada-002",
+                        input="test"
+                    )
+                    logger.info("✅ OpenAI API test successful")
+                except Exception as api_error:
+                    logger.warning(f"OpenAI API test failed: {api_error}")
+                    logger.warning("Will use fallback embeddings for all knowledge pieces")
             
             # Seed classical astrology knowledge
             await self._seed_classical_astrology_knowledge()
@@ -67,7 +102,9 @@ class KnowledgeSeeder:
             logger.info("Knowledge base seeding completed successfully!")
             
         except Exception as e:
+            import traceback
             logger.error(f"Knowledge seeding error: {e}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             raise
     
     async def _seed_classical_astrology_knowledge(self):
@@ -431,16 +468,22 @@ class KnowledgeSeeder:
             embedding = None
             if self.openai_client and OPENAI_AVAILABLE:
                 try:
+                    logger.info(f"Generating embedding for: {knowledge_data['title'][:50]}...")
                     response = await self.openai_client.embeddings.create(
                         model="text-embedding-ada-002",
                         input=knowledge_data["content"]
                     )
                     embedding = response.data[0].embedding
+                    logger.info("✅ OpenAI embedding generated successfully")
                 except Exception as embed_error:
-                    logger.warning(f"OpenAI embedding failed: {embed_error}, using fallback")
+                    import traceback
+                    logger.warning(f"OpenAI embedding failed: {embed_error}")
+                    logger.warning(f"OpenAI error traceback: {traceback.format_exc()}")
+                    logger.info("Using fallback zero vector")
                     embedding = [0.0] * 1536
             else:
                 # Fallback to zero vector if OpenAI not available
+                logger.info("Using fallback zero vector (no OpenAI client)")
                 embedding = [0.0] * 1536
             
             # Check if pgvector is available by checking column type
@@ -464,6 +507,7 @@ class KnowledgeSeeder:
             # Add to database - handle both pool and direct connection
             if self.db_pool:
                 async with self.db_pool.acquire() as conn:
+                    logger.info(f"Inserting knowledge piece: {knowledge_data['title'][:50]}...")
                     await conn.execute("""
                         INSERT INTO rag_knowledge_base (
                             knowledge_domain, content_type, title, content, metadata,
@@ -542,7 +586,9 @@ class KnowledgeSeeder:
             logger.info(f"Added knowledge: {knowledge_data['title'][:50]}...")
             
         except Exception as e:
+            import traceback
             logger.error(f"Error adding knowledge piece: {e}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             # Continue with next piece rather than failing completely
             pass
 
