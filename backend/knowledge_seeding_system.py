@@ -443,6 +443,24 @@ class KnowledgeSeeder:
                 # Fallback to zero vector if OpenAI not available
                 embedding = [0.0] * 1536
             
+            # Check if pgvector is available by checking column type
+            vector_support = True
+            if self.db_pool:
+                async with self.db_pool.acquire() as conn:
+                    column_type = await conn.fetchval("""
+                        SELECT data_type FROM information_schema.columns 
+                        WHERE table_name = 'rag_knowledge_base' 
+                        AND column_name = 'embedding_vector'
+                    """)
+                    vector_support = column_type == 'USER-DEFINED'  # VECTOR type shows as USER-DEFINED
+            
+            # Convert embedding to appropriate format
+            if vector_support:
+                embedding_data = embedding
+            else:
+                # Store as JSON string when pgvector is not available
+                embedding_data = json.dumps(embedding)
+            
             # Add to database - handle both pool and direct connection
             if self.db_pool:
                 async with self.db_pool.acquire() as conn:
@@ -463,7 +481,7 @@ class KnowledgeSeeder:
                         knowledge_data["title"],
                         knowledge_data["content"],
                         json.dumps(knowledge_data.get("metadata", {})),
-                        embedding,
+                        embedding_data,
                         knowledge_data.get("tags", []),
                         knowledge_data["source_reference"],
                         knowledge_data["authority_level"],
@@ -471,35 +489,55 @@ class KnowledgeSeeder:
                     )
             else:
                 # Fallback to direct connection if no pool
-                if ASYNCPG_AVAILABLE:
-                    DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
-                    conn = await asyncpg.connect(DATABASE_URL)
+                conn = None
                 try:
-                    await conn.execute("""
-                        INSERT INTO rag_knowledge_base (
-                            knowledge_domain, content_type, title, content, metadata,
-                            embedding_vector, tags, source_reference, authority_level,
-                            cultural_context, created_at, updated_at
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-                        ON CONFLICT (title) DO UPDATE SET
-                            content = EXCLUDED.content,
-                            metadata = EXCLUDED.metadata,
-                            embedding_vector = EXCLUDED.embedding_vector,
-                            updated_at = NOW()
-                    """, 
-                        knowledge_data["knowledge_domain"],
-                        knowledge_data["content_type"],
-                        knowledge_data["title"],
-                        knowledge_data["content"],
-                        json.dumps(knowledge_data.get("metadata", {})),
-                        embedding,
-                        knowledge_data.get("tags", []),
-                        knowledge_data["source_reference"],
-                        knowledge_data["authority_level"],
-                        knowledge_data["cultural_context"]
-                    )
+                    if ASYNCPG_AVAILABLE:
+                        DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
+                        conn = await asyncpg.connect(DATABASE_URL)
+                        
+                        # Check column type for this connection
+                        column_type = await conn.fetchval("""
+                            SELECT data_type FROM information_schema.columns 
+                            WHERE table_name = 'rag_knowledge_base' 
+                            AND column_name = 'embedding_vector'
+                        """)
+                        vector_support = column_type == 'USER-DEFINED'
+                        
+                        # Convert embedding to appropriate format
+                        if vector_support:
+                            embedding_data = embedding
+                        else:
+                            embedding_data = json.dumps(embedding)
+                        
+                        await conn.execute("""
+                            INSERT INTO rag_knowledge_base (
+                                knowledge_domain, content_type, title, content, metadata,
+                                embedding_vector, tags, source_reference, authority_level,
+                                cultural_context, created_at, updated_at
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                            ON CONFLICT (title) DO UPDATE SET
+                                content = EXCLUDED.content,
+                                metadata = EXCLUDED.metadata,
+                                embedding_vector = EXCLUDED.embedding_vector,
+                                updated_at = NOW()
+                        """, 
+                            knowledge_data["knowledge_domain"],
+                            knowledge_data["content_type"],
+                            knowledge_data["title"],
+                            knowledge_data["content"],
+                            json.dumps(knowledge_data.get("metadata", {})),
+                            embedding_data,
+                            knowledge_data.get("tags", []),
+                            knowledge_data["source_reference"],
+                            knowledge_data["authority_level"],
+                            knowledge_data["cultural_context"]
+                        )
+                    else:
+                        logger.warning("AsyncPG not available, skipping knowledge seeding")
+                        return
                 finally:
-                    await conn.close()
+                    if conn:
+                        await conn.close()
             
             logger.info(f"Added knowledge: {knowledge_data['title'][:50]}...")
             

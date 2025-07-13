@@ -165,7 +165,7 @@ class JyotiFlowStartupFixer:
             
             logger.info("🧠 Checking knowledge base seeding...")
             
-            # Check if rag_knowledge_base table exists
+            # Check if table exists
             table_exists = await conn.fetchval("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
@@ -175,23 +175,53 @@ class JyotiFlowStartupFixer:
             
             if not table_exists:
                 logger.info("📦 Creating rag_knowledge_base table...")
-                await conn.execute("""
-                    CREATE TABLE rag_knowledge_base (
-                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                        knowledge_domain VARCHAR(100) NOT NULL,
-                        content_type VARCHAR(50) NOT NULL,
-                        title VARCHAR(500) NOT NULL,
-                        content TEXT NOT NULL,
-                        metadata JSONB DEFAULT '{}',
-                        embedding_vector VECTOR(1536),
-                        tags TEXT[] DEFAULT '{}',
-                        source_reference VARCHAR(500),
-                        authority_level INTEGER DEFAULT 1,
-                        cultural_context VARCHAR(100) DEFAULT 'universal',
-                        created_at TIMESTAMP DEFAULT NOW(),
-                        updated_at TIMESTAMP DEFAULT NOW()
+                
+                # Check if pgvector extension is available
+                vector_available = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT FROM pg_extension WHERE extname = 'vector'
                     )
                 """)
+                
+                if vector_available:
+                    logger.info("✅ pgvector extension found, creating table with vector support")
+                    await conn.execute("""
+                        CREATE TABLE rag_knowledge_base (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            knowledge_domain VARCHAR(100) NOT NULL,
+                            content_type VARCHAR(50) NOT NULL,
+                            title VARCHAR(500) NOT NULL,
+                            content TEXT NOT NULL,
+                            metadata JSONB DEFAULT '{}',
+                            embedding_vector VECTOR(1536),
+                            tags TEXT[] DEFAULT '{}',
+                            source_reference VARCHAR(500),
+                            authority_level INTEGER DEFAULT 1,
+                            cultural_context VARCHAR(100) DEFAULT 'universal',
+                            created_at TIMESTAMP DEFAULT NOW(),
+                            updated_at TIMESTAMP DEFAULT NOW()
+                        )
+                    """)
+                else:
+                    logger.info("⚠️ pgvector extension not found, creating table without vector support")
+                    await conn.execute("""
+                        CREATE TABLE rag_knowledge_base (
+                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                            knowledge_domain VARCHAR(100) NOT NULL,
+                            content_type VARCHAR(50) NOT NULL,
+                            title VARCHAR(500) NOT NULL,
+                            content TEXT NOT NULL,
+                            metadata JSONB DEFAULT '{}',
+                            embedding_vector TEXT, -- Store as JSON string instead of vector
+                            tags TEXT[] DEFAULT '{}',
+                            source_reference VARCHAR(500),
+                            authority_level INTEGER DEFAULT 1,
+                            cultural_context VARCHAR(100) DEFAULT 'universal',
+                            created_at TIMESTAMP DEFAULT NOW(),
+                            updated_at TIMESTAMP DEFAULT NOW()
+                        )
+                    """)
+                
                 logger.info("✅ rag_knowledge_base table created")
             
             # Check knowledge count

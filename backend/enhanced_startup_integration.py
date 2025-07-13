@@ -115,6 +115,8 @@ class EnhancedJyotiFlowStartup:
                     import os
                     
                     openai_api_key = os.getenv("OPENAI_API_KEY")
+                    db_pool = None
+                    
                     if not openai_api_key or openai_api_key == "fallback_key":
                         logger.info("⚠️ OpenAI API key not available - using basic seeding without embeddings")
                         # Create a basic seeder without OpenAI
@@ -124,10 +126,15 @@ class EnhancedJyotiFlowStartup:
                         db_pool = await asyncpg.create_pool(self.database_url)
                         seeder = KnowledgeSeeder(db_pool, openai_api_key)
                     
-                    # Run the seeding process
-                    await seeder.seed_complete_knowledge_base()
-                    logger.info("✅ Knowledge base seeded successfully with spiritual wisdom")
-                    self.knowledge_seeded = True
+                    try:
+                        # Run the seeding process
+                        await seeder.seed_complete_knowledge_base()
+                        logger.info("✅ Knowledge base seeded successfully with spiritual wisdom")
+                        self.knowledge_seeded = True
+                    finally:
+                        # Always close the pool if it was created
+                        if db_pool:
+                            await db_pool.close()
                     
                 except Exception as seeding_error:
                     logger.error(f"Knowledge seeding error: {seeding_error}")
