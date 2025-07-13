@@ -122,40 +122,192 @@ const AdminDashboard = () => {
       const sizeInBytes = new Blob([jsonString]).size;
       const sizeInMB = sizeInBytes / (1024 * 1024);
       
-      // Check if data exceeds reasonable size threshold (50MB)
-      const MAX_SIZE_MB = 50;
-      if (sizeInMB > MAX_SIZE_MB) {
-        showNotification(
-          `Export data too large (${sizeInMB.toFixed(2)}MB). Maximum allowed size is ${MAX_SIZE_MB}MB. Please contact support for assistance.`,
-          'error'
-        );
-        console.warn('Export aborted - data size exceeds limit:', { sizeInMB, maxSizeMB: MAX_SIZE_MB });
-        return;
+      // Reduced size threshold for better device compatibility (10MB)
+      const MAX_SIZE_MB = 10;
+      const CHUNK_SIZE_MB = 5; // Size per chunk for large exports
+      
+      if (sizeInMB <= MAX_SIZE_MB) {
+        // Small export - single file
+        await exportSingleFile(jsonString, sizeInMB);
+      } else {
+        // Large export - use chunked approach
+        await exportChunkedData(exportData, sizeInMB);
       }
-      
-      // Create and download the file
-      const blob = new Blob([jsonString], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `jyotiflow-admin-export-${new Date().toISOString().split('T')[0]}.json`;
-      
-      // Ensure the download element is properly handled
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      
-      showNotification(
-        `Export completed successfully! File size: ${sizeInMB.toFixed(2)}MB`,
-        'success'
-      );
       
     } catch (error) {
       console.error('Export error:', error);
       showNotification(
         'Export failed. Please try again or contact support if the issue persists.',
         'error'
+      );
+    }
+  };
+
+  // Helper function for single file export
+  const exportSingleFile = async (jsonString, sizeInMB) => {
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `jyotiflow-admin-export-${new Date().toISOString().split('T')[0]}.json`;
+    
+    // Ensure the download element is properly handled
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification(
+      `Export completed successfully! File size: ${sizeInMB.toFixed(2)}MB`,
+      'success'
+    );
+  };
+
+  // Helper function for chunked export
+  const exportChunkedData = async (exportData, totalSizeInMB) => {
+    try {
+      showNotification('Preparing chunked export for large dataset...', 'info');
+      
+      const timestamp = new Date().toISOString().split('T')[0];
+      const chunks = [];
+      
+      // Create metadata chunk
+      const metadata = {
+        timestamp: exportData.timestamp,
+        totalSizeInMB: totalSizeInMB.toFixed(2),
+        chunkInfo: 'This is part of a multi-file export. Import all parts together.',
+        exportType: 'chunked'
+      };
+      
+      // Split data into logical chunks
+      const dataChunks = [
+        { name: 'stats', data: exportData.stats, description: 'Platform statistics and analytics' },
+        { name: 'health', data: exportData.health, description: 'System health and status information' },
+        { name: 'knowledge', data: exportData.knowledge, description: 'Knowledge base statistics' },
+        { name: 'sessions', data: exportData.sessions, description: 'Session monitoring data' },
+        { name: 'integrations', data: exportData.integrations, description: 'API integration status' }
+      ];
+      
+      // Create and download metadata file
+      const metadataJson = JSON.stringify(metadata, null, 2);
+      await downloadChunk(metadataJson, `jyotiflow-admin-export-${timestamp}-metadata.json`);
+      
+      // Process each data chunk
+      for (let i = 0; i < dataChunks.length; i++) {
+        const chunk = dataChunks[i];
+        const chunkData = {
+          metadata: {
+            chunkNumber: i + 1,
+            totalChunks: dataChunks.length,
+            chunkName: chunk.name,
+            description: chunk.description,
+            timestamp: exportData.timestamp
+          },
+          data: chunk.data
+        };
+        
+        const chunkJson = JSON.stringify(chunkData, null, 2);
+        const chunkSizeInMB = new Blob([chunkJson]).size / (1024 * 1024);
+        
+        // If individual chunk is still too large, split it further
+        if (chunkSizeInMB > 8) {
+          await splitLargeChunk(chunkData, `${timestamp}-${chunk.name}`, i + 1);
+        } else {
+          await downloadChunk(chunkJson, `jyotiflow-admin-export-${timestamp}-chunk-${i + 1}-${chunk.name}.json`);
+        }
+        
+        // Add delay between downloads to prevent browser overwhelm
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      showNotification(
+        `Chunked export completed! Downloaded ${dataChunks.length + 1} files (${totalSizeInMB.toFixed(2)}MB total)`,
+        'success'
+      );
+      
+    } catch (error) {
+      console.error('Chunked export error:', error);
+      showNotification('Chunked export failed. Please try again.', 'error');
+    }
+  };
+
+  // Helper function to download a single chunk
+  const downloadChunk = async (jsonString, filename) => {
+    return new Promise((resolve) => {
+      const blob = new Blob([jsonString], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      resolve();
+    });
+  };
+
+  // Helper function to split very large chunks
+  const splitLargeChunk = async (chunkData, baseName, chunkNumber) => {
+    const data = chunkData.data;
+    
+    // If data is an array, split by items
+    if (Array.isArray(data)) {
+      const itemsPerSubChunk = Math.ceil(data.length / 3); // Split into 3 sub-chunks
+      
+      for (let i = 0; i < data.length; i += itemsPerSubChunk) {
+        const subChunk = {
+          metadata: {
+            ...chunkData.metadata,
+            subChunkNumber: Math.floor(i / itemsPerSubChunk) + 1,
+            totalSubChunks: Math.ceil(data.length / itemsPerSubChunk),
+            itemRange: `${i + 1}-${Math.min(i + itemsPerSubChunk, data.length)}`
+          },
+          data: data.slice(i, i + itemsPerSubChunk)
+        };
+        
+        const subChunkJson = JSON.stringify(subChunk, null, 2);
+        await downloadChunk(
+          subChunkJson, 
+          `jyotiflow-admin-export-${baseName}-subchunk-${Math.floor(i / itemsPerSubChunk) + 1}.json`
+        );
+      }
+    } else if (typeof data === 'object' && data !== null) {
+      // If data is an object, split by keys
+      const keys = Object.keys(data);
+      const keysPerSubChunk = Math.ceil(keys.length / 3);
+      
+      for (let i = 0; i < keys.length; i += keysPerSubChunk) {
+        const subChunkKeys = keys.slice(i, i + keysPerSubChunk);
+        const subChunkData = {};
+        
+        subChunkKeys.forEach(key => {
+          subChunkData[key] = data[key];
+        });
+        
+        const subChunk = {
+          metadata: {
+            ...chunkData.metadata,
+            subChunkNumber: Math.floor(i / keysPerSubChunk) + 1,
+            totalSubChunks: Math.ceil(keys.length / keysPerSubChunk),
+            keys: subChunkKeys
+          },
+          data: subChunkData
+        };
+        
+        const subChunkJson = JSON.stringify(subChunk, null, 2);
+        await downloadChunk(
+          subChunkJson, 
+          `jyotiflow-admin-export-${baseName}-subchunk-${Math.floor(i / keysPerSubChunk) + 1}.json`
+        );
+      }
+    } else {
+      // Fallback for primitive data
+      await downloadChunk(
+        JSON.stringify(chunkData, null, 2),
+        `jyotiflow-admin-export-${baseName}-chunk-${chunkNumber}.json`
       );
     }
   };
