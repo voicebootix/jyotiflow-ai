@@ -474,6 +474,11 @@ body {
     transition: none !important;
   }
   
+  /* Disable smooth scrolling for motion-sensitive users */
+  html {
+    scroll-behavior: auto !important;
+  }
+  
   /* Completely disable particle animation for motion-sensitive users */
   .particle {
     animation: none !important;

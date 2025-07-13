@@ -26,62 +26,83 @@ const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [adminStats, setAdminStats] = useState({});
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [systemHealth, setSystemHealth] = useState({});
   const [knowledgeStats, setKnowledgeStats] = useState({});
   const [sessionMonitoring, setSessionMonitoring] = useState({});
   const [apiIntegrations, setApiIntegrations] = useState({});
+  const [notification, setNotification] = useState(null);
+
+  // Reusable data fetching function
+  const fetchComprehensiveAdminData = async (showRefreshIndicator = false) => {
+    try {
+      if (showRefreshIndicator) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      
+      // Parallel fetch all admin data
+      const [
+        stats,
+        health,
+        knowledge,
+        sessions,
+        integrations
+      ] = await Promise.all([
+        // Basic admin stats
+        spiritualAPI.request('/api/admin/analytics/overview').catch(() => ({})),
+        
+        // System health check
+        spiritualAPI.request('/api/health').catch(() => ({})),
+        
+        // Knowledge base stats (if available)
+        spiritualAPI.request('/api/spiritual/enhanced/knowledge-domains').catch(() => ({})),
+        
+        // Session monitoring
+        spiritualAPI.request('/api/admin/analytics/sessions').catch(() => ({})),
+        
+        // API integrations status
+        spiritualAPI.request('/api/admin/integrations/status').catch(() => ({}))
+      ]);
+      
+      setAdminStats(stats);
+      setSystemHealth(health);
+      setKnowledgeStats(knowledge);
+      setSessionMonitoring(sessions);
+      setApiIntegrations(integrations);
+      
+      if (showRefreshIndicator) {
+        showNotification('Dashboard data refreshed successfully!', 'success');
+      }
+      
+    } catch (error) {
+      console.error('Admin data fetch error:', error);
+      if (showRefreshIndicator) {
+        showNotification('Failed to refresh dashboard data. Please try again.', 'error');
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Notification helper function
+  const showNotification = (message, type = 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   useEffect(() => {
-    const fetchComprehensiveAdminData = async () => {
-      try {
-        setLoading(true);
-        
-        // Parallel fetch all admin data
-        const [
-          stats,
-          health,
-          knowledge,
-          sessions,
-          integrations
-        ] = await Promise.all([
-          // Basic admin stats
-          spiritualAPI.request('/api/admin/analytics/overview').catch(() => ({})),
-          
-          // System health check
-          spiritualAPI.request('/api/health').catch(() => ({})),
-          
-          // Knowledge base stats (if available)
-          spiritualAPI.request('/api/spiritual/enhanced/knowledge-domains').catch(() => ({})),
-          
-          // Session monitoring
-          spiritualAPI.request('/api/admin/analytics/sessions').catch(() => ({})),
-          
-          // API integrations status
-          spiritualAPI.request('/api/admin/integrations/status').catch(() => ({}))
-        ]);
-        
-        setAdminStats(stats);
-        setSystemHealth(health);
-        setKnowledgeStats(knowledge);
-        setSessionMonitoring(sessions);
-        setApiIntegrations(integrations);
-        
-      } catch (error) {
-        console.error('Admin data fetch error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchComprehensiveAdminData();
     
     // Auto-refresh every 30 seconds
-    const interval = setInterval(fetchComprehensiveAdminData, 30000);
+    const interval = setInterval(() => fetchComprehensiveAdminData(), 30000);
     return () => clearInterval(interval);
   }, []);
 
   const handleRefresh = () => {
-    window.location.reload();
+    fetchComprehensiveAdminData(true);
   };
 
   const handleExport = async () => {
@@ -170,6 +191,25 @@ const AdminDashboard = () => {
 
   return (
     <div className="pt-16 min-h-screen bg-gray-50">
+      {/* Notification Component */}
+      {notification && (
+        <div className={`fixed top-20 right-4 z-50 p-4 rounded-lg shadow-lg max-w-md ${
+          notification.type === 'success' ? 'bg-green-500 text-white' :
+          notification.type === 'error' ? 'bg-red-500 text-white' :
+          'bg-blue-500 text-white'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)}
+              className="ml-4 text-white hover:text-gray-200"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Enhanced Header */}
       <div className="bg-gradient-to-r from-purple-800 via-indigo-800 to-blue-800 py-8 shadow-lg">
         <div className="max-w-7xl mx-auto px-4">
@@ -195,10 +235,11 @@ const AdminDashboard = () => {
               
               <button 
                 onClick={handleRefresh}
-                className="bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-all duration-300 flex items-center space-x-2"
+                disabled={refreshing}
+                className={`bg-white bg-opacity-20 text-white px-4 py-2 rounded-lg hover:bg-opacity-30 transition-all duration-300 flex items-center space-x-2 ${refreshing ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
-                <RefreshCw size={16} />
-                <span>Refresh</span>
+                <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+                <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
               </button>
               
               <button 
@@ -257,37 +298,51 @@ const KnowledgeBaseManagement = () => {
   const [knowledgeDomains, setKnowledgeDomains] = useState([]);
   const [seedingStatus, setSeedingStatus] = useState({});
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [notification, setNotification] = useState(null);
+
+  // Notification helper function
+  const showNotification = (message, type = 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
+
+  const fetchKnowledgeData = async () => {
+    try {
+      const [domains, status] = await Promise.all([
+        spiritualAPI.request('/api/spiritual/enhanced/knowledge-domains').catch(() => []),
+        spiritualAPI.request('/api/admin/knowledge/seeding-status').catch(() => ({}))
+      ]);
+      
+      setKnowledgeDomains(domains);
+      setSeedingStatus(status);
+    } catch (error) {
+      console.error('Knowledge data fetch error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchKnowledgeData = async () => {
-      try {
-        const [domains, status] = await Promise.all([
-          spiritualAPI.request('/api/spiritual/enhanced/knowledge-domains').catch(() => []),
-          spiritualAPI.request('/api/admin/knowledge/seeding-status').catch(() => ({}))
-        ]);
-        
-        setKnowledgeDomains(domains);
-        setSeedingStatus(status);
-      } catch (error) {
-        console.error('Knowledge data fetch error:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
     fetchKnowledgeData();
   }, []);
 
   const handleSeedKnowledge = async () => {
     try {
+      setSeeding(true);
       const result = await spiritualAPI.request('/api/admin/knowledge/seed', { method: 'POST' });
       if (result.success) {
-        alert('Knowledge seeding completed successfully!');
-        window.location.reload();
+        showNotification('Knowledge seeding completed successfully!', 'success');
+        // Refresh the data instead of reloading the page
+        await fetchKnowledgeData();
+      } else {
+        showNotification('Knowledge seeding failed. Please check the logs.', 'error');
       }
     } catch (error) {
       console.error('Knowledge seeding error:', error);
-      alert('Knowledge seeding failed. Please check the logs.');
+      showNotification('Knowledge seeding failed. Please check the logs.', 'error');
+    } finally {
+      setSeeding(false);
     }
   };
 
@@ -297,14 +352,34 @@ const KnowledgeBaseManagement = () => {
 
   return (
     <div className="p-8 space-y-6">
+      {/* Notification Component */}
+      {notification && (
+        <div className={`p-4 rounded-lg shadow-lg ${
+          notification.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
+          notification.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
+          'bg-blue-100 text-blue-800 border border-blue-200'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{notification.message}</span>
+            <button 
+              onClick={() => setNotification(null)}
+              className="ml-4 text-current hover:opacity-70"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
+      
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Knowledge Base Management</h2>
         <button
           onClick={handleSeedKnowledge}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2"
+          disabled={seeding}
+          className={`bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center space-x-2 ${seeding ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
-          <Database size={16} />
-          <span>Seed Knowledge Base</span>
+          <Database size={16} className={seeding ? 'animate-spin' : ''} />
+          <span>{seeding ? 'Seeding...' : 'Seed Knowledge Base'}</span>
         </button>
       </div>
 
