@@ -15,16 +15,23 @@ from sentry_sdk.integrations.starlette import StarletteIntegration
 # Initialize Sentry if DSN is available
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
-    sentry_sdk.init(
-        dsn=sentry_dsn,
-        integrations=[
-            FastApiIntegration(auto_error=True),
-            StarletteIntegration(auto_error=True),
-        ],
-        traces_sample_rate=1.0,
-        send_default_pii=True,
-    )
-    print("✅ Sentry initialized successfully")
+    try:
+        # Use environment-based sample rate with fallback to production-safe default
+        traces_sample_rate = float(os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+        
+        sentry_sdk.init(
+            dsn=sentry_dsn,
+            integrations=[
+                FastApiIntegration(auto_error=True),
+                StarletteIntegration(auto_error=True),
+            ],
+            traces_sample_rate=traces_sample_rate,
+            send_default_pii=True,
+        )
+        print(f"✅ Sentry initialized successfully with traces_sample_rate={traces_sample_rate}")
+    except Exception as e:
+        print(f"❌ Failed to initialize Sentry: {e}")
+        print("⚠️ Continuing without Sentry - application will run normally")
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
