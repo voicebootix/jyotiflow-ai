@@ -18,7 +18,7 @@ const LanguageSelector = ({ className = '' }) => {
     <div className={`relative ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 px-3 py-2 text-white hover:text-gray-200 transition-colors"
+        className="flex items-center space-x-2 px-3 py-2 text-white hover:text-gray-200 transition-colors min-h-[44px] rounded-md hover:bg-gray-800"
         aria-label={t('selectLanguage')}
       >
         <Globe size={18} />
@@ -35,7 +35,7 @@ const LanguageSelector = ({ className = '' }) => {
           />
           
           {/* Dropdown */}
-          <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+          <div className="absolute right-0 mt-2 w-48 lg:w-48 sm:w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50 max-h-[80vh] overflow-y-auto">
             <div className="py-2">
               <div className="px-3 py-2 text-sm font-medium text-gray-700 border-b border-gray-100">
                 {t('selectLanguage')}
@@ -44,7 +44,7 @@ const LanguageSelector = ({ className = '' }) => {
                 <button
                   key={language.code}
                   onClick={() => handleLanguageChange(language.code)}
-                  className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${
+                  className={`w-full text-left px-3 py-3 text-sm hover:bg-gray-50 transition-colors min-h-[44px] ${
                     language.code === currentLanguage 
                       ? 'bg-purple-50 text-purple-600 font-medium' 
                       : 'text-gray-700'
@@ -52,7 +52,7 @@ const LanguageSelector = ({ className = '' }) => {
                 >
                   <div className="flex items-center space-x-3">
                     <span className="text-lg">{getLanguageFlag(language.code)}</span>
-                    <div>
+                    <div className="flex-1">
                       <div className="font-medium">{language.nativeName}</div>
                       <div className="text-xs text-gray-500">{language.name}</div>
                     </div>

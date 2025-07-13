@@ -98,132 +98,136 @@
   --popover-foreground: oklch(0.985 0 0);
   --primary: oklch(0.922 0 0);
   --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
+  --secondary: oklch(0.262 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
+  --muted: oklch(0.262 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: oklch(0.262 0 0);
   --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.262 0 0);
+  --input: oklch(0.262 0 0);
+  --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.145 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-primary: oklch(0.922 0 0);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
+  --sidebar-accent: oklch(0.262 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar-border: oklch(0.262 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+* {
+  box-sizing: border-box;
 }
 
-/* Sacred Spiritual Animations */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 @keyframes consciousness-pulse {
-  0%, 100% { 
-    opacity: 0.8; 
-    transform: scale(1); 
+  0% {
+    transform: scale(1);
+    opacity: 1;
   }
-  50% { 
-    opacity: 1; 
-    transform: scale(1.02); 
+  50% {
+    transform: scale(1.05);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
   }
 }
 
 @keyframes sacred-float {
-  0%, 100% { 
-    transform: translateY(0px); 
+  0%, 100% {
+    transform: translateY(0px);
   }
-  50% { 
-    transform: translateY(-10px); 
+  50% {
+    transform: translateY(-10px);
   }
 }
 
 @keyframes divine-entrance {
-  from { 
-    opacity: 0; 
-    transform: translateY(30px); 
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
   }
-  to { 
-    opacity: 1; 
-    transform: translateY(0); 
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
 @keyframes divine-glow {
   0%, 100% {
-    box-shadow: 0 0 20px rgba(218, 165, 32, 0.3);
+    box-shadow: 0 0 20px rgba(218, 165, 32, 0.5);
   }
   50% {
-    box-shadow: 0 0 40px rgba(218, 165, 32, 0.6);
+    box-shadow: 0 0 30px rgba(218, 165, 32, 0.8);
   }
 }
 
-/* Spiritual Utility Classes */
 .divine-glow {
-  animation: divine-glow 3s ease-in-out infinite;
+  animation: divine-glow 2s ease-in-out infinite;
 }
 
 .consciousness-pulse {
-  animation: consciousness-pulse 4s ease-in-out infinite;
+  animation: consciousness-pulse 3s ease-in-out infinite;
 }
 
 .sacred-float {
-  animation: sacred-float 6s ease-in-out infinite;
+  animation: sacred-float 4s ease-in-out infinite;
 }
 
 .divine-entrance {
-  animation: divine-entrance 0.8s ease-out;
+  animation: divine-entrance 0.8s ease-out forwards;
 }
 
-/* Spiritual Gradient Backgrounds */
 .spiritual-gradient {
-  background: linear-gradient(135deg, var(--wisdom-purple), var(--peaceful-blue));
+  background: linear-gradient(135deg, #FF6B35, #DAA520, #8A2BE2);
 }
 
 .divine-gradient {
-  background: linear-gradient(135deg, var(--divine-gold), var(--om-saffron));
+  background: linear-gradient(135deg, #DAA520, #FF6B35, #4A90E2);
 }
 
 .sacred-gradient {
-  background: linear-gradient(135deg, var(--spiritual-orange), var(--Flower2-pink));
+  background: linear-gradient(135deg, #8A2BE2, #FF6B35, #DAA520);
 }
 
-/* Sacred Typography */
 .sacred-text {
-  font-family: 'Crimson Text', serif;
   color: var(--divine-gold);
+  text-shadow: 0 0 10px rgba(218, 165, 32, 0.5);
 }
 
 .divine-text {
-  background: linear-gradient(45deg, var(--divine-gold), var(--om-saffron));
+  background: linear-gradient(135deg, #DAA520, #FF6B35, #8A2BE2);
+  background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  background-clip: text;
+  background-size: 200% 200%;
+  animation: gradient-shift 3s ease infinite;
 }
 
-/* Om Symbol Styling */
 .om-symbol {
-  color: var(--om-saffron);
   font-size: 2rem;
-  text-shadow: 0 0 10px rgba(255, 153, 51, 0.5);
+  color: var(--divine-gold);
+  text-shadow: 0 0 20px rgba(218, 165, 32, 0.8);
 }
 
-/* Digital Particles */
 .digital-particles {
   position: absolute;
   width: 100%;
@@ -236,34 +240,34 @@
   position: absolute;
   width: 4px;
   height: 4px;
-  background: var(--divine-gold);
+  background: rgba(218, 165, 32, 0.6);
   border-radius: 50%;
-  animation: sacred-float 8s ease-in-out infinite;
-  opacity: 0.6;
+  animation: particle-float 15s linear infinite;
 }
 
-/* Sacred Cards */
 .sacred-card {
-  background: rgba(254, 254, 254, 0.95);
+  background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
-  border: 1px solid rgba(218, 165, 32, 0.2);
-  border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(218, 165, 32, 0.3);
+  border-radius: 15px;
+  padding: 24px;
+  margin: 16px;
   transition: all 0.3s ease;
 }
 
 .sacred-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 12px 40px rgba(218, 165, 32, 0.2);
+  transform: translateY(-8px);
+  box-shadow: 0 10px 30px rgba(218, 165, 32, 0.3);
+  border-color: rgba(218, 165, 32, 0.6);
 }
 
-/* Divine Button */
 .divine-button {
-  background: linear-gradient(135deg, var(--divine-gold), var(--om-saffron));
-  color: var(--sacred-white);
+  background: linear-gradient(135deg, #DAA520, #FF6B35);
+  color: white;
   border: none;
-  padding: 12px 24px;
-  border-radius: 8px;
+  padding: 12px 32px;
+  border-radius: 25px;
+  font-size: 16px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
@@ -273,16 +277,32 @@
 .divine-button:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(218, 165, 32, 0.4);
+  background: linear-gradient(135deg, #FF6B35, #DAA520);
 }
 
-/* Sacred Navigation */
 .sacred-nav {
   background: rgba(26, 26, 26, 0.95);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(218, 165, 32, 0.2);
 }
 
-/* Responsive Sacred Design */
+/* Mobile Responsive Sacred Design */
+@media (max-width: 1024px) {
+  .om-symbol {
+    font-size: 1.8rem;
+  }
+  
+  .sacred-card {
+    margin: 12px;
+    padding: 20px;
+  }
+  
+  .divine-button {
+    padding: 10px 24px;
+    font-size: 15px;
+  }
+}
+
 @media (max-width: 768px) {
   .om-symbol {
     font-size: 1.5rem;
@@ -290,11 +310,138 @@
   
   .sacred-card {
     margin: 8px;
+    padding: 16px;
   }
   
   .divine-button {
     padding: 10px 20px;
     font-size: 14px;
+  }
+  
+  /* Mobile-specific improvements */
+  .digital-particles {
+    display: none; /* Hide particles on mobile for better performance */
+  }
+  
+  /* Ensure touch targets are at least 44px */
+  button, .divine-button, a {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improve text readability on mobile */
+  body {
+    font-size: 16px;
+    line-height: 1.5;
+  }
+  
+  /* Prevent horizontal scroll */
+  body, html {
+    overflow-x: hidden;
+  }
+  
+  /* Mobile-friendly form inputs */
+  input, textarea, select {
+    font-size: 16px; /* Prevent iOS zoom */
+    padding: 12px;
+    border-radius: 8px;
+  }
+  
+  /* Mobile-friendly modals and dropdowns */
+  .modal, .dropdown {
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .om-symbol {
+    font-size: 1.2rem;
+  }
+  
+  .sacred-card {
+    margin: 4px;
+    padding: 12px;
+  }
+  
+  .divine-button {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+  
+  /* Extra small mobile adjustments */
+  h1 {
+    font-size: 1.8rem;
+  }
+  
+  h2 {
+    font-size: 1.5rem;
+  }
+  
+  h3 {
+    font-size: 1.3rem;
+  }
+  
+  /* Tighter spacing on very small screens */
+  .container {
+    padding: 0 8px;
+  }
+}
+
+/* Touch-friendly interactions */
+@media (hover: none) and (pointer: coarse) {
+  .sacred-card:hover {
+    transform: none;
+  }
+  
+  .divine-button:hover {
+    transform: none;
+  }
+  
+  /* Add active states for touch */
+  .sacred-card:active {
+    transform: scale(0.98);
+  }
+  
+  .divine-button:active {
+    transform: scale(0.95);
+  }
+}
+
+/* Landscape mobile orientation */
+@media (max-width: 768px) and (orientation: landscape) {
+  .sacred-card {
+    margin: 6px;
+    padding: 12px;
+  }
+  
+  /* Adjust heights for landscape */
+  .modal {
+    max-height: 60vh;
+  }
+}
+
+/* High DPI/Retina displays */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .om-symbol {
+    text-shadow: 0 0 15px rgba(218, 165, 32, 0.8);
+  }
+}
+
+/* Accessibility improvements */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark mode mobile adjustments */
+@media (prefers-color-scheme: dark) and (max-width: 768px) {
+  .sacred-card {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(218, 165, 32, 0.2);
   }
 }
 
