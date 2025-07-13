@@ -207,13 +207,21 @@ const AdminDashboard = () => {
       case 'followups':
         return <FollowUpManagement />;
       case 'knowledge':
-        return <KnowledgeBaseManagement />;
+        return <KnowledgeBaseManagement 
+          notification={notification} 
+          showNotification={showNotification} 
+          clearNotification={clearNotification} 
+        />;
       case 'sessions':
         return <SessionMonitoring />;
       case 'integrations':
         return <APIIntegrations />;
       case 'system':
-        return <SystemHealth />;
+        return <SystemHealth 
+          notification={notification} 
+          showNotification={showNotification} 
+          clearNotification={clearNotification} 
+        />;
       case 'settings':
         return <Settings />;
       default:
@@ -346,14 +354,11 @@ const AdminDashboard = () => {
 
 // New Components for Missing Features
 
-const KnowledgeBaseManagement = () => {
+const KnowledgeBaseManagement = ({ notification, showNotification, clearNotification }) => {
   const [knowledgeDomains, setKnowledgeDomains] = useState([]);
   const [seedingStatus, setSeedingStatus] = useState({});
   const [loading, setLoading] = useState(true);
   const [seeding, setSeeding] = useState(false);
-  
-  // Use the custom notification hook
-  const { notification, showNotification, clearNotification } = useNotification();
 
   const fetchKnowledgeData = async () => {
     try {
@@ -654,14 +659,11 @@ const APIIntegrations = () => {
   );
 };
 
-const SystemHealth = () => {
+const SystemHealth = ({ notification, showNotification, clearNotification }) => {
   const [healthData, setHealthData] = useState({});
   const [dbStats, setDbStats] = useState({});
   const [loading, setLoading] = useState(true);
   const [migrating, setMigrating] = useState(false);
-  
-  // Use the custom notification hook
-  const { notification, showNotification, clearNotification } = useNotification();
 
   const fetchHealthData = async () => {
     try {
