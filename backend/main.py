@@ -53,12 +53,9 @@ except ImportError:
     LIVECHAT_AVAILABLE = False
     print("⚠️ Live chat router not available")
 
-try:
-    from surgical_frontend_auth_fix import surgical_auth_router
-    SURGICAL_AUTH_AVAILABLE = True
-except ImportError:
-    SURGICAL_AUTH_AVAILABLE = False
-    print("⚠️ Surgical auth router not available")
+# Surgical auth router - REMOVED (conflicting authentication system)
+SURGICAL_AUTH_AVAILABLE = False
+print("⚠️ Surgical auth router disabled - using main auth system only")
 
 # Debug router for testing
 try:
@@ -177,17 +174,9 @@ async def lifespan(app: FastAPI):
             print(f"⚠️ Safe initialization skipped: {e}")
             # This is OK - tables exist, just might be missing some seed data
         
-        # Surgical fix for admin user authentication
-        try:
-            print("🔧 Applying surgical admin authentication fix...")
-            from surgical_admin_auth_fix import surgical_admin_auth_fix
-            admin_auth_success = await surgical_admin_auth_fix()
-            if admin_auth_success:
-                print("✅ Surgical admin authentication fix completed successfully")
-            else:
-                print("⚠️ Surgical admin authentication fix had issues but will continue")
-        except Exception as e:
-            print(f"⚠️ Surgical admin authentication fix failed: {e}")
+        # Surgical fix for admin user authentication - DISABLED
+        # This is now handled by safe_database_init.py with consistent bcrypt hashing
+        print("⏭️ Skipping surgical admin authentication fix - handled by safe_database_init.py")
         
         # Initialize enhanced system if available
         if ENHANCED_ROUTER_AVAILABLE:
@@ -358,10 +347,9 @@ if ENV_DEBUG_AVAILABLE:
     app.include_router(env_debug_router)
     print("✅ Environment debug router registered")
 
-# Surgical auth router for frontend authentication fix
-if SURGICAL_AUTH_AVAILABLE:
-    app.include_router(surgical_auth_router)
-    print("✅ Surgical auth router registered")
+# Surgical auth router - REMOVED (conflicting authentication system)
+# Using main auth system only (routers/auth.py)
+print("⏭️ Surgical auth router disabled - using main auth system only")
 
 if __name__ == "__main__":
     import uvicorn
