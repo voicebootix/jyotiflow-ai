@@ -38,7 +38,7 @@ def extract_user_email_from_token(request: Request) -> str:
 PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
 PROKERALA_CLIENT_SECRET = os.getenv("PROKERALA_CLIENT_SECRET", "your-client-secret")
 PROKERALA_TOKEN_URL = "https://api.prokerala.com/token"
-PROKERALA_API_BASE = "https://api.prokerala.com/v2/astrology/vedic-chart"
+PROKERALA_API_BASE = "https://api.prokerala.com/v2/astrology/birth-details"
 
 # Global token cache (for demo; use Redis or DB for production)
 prokerala_token = None
