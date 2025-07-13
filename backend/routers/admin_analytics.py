@@ -64,6 +64,7 @@ async def get_overview(db=Depends(get_db)):
 # தமிழ் - AI நுண்ணறிவு பரிந்துரைகள்
 @router.get("/ai-insights")
 async def get_ai_insights(db=Depends(get_db)):
+    """Get AI insights and recommendations for admin dashboard"""
     try:
         # Get real AI recommendations from database
         recommendations = await db.fetch("""

@@ -14,6 +14,7 @@ import Notifications from './admin/Notifications';
 import CreditPackages from './admin/CreditPackages';
 import AdminPricingDashboard from './AdminPricingDashboard';
 import SocialMediaMarketing from './admin/SocialMediaMarketing';
+import FollowUpManagement from './admin/FollowUpManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -82,20 +83,18 @@ const AdminDashboard = () => {
     return <div>Loading divine administration...</div>;
   }
 
-  // Tab labels and keys - Social Media Marketing moved to prominent position
+  // Tab labels and keys - Cleaned up structure
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'socialMarketing', label: '📱 Social Media Marketing' },
     { key: 'products', label: 'Products' },
     { key: 'revenue', label: 'Revenue' },
     { key: 'content', label: 'Content' },
-    { key: 'insights', label: 'Insights' },
     { key: 'settings', label: 'Settings' },
     { key: 'users', label: 'Users' },
     { key: 'donations', label: 'Donations' },
     { key: 'serviceTypes', label: 'Service Types' },
-    { key: 'pricing', label: 'Pricing' },
-    { key: 'comprehensivePricing', label: 'Smart Pricing' },
+    { key: 'pricing', label: 'Smart Pricing' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
     { key: 'followup', label: 'Follow-ups' },
@@ -245,6 +244,7 @@ const AdminDashboard = () => {
         {activeTab === 'notifications' && <Notifications />}
         {activeTab === 'creditPackages' && <CreditPackages />}
         {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
+        {activeTab === 'followup' && <FollowUpManagement />}
       </div>
     </div>
   );

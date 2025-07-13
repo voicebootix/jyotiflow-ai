@@ -44,11 +44,19 @@ async def get_products(db=Depends(get_db)):
                 "category": "credits"
             })
         
-        return products
+        return {
+            "success": True,
+            "data": {
+                "service_types": [dict(row) for row in service_types],
+                "credit_packages": [dict(row) for row in credit_packages],
+                "products": products,
+                "total_count": len(service_types) + len(credit_packages)
+            }
+        }
         
     except Exception as e:
         print(f"Products endpoint error: {e}")
-        return []
+        return {"success": False, "error": str(e), "data": []}
 
 # --- SERVICE TYPES ENDPOINTS (with real DB logic) ---
 @router.post("/service-types")
