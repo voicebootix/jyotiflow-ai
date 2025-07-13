@@ -16,20 +16,6 @@ sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
     # Build integrations list with available integrations
     integrations = [
-    try:
-        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration  # type: ignore
-        integrations.append(SqlalchemyIntegration())
-    except ImportError:
-        pass
-    try:
-        from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
-        integrations.append(AsyncPGIntegration())
-    except ImportError:
-        pass
-sentry_dsn = os.getenv("SENTRY_DSN")
-if sentry_dsn:
-    # Build integrations list with available integrations
-    integrations = [
         FastApiIntegration(auto_error=True),
         StarletteIntegration(auto_error=True),
     ]
@@ -65,8 +51,6 @@ if sentry_dsn:
     except Exception as e:
         print(f"❌ Failed to initialize Sentry: {e}")
         print("⚠️ Continuing without Sentry - application will run normally")
-else:
-    print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
