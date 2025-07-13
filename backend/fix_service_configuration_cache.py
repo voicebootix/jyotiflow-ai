@@ -149,11 +149,13 @@ async def cleanup_expired_cache():
         DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
         conn = await asyncpg.connect(DATABASE_URL)
         
-        # Delete expired entries
-        deleted_count = await conn.fetchval("""
+        # Delete expired entries and count them
+        result = await conn.execute("""
             DELETE FROM service_configuration_cache 
             WHERE expires_at < NOW()
         """)
+        # Result format is "DELETE n" where n is the number of deleted rows
+        deleted_count = int(result.split()[-1]) if result and result.startswith("DELETE") else 0
         
         if deleted_count:
             logger.info(f"🧹 Cleaned up {deleted_count} expired cache entries")
