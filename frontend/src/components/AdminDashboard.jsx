@@ -405,30 +405,6 @@ const KnowledgeBaseManagement = ({ notification, showNotification, clearNotifica
 
   return (
     <div className="p-8 space-y-6">
-      {/* Notification Component */}
-      {notification && (
-        <div className={`p-4 rounded-lg shadow-lg ${
-          notification.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
-          notification.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
-          'bg-blue-100 text-blue-800 border border-blue-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <span>{notification.message}</span>
-            <button 
-              onClick={clearNotification}
-              aria-label="Dismiss notification"
-              className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
-                notification.type === 'success' ? 'text-green-600 hover:text-green-800 hover:bg-green-200 focus:ring-green-500' :
-                notification.type === 'error' ? 'text-red-600 hover:text-red-800 hover:bg-red-200 focus:ring-red-500' :
-                'text-blue-600 hover:text-blue-800 hover:bg-blue-200 focus:ring-blue-500'
-              }`}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-      
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">Knowledge Base Management</h2>
         <button
@@ -726,30 +702,6 @@ const SystemHealth = ({ notification, showNotification, clearNotification }) => 
 
   return (
     <div className="p-8 space-y-6">
-      {/* Notification Component */}
-      {notification && (
-        <div className={`p-4 rounded-lg shadow-lg ${
-          notification.type === 'success' ? 'bg-green-100 text-green-800 border border-green-200' :
-          notification.type === 'error' ? 'bg-red-100 text-red-800 border border-red-200' :
-          'bg-blue-100 text-blue-800 border border-blue-200'
-        }`}>
-          <div className="flex items-center justify-between">
-            <span>{notification.message}</span>
-            <button 
-              onClick={clearNotification}
-              aria-label="Dismiss notification"
-              className={`ml-4 p-1 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-opacity-50 ${
-                notification.type === 'success' ? 'text-green-600 hover:text-green-800 hover:bg-green-200 focus:ring-green-500' :
-                notification.type === 'error' ? 'text-red-600 hover:text-red-800 hover:bg-red-200 focus:ring-red-500' :
-                'text-blue-600 hover:text-blue-800 hover:bg-blue-200 focus:ring-blue-500'
-              }`}
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
-      
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold text-gray-800">System Health</h2>
         <button
