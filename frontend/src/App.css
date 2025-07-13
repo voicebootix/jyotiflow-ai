@@ -180,6 +180,35 @@ body {
   }
 }
 
+@keyframes particle-float {
+  0% {
+    transform: translateY(100vh) translateX(0px);
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-100px) translateX(50px);
+    opacity: 0;
+  }
+}
+
+@keyframes gradient-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 .divine-glow {
   animation: divine-glow 2s ease-in-out infinite;
 }
@@ -323,6 +352,11 @@ body {
     display: none; /* Hide particles on mobile for better performance */
   }
   
+  /* If particles are re-enabled on mobile, use shorter animation duration */
+  .particle {
+    animation: particle-float 8s linear infinite;
+  }
+  
   /* Ensure touch targets are at least 44px */
   button, .divine-button, a {
     min-height: 44px;
@@ -386,6 +420,11 @@ body {
   .container {
     padding: 0 8px;
   }
+  
+  /* Even faster particle animation for very small devices */
+  .particle {
+    animation: particle-float 5s linear infinite;
+  }
 }
 
 /* Touch-friendly interactions */
@@ -431,9 +470,28 @@ body {
 /* Accessibility improvements */
 @media (prefers-reduced-motion: reduce) {
   * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
+  }
+  
+  /* Disable smooth scrolling for motion-sensitive users */
+  html {
+    scroll-behavior: auto !important;
+  }
+  
+  /* Completely disable particle animation for motion-sensitive users */
+  .particle {
+    animation: none !important;
+    display: none !important;
+  }
+  
+  /* Disable specific animations */
+  .divine-glow,
+  .consciousness-pulse,
+  .sacred-float,
+  .divine-entrance,
+  .divine-text {
+    animation: none !important;
   }
 }
 
