@@ -9,8 +9,6 @@ import asyncio
 
 # Sentry initialization - Enhanced version with comprehensive integrations
 import sentry_sdk
-from sentry_sdk.integrations.fastapi import FastApiIntegration
-from sentry_sdk.integrations.starlette import StarletteIntegration
 
 sentry_dsn = os.getenv("SENTRY_DSN")
 if sentry_dsn:
@@ -100,12 +98,9 @@ except ImportError:
     LIVECHAT_AVAILABLE = False
     print("⚠️ Live chat router not available")
 
-try:
-    from surgical_frontend_auth_fix import surgical_auth_router
-    SURGICAL_AUTH_AVAILABLE = True
-except ImportError:
-    SURGICAL_AUTH_AVAILABLE = False
-    print("⚠️ Surgical auth router not available")
+# Surgical auth router - REMOVED (conflicting authentication system)
+SURGICAL_AUTH_AVAILABLE = False
+print("⚠️ Surgical auth router disabled - using main auth system only")
 
 # Debug router for testing
 try:
@@ -232,17 +227,9 @@ async def lifespan(app: FastAPI):
             print(f"⚠️ Safe initialization skipped: {e}")
             # This is OK - tables exist, just might be missing some seed data
         
-        # Surgical fix for admin user authentication
-        try:
-            print("🔧 Applying surgical admin authentication fix...")
-            from surgical_admin_auth_fix import surgical_admin_auth_fix
-            admin_auth_success = await surgical_admin_auth_fix()
-            if admin_auth_success:
-                print("✅ Surgical admin authentication fix completed successfully")
-            else:
-                print("⚠️ Surgical admin authentication fix had issues but will continue")
-        except Exception as e:
-            print(f"⚠️ Surgical admin authentication fix failed: {e}")
+        # Surgical fix for admin user authentication - DISABLED
+        # This is now handled by safe_database_init.py with consistent bcrypt hashing
+        print("⏭️ Skipping surgical admin authentication fix - handled by safe_database_init.py")
         
         # Initialize enhanced system if available
         if ENHANCED_ROUTER_AVAILABLE:
@@ -294,16 +281,75 @@ app = FastAPI(
 )
 
 # --- CORS Middleware (English & Tamil) ---
+# Configure CORS based on environment
+def get_cors_origins():
+    """Get CORS origins based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow specific trusted origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS", 
+            "https://jyotiflow.ai,https://www.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com"
+        ).split(",")
+    elif app_env == "staging":
+        # Staging: Allow staging and development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "https://staging.jyotiflow.ai,https://dev.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com,http://localhost:3000,http://localhost:5173"
+        ).split(",")
+    else:
+        # Development: Allow common development origins
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173,https://jyotiflow-ai-frontend.onrender.com"
+        ).split(",")
+    
+    # Clean up any whitespace from split
+    return [origin.strip() for origin in cors_origins if origin.strip()]
+
+def get_cors_methods():
+    """Get allowed CORS methods based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow necessary methods
+        return ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    else:
+        # Development/Staging: Allow all methods for flexibility
+        return ["*"]
+
+def get_cors_headers():
+    """Get allowed CORS headers based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        # Production: Only allow necessary headers
+        return [
+            "Accept",
+            "Accept-Language",
+            "Content-Language",
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "X-CSRF-Token",
+            "Cache-Control"
+        ]
+    else:
+        # Development/Staging: Allow all headers for flexibility
+        return ["*"]
+
+# Add CORS middleware with environment-based configuration
+cors_origins = get_cors_origins()
+cors_methods = get_cors_methods()
+cors_headers = get_cors_headers()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://jyotiflow-ai-frontend.onrender.com",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173"
-    ],
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=cors_methods,
+    allow_headers=cors_headers,
 )
 
 # --- Global Exception Handler ---
@@ -372,6 +418,26 @@ async def health_check():
             }
         )
 
+# --- Sentry Test Endpoint ---
+@app.get("/test-sentry")
+async def test_sentry():
+    """Test endpoint to verify Sentry error tracking is working"""
+    try:
+        # This will raise an exception to test Sentry integration
+        raise Exception("Test backend error for Sentry integration - this should appear in Sentry dashboard")
+    except Exception as e:
+        # Log the error to Sentry
+        sentry_sdk.capture_exception(e)
+        
+        return JSONResponse(
+            status_code=500,
+            content={
+                "message": "Test error sent to Sentry",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+        )
+
 # Register routers
 app.include_router(auth.router)
 app.include_router(user.router)
@@ -423,10 +489,9 @@ if ENV_DEBUG_AVAILABLE:
     app.include_router(env_debug_router)
     print("✅ Environment debug router registered")
 
-# Surgical auth router for frontend authentication fix
-if SURGICAL_AUTH_AVAILABLE:
-    app.include_router(surgical_auth_router)
-    print("✅ Surgical auth router registered")
+# Surgical auth router - REMOVED (conflicting authentication system)
+# Using main auth system only (routers/auth.py)
+print("⏭️ Surgical auth router disabled - using main auth system only")
 
 if __name__ == "__main__":
     import uvicorn

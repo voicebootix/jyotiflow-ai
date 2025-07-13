@@ -89,7 +89,7 @@ class EnhancedSettings(BaseSettings):
 
     # Admin Configuration (Preserved)
     admin_email: str = "admin@jyotiflow.ai"
-    admin_password: str = "admin123"
+    admin_password: str = "Jyoti@2024!"
 
     # External API Keys (Preserved)
     openai_api_key: str = "your-openai-api-key"

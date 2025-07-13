@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react';
 import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { Tabs } from '@radix-ui/react-tabs';
-import PricingConfig from './PricingConfig';
 
 export default function Settings() {
   const [settings, setSettings] = useState(null);
@@ -73,7 +72,13 @@ export default function Settings() {
           </div>
         </Tabs.Panel>
         <Tabs.Panel value="pricing">
-          <PricingConfig />
+          <div className="p-6 bg-gray-50 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Pricing Configuration</h3>
+            <p className="text-gray-600">
+              Pricing configuration has been moved to the main admin dashboard. 
+              Please use the "Smart Pricing" tab in the admin dashboard for comprehensive pricing management.
+            </p>
+          </div>
         </Tabs.Panel>
       </Tabs>
     </div>

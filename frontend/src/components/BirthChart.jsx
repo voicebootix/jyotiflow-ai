@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import './BirthChart.css'; // Add custom CSS for South Indian chart
 import spiritualAPI from '../lib/api';
 import FreeReportHook from './FreeReportHook';
+import birthChartSessionService from '../services/birthChartSessionService';
 
 const BirthChart = () => {
   const navigate = useNavigate();
@@ -20,6 +21,8 @@ const BirthChart = () => {
   const [selectedPlanet, setSelectedPlanet] = useState(null);
   const [savedCharts, setSavedCharts] = useState([]);
   const [showSavedCharts, setShowSavedCharts] = useState(false);
+  const [showConversionHook, setShowConversionHook] = useState(false);
+  const [conversionMessage, setConversionMessage] = useState(null);
 
   // Timezone options
   const timezones = [
@@ -77,6 +80,12 @@ const BirthChart = () => {
     setChartData(null);
 
     try {
+      // Track conversion funnel event
+      birthChartSessionService.trackConversionEvent('chart_generation_started', {
+        location: birthDetails.location,
+        has_existing_chart: birthChartSessionService.hasGeneratedChart()
+      });
+
       const response = await spiritualAPI.request('/api/spiritual/birth-chart', {
         method: 'POST',
         body: JSON.stringify({ 
@@ -96,8 +105,31 @@ const BirthChart = () => {
           metadata: response.birth_chart.metadata
         } : response.birth_chart;
         setChartData(chart);
-        // Save to localStorage
+        
+        // Store chart in session for potential user signup
+        const sessionId = birthChartSessionService.storeAnonymousChart(birthDetails, chart);
+        
+        // Save to localStorage (existing functionality)
         saveChartToHistory(chart);
+        
+        // Show conversion hook after successful chart generation
+        if (!spiritualAPI.isAuthenticated()) {
+          const conversionHook = birthChartSessionService.getConversionHookMessage();
+          setConversionMessage(conversionHook);
+          setShowConversionHook(true);
+          
+          // Track conversion opportunity
+          birthChartSessionService.trackConversionEvent('conversion_hook_shown', {
+            session_id: sessionId,
+            chart_generated: true
+          });
+        }
+        
+        // Track successful generation
+        birthChartSessionService.trackConversionEvent('chart_generation_completed', {
+          session_id: sessionId,
+          is_authenticated: spiritualAPI.isAuthenticated()
+        });
       } else {
         setError(response.message || 'Failed to generate birth chart');
       }
@@ -833,9 +865,70 @@ Report generated on: ${new Date().toISOString()}
     );
   };
 
+  const handleSignupFromConversion = () => {
+    // Track conversion click
+    birthChartSessionService.trackConversionEvent('conversion_cta_clicked', {
+      conversion_message: conversionMessage?.title
+    });
+    
+    // Navigate to signup page
+    navigate('/register');
+  };
+
+  const dismissConversionHook = () => {
+    setShowConversionHook(false);
+    
+    // Track dismissal
+    birthChartSessionService.trackConversionEvent('conversion_hook_dismissed', {
+      conversion_message: conversionMessage?.title
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
       <div className="container mx-auto px-4 py-8">
+        {/* Conversion Hook Modal */}
+        {showConversionHook && conversionMessage && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <div className="text-center mb-4">
+                <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                  {conversionMessage.title}
+                </h2>
+                <p className="text-gray-600 mb-4">
+                  {conversionMessage.message}
+                </p>
+              </div>
+              
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-800 mb-2">What you'll get:</h3>
+                <ul className="text-sm text-gray-600 space-y-1">
+                  {conversionMessage.benefits.map((benefit, index) => (
+                    <li key={index} className="flex items-center">
+                      <span className="text-green-500 mr-2">✓</span>
+                      {benefit}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleSignupFromConversion}
+                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  {conversionMessage.cta}
+                </button>
+                <button
+                  onClick={dismissConversionHook}
+                  className="flex-1 bg-gray-300 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors"
+                >
+                  Maybe Later
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4 flex items-center justify-center">

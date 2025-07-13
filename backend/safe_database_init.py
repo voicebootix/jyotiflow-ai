@@ -8,6 +8,7 @@ import asyncio
 import asyncpg
 import os
 import logging
+import bcrypt
 from datetime import datetime
 
 logging.basicConfig(level=logging.INFO)
@@ -379,16 +380,45 @@ class SafeDatabaseInitializer:
         )
         
         if not admin_exists:
-            # Create admin user with proper password hash
-            from passlib.context import CryptContext
-            pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-            admin_password_hash = pwd_context.hash("Jyoti@2024!")
+            # Create admin user with proper password hash using same bcrypt method as auth router
+            admin_password_hash = bcrypt.hashpw("Jyoti@2024!".encode(), bcrypt.gensalt()).decode()
             
             await conn.execute("""
                 INSERT INTO users (email, password_hash, full_name, role, credits, is_active, email_verified)
                 VALUES ('admin@jyotiflow.ai', $1, 'Admin User', 'admin', 1000, true, true)
             """, admin_password_hash)
             logger.info("✅ Created admin user")
+        else:
+            # Admin exists, but ensure password is hashed with bcrypt (fix passlib mismatch)
+            admin_password_hash = bcrypt.hashpw("Jyoti@2024!".encode(), bcrypt.gensalt()).decode()
+            await conn.execute("""
+                UPDATE users SET password_hash = $1, credits = 1000, role = 'admin'
+                WHERE email = 'admin@jyotiflow.ai'
+            """, admin_password_hash)
+            logger.info("✅ Updated admin user password hash to bcrypt format")
+        
+        # Ensure test user exists for testing
+        test_user_exists = await conn.fetchval(
+            "SELECT 1 FROM users WHERE email = 'user@jyotiflow.ai'"
+        )
+        
+        if not test_user_exists:
+            # Create test user with proper password hash using same bcrypt method as auth router
+            test_password_hash = bcrypt.hashpw("user123".encode(), bcrypt.gensalt()).decode()
+            
+            await conn.execute("""
+                INSERT INTO users (email, password_hash, full_name, role, credits, is_active, email_verified)
+                VALUES ('user@jyotiflow.ai', $1, 'Test User', 'user', 100, true, true)
+            """, test_password_hash)
+            logger.info("✅ Created test user")
+        else:
+            # Test user exists, but ensure password is hashed with bcrypt for consistency
+            test_password_hash = bcrypt.hashpw("user123".encode(), bcrypt.gensalt()).decode()
+            await conn.execute("""
+                UPDATE users SET password_hash = $1, credits = 100, role = 'user'
+                WHERE email = 'user@jyotiflow.ai'
+            """, test_password_hash)
+            logger.info("✅ Updated test user password hash to bcrypt format")
         
         # Ensure default credit packages
         packages_exist = await conn.fetchval("SELECT COUNT(*) FROM credit_packages")
