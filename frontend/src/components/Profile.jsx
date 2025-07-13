@@ -3,6 +3,8 @@ import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, User, Calendar, Star, Clock, Award, Settings, Play, LogOut, RefreshCw, Mail, MessageSquare, Phone, CheckCircle, AlertCircle } from 'lucide-react';
 import spiritualAPI from '../lib/api';
 import userDashboardAPI from '../services/userDashboardAPI';
+import SessionAnalytics from './dashboard/SessionAnalytics';
+import CommunityHub from './dashboard/CommunityHub';
 
 const Profile = () => {
   const [searchParams] = useSearchParams();
@@ -28,6 +30,8 @@ const Profile = () => {
   // Real-time refresh state
   const [lastRefresh, setLastRefresh] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [refreshInterval, setRefreshInterval] = useState(null);
 
   // Check if user came from service selection or tab parameter
   useEffect(() => {
@@ -225,31 +229,68 @@ const Profile = () => {
     }
   };
 
-  // Real-time refresh function
+  // Enhanced real-time refresh function
   const refreshData = useCallback(async () => {
     try {
       setRefreshing(true);
       
-      // Load credit balance
-      const credits = await spiritualAPI.getCreditBalance();
-      if (credits && credits.success) {
-        setCreditBalance(credits.data.credits || 0);
-      }
-
-      // Load services
-      const servicesData = await spiritualAPI.request('/api/services/types');
-      if (servicesData && servicesData.success) {
-        setServices(servicesData.data || []);
+      // Comprehensive dashboard refresh
+      const dashboardResponse = await userDashboardAPI.refreshDashboard();
+      
+      if (dashboardResponse && dashboardResponse.success) {
+        const { data } = dashboardResponse;
+        
+        // Update all dashboard data
+        setDashboardData(data);
+        setUserProfile(data.profile);
+        setSessionHistory(data.sessions || []);
+        setCreditBalance(data.credits?.current_balance || 0);
+        setCreditPackages(data.credits?.available_packages || []);
+        setServices(data.services || []);
+        setRecommendations(data.recommendations || []);
+        setSpiritualProgress(data.profile?.spiritual_progress || null);
+        
+        // Update follow-up data
+        const followUpMap = {};
+        if (data.followups && Array.isArray(data.followups)) {
+          for (const followup of data.followups) {
+            const sessionId = followup.session_id;
+            if (!followUpMap[sessionId]) {
+              followUpMap[sessionId] = [];
+            }
+            followUpMap[sessionId].push(followup);
+          }
+        }
+        setFollowUpData(followUpMap);
+        
+        // Update session analytics
+        const analytics = await userDashboardAPI.getSessionAnalytics();
+        setSessionAnalytics(analytics);
+        
+        // Update community data
+        const community = await userDashboardAPI.getCommunityParticipation();
+        setDashboardData(prev => ({ ...prev, community }));
+        
+        console.log('🔄 Dashboard refreshed successfully');
       } else {
-        setServices([]);
-      }
-
-      // Load credit packages
-      const packagesData = await spiritualAPI.request('/api/services/credit-packages');
-      if (packagesData && packagesData.success) {
-        setCreditPackages(packagesData.data || []);
-      } else {
-        setCreditPackages([]);
+        // Fallback refresh of individual components
+        const [credits, servicesData, packagesData] = await Promise.all([
+          spiritualAPI.getCreditBalance(),
+          spiritualAPI.request('/api/services/types'),
+          spiritualAPI.request('/api/services/credit-packages')
+        ]);
+        
+        if (credits && credits.success) {
+          setCreditBalance(credits.data.credits || 0);
+        }
+        
+        if (servicesData && servicesData.success) {
+          setServices(servicesData.data || []);
+        }
+        
+        if (packagesData && packagesData.success) {
+          setCreditPackages(packagesData.data || []);
+        }
       }
 
       setLastRefresh(new Date());
@@ -376,9 +417,18 @@ const Profile = () => {
                 </span>
               </div>
               
-              {/* Last Updated Indicator */}
-              <div className="text-white opacity-75 text-xs mt-2">
-                Last updated: {lastRefresh.toLocaleTimeString()}
+              {/* Last Updated Indicator & Auto-refresh Toggle */}
+              <div className="flex items-center space-x-4 text-white opacity-75 text-xs mt-2">
+                <span>Last updated: {lastRefresh.toLocaleTimeString()}</span>
+                <label className="flex items-center space-x-1 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoRefresh}
+                    onChange={(e) => setAutoRefresh(e.target.checked)}
+                    className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-3 w-3"
+                  />
+                  <span className="text-xs">Auto-refresh</span>
+                </label>
               </div>
             </div>
           </div>
@@ -391,6 +441,9 @@ const Profile = () => {
           <div className="flex space-x-6 overflow-x-auto">
             {[
               { id: 'overview', label: 'Overview', icon: User },
+              { id: 'analytics', label: 'Analytics', icon: Award },
+              { id: 'community', label: 'Community', icon: MessageSquare },
+              { id: 'messages', label: 'Follow-ups', icon: Mail },
               { id: 'birthchart', label: 'Birth Chart', icon: Star },
               { id: 'services', label: 'Services', icon: Play },
               { id: 'sessions', label: 'Sessions', icon: Calendar },
@@ -618,6 +671,286 @@ const Profile = () => {
                     </Link>
                   </div>
                 )}
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'analytics' && (
+            <div className="space-y-8">
+              <div className="sacred-card p-6">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  📊 Your Spiritual Journey Analytics
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Discover patterns, track progress, and gain insights into your spiritual growth journey.
+                </p>
+              </div>
+              
+              {sessionHistory.length > 0 ? (
+                <SessionAnalytics 
+                  sessionData={sessionHistory}
+                  spiritualProgress={spiritualProgress}
+                  userProfile={userProfile}
+                />
+              ) : (
+                <div className="sacred-card p-12 text-center">
+                  <div className="text-6xl mb-6">📈</div>
+                  <h3 className="text-2xl font-bold text-gray-800 mb-4">
+                    No Analytics Data Yet
+                  </h3>
+                  <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+                    Start your spiritual journey to unlock detailed analytics and insights. 
+                    Your first session will begin generating personalized data to track your progress.
+                  </p>
+                  <div className="space-y-4">
+                    <Link 
+                      to="/spiritual-guidance" 
+                      className="inline-block bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300"
+                    >
+                      Start Your First Session
+                    </Link>
+                    <div className="text-sm text-gray-500">
+                      Or explore the{' '}
+                      <button 
+                        onClick={() => setActiveTab('birthchart')}
+                        className="text-purple-600 hover:text-purple-700 underline"
+                      >
+                        Birth Chart
+                      </button>
+                      {' '}feature to begin your spiritual profile
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTab === 'community' && (
+            <div className="space-y-8">
+              <div className="sacred-card p-6">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  🤝 Spiritual Community
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Connect with fellow seekers, join satsang events, and grow together on the spiritual path.
+                </p>
+              </div>
+              
+              <CommunityHub 
+                userProfile={userProfile}
+                communityData={dashboardData?.community}
+              />
+            </div>
+          )}
+
+          {activeTab === 'messages' && (
+            <div className="space-y-8">
+              <div className="sacred-card p-6">
+                <h2 className="text-2xl font-bold text-gray-800 mb-4">
+                  💌 Spiritual Follow-ups & Messages
+                </h2>
+                <p className="text-gray-600 mb-6">
+                  Your personalized spiritual guidance messages and session follow-ups from Swamiji.
+                </p>
+              </div>
+
+              {/* Follow-up Stats */}
+              <div className="grid md:grid-cols-3 gap-6">
+                <div className="sacred-card p-6 text-center bg-gradient-to-br from-blue-50 to-indigo-50">
+                  <div className="text-3xl mb-2">📧</div>
+                  <div className="text-2xl font-bold text-blue-700">
+                    {Object.keys(followUpData).length}
+                  </div>
+                  <div className="text-gray-600">Follow-up Sessions</div>
+                  <div className="text-xs text-blue-600 mt-1">
+                    Total messages received
+                  </div>
+                </div>
+
+                <div className="sacred-card p-6 text-center bg-gradient-to-br from-green-50 to-teal-50">
+                  <div className="text-3xl mb-2">📱</div>
+                  <div className="text-2xl font-bold text-green-700">
+                    {Object.values(followUpData).flat().filter(f => f.delivery_status === 'delivered').length}
+                  </div>
+                  <div className="text-gray-600">Delivered</div>
+                  <div className="text-xs text-green-600 mt-1">
+                    WhatsApp & SMS
+                  </div>
+                </div>
+
+                <div className="sacred-card p-6 text-center bg-gradient-to-br from-purple-50 to-pink-50">
+                  <div className="text-3xl mb-2">🎯</div>
+                  <div className="text-2xl font-bold text-purple-700">
+                    {Object.values(followUpData).flat().filter(f => f.status === 'read').length}
+                  </div>
+                  <div className="text-gray-600">Read</div>
+                  <div className="text-xs text-purple-600 mt-1">
+                    Engagement rate
+                  </div>
+                </div>
+              </div>
+
+              {/* Follow-up Messages */}
+              <div className="sacred-card p-8">
+                <h3 className="text-xl font-bold text-gray-800 mb-6">📋 Your Follow-up Messages</h3>
+                
+                {Object.keys(followUpData).length > 0 ? (
+                  <div className="space-y-6">
+                    {sessionHistory.slice(0, 5).map((session, index) => {
+                      const sessionFollowUps = followUpData[session.id] || [];
+                      return (
+                        <div key={index} className="border border-gray-200 rounded-lg p-6">
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h4 className="font-semibold text-gray-800">
+                                Session: {session.service_type || 'Spiritual Guidance'}
+                              </h4>
+                              <p className="text-sm text-gray-600">
+                                {formatDate(session.created_at)}
+                              </p>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {sessionFollowUps.length} follow-ups
+                            </span>
+                          </div>
+
+                          {sessionFollowUps.length > 0 ? (
+                            <div className="space-y-3">
+                              {sessionFollowUps.map((followUp, fIndex) => {
+                                const getChannelIcon = (channel) => {
+                                  switch (channel) {
+                                    case 'whatsapp': return '📱';
+                                    case 'sms': return '💬';
+                                    case 'email': return '📧';
+                                    default: return '📝';
+                                  }
+                                };
+
+                                const getStatusIcon = (status) => {
+                                  switch (status) {
+                                    case 'delivered': return '✅';
+                                    case 'pending': return '⏳';
+                                    case 'failed': return '❌';
+                                    case 'read': return '👁️';
+                                    default: return '📋';
+                                  }
+                                };
+
+                                const getStatusColor = (status) => {
+                                  switch (status) {
+                                    case 'delivered': return 'text-green-600';
+                                    case 'pending': return 'text-yellow-600';
+                                    case 'failed': return 'text-red-600';
+                                    case 'read': return 'text-blue-600';
+                                    default: return 'text-gray-600';
+                                  }
+                                };
+
+                                return (
+                                  <div key={fIndex} className="p-4 bg-gray-50 rounded-lg">
+                                    <div className="flex items-start justify-between mb-2">
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-lg">
+                                          {getChannelIcon(followUp.channel)}
+                                        </span>
+                                        <span className="font-medium text-gray-800">
+                                          {followUp.channel?.charAt(0).toUpperCase() + followUp.channel?.slice(1) || 'Message'}
+                                        </span>
+                                      </div>
+                                      <span className={`text-sm ${getStatusColor(followUp.status || followUp.delivery_status)}`}>
+                                        {getStatusIcon(followUp.status || followUp.delivery_status)}{' '}
+                                        {(followUp.status || followUp.delivery_status || 'sent').charAt(0).toUpperCase() + 
+                                         (followUp.status || followUp.delivery_status || 'sent').slice(1)}
+                                      </span>
+                                    </div>
+                                    <p className="text-gray-700 text-sm mb-2">
+                                      {followUp.message || followUp.content || 'Personalized spiritual guidance message'}
+                                    </p>
+                                    <div className="text-xs text-gray-500">
+                                      Sent: {formatDate(followUp.created_at || followUp.sent_at || session.created_at)}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div className="text-center py-4 text-gray-500">
+                              <div className="text-2xl mb-2">💌</div>
+                              <p className="text-sm">
+                                Follow-up messages will be sent after this session
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <div className="text-6xl mb-6">📬</div>
+                    <h3 className="text-2xl font-bold text-gray-800 mb-4">
+                      No Follow-up Messages Yet
+                    </h3>
+                    <p className="text-gray-600 mb-8 max-w-2xl mx-auto">
+                      Once you complete spiritual guidance sessions, you'll receive personalized follow-up 
+                      messages with continued guidance and spiritual insights.
+                    </p>
+                    <Link 
+                      to="/spiritual-guidance" 
+                      className="inline-block bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300"
+                    >
+                      Start Your First Session
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Message Preferences */}
+              <div className="sacred-card p-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">⚙️ Message Preferences</h3>
+                <div className="grid md:grid-cols-3 gap-4">
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="text-xl">📱</span>
+                      <span className="font-medium">WhatsApp</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Instant spiritual guidance messages
+                    </p>
+                    <label className="flex items-center">
+                      <input type="checkbox" defaultChecked className="mr-2" />
+                      <span className="text-sm">Enable WhatsApp</span>
+                    </label>
+                  </div>
+                  
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="text-xl">💬</span>
+                      <span className="font-medium">SMS</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Text message reminders
+                    </p>
+                    <label className="flex items-center">
+                      <input type="checkbox" defaultChecked className="mr-2" />
+                      <span className="text-sm">Enable SMS</span>
+                    </label>
+                  </div>
+                  
+                  <div className="p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center space-x-3 mb-2">
+                      <span className="text-xl">📧</span>
+                      <span className="font-medium">Email</span>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">
+                      Detailed spiritual reports
+                    </p>
+                    <label className="flex items-center">
+                      <input type="checkbox" defaultChecked className="mr-2" />
+                      <span className="text-sm">Enable Email</span>
+                    </label>
+                  </div>
+                </div>
               </div>
             </div>
           )}
