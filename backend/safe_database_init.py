@@ -392,6 +392,56 @@ class SafeDatabaseInitializer:
         except Exception as e:
             logger.warning(f"⚠️ Could not fix knowledge_domain column: {e}")
         
+        # Fix content_type column in rag_knowledge_base table
+        try:
+            logger.info("🔍 Checking rag_knowledge_base table for content_type column...")
+            
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'rag_knowledge_base'
+            """)
+            
+            if table_exists:
+                # Check if content_type column exists
+                column_exists = await conn.fetchval("""
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'rag_knowledge_base' 
+                    AND column_name = 'content_type'
+                """)
+                
+                if not column_exists:
+                    logger.info("⚠️ content_type column missing in rag_knowledge_base. Adding it...")
+                    await conn.execute("""
+                        ALTER TABLE rag_knowledge_base 
+                        ADD COLUMN content_type VARCHAR(50) NOT NULL DEFAULT 'knowledge'
+                    """)
+                    logger.info("✅ content_type column added to rag_knowledge_base")
+                    
+                    # Update existing records to have appropriate content_type values
+                    records_count = await conn.fetchval("SELECT COUNT(*) FROM rag_knowledge_base")
+                    if records_count > 0:
+                        await conn.execute("""
+                            UPDATE rag_knowledge_base 
+                            SET content_type = CASE 
+                                WHEN title LIKE '%meditation%' OR content LIKE '%meditation%' THEN 'meditation'
+                                WHEN title LIKE '%ritual%' OR content LIKE '%ritual%' THEN 'ritual'
+                                WHEN title LIKE '%astrology%' OR content LIKE '%astrology%' THEN 'astrology'
+                                WHEN title LIKE '%psychology%' OR content LIKE '%psychology%' THEN 'psychology'
+                                WHEN title LIKE '%spiritual%' OR content LIKE '%spiritual%' THEN 'spiritual'
+                                ELSE 'knowledge'
+                            END
+                            WHERE content_type = 'knowledge'
+                        """)
+                        logger.info(f"✅ Updated content_type for {records_count} existing records")
+                else:
+                    logger.info("✅ content_type column already exists in rag_knowledge_base")
+            else:
+                logger.info("⚠️ rag_knowledge_base table does not exist yet")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fix content_type column: {e}")
+        
         # Add missing columns to service_types
         columns_to_add = [
             ("enabled", "BOOLEAN DEFAULT true"),

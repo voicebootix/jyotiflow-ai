@@ -60,6 +60,24 @@ class KnowledgeSeeder:
                     if not table_exists:
                         logger.error("❌ rag_knowledge_base table does not exist")
                         raise Exception("Database table 'rag_knowledge_base' not found")
+                    
+                    # Check if content_type column exists
+                    content_type_exists = await conn.fetchval("""
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.columns 
+                            WHERE table_name = 'rag_knowledge_base' 
+                            AND column_name = 'content_type'
+                        )
+                    """)
+                    
+                    if not content_type_exists:
+                        logger.warning("⚠️ content_type column missing, adding it...")
+                        await conn.execute("""
+                            ALTER TABLE rag_knowledge_base 
+                            ADD COLUMN content_type VARCHAR(50) NOT NULL DEFAULT 'knowledge'
+                        """)
+                        logger.info("✅ content_type column added to rag_knowledge_base")
+                    
                     logger.info("✅ Database table validated successfully")
             
             # Test OpenAI API if available
@@ -508,29 +526,64 @@ class KnowledgeSeeder:
             if self.db_pool:
                 async with self.db_pool.acquire() as conn:
                     logger.info(f"Inserting knowledge piece: {knowledge_data['title'][:50]}...")
-                    await conn.execute("""
-                        INSERT INTO rag_knowledge_base (
-                            knowledge_domain, content_type, title, content, metadata,
-                            embedding_vector, tags, source_reference, authority_level,
-                            cultural_context, created_at, updated_at
-                        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-                        ON CONFLICT (title) DO UPDATE SET
-                            content = EXCLUDED.content,
-                            metadata = EXCLUDED.metadata,
-                            embedding_vector = EXCLUDED.embedding_vector,
-                            updated_at = NOW()
-                    """, 
-                        knowledge_data["knowledge_domain"],
-                        knowledge_data["content_type"],
-                        knowledge_data["title"],
-                        knowledge_data["content"],
-                        json.dumps(knowledge_data.get("metadata", {})),
-                        embedding_data,
-                        knowledge_data.get("tags", []),
-                        knowledge_data["source_reference"],
-                        knowledge_data["authority_level"],
-                        knowledge_data["cultural_context"]
-                    )
+                    
+                    # Check if content_type column exists
+                    content_type_exists = await conn.fetchval("""
+                        SELECT EXISTS (
+                            SELECT FROM information_schema.columns 
+                            WHERE table_name = 'rag_knowledge_base' 
+                            AND column_name = 'content_type'
+                        )
+                    """)
+                    
+                    if content_type_exists:
+                        await conn.execute("""
+                            INSERT INTO rag_knowledge_base (
+                                knowledge_domain, content_type, title, content, metadata,
+                                embedding_vector, tags, source_reference, authority_level,
+                                cultural_context, created_at, updated_at
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                            ON CONFLICT (title) DO UPDATE SET
+                                content = EXCLUDED.content,
+                                metadata = EXCLUDED.metadata,
+                                embedding_vector = EXCLUDED.embedding_vector,
+                                updated_at = NOW()
+                        """, 
+                            knowledge_data["knowledge_domain"],
+                            knowledge_data.get("content_type", "knowledge"),
+                            knowledge_data["title"],
+                            knowledge_data["content"],
+                            json.dumps(knowledge_data.get("metadata", {})),
+                            embedding_data,
+                            knowledge_data.get("tags", []),
+                            knowledge_data["source_reference"],
+                            knowledge_data["authority_level"],
+                            knowledge_data["cultural_context"]
+                        )
+                    else:
+                        # Fallback for tables without content_type column
+                        await conn.execute("""
+                            INSERT INTO rag_knowledge_base (
+                                knowledge_domain, title, content, metadata,
+                                embedding_vector, tags, source_reference, authority_level,
+                                cultural_context, created_at, updated_at
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+                            ON CONFLICT (title) DO UPDATE SET
+                                content = EXCLUDED.content,
+                                metadata = EXCLUDED.metadata,
+                                embedding_vector = EXCLUDED.embedding_vector,
+                                updated_at = NOW()
+                        """, 
+                            knowledge_data["knowledge_domain"],
+                            knowledge_data["title"],
+                            knowledge_data["content"],
+                            json.dumps(knowledge_data.get("metadata", {})),
+                            embedding_data,
+                            knowledge_data.get("tags", []),
+                            knowledge_data["source_reference"],
+                            knowledge_data["authority_level"],
+                            knowledge_data["cultural_context"]
+                        )
             else:
                 # Fallback to direct connection if no pool
                 conn = None
@@ -553,29 +606,63 @@ class KnowledgeSeeder:
                         else:
                             embedding_data = json.dumps(embedding)
                         
-                        await conn.execute("""
-                            INSERT INTO rag_knowledge_base (
-                                knowledge_domain, content_type, title, content, metadata,
-                                embedding_vector, tags, source_reference, authority_level,
-                                cultural_context, created_at, updated_at
-                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-                            ON CONFLICT (title) DO UPDATE SET
-                                content = EXCLUDED.content,
-                                metadata = EXCLUDED.metadata,
-                                embedding_vector = EXCLUDED.embedding_vector,
-                                updated_at = NOW()
-                        """, 
-                            knowledge_data["knowledge_domain"],
-                            knowledge_data["content_type"],
-                            knowledge_data["title"],
-                            knowledge_data["content"],
-                            json.dumps(knowledge_data.get("metadata", {})),
-                            embedding_data,
-                            knowledge_data.get("tags", []),
-                            knowledge_data["source_reference"],
-                            knowledge_data["authority_level"],
-                            knowledge_data["cultural_context"]
-                        )
+                        # Check if content_type column exists
+                        content_type_exists = await conn.fetchval("""
+                            SELECT EXISTS (
+                                SELECT FROM information_schema.columns 
+                                WHERE table_name = 'rag_knowledge_base' 
+                                AND column_name = 'content_type'
+                            )
+                        """)
+                        
+                        if content_type_exists:
+                            await conn.execute("""
+                                INSERT INTO rag_knowledge_base (
+                                    knowledge_domain, content_type, title, content, metadata,
+                                    embedding_vector, tags, source_reference, authority_level,
+                                    cultural_context, created_at, updated_at
+                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+                                ON CONFLICT (title) DO UPDATE SET
+                                    content = EXCLUDED.content,
+                                    metadata = EXCLUDED.metadata,
+                                    embedding_vector = EXCLUDED.embedding_vector,
+                                    updated_at = NOW()
+                            """, 
+                                knowledge_data["knowledge_domain"],
+                                knowledge_data.get("content_type", "knowledge"),
+                                knowledge_data["title"],
+                                knowledge_data["content"],
+                                json.dumps(knowledge_data.get("metadata", {})),
+                                embedding_data,
+                                knowledge_data.get("tags", []),
+                                knowledge_data["source_reference"],
+                                knowledge_data["authority_level"],
+                                knowledge_data["cultural_context"]
+                            )
+                        else:
+                            # Fallback for tables without content_type column
+                            await conn.execute("""
+                                INSERT INTO rag_knowledge_base (
+                                    knowledge_domain, title, content, metadata,
+                                    embedding_vector, tags, source_reference, authority_level,
+                                    cultural_context, created_at, updated_at
+                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
+                                ON CONFLICT (title) DO UPDATE SET
+                                    content = EXCLUDED.content,
+                                    metadata = EXCLUDED.metadata,
+                                    embedding_vector = EXCLUDED.embedding_vector,
+                                    updated_at = NOW()
+                            """, 
+                                knowledge_data["knowledge_domain"],
+                                knowledge_data["title"],
+                                knowledge_data["content"],
+                                json.dumps(knowledge_data.get("metadata", {})),
+                                embedding_data,
+                                knowledge_data.get("tags", []),
+                                knowledge_data["source_reference"],
+                                knowledge_data["authority_level"],
+                                knowledge_data["cultural_context"]
+                            )
                     else:
                         logger.warning("AsyncPG not available, skipping knowledge seeding")
                         return
