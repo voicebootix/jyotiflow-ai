@@ -1,6 +1,6 @@
 import os
 import time
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,6 +11,7 @@ import logging
 
 # Import centralized JWT handler
 from auth.jwt_config import JWTHandler
+from db import get_db
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -544,7 +545,7 @@ async def link_anonymous_chart_to_user(request: Request):
         raise HTTPException(status_code=500, detail="Failed to link chart to user")
 
 @router.get("/progress/{user_id}")
-async def get_spiritual_progress(user_id: str, request: Request):
+async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_db)):
     """Get user's spiritual progress and journey metrics"""
     # Verify the user is accessing their own data or is admin
     user_email = extract_user_email_from_token(request)
@@ -557,11 +558,6 @@ async def get_spiritual_progress(user_id: str, request: Request):
             user_id_int = int(user_id)
         except (ValueError, TypeError):
             user_id_int = None
-        
-        # Connect to database to get user sessions and progress
-        from db import get_db
-        
-        db = await get_db()
         
         # Get user's sessions
         sessions = await db.fetch("""
