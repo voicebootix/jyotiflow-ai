@@ -156,25 +156,32 @@ async def run_auto_deployment_migrations():
                         if current_statement.strip():
                             statements.append(current_statement.strip())
                         
-                        for i, statement in enumerate(statements):
-                            try:
-                                await conn.execute(statement)
-                                logger.info(f"  ✅ Statement {i+1}/{len(statements)} executed")
-                            except Exception as e:
-                                error_msg = str(e).lower()
-                                # Check if it's a critical error that should stop migration
-                                if any(critical in error_msg for critical in ['syntax error', 'permission denied', 'access denied', 'connection', 'authentication']):
-                                    logger.error(f"  ❌ Critical error in statement {i+1}: {str(e)[:100]}")
-                                    raise e
-                                else:
-                                    # Non-critical errors (IF NOT EXISTS, etc.)
-                                    logger.warning(f"  ⚠️ Statement {i+1} warning: {str(e)[:100]}")
-                        
-                        # Mark as applied
-                        await conn.execute("""
-                            INSERT INTO schema_migrations (migration_name) 
-                            VALUES ($1) ON CONFLICT (migration_name) DO NOTHING
-                        """, migration_name)
+                        # Execute all statements within a transaction for atomicity
+                        # This ensures either ALL statements succeed or ALL get rolled back
+                        # preventing partial migration states that could corrupt the database
+                        async with conn.transaction():
+                            for i, statement in enumerate(statements):
+                                try:
+                                    await conn.execute(statement)
+                                    logger.info(f"  ✅ Statement {i+1}/{len(statements)} executed")
+                                except Exception as e:
+                                    error_msg = str(e).lower()
+                                    # Check if it's a critical error that should stop migration
+                                    if any(critical in error_msg for critical in ['syntax error', 'permission denied', 'access denied', 'connection', 'authentication']):
+                                        logger.error(f"  ❌ Critical error in statement {i+1}: {str(e)[:100]}")
+                                        logger.error(f"  🔄 Rolling back migration {migration_name}")
+                                        raise e
+                                    else:
+                                        # Non-critical errors (IF NOT EXISTS, etc.)
+                                        logger.warning(f"  ⚠️ Statement {i+1} warning: {str(e)[:100]}")
+                            
+                            # Mark as applied within the same transaction
+                            await conn.execute("""
+                                INSERT INTO schema_migrations (migration_name) 
+                                VALUES ($1) ON CONFLICT (migration_name) DO NOTHING
+                            """, migration_name)
+                            
+                            logger.info(f"  💾 Transaction committed for {migration_name}")
                         
                         logger.info(f"✅ Migration {migration_name} completed")
                         
