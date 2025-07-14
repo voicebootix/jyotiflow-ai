@@ -477,10 +477,10 @@ const Profile = () => {
                 <div className="sacred-card p-8 bg-gradient-to-r from-purple-50 to-indigo-50">
                   <div className="text-center">
                     <div className="text-5xl mb-4">🧘</div>
-                    <h2 className="text-3xl font-bold text-gray-800 mb-2">
+                    <h2 className="text-3xl font-bold text-white mb-2">
                       {spiritualProgress.spiritual_level || 'Spiritual Seeker'}
                     </h2>
-                    <p className="text-gray-600 mb-4">
+                    <p className="text-gray-200 mb-4 font-medium">
                       Your spiritual journey progress: {spiritualProgress.progress_percentage || 0}%
                     </p>
                     <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
@@ -489,7 +489,7 @@ const Profile = () => {
                         style={{ width: `${spiritualProgress.progress_percentage || 0}%` }}
                       ></div>
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-gray-200 font-medium">
                       Next milestone: {spiritualProgress.next_milestone || 5} sessions
                     </div>
                   </div>
@@ -500,39 +500,39 @@ const Profile = () => {
               <div className="grid md:grid-cols-4 gap-6">
                 <div className="sacred-card p-6 text-center">
                   <div className="text-3xl mb-2">📊</div>
-                  <div className="text-2xl font-bold text-gray-800">
+                  <div className="text-2xl font-bold text-white">
                     {spiritualProgress?.total_sessions || sessionHistory.length}
                   </div>
-                  <div className="text-gray-600">Total Sessions</div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-white font-medium">Total Sessions</div>
+                  <div className="text-xs text-gray-200 mt-1">
                     {spiritualProgress?.completion_rate || 0}% completion rate
                   </div>
                 </div>
                 <div className="sacred-card p-6 text-center">
                   <div className="text-3xl mb-2">⭐</div>
-                  <div className="text-2xl font-bold text-gray-800">{creditBalance}</div>
-                  <div className="text-gray-600">Available Credits</div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-2xl font-bold text-white">{creditBalance}</div>
+                  <div className="text-white font-medium">Available Credits</div>
+                  <div className="text-xs text-gray-200 mt-1">
                     {dashboardData?.credits?.spending_analysis?.total_spent || 0} total spent
                   </div>
                 </div>
                 <div className="sacred-card p-6 text-center">
                   <div className="text-3xl mb-2">🏆</div>
-                  <div className="text-2xl font-bold text-gray-800">
+                  <div className="text-2xl font-bold text-white">
                     {spiritualProgress?.milestones_achieved || 0}
                   </div>
-                  <div className="text-gray-600">Milestones Achieved</div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-white font-medium">Milestones Achieved</div>
+                  <div className="text-xs text-gray-200 mt-1">
                     {Math.floor((Date.now() - new Date(userProfile.created_at || Date.now())) / (1000 * 60 * 60 * 24))} days on journey
                   </div>
                 </div>
                 <div className="sacred-card p-6 text-center">
                   <div className="text-3xl mb-2">🤝</div>
-                  <div className="text-2xl font-bold text-gray-800">
+                  <div className="text-2xl font-bold text-white">
                     {dashboardData?.community?.satsang_attended || 0}
                   </div>
-                  <div className="text-gray-600">Satsang Attended</div>
-                  <div className="text-xs text-gray-500 mt-1">
+                  <div className="text-white font-medium">Satsang Attended</div>
+                  <div className="text-xs text-gray-200 mt-1">
                     {dashboardData?.community?.community_rank || 'New Member'}
                   </div>
                 </div>
@@ -541,7 +541,7 @@ const Profile = () => {
               {/* AI Recommendations */}
               {recommendations && recommendations.length > 0 && (
                 <div className="sacred-card p-8">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6">
+                  <h2 className="text-2xl font-bold text-white mb-6">
                     🤖 Personalized Recommendations
                   </h2>
                   <div className="space-y-4">
@@ -593,7 +593,7 @@ const Profile = () => {
               {/* Journey Insights */}
               {spiritualProgress?.journey_insights && (
                 <div className="sacred-card p-8">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6">
+                  <h2 className="text-2xl font-bold text-white mb-6">
                     ✨ Your Spiritual Journey Insights
                   </h2>
                   <div className="space-y-3">
@@ -612,27 +612,27 @@ const Profile = () => {
               {/* Session Analytics */}
               {sessionAnalytics && (
                 <div className="sacred-card p-8">
-                  <h2 className="text-2xl font-bold text-gray-800 mb-6">
+                  <h2 className="text-2xl font-bold text-white mb-6">
                     📈 Session Analytics
                   </h2>
                   <div className="grid md:grid-cols-3 gap-6">
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-purple-600">
+                      <div className="text-2xl font-bold text-purple-400">
                         {sessionAnalytics.average_duration || 0} min
                       </div>
-                      <div className="text-sm text-gray-600">Average Duration</div>
+                      <div className="text-sm text-gray-300">Average Duration</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-blue-600">
+                      <div className="text-2xl font-bold text-blue-400">
                         {sessionAnalytics.average_effectiveness || 0}%
                       </div>
-                      <div className="text-sm text-gray-600">Effectiveness Score</div>
+                      <div className="text-sm text-gray-300">Effectiveness Score</div>
                     </div>
                     <div className="text-center">
-                      <div className="text-2xl font-bold text-green-600">
+                      <div className="text-2xl font-bold text-green-400">
                         {sessionAnalytics.most_active_day || 'Monday'}
                       </div>
-                      <div className="text-sm text-gray-600">Most Active Day</div>
+                      <div className="text-sm text-gray-300">Most Active Day</div>
                     </div>
                   </div>
                 </div>
@@ -640,23 +640,23 @@ const Profile = () => {
 
               {/* Recent Activity */}
               <div className="sacred-card p-8">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Spiritual Activity</h2>
+                <h2 className="text-2xl font-bold text-white mb-6">Recent Spiritual Activity</h2>
                 {sessionHistory.length > 0 ? (
                   <div className="space-y-4">
                     {sessionHistory.slice(0, 3).map((session, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div key={index} className="flex items-center justify-between p-4 bg-black bg-opacity-30 rounded-lg">
                         <div className="flex items-center space-x-3">
                           <div className="text-2xl">🕉️</div>
                           <div>
-                            <div className="font-semibold text-gray-800">
+                            <div className="font-semibold text-white">
                               {session.service_type || 'Spiritual Guidance'}
                             </div>
-                            <div className="text-sm text-gray-600">
+                            <div className="text-sm text-gray-300">
                               {formatDate(session.created_at)}
                             </div>
                           </div>
                         </div>
-                        <div className="text-sm text-gray-500">
+                        <div className="text-sm text-gray-300">
                           {session.duration ? `${session.duration} min` : 'Completed'}
                         </div>
                       </div>
@@ -665,7 +665,7 @@ const Profile = () => {
                 ) : (
                   <div className="text-center py-8">
                     <div className="text-4xl mb-4">🌱</div>
-                    <p className="text-gray-600">Your spiritual journey is just beginning. Start your first session!</p>
+                    <p className="text-gray-300">Your spiritual journey is just beginning. Start your first session!</p>
                     <Link to="/spiritual-guidance" className="divine-button mt-4 inline-block">
                       Begin Sacred Journey
                     </Link>
