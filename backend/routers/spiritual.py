@@ -566,7 +566,7 @@ async def get_spiritual_progress(user_id: str, request: Request):
         sessions = await db.fetch("""
             SELECT s.*, st.name as service_name, st.credits_required
             FROM sessions s
-            LEFT JOIN service_types st ON s.service_type_id = st.id
+            LEFT JOIN service_types st ON s.service_type = st.name
             WHERE s.user_email = $1
             ORDER BY s.created_at DESC
         """, user_email)
