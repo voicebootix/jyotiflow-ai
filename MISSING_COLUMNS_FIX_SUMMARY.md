@@ -89,11 +89,30 @@ CREATE TABLE donation_transactions (
 
 ## 🚀 Usage Instructions
 
-### Option 1: Run Python Migration Script
+### Option 1: Use Shell Script (Recommended)
 
 ```bash
 # From backend directory
 cd backend
+
+# Set the DATABASE_URL environment variable
+export DATABASE_URL="postgresql://username:password@host:port/database"
+
+# Check current database state (optional)
+./run_missing_columns_fix.sh check
+
+# Run the migration
+./run_missing_columns_fix.sh
+```
+
+### Option 2: Run Python Migration Script
+
+```bash
+# From backend directory
+cd backend
+
+# Set the DATABASE_URL environment variable
+export DATABASE_URL="postgresql://username:password@host:port/database"
 
 # Install dependencies if needed
 pip install asyncpg
@@ -105,7 +124,7 @@ python3 fix_missing_columns.py check
 python3 fix_missing_columns.py
 ```
 
-### Option 2: Run SQL Migration Directly
+### Option 3: Run SQL Migration Directly
 
 ```bash
 # Using psql
@@ -115,7 +134,7 @@ psql "$DATABASE_URL" -f migrations/fix_missing_columns.sql
 # Execute the contents of backend/migrations/fix_missing_columns.sql
 ```
 
-### Option 3: Manual SQL Commands
+### Option 4: Manual SQL Commands
 
 If you prefer to run the commands step by step:
 
@@ -231,8 +250,23 @@ LIMIT 5;
 1. **Backup First**: Always backup your database before running migrations
 2. **Test Environment**: Test the migration in a development environment first
 3. **Dependencies**: Make sure `asyncpg` is installed for the Python script
-4. **Rollback Plan**: The migration is designed to be safe, but have a rollback plan
-5. **Monitoring**: Monitor the application after deployment to ensure everything works
+4. **Environment Variables**: Set `DATABASE_URL` environment variable (no hardcoded credentials)
+5. **Rollback Plan**: The migration is designed to be safe, but have a rollback plan
+6. **Monitoring**: Monitor the application after deployment to ensure everything works
+
+## 🔒 Security Fixes
+
+- **Fixed**: Removed hardcoded database credentials from source code
+- **Fixed**: Foreign key constraint creation order to prevent failures
+- **Fixed**: Added proper table existence checks before creating foreign keys
+- **Fixed**: Removed invalid trailing COMMIT statement
+
+## 🔧 Bug Fixes Applied
+
+1. **Foreign Key Constraint Order**: Fixed table creation order to ensure all referenced tables exist before creating foreign keys
+2. **Table Existence Checks**: Added checks for `users`, `sessions`, and `donations` tables before creating `donation_transactions`
+3. **Credential Security**: Removed hardcoded database URL, now requires `DATABASE_URL` environment variable
+4. **Transaction Management**: Removed trailing COMMIT statement that was causing errors
 
 ## 🔄 Rollback Instructions
 

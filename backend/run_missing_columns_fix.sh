@@ -48,6 +48,20 @@ fi
 
 echo ""
 
+# Check for DATABASE_URL environment variable
+if [ -z "$DATABASE_URL" ]; then
+    echo "❌ Error: DATABASE_URL environment variable is not set."
+    echo "Please set it to your PostgreSQL connection string:"
+    echo "  export DATABASE_URL='postgresql://username:password@host:port/database'"
+    echo ""
+    echo "Example:"
+    echo "  export DATABASE_URL='postgresql://user:pass@localhost:5432/mydb'"
+    exit 1
+fi
+
+echo "✅ DATABASE_URL environment variable is set"
+echo ""
+
 # Check if user wants to inspect database first
 if [ "$1" == "check" ]; then
     echo "🔍 Checking current database state..."

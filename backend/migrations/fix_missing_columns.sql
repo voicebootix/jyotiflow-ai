@@ -146,60 +146,7 @@ BEGIN
 END $$;
 
 -- =================================================================
--- 2. FIX DONATION_TRANSACTIONS TABLE - Ensure it exists with correct schema
--- =================================================================
-
-DO $$ 
-BEGIN
-    -- Check if donation_transactions table exists
-    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'donation_transactions') THEN
-        RAISE NOTICE '❌ donation_transactions table does not exist. Creating it now...';
-        
-        -- Create donation_transactions table
-        CREATE TABLE donation_transactions (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            user_id INTEGER REFERENCES users(id),
-            donation_id UUID REFERENCES donations(id),
-            amount_usd DECIMAL(10,2) NOT NULL,
-            currency VARCHAR(3) DEFAULT 'USD',
-            payment_method VARCHAR(50) DEFAULT 'stripe',
-            stripe_payment_intent_id VARCHAR(255),
-            stripe_session_id VARCHAR(255),
-            status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'completed', 'failed', 'refunded'
-            transaction_type VARCHAR(50) DEFAULT 'donation', -- 'donation', 'offering', 'super_chat'
-            session_id UUID REFERENCES sessions(id), -- Optional: link to spiritual session
-            message TEXT, -- Optional: message for super chat donations
-            metadata JSONB DEFAULT '{}'::jsonb, -- Additional transaction data
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW(),
-            completed_at TIMESTAMP NULL
-        );
-        
-        -- Create indexes for efficient querying
-        CREATE INDEX idx_donation_transactions_user_id ON donation_transactions(user_id);
-        CREATE INDEX idx_donation_transactions_donation_id ON donation_transactions(donation_id);
-        CREATE INDEX idx_donation_transactions_status ON donation_transactions(status);
-        CREATE INDEX idx_donation_transactions_created ON donation_transactions(created_at DESC);
-        CREATE INDEX idx_donation_transactions_stripe_payment_intent ON donation_transactions(stripe_payment_intent_id);
-        
-        RAISE NOTICE '✅ Created donation_transactions table with all required columns and indexes';
-    ELSE
-        RAISE NOTICE '✅ donation_transactions table already exists';
-        
-        -- Check if user_id column exists (just in case)
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns 
-            WHERE table_name = 'donation_transactions' AND column_name = 'user_id'
-        ) THEN
-            ALTER TABLE donation_transactions ADD COLUMN user_id INTEGER REFERENCES users(id);
-            RAISE NOTICE '✅ Added user_id column to donation_transactions table';
-        END IF;
-    END IF;
-    
-END $$;
-
--- =================================================================
--- 3. ENSURE DONATIONS TABLE EXISTS (Referenced by donation_transactions)
+-- 2. ENSURE DONATIONS TABLE EXISTS (Referenced by donation_transactions)
 -- =================================================================
 
 DO $$ 
@@ -238,7 +185,122 @@ BEGIN
 END $$;
 
 -- =================================================================
--- 4. INSERT DEFAULT SERVICE TYPES IF NEEDED
+-- 3. ENSURE USERS TABLE EXISTS (Referenced by donation_transactions)
+-- =================================================================
+
+DO $$ 
+BEGIN
+    -- Check if users table exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+        RAISE NOTICE '❌ users table does not exist. Creating it now...';
+        
+        -- Create users table with minimal required columns
+        CREATE TABLE users (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            first_name VARCHAR(100),
+            last_name VARCHAR(100),
+            password_hash VARCHAR(255) NOT NULL,
+            role VARCHAR(50) DEFAULT 'user',
+            credits INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+        
+        RAISE NOTICE '✅ Created users table with required columns';
+    ELSE
+        RAISE NOTICE '✅ users table already exists';
+    END IF;
+    
+END $$;
+
+-- =================================================================
+-- 4. ENSURE SESSIONS TABLE EXISTS (Referenced by donation_transactions)
+-- =================================================================
+
+DO $$ 
+BEGIN
+    -- Check if sessions table exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sessions') THEN
+        RAISE NOTICE '❌ sessions table does not exist. Creating it now...';
+        
+        -- Create sessions table with minimal required columns
+        CREATE TABLE sessions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id INTEGER REFERENCES users(id),
+            service_type_id INTEGER REFERENCES service_types(id),
+            status VARCHAR(20) DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        );
+        
+        RAISE NOTICE '✅ Created sessions table with required columns';
+    ELSE
+        RAISE NOTICE '✅ sessions table already exists';
+    END IF;
+    
+END $$;
+
+-- =================================================================
+-- 5. CREATE DONATION_TRANSACTIONS TABLE (Now that all dependencies exist)
+-- =================================================================
+
+DO $$ 
+BEGIN
+    -- Check if donation_transactions table exists
+    IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'donation_transactions') THEN
+        RAISE NOTICE '❌ donation_transactions table does not exist. Creating it now...';
+        
+        -- Create donation_transactions table with all foreign key references
+        CREATE TABLE donation_transactions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            user_id INTEGER REFERENCES users(id),
+            donation_id UUID REFERENCES donations(id),
+            amount_usd DECIMAL(10,2) NOT NULL,
+            currency VARCHAR(3) DEFAULT 'USD',
+            payment_method VARCHAR(50) DEFAULT 'stripe',
+            stripe_payment_intent_id VARCHAR(255),
+            stripe_session_id VARCHAR(255),
+            status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'completed', 'failed', 'refunded'
+            transaction_type VARCHAR(50) DEFAULT 'donation', -- 'donation', 'offering', 'super_chat'
+            session_id UUID REFERENCES sessions(id), -- Optional: link to spiritual session
+            message TEXT, -- Optional: message for super chat donations
+            metadata JSONB DEFAULT '{}'::jsonb, -- Additional transaction data
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            completed_at TIMESTAMP NULL
+        );
+        
+        -- Create indexes for efficient querying
+        CREATE INDEX idx_donation_transactions_user_id ON donation_transactions(user_id);
+        CREATE INDEX idx_donation_transactions_donation_id ON donation_transactions(donation_id);
+        CREATE INDEX idx_donation_transactions_status ON donation_transactions(status);
+        CREATE INDEX idx_donation_transactions_created ON donation_transactions(created_at DESC);
+        CREATE INDEX idx_donation_transactions_stripe_payment_intent ON donation_transactions(stripe_payment_intent_id);
+        
+        RAISE NOTICE '✅ Created donation_transactions table with all required columns and indexes';
+    ELSE
+        RAISE NOTICE '✅ donation_transactions table already exists';
+        
+        -- Check if user_id column exists (just in case)
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'donation_transactions' AND column_name = 'user_id'
+        ) THEN
+            -- Only add column if users table exists
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
+                ALTER TABLE donation_transactions ADD COLUMN user_id INTEGER REFERENCES users(id);
+                RAISE NOTICE '✅ Added user_id column to donation_transactions table';
+            ELSE
+                RAISE NOTICE '⚠️  Cannot add user_id column: users table does not exist';
+            END IF;
+        END IF;
+    END IF;
+    
+END $$;
+
+-- =================================================================
+-- 6. INSERT DEFAULT SERVICE TYPES IF NEEDED
 -- =================================================================
 
 DO $$ 
@@ -270,7 +332,7 @@ BEGIN
 END $$;
 
 -- =================================================================
--- 5. VERIFICATION QUERIES
+-- 7. VERIFICATION QUERIES
 -- =================================================================
 
 DO $$ 
@@ -315,5 +377,3 @@ END $$;
 -- =================================================================
 -- COMPLETED: Missing columns fix migration
 -- =================================================================
-
-COMMIT;
