@@ -49,7 +49,7 @@ SELECT COUNT(*) as total_users FROM users;"""
             "sql": """
 SELECT email, role, credits, created_at
 FROM users 
-WHERE role = 'admin' OR email LIKE '%admin%'
+WHERE role = 'admin' OR email ILIKE '%admin%'
 ORDER BY created_at DESC;"""
         },
         {
