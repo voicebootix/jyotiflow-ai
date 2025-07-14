@@ -26,7 +26,32 @@ async def run_auto_deployment_migrations():
     conn = None
     try:
         conn = await asyncpg.connect(DATABASE_URL)
-        logger.info("🚀 Starting auto-deployment migrations...")
+        logger.info("� Database connection established")
+        
+        # Validate database connection and permissions
+        try:
+            # Test basic query execution
+            result = await conn.fetchval("SELECT 1")
+            if result != 1:
+                raise RuntimeError("Database connection test failed")
+            
+            # Check if we can create tables (required for migrations)
+            await conn.execute("SELECT current_user, session_user")
+            
+            # Test write permissions by attempting to create a temp table
+            await conn.execute("""
+                CREATE TEMP TABLE __migration_test__ (id INT);
+                DROP TABLE __migration_test__;
+            """)
+            
+            logger.info("✅ Database connection validated with required permissions")
+            
+        except Exception as e:
+            logger.error(f"❌ Database validation failed: {e}")
+            logger.error("💡 Please ensure the database user has CREATE, INSERT, UPDATE permissions")
+            raise RuntimeError(f"Database validation failed: {e}")
+        
+        logger.info("� Starting auto-deployment migrations...")
         
         # 1. Ensure migrations tracking table exists
         await conn.execute("""
@@ -187,8 +212,16 @@ async def run_auto_deployment_migrations():
                         
                     except Exception as e:
                         logger.error(f"❌ Migration {migration_name} failed: {e}")
-                        # Don't stop deployment for migration failures
-                        continue
+                        
+                        # For critical migrations, stop deployment immediately
+                        if migration_name in critical_migrations:
+                            logger.error(f"🛑 Critical migration {migration_name} failed - stopping deployment")
+                            logger.error(f"💡 Please fix the migration error before retrying deployment")
+                            raise RuntimeError(f"Critical migration failed: {migration_name} - {e}")
+                        else:
+                            # For non-critical migrations, log warning and continue
+                            logger.warning(f"⚠️ Non-critical migration {migration_name} failed - continuing deployment")
+                            continue
                 else:
                     logger.warning(f"⚠️ Migration file not found: {migration_name}")
             else:
