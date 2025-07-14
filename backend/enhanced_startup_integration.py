@@ -33,48 +33,56 @@ class EnhancedJyotiFlowStartup:
         self.knowledge_seeded = False
         self.rag_initialized = False
         
-        # Enhanced connection settings
+        # Enhanced connection settings - optimized for Render environment
         self.connection_config = {
-            'min_size': 1,
-            'max_size': 3,
-            'command_timeout': 30,
+            'min_size': 2,
+            'max_size': 10,
+            'command_timeout': 60,
             'server_settings': {
                 'application_name': 'jyotiflow_startup_integration',
-                'tcp_keepalives_idle': '300',
-                'tcp_keepalives_interval': '30',
-                'tcp_keepalives_count': '3'
+                'tcp_keepalives_idle': '600',
+                'tcp_keepalives_interval': '60',
+                'tcp_keepalives_count': '5'
             }
         }
         
-    async def _create_robust_connection(self, max_retries: int = 3):
-        """Create a robust database connection with retry logic"""
+    async def _create_robust_connection(self, max_retries: int = 5):
+        """Create a robust database connection with progressive backoff"""
         if not ASYNCPG_AVAILABLE or not asyncpg:
             raise Exception("asyncpg is not available")
             
         for attempt in range(max_retries):
             try:
+                # Progressive timeout: starts at 30s, increases by 10s each attempt
+                timeout = 30.0 + (attempt * 10)
                 conn = await asyncio.wait_for(
                     asyncpg.connect(
                         self.database_url,
                         command_timeout=self.connection_config['command_timeout'],
                         server_settings=self.connection_config['server_settings']
                     ),
-                    timeout=15.0  # 15 second timeout for connection
+                    timeout=timeout
                 )
+                
+                # Verify connection health
+                await conn.fetchval("SELECT 1")
                 return conn
             except (asyncio.TimeoutError, Exception) as e:
                 if attempt == max_retries - 1:
                     raise
-                logger.warning(f"Connection attempt {attempt + 1} failed: {e}, retrying...")
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                delay = min(2 ** attempt, 10)  # Cap delay at 10 seconds
+                logger.warning(f"Connection attempt {attempt + 1} failed: {e}, retrying in {delay}s...")
+                await asyncio.sleep(delay)
         
-    async def _create_robust_pool(self, max_retries: int = 3):
+    async def _create_robust_pool(self, max_retries: int = 5):
         """Create a robust database pool with enhanced settings"""
         if not ASYNCPG_AVAILABLE or not asyncpg:
             raise Exception("asyncpg is not available")
             
         for attempt in range(max_retries):
             try:
+                # Progressive timeout: starts at 40s, increases by 10s each attempt
+                timeout = 40.0 + (attempt * 10)
                 pool = await asyncio.wait_for(
                     asyncpg.create_pool(
                         self.database_url,
@@ -83,39 +91,55 @@ class EnhancedJyotiFlowStartup:
                         command_timeout=self.connection_config['command_timeout'],
                         server_settings=self.connection_config['server_settings']
                     ),
-                    timeout=20.0  # 20 second timeout for pool creation
+                    timeout=timeout
                 )
+                
+                # Test pool health
+                async with pool.acquire() as conn:
+                    await conn.fetchval("SELECT 1")
                 return pool
             except (asyncio.TimeoutError, Exception) as e:
                 if attempt == max_retries - 1:
                     raise
-                logger.warning(f"Pool creation attempt {attempt + 1} failed: {e}, retrying...")
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                delay = min(2 ** attempt, 10)  # Cap delay at 10 seconds
+                logger.warning(f"Pool creation attempt {attempt + 1} failed: {e}, retrying in {delay}s...")
+                await asyncio.sleep(delay)
 
     async def initialize_enhanced_system(self):
-        """Initialize all enhanced system components"""
+        """Initialize all enhanced system components with graceful fallback"""
         logger.info("🚀 Initializing JyotiFlow Enhanced System...")
         
-        try:
-            # Step 1: Check and create database tables
-            await self._ensure_database_tables()
-            
-            # Step 2: Ensure knowledge base is populated
-            await self._ensure_knowledge_base()
-            
-            # Step 3: Initialize RAG system
-            await self._initialize_rag_system()
-            
-            # Step 4: Ensure service configurations
-            await self._ensure_service_configurations()
-            
+        initialization_steps = [
+            ("Database Tables", self._ensure_database_tables),
+            ("Knowledge Base", self._ensure_knowledge_base),
+            ("RAG System", self._initialize_rag_system),
+            ("Service Configurations", self._ensure_service_configurations)
+        ]
+        
+        successful_steps = 0
+        total_steps = len(initialization_steps)
+        
+        for step_name, step_func in initialization_steps:
+            try:
+                logger.info(f"📋 Initializing {step_name}...")
+                await step_func()
+                successful_steps += 1
+                logger.info(f"✅ {step_name} initialized successfully")
+            except Exception as e:
+                logger.warning(f"⚠️ {step_name} initialization failed: {e}")
+                logger.debug(f"Full traceback for {step_name}: {traceback.format_exc()}")
+                # Continue with next step - don't let one failure stop the entire process
+                continue
+        
+        if successful_steps == total_steps:
             logger.info("✅ Enhanced system initialization completed successfully!")
-            
-        except Exception as e:
-            logger.error(f"❌ Enhanced system initialization failed: {e}")
-            logger.error(f"Full traceback: {traceback.format_exc()}")
-            # Don't raise - system should be able to run in fallback mode
-            pass
+        elif successful_steps > 0:
+            logger.info(f"⚠️ Enhanced system partially initialized ({successful_steps}/{total_steps} steps successful)")
+        else:
+            logger.warning("❌ Enhanced system initialization failed - running in fallback mode")
+        
+        # Always return success - system can run in fallback mode
+        return successful_steps > 0
     
     async def _ensure_database_tables(self):
         """Ensure all required database tables exist"""
