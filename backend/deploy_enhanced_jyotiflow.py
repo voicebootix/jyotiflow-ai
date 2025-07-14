@@ -117,7 +117,7 @@ class JyotiFlowDeployment:
         
         try:
             # Run database migration
-            migration_file = './backend/migrations/enhance_service_types_rag.sql'
+            migration_file = './backend/migrations/003_add_all_feature_tables.sql'
             
             if os.path.exists(migration_file):
                 logger.info("Running database migration...")

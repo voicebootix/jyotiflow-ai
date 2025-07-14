@@ -15,7 +15,7 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile, Body
 from pydantic import BaseModel, Field
 
-from deps import get_current_user, get_admin_user
+from deps import get_current_user, get_admin_user, get_current_admin_dependency
 from core_foundation_enhanced import StandardResponse
 
 # SURGICAL FIX: Safe imports with fallbacks
@@ -93,7 +93,7 @@ class AgentChatRequest(BaseModel):
 
 # Marketing Overview Endpoints
 @social_marketing_router.get("/overview")
-async def get_marketing_overview(admin_user: dict = Depends(get_admin_user)):
+async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_dependency)):
     """Get comprehensive marketing overview with KPIs and performance data"""
     try:
         # SURGICAL FIX: Safe engine usage with fallbacks
