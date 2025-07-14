@@ -6,8 +6,57 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Centralized JWT configuration
-JWT_SECRET = os.getenv("JWT_SECRET", "jyotiflow_secret")
+# Centralized JWT configuration - SECURITY FIX: No hardcoded fallback
+JWT_SECRET = os.getenv("JWT_SECRET")
+
+def validate_jwt_secret_security():
+    """
+    Validate JWT secret for security requirements
+    Raises RuntimeError if security requirements are not met
+    """
+    if not JWT_SECRET:
+        error_msg = "JWT_SECRET environment variable is required for security. Please set it before starting the application."
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+
+    # Check for common insecure default values
+    insecure_defaults = [
+        "jyotiflow_secret",
+        "secret",
+        "jwt_secret",
+        "your-secret-key",
+        "change-me",
+        "default",
+        "test",
+        "password",
+        "123456"
+    ]
+    
+    if JWT_SECRET.lower() in insecure_defaults:
+        error_msg = f"JWT_SECRET cannot use predictable default value '{JWT_SECRET}'. Please generate a secure random secret."
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    
+    # Check minimum length for production
+    if len(JWT_SECRET) < 32:
+        error_msg = f"JWT_SECRET must be at least 32 characters long for security. Current length: {len(JWT_SECRET)}"
+        logger.critical(error_msg)
+        raise RuntimeError(error_msg)
+    
+    # Check for environment-specific requirements
+    environment = os.getenv("ENVIRONMENT", "development").lower()
+    if environment in ["production", "prod", "live"]:
+        # Additional production checks
+        if JWT_SECRET.isalnum() or JWT_SECRET.isdigit():
+            error_msg = "JWT_SECRET in production must contain mixed characters, numbers, and symbols for security."
+            logger.critical(error_msg)
+            raise RuntimeError(error_msg)
+    
+    logger.info("JWT_SECRET security validation passed")
+
+# Perform security validation on startup
+validate_jwt_secret_security()
+
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_HOURS = 24
 
