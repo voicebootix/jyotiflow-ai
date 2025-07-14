@@ -13,10 +13,63 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class JyotiFlowStartupFixer:
-    """Comprehensive fixer for JyotiFlow.ai startup issues"""
+    """Comprehensive fixer for JyotiFlow.ai startup issues with robust connection management"""
     
     def __init__(self):
         self.database_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
+        
+        # Enhanced connection settings
+        self.connection_config = {
+            'min_size': 1,
+            'max_size': 3,
+            'command_timeout': 30,
+            'server_settings': {
+                'application_name': 'jyotiflow_startup_fixer',
+                'tcp_keepalives_idle': '300',
+                'tcp_keepalives_interval': '30',
+                'tcp_keepalives_count': '3'
+            }
+        }
+        
+    async def _create_robust_connection(self, max_retries: int = 3):
+        """Create a robust database connection with retry logic"""
+        for attempt in range(max_retries):
+            try:
+                conn = await asyncio.wait_for(
+                    asyncpg.connect(
+                        self.database_url,
+                        command_timeout=self.connection_config['command_timeout'],
+                        server_settings=self.connection_config['server_settings']
+                    ),
+                    timeout=15.0  # 15 second timeout for connection
+                )
+                return conn
+            except (asyncio.TimeoutError, Exception) as e:
+                if attempt == max_retries - 1:
+                    raise
+                logger.warning(f"Connection attempt {attempt + 1} failed: {e}, retrying...")
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+        
+    async def _create_robust_pool(self, max_retries: int = 3):
+        """Create a robust database pool with enhanced settings"""
+        for attempt in range(max_retries):
+            try:
+                pool = await asyncio.wait_for(
+                    asyncpg.create_pool(
+                        self.database_url,
+                        min_size=self.connection_config['min_size'],
+                        max_size=self.connection_config['max_size'],
+                        command_timeout=self.connection_config['command_timeout'],
+                        server_settings=self.connection_config['server_settings']
+                    ),
+                    timeout=20.0  # 20 second timeout for pool creation
+                )
+                return pool
+            except (asyncio.TimeoutError, Exception) as e:
+                if attempt == max_retries - 1:
+                    raise
+                logger.warning(f"Pool creation attempt {attempt + 1} failed: {e}, retrying...")
+                await asyncio.sleep(2 ** attempt)  # Exponential backoff
     
     async def fix_all_issues(self):
         """Fix all identified startup issues"""
@@ -39,9 +92,10 @@ class JyotiFlowStartupFixer:
             raise
     
     async def fix_service_configuration_cache(self):
-        """Fix service_configuration_cache table schema issues"""
+        """Fix service_configuration_cache table schema issues with robust connection handling"""
+        conn = None
         try:
-            conn = await asyncpg.connect(self.database_url)
+            conn = await self._create_robust_connection()
             
             logger.info("🔧 Fixing service_configuration_cache schema...")
             
@@ -159,9 +213,10 @@ class JyotiFlowStartupFixer:
             # Don't raise - indexes are optional for functionality
     
     async def fix_knowledge_base_seeding(self):
-        """Fix knowledge base seeding for PostgreSQL"""
+        """Fix knowledge base seeding for PostgreSQL with robust connection handling"""
+        conn = None
         try:
-            conn = await asyncpg.connect(self.database_url)
+            conn = await self._create_robust_connection()
             
             logger.info("🧠 Checking knowledge base seeding...")
             
@@ -253,14 +308,19 @@ class JyotiFlowStartupFixer:
                         logger.info("⚠️ OpenAI API key not available - using basic seeding")
                         seeder = KnowledgeSeeder(None, "fallback_key")
                     else:
-                        # Create database pool for seeder
-                        db_pool = await asyncpg.create_pool(self.database_url)
+                        # Create database pool for seeder with robust settings
+                        db_pool = await self._create_robust_pool()
                         seeder = KnowledgeSeeder(db_pool, openai_api_key)
                     
                     try:
-                        # Run seeding
-                        await seeder.seed_complete_knowledge_base()
+                        # Run seeding with timeout
+                        await asyncio.wait_for(
+                            seeder.seed_complete_knowledge_base(),
+                            timeout=120.0  # 2 minute timeout for seeding
+                        )
                         logger.info("✅ Knowledge base seeded successfully!")
+                    except asyncio.TimeoutError:
+                        logger.warning("⚠️ Knowledge seeding timed out, system will run in fallback mode")
                     finally:
                         # Always close the pool if it was created
                         if db_pool:
