@@ -325,6 +325,29 @@ class SafeDatabaseInitializer:
             """)
             logger.info("✅ Created ai_insights_cache table")
         
+        # User purchases table for credit transaction history
+        if 'user_purchases' not in existing_tables:
+            await conn.execute("""
+                CREATE TABLE user_purchases (
+                    id SERIAL PRIMARY KEY,
+                    user_email VARCHAR(255) NOT NULL,
+                    transaction_type VARCHAR(50) NOT NULL DEFAULT 'purchase',
+                    amount DECIMAL(10,2) NOT NULL,
+                    credits INTEGER NOT NULL,
+                    balance_before INTEGER DEFAULT 0,
+                    balance_after INTEGER DEFAULT 0,
+                    package_type VARCHAR(100),
+                    payment_method VARCHAR(50),
+                    stripe_session_id VARCHAR(255),
+                    stripe_payment_intent_id VARCHAR(255),
+                    description TEXT NOT NULL,
+                    status VARCHAR(50) DEFAULT 'completed',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+                )
+            """)
+            logger.info("✅ Created user_purchases table")
+        
         # Note: Social media tables are created by migrations to avoid duplication
         # The migration system will handle:
         # - social_campaigns
@@ -346,7 +369,8 @@ class SafeDatabaseInitializer:
             if col_exists:
                 await conn.execute("ALTER TABLE users RENAME COLUMN last_login TO last_login_at")
                 logger.info("✅ Renamed last_login to last_login_at")
-        except:
+        except Exception as e:
+            logger.warning(f"⚠️ Could not rename last_login column: {e}")
             pass
         
         # Fix knowledge_domain column in rag_knowledge_base table
@@ -473,7 +497,8 @@ class SafeDatabaseInitializer:
                 if not col_exists:
                     await conn.execute(f"ALTER TABLE service_types ADD COLUMN {col_name} {col_def}")
                     logger.info(f"✅ Added {col_name} to service_types")
-            except:
+            except Exception as e:
+                logger.warning(f"⚠️ Could not add column {col_name} to service_types: {e}")
                 pass
 
         # Create cache_analytics table if it doesn't exist
@@ -543,7 +568,8 @@ class SafeDatabaseInitializer:
                 if not col_exists:
                     await conn.execute(f"ALTER TABLE sessions ADD COLUMN {col_name} {col_def}")
                     logger.info(f"✅ Added {col_name} to sessions table")
-            except:
+            except Exception as e:
+                logger.warning(f"⚠️ Could not add column {col_name} to sessions table: {e}")
                 pass
     
     async def _ensure_essential_data(self, conn):

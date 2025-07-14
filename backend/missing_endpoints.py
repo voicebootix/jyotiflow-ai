@@ -149,34 +149,45 @@ async def get_credit_history(request: Request, db=Depends(get_db)):
         if not user_email:
             return {"success": False, "message": "Authentication required", "data": []}
         
-        # Get user's credit transactions
-        transactions = await db.fetch("""
-            SELECT 
-                transaction_type,
-                amount,
-                credits,
-                balance_after,
-                description,
-                created_at
-            FROM user_purchases 
-            WHERE user_email = $1 
-            ORDER BY created_at DESC 
-            LIMIT 50
-        """, user_email)
+        # Get user's credit transactions - handle missing table gracefully
+        transactions = []
+        try:
+            transactions = await db.fetch("""
+                SELECT 
+                    transaction_type,
+                    amount,
+                    credits,
+                    balance_after,
+                    description,
+                    created_at
+                FROM user_purchases 
+                WHERE user_email = $1 
+                ORDER BY created_at DESC 
+                LIMIT 50
+            """, user_email)
+        except Exception as table_error:
+            logger.warning(f"user_purchases table not available: {table_error}")
+            # Continue with empty transactions if table doesn't exist
+            transactions = []
         
         # Get sessions that used credits
-        session_transactions = await db.fetch("""
-            SELECT 
-                'session_usage' as transaction_type,
-                -credits_used as credits,
-                service_type,
-                'Spiritual guidance session' as description,
-                created_at
-            FROM sessions 
-            WHERE user_email = $1 AND credits_used > 0
-            ORDER BY created_at DESC 
-            LIMIT 20
-        """, user_email)
+        session_transactions = []
+        try:
+            session_transactions = await db.fetch("""
+                SELECT 
+                    'session_usage' as transaction_type,
+                    -credits_used as credits,
+                    service_type,
+                    'Spiritual guidance session' as description,
+                    created_at
+                FROM sessions 
+                WHERE user_email = $1 AND credits_used > 0
+                ORDER BY created_at DESC 
+                LIMIT 20
+            """, user_email)
+        except Exception as session_error:
+            logger.warning(f"Error fetching session transactions: {session_error}")
+            session_transactions = []
         
         # Combine and sort all transactions
         all_transactions = []
