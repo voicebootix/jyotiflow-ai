@@ -474,7 +474,7 @@ const Profile = () => {
             <div className="space-y-8">
               {/* Spiritual Progress Header */}
               {spiritualProgress && (
-                <div className="sacred-card p-8 bg-gradient-to-r from-purple-50 to-indigo-50">
+                <div className="sacred-card p-8 bg-gradient-to-r from-purple-900 to-indigo-900">
                   <div className="text-center">
                     <div className="text-5xl mb-4">🧘</div>
                     <h2 className="text-3xl font-bold text-white mb-2">
@@ -483,9 +483,9 @@ const Profile = () => {
                     <p className="text-gray-200 mb-4 font-medium">
                       Your spiritual journey progress: {spiritualProgress.progress_percentage || 0}%
                     </p>
-                    <div className="w-full bg-gray-200 rounded-full h-3 mb-4">
+                    <div className="w-full bg-gray-700 rounded-full h-3 mb-4">
                       <div 
-                        className="bg-gradient-to-r from-purple-500 to-indigo-500 h-3 rounded-full transition-all duration-300"
+                        className="bg-gradient-to-r from-purple-400 to-indigo-400 h-3 rounded-full transition-all duration-300"
                         style={{ width: `${spiritualProgress.progress_percentage || 0}%` }}
                       ></div>
                     </div>
