@@ -24,15 +24,21 @@ router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 logger = logging.getLogger(__name__)
 
 def get_user_id_from_token(request: Request) -> str:
-    """Extract user ID from JWT token using centralized handler"""
+    """Extract user ID from JWT token"""
     return JWTHandler.get_user_id_from_token(request)
 
+def convert_user_id_to_int(user_id: str) -> int | None:
+    """Convert string user_id to integer for database queries"""
+    if not user_id:
+        return None
+    try:
+        return int(user_id)
+    except ValueError:
+        return None
+
 async def get_user_email_from_token(request: Request) -> str:
-    """Extract user email from JWT token using centralized handler"""
-    email = JWTHandler.get_user_email_from_token(request)
-    if not email:
-        raise HTTPException(status_code=401, detail="User email not found in token")
-    return email
+    """Extract user email from JWT token"""
+    return JWTHandler.get_user_email_from_token(request)
 
 async def generate_spiritual_guidance_with_ai(question: str, astrology_data: Dict[str, Any]) -> str:
     """Generate spiritual guidance using OpenAI with enhanced birth chart data"""
@@ -165,6 +171,11 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     user_id = get_user_id_from_token(request)
     user_email = await get_user_email_from_token(request)
     
+    # Convert user_id to integer for database queries
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    
     # Get service details first
     service_type = session_data.get("service_type")
     if not service_type:
@@ -176,7 +187,7 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
         user = await db.fetchrow("""
             SELECT id, email, credits FROM users 
             WHERE id = $1 FOR UPDATE
-        """, user_id)
+        """, user_id_int)
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -202,7 +213,7 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
         result = await db.execute("""
             UPDATE users SET credits = credits - $1 
             WHERE id = $2 AND credits >= $1
-        """, service["credits_required"], user_id)
+        """, service["credits_required"], user_id_int)
         
         if result.rowcount == 0:
             raise HTTPException(
