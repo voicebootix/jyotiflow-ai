@@ -50,37 +50,43 @@ class KnowledgeSeeder:
             # Validate database connection first with timeout
             if self.db_pool:
                 try:
-                    # Use asyncio.wait_for for Python 3.10+ compatibility
-                    async with await asyncio.wait_for(
-                        self.db_pool.acquire(), 
-                        timeout=10.0
-                    ) as conn:
-                            # Check if table exists
-                            table_exists = await conn.fetchval("""
-                                SELECT EXISTS (
-                                    SELECT FROM information_schema.tables 
-                                    WHERE table_name = 'rag_knowledge_base'
-                                )
-                            """)
+                    # Use proper async context manager for connection acquisition
+                    async with self.db_pool.acquire() as conn:
+                            # Check if table exists with timeout
+                            table_exists = await asyncio.wait_for(
+                                conn.fetchval("""
+                                    SELECT EXISTS (
+                                        SELECT FROM information_schema.tables 
+                                        WHERE table_name = 'rag_knowledge_base'
+                                    )
+                                """),
+                                timeout=10.0
+                            )
                             if not table_exists:
                                 logger.error("❌ rag_knowledge_base table does not exist")
                                 raise Exception("Database table 'rag_knowledge_base' not found")
                             
-                            # Check if content_type column exists
-                            content_type_exists = await conn.fetchval("""
-                                SELECT EXISTS (
-                                    SELECT FROM information_schema.columns 
-                                    WHERE table_name = 'rag_knowledge_base' 
-                                    AND column_name = 'content_type'
-                                )
-                            """)
+                            # Check if content_type column exists with timeout
+                            content_type_exists = await asyncio.wait_for(
+                                conn.fetchval("""
+                                    SELECT EXISTS (
+                                        SELECT FROM information_schema.columns 
+                                        WHERE table_name = 'rag_knowledge_base' 
+                                        AND column_name = 'content_type'
+                                    )
+                                """),
+                                timeout=10.0
+                            )
                             
                             if not content_type_exists:
                                 logger.warning("⚠️ content_type column missing, adding it...")
-                                await conn.execute("""
-                                    ALTER TABLE rag_knowledge_base 
-                                    ADD COLUMN content_type VARCHAR(50) NOT NULL DEFAULT 'knowledge'
-                                """)
+                                await asyncio.wait_for(
+                                    conn.execute("""
+                                        ALTER TABLE rag_knowledge_base 
+                                        ADD COLUMN content_type VARCHAR(50) NOT NULL DEFAULT 'knowledge'
+                                    """),
+                                    timeout=30.0
+                                )
                                 logger.info("✅ content_type column added to rag_knowledge_base")
                             
                             logger.info("✅ Database table validated successfully")
