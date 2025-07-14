@@ -2,7 +2,6 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict, Any
 import jwt
-from datetime import datetime, timezone
 import os
 
 # Security scheme for JWT tokens
@@ -44,15 +43,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token missing user ID",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        
-        # SURGICAL FIX: Add token expiration check
-        exp = payload.get("exp")
-        if exp and datetime.fromtimestamp(exp, tz=timezone.utc) < datetime.now(timezone.utc):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token has expired",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
