@@ -6,7 +6,7 @@ import os
 import json
 import asyncio
 import logging
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 import traceback
 
 # Enhanced imports for robust database handling
@@ -369,7 +369,7 @@ class EnhancedJyotiFlowStartup:
             json.loads(fixed)
             return fixed
             
-        except:
+        except (json.JSONDecodeError, Exception):
             pass
         
         return None
