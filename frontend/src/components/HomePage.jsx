@@ -208,14 +208,16 @@ const HomePage = () => {
           </div>
 
           {/* Test Error Button for Sentry */}
-          <div className="mt-8">
-            <button 
-              onClick={() => {throw new Error("Test error!");}}
-              className="bg-red-600 text-white px-6 py-3 rounded-full text-sm font-semibold hover:bg-red-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
-            >
-              Test Sentry
-            </button>
-          </div>
+          {import.meta.env.MODE !== 'production' && (
+            <div className="mt-8">
+              <button 
+                onClick={() => {throw new Error("Test error!");}}
+                className="bg-red-600 text-white px-6 py-3 rounded-full text-sm font-semibold hover:bg-red-700 transition-all duration-300 transform hover:scale-105 shadow-lg"
+              >
+                Test Sentry
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
