@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Body, Depends
-from db import get_db
+from db import get_db, db_pool  # db_pool is initialized in main.py via set_db_pool()
 import uuid
 import logging
 from typing import Optional
@@ -405,8 +405,6 @@ async def get_prokerala_cost_analysis(
                 "error": "Prokerala smart service not available"
             }
         
-        # Import db module to access the pool
-        from db import db_pool
         if not db_pool:
             return {
                 "success": False,
@@ -433,13 +431,16 @@ async def update_prokerala_config(
 ):
     """Update Prokerala cost configuration"""
     try:
+        # Use INSERT ON CONFLICT to handle both insert and update cases
         await db.execute("""
-            UPDATE prokerala_cost_config 
-            SET max_cost_per_call = $1, 
-                margin_percentage = $2,
-                cache_discount_enabled = $3,
+            INSERT INTO prokerala_cost_config 
+            (id, max_cost_per_call, margin_percentage, cache_discount_enabled, last_updated)
+            VALUES (1, $1, $2, $3, NOW())
+            ON CONFLICT (id) DO UPDATE SET 
+                max_cost_per_call = EXCLUDED.max_cost_per_call,
+                margin_percentage = EXCLUDED.margin_percentage,
+                cache_discount_enabled = EXCLUDED.cache_discount_enabled,
                 last_updated = NOW()
-            WHERE id = (SELECT id FROM prokerala_cost_config ORDER BY last_updated DESC LIMIT 1)
         """, 
         config.get('max_cost_per_call', 0.036),
         config.get('margin_percentage', 500),

@@ -396,7 +396,7 @@ const AdminPricingDashboard = () => {
             </div>
           ) : (
             <div className="space-y-4">
-              {recommendations.map((rec, index) => (
+              {recommendations?.map((rec, index) => (
                 <div key={index} className="bg-white p-6 rounded-lg shadow border">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
@@ -505,7 +505,7 @@ const AdminPricingDashboard = () => {
 
           {/* Satsang Events */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {satsangEvents.map((event, index) => (
+            {satsangEvents?.map((event, index) => (
               <div key={index} className="bg-white p-6 rounded-lg shadow border">
                 <div className="flex justify-between items-start mb-4">
                   <div>
@@ -604,7 +604,7 @@ const AdminPricingDashboard = () => {
             <div className="bg-white p-6 rounded-lg shadow border">
               <h4 className="text-md font-semibold text-gray-900 mb-4">Service Performance</h4>
               <div className="space-y-3">
-                {recommendations.slice(0, 5).map((rec, index) => (
+                {recommendations?.slice(0, 5).map((rec, index) => (
                   <div key={index} className="flex justify-between items-center">
                     <span className="text-sm text-gray-700">{rec.display_name}</span>
                     <span className="text-sm font-medium text-purple-600">
@@ -711,7 +711,7 @@ const AdminPricingDashboard = () => {
                  </button>
                </div>
                
-               {services && services.map(service => (
+               {services?.map(service => (
                  <div key={service.id} className="border-l-4 border-purple-500 pl-4">
                    <div className="flex justify-between items-start">
                      <div>
