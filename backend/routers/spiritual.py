@@ -553,20 +553,30 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        # Convert user_id to integer if needed for database queries
+        # Convert user_id to integer for validation
         try:
             user_id_int = int(user_id)
         except (ValueError, TypeError):
-            user_id_int = None
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
         
-        # Get user's sessions
+        # SECURITY FIX: Verify user is accessing their own data or is admin
+        # Get current user's ID from database
+        current_user = await db.fetchrow("SELECT id, email, role FROM users WHERE email = $1", user_email)
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Check authorization: user can only access their own data unless admin
+        if current_user["id"] != user_id_int and current_user["role"] not in ["admin", "super_admin"]:
+            raise HTTPException(status_code=403, detail="Access denied - you can only view your own spiritual progress")
+        
+        # Get user's sessions using user_id for proper filtering
         sessions = await db.fetch("""
             SELECT s.*, st.name as service_name, st.credits_required
             FROM sessions s
             LEFT JOIN service_types st ON s.service_type_id = st.id
-            WHERE s.user_email = $1
+            WHERE s.user_id = $1
             ORDER BY s.created_at DESC
-        """, user_email)
+        """, user_id_int)
         
         # Calculate spiritual progress metrics
         total_sessions = len(sessions)
