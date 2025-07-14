@@ -240,7 +240,8 @@ async def _get_personalized_services(user_id: str, db) -> list:
         
         # Get smart pricing for each service
         # Import db module to access the pool
-        from db import db_pool
+        from db import get_db_pool
+        db_pool = get_db_pool()
         if not db_pool:
             # Fallback to basic service data if pool not available
             return [

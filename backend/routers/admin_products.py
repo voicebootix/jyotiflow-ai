@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Body, Depends
-from db import get_db, db_pool  # db_pool is initialized in main.py via set_db_pool()
+from db import get_db, get_db_pool  # get_db_pool() returns current pool state
 import uuid
 import logging
 from typing import Optional
@@ -405,6 +405,7 @@ async def get_prokerala_cost_analysis(
                 "error": "Prokerala smart service not available"
             }
         
+        db_pool = get_db_pool()
         if not db_pool:
             return {
                 "success": False,

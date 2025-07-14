@@ -23,6 +23,7 @@ async def run_auto_deployment_migrations():
         logger.error("❌ DATABASE_URL environment variable not set")
         return False
     
+    conn = None
     try:
         conn = await asyncpg.connect(DATABASE_URL)
         logger.info("🚀 Starting auto-deployment migrations...")
@@ -114,10 +115,30 @@ async def run_auto_deployment_migrations():
                                 in_string = True
                                 string_char = char
                             elif char == string_char and in_string:
-                                # Check for escaped quotes
-                                if i > 0 and migration_sql[i - 1] == '\\':
+                                # Handle escaped quotes properly
+                                next_char = migration_sql[i + 1] if i + 1 < len(migration_sql) else None
+                                
+                                # SQL standard: doubled quotes ('') escape the quote
+                                if next_char == string_char:
+                                    # Doubled quote - skip both characters and stay in string
+                                    current_statement += char
+                                    i += 1
+                                    current_statement += migration_sql[i]
+                                    i += 1
+                                    continue
+                                
+                                # Backslash escapes: count consecutive backslashes
+                                backslash_count = 0
+                                check_pos = i - 1
+                                while check_pos >= 0 and migration_sql[check_pos] == '\\':
+                                    backslash_count += 1
+                                    check_pos -= 1
+                                
+                                # If odd number of backslashes, quote is escaped
+                                if backslash_count % 2 == 1:
                                     pass  # Escaped quote, stay in string
                                 else:
+                                    # Not escaped, end of string
                                     in_string = False
                                     string_char = None
                             elif char == ';' and not in_string:
@@ -172,13 +193,15 @@ async def run_auto_deployment_migrations():
         # 5. Ensure Prokerala configuration exists
         await ensure_prokerala_config(conn)
         
-        await conn.close()
         logger.info("🎉 Auto-deployment migrations completed!")
         return True
         
     except Exception as e:
         logger.error(f"❌ Auto-deployment migration failed: {e}")
         return False
+    finally:
+        if conn:
+            await conn.close()
 
 async def ensure_basic_service_types(conn):
     """Ensure basic service types exist"""
