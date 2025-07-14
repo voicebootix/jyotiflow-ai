@@ -27,7 +27,7 @@ const MarketingAgentChat = () => {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || loading) return;
     
     const userMsg = { sender: 'user', text: input };
     setMessages(prev => [...prev, userMsg]);

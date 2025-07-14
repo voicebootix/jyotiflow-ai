@@ -8,8 +8,10 @@ import os
 # Security scheme for JWT tokens
 security_scheme = HTTPBearer()
 
-# JWT configuration - SECURITY FIX: Use environment variable
-JWT_SECRET_KEY = os.getenv("JWT_SECRET", "super-secret-jwt-key-for-jyotiflow-ai-marketing-director-2024")
+# JWT configuration - SECURITY FIX: Require environment variable
+JWT_SECRET_KEY = os.getenv("JWT_SECRET")
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
 JWT_ALGORITHM = "HS256"
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> Dict[str, Any]:
@@ -87,11 +89,9 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 async def get_admin_user(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """
-    Verify that current user is an admin - SIMPLIFIED VERSION
+    Verify that current user is an admin
     """
-    # For now, we'll accept any authenticated user as admin for the AI Marketing Director
-    # In a production system, you'd check the user's role from a database
-    user_role = current_user.get("role", "admin")  # Default to admin for testing
+    user_role = current_user.get("role")
     
     if user_role != "admin":
         raise HTTPException(
