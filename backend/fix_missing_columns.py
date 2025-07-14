@@ -15,6 +15,7 @@ import asyncio
 import asyncpg
 import os
 import logging
+import time
 from pathlib import Path
 
 # Setup logging
@@ -35,14 +36,46 @@ class MissingColumnsFixup:
                 "Please set it to your PostgreSQL connection string."
             )
         
+    async def _connect_with_retry(self, max_retries=3, timeout=30):
+        """Connect to database with retry logic and timeout"""
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"� Connecting to database (attempt {attempt + 1}/{max_retries})...")
+                
+                # Connect with timeout
+                conn = await asyncio.wait_for(
+                    asyncpg.connect(self.database_url), 
+                    timeout=timeout
+                )
+                
+                logger.info("✅ Connected to database successfully")
+                return conn
+                
+            except asyncio.TimeoutError:
+                logger.warning(f"⏱️  Database connection timeout (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    
+            except asyncpg.PostgresError as e:
+                logger.error(f"🔴 Database connection error: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                    
+            except Exception as e:
+                logger.error(f"❌ Unexpected connection error: {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(2 ** attempt)  # Exponential backoff
+        
+        raise Exception(f"Failed to connect to database after {max_retries} attempts")
+
     async def run_migration(self):
         """Run the missing columns fix migration"""
         logger.info("🚀 Starting missing columns fix migration...")
         
+        conn = None
         try:
-            # Connect to database
-            conn = await asyncpg.connect(self.database_url)
-            logger.info("✅ Connected to database")
+            # Connect to database with retry logic
+            conn = await self._connect_with_retry()
             
             # Read migration file
             migration_path = Path(__file__).parent / "migrations" / "fix_missing_columns.sql"
@@ -54,17 +87,17 @@ class MissingColumnsFixup:
             with open(migration_path, 'r') as f:
                 migration_sql = f.read()
                 
-            logger.info("📋 Executing migration...")
+            logger.info("📋 Executing migration with transaction control...")
             
-            # Execute migration
-            await conn.execute(migration_sql)
+            # Execute migration within explicit transaction
+            async with conn.transaction():
+                await conn.execute(migration_sql)
             
             logger.info("✅ Migration completed successfully!")
             
             # Verify the fixes
             await self._verify_fixes(conn)
             
-            await conn.close()
             return True
             
         except Exception as e:
@@ -72,6 +105,11 @@ class MissingColumnsFixup:
             import traceback
             traceback.print_exc()
             return False
+            
+        finally:
+            if conn:
+                await conn.close()
+                logger.info("🔌 Database connection closed")
     
     async def _verify_fixes(self, conn):
         """Verify that the fixes have been applied correctly"""
@@ -201,9 +239,10 @@ class MissingColumnsFixup:
         """Check the current state of the database without making changes"""
         logger.info("🔍 Checking current database state...")
         
+        conn = None
         try:
-            conn = await asyncpg.connect(self.database_url)
-            logger.info("✅ Connected to database")
+            # Connect to database with retry logic
+            conn = await self._connect_with_retry()
             
             # List all tables
             tables = await conn.fetch("""
@@ -243,12 +282,16 @@ class MissingColumnsFixup:
                 for col in columns:
                     logger.info(f"  - {col['column_name']}: {col['data_type']} (nullable: {col['is_nullable']})")
             
-            await conn.close()
             return True
             
         except Exception as e:
             logger.error(f"❌ Database check failed: {e}")
             return False
+            
+        finally:
+            if conn:
+                await conn.close()
+                logger.info("🔌 Database connection closed")
 
 async def main():
     """Main function"""

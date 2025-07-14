@@ -251,7 +251,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'donation_transactions') THEN
         RAISE NOTICE '❌ donation_transactions table does not exist. Creating it now...';
         
-        -- Create donation_transactions table with all foreign key references
+        -- Create donation_transactions table with foreign key references (session_id constraint added conditionally later)
         CREATE TABLE donation_transactions (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             user_id INTEGER REFERENCES users(id),
@@ -263,7 +263,7 @@ BEGIN
             stripe_session_id VARCHAR(255),
             status VARCHAR(20) DEFAULT 'pending', -- 'pending', 'completed', 'failed', 'refunded'
             transaction_type VARCHAR(50) DEFAULT 'donation', -- 'donation', 'offering', 'super_chat'
-            session_id UUID REFERENCES sessions(id), -- Optional: link to spiritual session
+            session_id UUID, -- Optional: link to spiritual session (foreign key added conditionally)
             message TEXT, -- Optional: message for super chat donations
             metadata JSONB DEFAULT '{}'::jsonb, -- Additional transaction data
             created_at TIMESTAMP DEFAULT NOW(),
@@ -277,6 +277,16 @@ BEGIN
         CREATE INDEX idx_donation_transactions_status ON donation_transactions(status);
         CREATE INDEX idx_donation_transactions_created ON donation_transactions(created_at DESC);
         CREATE INDEX idx_donation_transactions_stripe_payment_intent ON donation_transactions(stripe_payment_intent_id);
+        
+        -- Add session_id foreign key constraint conditionally if sessions table exists
+        IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sessions') THEN
+            ALTER TABLE donation_transactions 
+            ADD CONSTRAINT fk_donation_transactions_session_id 
+            FOREIGN KEY (session_id) REFERENCES sessions(id);
+            RAISE NOTICE '✅ Added session_id foreign key constraint to donation_transactions';
+        ELSE
+            RAISE NOTICE '⚠️  sessions table does not exist - skipping session_id foreign key constraint';
+        END IF;
         
         RAISE NOTICE '✅ Created donation_transactions table with all required columns and indexes';
     ELSE
@@ -293,6 +303,33 @@ BEGIN
                 RAISE NOTICE '✅ Added user_id column to donation_transactions table';
             ELSE
                 RAISE NOTICE '⚠️  Cannot add user_id column: users table does not exist';
+            END IF;
+        END IF;
+        
+        -- Check if session_id column exists and add foreign key constraint conditionally
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'donation_transactions' AND column_name = 'session_id'
+        ) THEN
+            -- Add session_id column first
+            ALTER TABLE donation_transactions ADD COLUMN session_id UUID;
+            RAISE NOTICE '✅ Added session_id column to donation_transactions table';
+        END IF;
+        
+        -- Check if session_id foreign key constraint exists
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.table_constraints 
+            WHERE table_name = 'donation_transactions' 
+            AND constraint_name = 'fk_donation_transactions_session_id'
+        ) THEN
+            -- Only add foreign key if sessions table exists
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'sessions') THEN
+                ALTER TABLE donation_transactions 
+                ADD CONSTRAINT fk_donation_transactions_session_id 
+                FOREIGN KEY (session_id) REFERENCES sessions(id);
+                RAISE NOTICE '✅ Added session_id foreign key constraint to existing donation_transactions table';
+            ELSE
+                RAISE NOTICE '⚠️  sessions table does not exist - skipping session_id foreign key constraint';
             END IF;
         END IF;
     END IF;

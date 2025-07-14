@@ -115,7 +115,7 @@ cd backend
 export DATABASE_URL="postgresql://username:password@host:port/database"
 
 # Install dependencies if needed
-pip install asyncpg
+python3 -m pip install asyncpg
 
 # Check current database state (optional)
 python3 fix_missing_columns.py check
@@ -267,6 +267,9 @@ LIMIT 5;
 2. **Table Existence Checks**: Added checks for `users`, `sessions`, and `donations` tables before creating `donation_transactions`
 3. **Credential Security**: Removed hardcoded database URL, now requires `DATABASE_URL` environment variable
 4. **Transaction Management**: Removed trailing COMMIT statement that was causing errors
+5. **Connection Reliability**: Added timeout and retry logic for database connections with exponential backoff
+6. **Package Installation**: Fixed pip command to use `python3 -m pip` for proper environment installation
+7. **Optional Foreign Keys**: Made session_id foreign key constraint optional to prevent errors when sessions table is missing
 
 ## 🔄 Rollback Instructions
 

@@ -35,10 +35,10 @@ echo ""
 # Check for asyncpg
 if ! python3 -c "import asyncpg" 2>/dev/null; then
     echo "📦 Installing asyncpg..."
-    pip3 install asyncpg
+    python3 -m pip install asyncpg
     if [ $? -ne 0 ]; then
         echo "❌ Error: Failed to install asyncpg."
-        echo "Please install it manually: pip3 install asyncpg"
+        echo "Please install it manually: python3 -m pip install asyncpg"
         exit 1
     fi
     echo "✅ asyncpg installed successfully"
