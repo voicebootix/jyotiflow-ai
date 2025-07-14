@@ -79,12 +79,12 @@ class KnowledgeSeeder:
                                     ADD COLUMN content_type VARCHAR(50) NOT NULL DEFAULT 'knowledge'
                                 """)
                                 logger.info("✅ content_type column added to rag_knowledge_base")
+                            
+                            logger.info("✅ Database table validated successfully")
                 except asyncio.TimeoutError:
                     logger.warning("⚠️ Database connection timed out during validation, proceeding with fallback seeding")
                 except Exception as e:
                     logger.error(f"❌ Database validation failed: {e}, proceeding with fallback seeding")
-                    
-                    logger.info("✅ Database table validated successfully")
             
             # Test OpenAI API if available
             if self.openai_client and OPENAI_AVAILABLE:

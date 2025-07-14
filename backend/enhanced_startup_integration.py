@@ -425,15 +425,39 @@ class EnhancedJyotiFlowStartup:
             "openai_configured": bool(os.getenv("OPENAI_API_KEY"))
         }
 
+# Global instance for maintaining system state
+_enhanced_startup_instance = None
+
 async def initialize_enhanced_jyotiflow():
     """Initialize the enhanced JyotiFlow system"""
-    startup = EnhancedJyotiFlowStartup()
-    await startup.initialize_enhanced_system()
-    return startup
+    global _enhanced_startup_instance
+    _enhanced_startup_instance = EnhancedJyotiFlowStartup()
+    await _enhanced_startup_instance.initialize_enhanced_system()
+    return _enhanced_startup_instance
 
 def get_enhancement_status():
-    """Get current enhancement status"""
+    """Get current enhancement status with real-time system information"""
+    global _enhanced_startup_instance
+    
+    if _enhanced_startup_instance is None:
+        return {
+            "enhanced_system_available": False,
+            "knowledge_base_seeded": False,
+            "rag_system_initialized": False,
+            "database_configured": False,
+            "openai_configured": bool(os.getenv("OPENAI_API_KEY")),
+            "system_ready": False,
+            "version": "2.0.0-robust"
+        }
+    
+    # Return dynamic system status matching the original API contract
+    base_status = _enhanced_startup_instance.get_system_status()
     return {
         "enhanced_system_available": True,
+        "knowledge_base_seeded": base_status.get("knowledge_seeded", False),
+        "rag_system_initialized": base_status.get("rag_initialized", False),
+        "database_configured": base_status.get("database_configured", False),
+        "openai_configured": base_status.get("openai_configured", False),
+        "system_ready": (base_status.get("knowledge_seeded", False) and base_status.get("rag_initialized", False)),
         "version": "2.0.0-robust"
     }
