@@ -1,29 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from db import get_db
-import jwt
 import os
 from datetime import datetime, timezone
 import uuid
 from typing import Dict, Any
 
+# Import centralized JWT handler
+from auth.jwt_config import JWTHandler
+
 router = APIRouter(prefix="/api/user", tags=["User"])
 
-# SECURITY FIX: Remove hardcoded fallback
-JWT_SECRET = os.getenv("JWT_SECRET")
-if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
-JWT_ALGORITHM = "HS256"
-
-def get_user_id_from_token(request: Request) -> str:
+def get_user_id_from_token(request: Request) -> str | None:
     """Extract user ID from JWT token - OPTIONAL"""
     try:
-        auth = request.headers.get("Authorization")
-        if not auth or not auth.startswith("Bearer "):
-            return None
-        token = auth.split(" ")[1]
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        # SURGICAL FIX: Use 'sub' field to match livechat and deps.py
-        return payload.get("sub") or payload.get("user_id")
+        return JWTHandler.get_user_id_from_token(request)
     except Exception:
         return None
 
