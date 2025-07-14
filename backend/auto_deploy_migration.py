@@ -62,8 +62,78 @@ async def run_auto_deployment_migrations():
                         with open(migration_file, 'r') as f:
                             migration_sql = f.read()
                         
-                        # Split by semicolons and execute each statement
-                        statements = [s.strip() for s in migration_sql.split(';') if s.strip()]
+                        # Split SQL statements safely, handling semicolons in strings and comments
+                        statements = []
+                        current_statement = ""
+                        in_string = False
+                        string_char = None
+                        in_comment = False
+                        i = 0
+                        
+                        while i < len(migration_sql):
+                            char = migration_sql[i]
+                            
+                            # Handle single-line comments (-- comment)
+                            if not in_string and not in_comment and char == '-' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '-':
+                                in_comment = True
+                                current_statement += char
+                                i += 1
+                                continue
+                            
+                            # Handle multi-line comments (/* comment */)
+                            if not in_string and not in_comment and char == '/' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '*':
+                                in_comment = True
+                                current_statement += char
+                                i += 1
+                                continue
+                                
+                            # End of single-line comment
+                            if in_comment and char == '\n':
+                                in_comment = False
+                                current_statement += char
+                                i += 1
+                                continue
+                                
+                            # End of multi-line comment
+                            if in_comment and char == '*' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '/':
+                                in_comment = False
+                                current_statement += char
+                                i += 1
+                                current_statement += migration_sql[i]
+                                i += 1
+                                continue
+                            
+                            # Skip processing if we're in a comment
+                            if in_comment:
+                                current_statement += char
+                                i += 1
+                                continue
+                            
+                            # Handle string literals
+                            if char in ("'", '"') and not in_string:
+                                in_string = True
+                                string_char = char
+                            elif char == string_char and in_string:
+                                # Check for escaped quotes
+                                if i > 0 and migration_sql[i - 1] == '\\':
+                                    pass  # Escaped quote, stay in string
+                                else:
+                                    in_string = False
+                                    string_char = None
+                            elif char == ';' and not in_string:
+                                # End of statement
+                                if current_statement.strip():
+                                    statements.append(current_statement.strip())
+                                current_statement = ""
+                                i += 1
+                                continue
+                            
+                            current_statement += char
+                            i += 1
+                        
+                        # Add the last statement if it exists
+                        if current_statement.strip():
+                            statements.append(current_statement.strip())
                         
                         for i, statement in enumerate(statements):
                             try:

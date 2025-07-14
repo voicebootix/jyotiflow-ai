@@ -246,7 +246,7 @@ async def _get_personalized_services(user_id: str, db) -> list:
             return [
                 {
                     "id": service['id'],
-                    "name": service['name'],
+                    "name": service['display_name'] or service['name'],
                     "description": service['description'],
                     "credits": service['credits_required'],
                     "duration": service['duration_minutes'],
