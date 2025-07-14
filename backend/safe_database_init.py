@@ -424,11 +424,11 @@ class SafeDatabaseInitializer:
                         await conn.execute("""
                             UPDATE rag_knowledge_base 
                             SET content_type = CASE 
-                                WHEN title LIKE '%meditation%' OR content LIKE '%meditation%' THEN 'meditation'
-                                WHEN title LIKE '%ritual%' OR content LIKE '%ritual%' THEN 'ritual'
-                                WHEN title LIKE '%astrology%' OR content LIKE '%astrology%' THEN 'astrology'
-                                WHEN title LIKE '%psychology%' OR content LIKE '%psychology%' THEN 'psychology'
-                                WHEN title LIKE '%spiritual%' OR content LIKE '%spiritual%' THEN 'spiritual'
+                                WHEN title ILIKE '%meditation%' OR content ILIKE '%meditation%' THEN 'meditation'
+                                WHEN title ILIKE '%ritual%' OR content ILIKE '%ritual%' THEN 'ritual'
+                                WHEN title ILIKE '%astrology%' OR content ILIKE '%astrology%' THEN 'astrology'
+                                WHEN title ILIKE '%psychology%' OR content ILIKE '%psychology%' THEN 'psychology'
+                                WHEN title ILIKE '%spiritual%' OR content ILIKE '%spiritual%' THEN 'spiritual'
                                 ELSE 'knowledge'
                             END
                             WHERE content_type = 'knowledge'
