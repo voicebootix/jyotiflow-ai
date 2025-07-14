@@ -8,8 +8,10 @@ import os
 # Security scheme for JWT tokens
 security_scheme = HTTPBearer()
 
-# JWT configuration - SURGICAL FIX: Use consistent environment variable
-JWT_SECRET_KEY = os.getenv("JWT_SECRET", "1cdc8d78417b8fc61716ccc3d5e169cc")
+# JWT configuration - SECURITY FIX: Remove hardcoded fallback
+JWT_SECRET_KEY = os.getenv("JWT_SECRET")
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
 JWT_ALGORITHM = "HS256"
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> Dict[str, Any]:

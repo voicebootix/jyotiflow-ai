@@ -6,8 +6,10 @@ import jwt
 import os
 from datetime import datetime, timedelta
 
-# தமிழ் - ரகசியம் (SECRET)
-JWT_SECRET = os.getenv("JWT_SECRET", "jyotiflow_secret")
+# தமிழ் - ரகசியம் (SECRET) - SECURITY FIX: Remove hardcoded fallback
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_MINUTES = 60 * 24
 
