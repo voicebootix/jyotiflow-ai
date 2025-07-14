@@ -6,33 +6,22 @@ import openai
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 from services.birth_chart_cache_service import BirthChartCacheService
-import jwt
 import uuid
 import logging
+
+# Import centralized JWT handler
+from auth.jwt_config import JWTHandler
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
-# SECURITY FIX: Remove hardcoded fallback
-JWT_SECRET_KEY = os.getenv("JWT_SECRET")
-if not JWT_SECRET_KEY:
-    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
-JWT_ALGORITHM = "HS256"
-
 # --- Helper function to extract user email from JWT token (OPTIONAL) ---
-def extract_user_email_from_token(request: Request) -> str:
+def extract_user_email_from_token(request: Request) -> str | None:
     """Extract user email from JWT token in Authorization header - OPTIONAL"""
     try:
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return None
-        
-        token = auth_header.split(" ")[1]
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        user_email = payload.get("email")
-        return user_email
+        return JWTHandler.get_user_email_from_token(request)
     except:
         return None
 
