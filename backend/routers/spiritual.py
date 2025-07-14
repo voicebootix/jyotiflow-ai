@@ -552,11 +552,16 @@ async def get_spiritual_progress(user_id: str, request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
+        # Convert user_id to integer if needed for database queries
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            user_id_int = None
+        
         # Connect to database to get user sessions and progress
         from db import get_db
         
-        db_connection = get_db()
-        db = await db_connection.__anext__()
+        db = await get_db()
         
         # Get user's sessions
         sessions = await db.fetch("""
