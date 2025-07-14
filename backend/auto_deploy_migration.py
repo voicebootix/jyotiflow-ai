@@ -15,6 +15,113 @@ from pathlib import Path
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def parse_sql_statements(migration_sql: str) -> list:
+    """
+    Parse SQL migration file into individual statements, handling:
+    - String literals with escaped quotes
+    - SQL comments (single-line -- and multi-line /* */)
+    - Semicolons within strings and comments
+    
+    Args:
+        migration_sql: Raw SQL content from migration file
+        
+    Returns:
+        List of parsed SQL statements
+    """
+    statements = []
+    current_statement = ""
+    in_string = False
+    string_char = None
+    in_comment = False
+    i = 0
+    
+    while i < len(migration_sql):
+        char = migration_sql[i]
+        
+        # Handle single-line comments (-- comment)
+        if not in_string and not in_comment and char == '-' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '-':
+            in_comment = True
+            current_statement += char
+            i += 1
+            continue
+        
+        # Handle multi-line comments (/* comment */)
+        if not in_string and not in_comment and char == '/' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '*':
+            in_comment = True
+            current_statement += char
+            i += 1
+            continue
+            
+        # End of single-line comment
+        if in_comment and char == '\n':
+            in_comment = False
+            current_statement += char
+            i += 1
+            continue
+            
+        # End of multi-line comment
+        if in_comment and char == '*' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '/':
+            in_comment = False
+            current_statement += char
+            i += 1
+            current_statement += migration_sql[i]
+            i += 1
+            continue
+        
+        # Skip processing if we're in a comment
+        if in_comment:
+            current_statement += char
+            i += 1
+            continue
+        
+        # Handle string literals
+        if char in ("'", '"') and not in_string:
+            in_string = True
+            string_char = char
+        elif char == string_char and in_string:
+            # Handle escaped quotes properly
+            next_char = migration_sql[i + 1] if i + 1 < len(migration_sql) else None
+            
+            # SQL standard: doubled quotes ('') escape the quote
+            if next_char == string_char:
+                # Doubled quote - skip both characters and stay in string
+                current_statement += char
+                i += 1
+                current_statement += migration_sql[i]
+                i += 1
+                continue
+            
+            # Backslash escapes: count consecutive backslashes
+            backslash_count = 0
+            check_pos = i - 1
+            while check_pos >= 0 and migration_sql[check_pos] == '\\':
+                backslash_count += 1
+                check_pos -= 1
+            
+            # If odd number of backslashes, quote is escaped
+            if backslash_count % 2 == 1:
+                pass  # Escaped quote, stay in string
+            else:
+                # Not escaped, end of string
+                in_string = False
+                string_char = None
+        elif char == ';' and not in_string:
+            # End of statement
+            if current_statement.strip():
+                statements.append(current_statement.strip())
+            current_statement = ""
+            i += 1
+            continue
+        
+        current_statement += char
+        i += 1
+    
+    # Add the last statement if it exists
+    if current_statement.strip():
+        statements.append(current_statement.strip())
+    
+    return statements
+
 async def run_auto_deployment_migrations():
     """Run all necessary migrations for deployment"""
     
@@ -26,7 +133,7 @@ async def run_auto_deployment_migrations():
     conn = None
     try:
         conn = await asyncpg.connect(DATABASE_URL)
-        logger.info("� Database connection established")
+        logger.info("📡 Database connection established")
         
         # Validate database connection and permissions
         try:
@@ -49,9 +156,9 @@ async def run_auto_deployment_migrations():
         except Exception as e:
             logger.error(f"❌ Database validation failed: {e}")
             logger.error("💡 Please ensure the database user has CREATE, INSERT, UPDATE permissions")
-            raise RuntimeError(f"Database validation failed: {e}")
+            raise RuntimeError(f"Database validation failed: {e}") from e
         
-        logger.info("� Starting auto-deployment migrations...")
+        logger.info("🚀 Starting auto-deployment migrations...")
         
         # 1. Ensure migrations tracking table exists
         await conn.execute("""
@@ -88,98 +195,8 @@ async def run_auto_deployment_migrations():
                         with open(migration_file, 'r') as f:
                             migration_sql = f.read()
                         
-                        # Split SQL statements safely, handling semicolons in strings and comments
-                        statements = []
-                        current_statement = ""
-                        in_string = False
-                        string_char = None
-                        in_comment = False
-                        i = 0
-                        
-                        while i < len(migration_sql):
-                            char = migration_sql[i]
-                            
-                            # Handle single-line comments (-- comment)
-                            if not in_string and not in_comment and char == '-' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '-':
-                                in_comment = True
-                                current_statement += char
-                                i += 1
-                                continue
-                            
-                            # Handle multi-line comments (/* comment */)
-                            if not in_string and not in_comment and char == '/' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '*':
-                                in_comment = True
-                                current_statement += char
-                                i += 1
-                                continue
-                                
-                            # End of single-line comment
-                            if in_comment and char == '\n':
-                                in_comment = False
-                                current_statement += char
-                                i += 1
-                                continue
-                                
-                            # End of multi-line comment
-                            if in_comment and char == '*' and i + 1 < len(migration_sql) and migration_sql[i + 1] == '/':
-                                in_comment = False
-                                current_statement += char
-                                i += 1
-                                current_statement += migration_sql[i]
-                                i += 1
-                                continue
-                            
-                            # Skip processing if we're in a comment
-                            if in_comment:
-                                current_statement += char
-                                i += 1
-                                continue
-                            
-                            # Handle string literals
-                            if char in ("'", '"') and not in_string:
-                                in_string = True
-                                string_char = char
-                            elif char == string_char and in_string:
-                                # Handle escaped quotes properly
-                                next_char = migration_sql[i + 1] if i + 1 < len(migration_sql) else None
-                                
-                                # SQL standard: doubled quotes ('') escape the quote
-                                if next_char == string_char:
-                                    # Doubled quote - skip both characters and stay in string
-                                    current_statement += char
-                                    i += 1
-                                    current_statement += migration_sql[i]
-                                    i += 1
-                                    continue
-                                
-                                # Backslash escapes: count consecutive backslashes
-                                backslash_count = 0
-                                check_pos = i - 1
-                                while check_pos >= 0 and migration_sql[check_pos] == '\\':
-                                    backslash_count += 1
-                                    check_pos -= 1
-                                
-                                # If odd number of backslashes, quote is escaped
-                                if backslash_count % 2 == 1:
-                                    pass  # Escaped quote, stay in string
-                                else:
-                                    # Not escaped, end of string
-                                    in_string = False
-                                    string_char = None
-                            elif char == ';' and not in_string:
-                                # End of statement
-                                if current_statement.strip():
-                                    statements.append(current_statement.strip())
-                                current_statement = ""
-                                i += 1
-                                continue
-                            
-                            current_statement += char
-                            i += 1
-                        
-                        # Add the last statement if it exists
-                        if current_statement.strip():
-                            statements.append(current_statement.strip())
+                        # Parse SQL statements using extracted function
+                        statements = parse_sql_statements(migration_sql)
                         
                         # Execute all statements within a transaction for atomicity
                         # This ensures either ALL statements succeed or ALL get rolled back
@@ -217,7 +234,7 @@ async def run_auto_deployment_migrations():
                         if migration_name in critical_migrations:
                             logger.error(f"🛑 Critical migration {migration_name} failed - stopping deployment")
                             logger.error(f"💡 Please fix the migration error before retrying deployment")
-                            raise RuntimeError(f"Critical migration failed: {migration_name} - {e}")
+                            raise RuntimeError(f"Critical migration failed: {migration_name} - {e}") from e
                         else:
                             # For non-critical migrations, log warning and continue
                             logger.warning(f"⚠️ Non-critical migration {migration_name} failed - continuing deployment")
@@ -299,28 +316,37 @@ async def ensure_basic_service_types(conn):
 async def ensure_prokerala_config(conn):
     """Ensure Prokerala configuration exists"""
     try:
-        # Check if prokerala_cost_config table exists and has data
-        try:
-            count = await conn.fetchval("SELECT COUNT(*) FROM prokerala_cost_config")
+        # Check if prokerala_cost_config table exists
+        table_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = 'prokerala_cost_config'
+            )
+        """)
+        
+        if not table_exists:
+            logger.warning("⚠️ prokerala_cost_config table does not exist - skipping configuration check")
+            return
+        
+        # Table exists, check if it has data
+        count = await conn.fetchval("SELECT COUNT(*) FROM prokerala_cost_config")
+        
+        if count == 0:
+            logger.info("⚙️ Creating default Prokerala configuration...")
             
-            if count == 0:
-                logger.info("⚙️ Creating default Prokerala configuration...")
-                
-                await conn.execute("""
-                    INSERT INTO prokerala_cost_config (max_cost_per_call, margin_percentage, cache_discount_enabled)
-                    VALUES (0.036, 500.00, TRUE)
-                """)
-                
-                logger.info("✅ Default Prokerala configuration created")
-            else:
-                logger.info("✅ Prokerala configuration already exists")
-                
-        except Exception as e:
-            # Table might not exist yet
-            logger.info(f"⚠️ Prokerala config table not ready: {e}")
+            await conn.execute("""
+                INSERT INTO prokerala_cost_config (max_cost_per_call, margin_percentage, cache_discount_enabled)
+                VALUES (0.036, 500.00, TRUE)
+            """)
+            
+            logger.info("✅ Default Prokerala configuration created")
+        else:
+            logger.info("✅ Prokerala configuration already exists")
             
     except Exception as e:
-        logger.warning(f"⚠️ Prokerala config check failed: {e}")
+        logger.error(f"❌ Unexpected error during Prokerala config check: {e}")
+        raise
 
 if __name__ == "__main__":
     success = asyncio.run(run_auto_deployment_migrations())
