@@ -1148,12 +1148,12 @@ async def startup():
                     await conn.execute("""
                         UPDATE service_types 
                         SET credits_required = CASE 
-                            WHEN name LIKE '%clarity%' THEN 3
-                            WHEN name LIKE '%love%' THEN 5
-                            WHEN name LIKE '%premium%' THEN 8
-                            WHEN name LIKE '%elite%' THEN 15
-                            WHEN name LIKE '%live%' THEN 10
-                            WHEN name LIKE '%avatar%' THEN 12
+                            WHEN name ILIKE '%clarity%' THEN 3
+                            WHEN name ILIKE '%love%' THEN 5
+                            WHEN name ILIKE '%premium%' THEN 8
+                            WHEN name ILIKE '%elite%' THEN 15
+                            WHEN name ILIKE '%live%' THEN 10
+                            WHEN name ILIKE '%avatar%' THEN 12
                             ELSE 5
                         END
                         WHERE credits_required = 5

@@ -99,7 +99,7 @@ async def verify_social_media_setup():
         # Check credentials
         rows = await conn.fetch("""
             SELECT key, value FROM platform_settings 
-            WHERE key LIKE '%_credentials' OR key = 'ai_model_config'
+            WHERE key ILIKE '%_credentials' OR key = 'ai_model_config'
             ORDER BY key
         """)
         
