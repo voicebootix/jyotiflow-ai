@@ -142,9 +142,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 1. Birth Details Endpoint
             try:
-                birth_details_response = await client.post(
+                birth_details_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/birth-details",
-                    json=base_params,
+                    params=base_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Birth details response: {birth_details_response.status_code}")
@@ -161,9 +161,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 2. Chart Visualization Endpoint (South Indian Style)
             try:
-                chart_response = await client.post(
+                chart_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/chart",
-                    json=chart_params,
+                    params=chart_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Chart visualization response: {chart_response.status_code}")
@@ -180,9 +180,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 3. Planetary Positions Endpoint
             try:
-                planets_response = await client.post(
+                planets_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/planet-positions",
-                    json=base_params,
+                    params=base_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Planetary positions response: {planets_response.status_code}")
@@ -363,23 +363,27 @@ async def get_spiritual_guidance(request: Request):
         logger.info(f"Processing request for date: {date}, time: {time_}, location: {location}")
 
         # --- Prokerala API call with token refresh logic ---
-        payload = {
+        # CRITICAL FIX: Use GET method with query parameters (not POST with JSON)
+        # BUG FIX: Use consistent coordinate format (coordinates string like other functions)
+        coordinates = f"{latitude},{longitude}"
+        params = {
             "datetime": f"{date}T{time_}:00+05:30",
-            "coordinates": f"{latitude},{longitude}",
-            "ayanamsa": "1"
+            "coordinates": coordinates,
+            "ayanamsa": "1",
+            "la": "en"  # Language parameter required by Prokerala API
         }
         
-        logger.info(f"Prokerala payload: {payload}")
+        logger.info(f"Prokerala params: {params}")
         
         for attempt in range(2):
             logger.info(f"Prokerala API attempt {attempt + 1}")
             token = await get_prokerala_token()
             try:
                 async with httpx.AsyncClient() as client:
-                    resp = await client.post(
+                    resp = await client.get(  # GET method instead of POST
                         "https://api.prokerala.com/v2/astrology/birth-details",
                         headers={"Authorization": f"Bearer {token}"},
-                        json=payload
+                        params=params  # Query parameters instead of JSON
                     )
                     logger.info(f"Prokerala response status: {resp.status_code}")
                     
@@ -553,30 +557,32 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        # Convert user_id to integer for validation
+        # SECURITY FIX: Verify user is accessing their own data or is admin
+        # Get current user's details from database
+        current_user = await db.fetchrow("SELECT id, email, role FROM users WHERE email = $1", user_email)
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Convert user_id to integer for validation (if needed for future use)
         try:
             user_id_int = int(user_id)
         except (ValueError, TypeError):
             raise HTTPException(status_code=400, detail="Invalid user ID format")
         
-        # SECURITY FIX: Verify user is accessing their own data or is admin
-        # Get current user's ID from database
-        current_user = await db.fetchrow("SELECT id, email, role FROM users WHERE email = $1", user_email)
-        if not current_user:
-            raise HTTPException(status_code=404, detail="User not found")
-        
         # Check authorization: user can only access their own data unless admin
+        # Since sessions table uses user_email, we validate that the requested user_id
+        # corresponds to the authenticated user's ID
         if current_user["id"] != user_id_int and current_user["role"] not in ["admin", "super_admin"]:
             raise HTTPException(status_code=403, detail="Access denied - you can only view your own spiritual progress")
         
-        # Get user's sessions using user_id for proper filtering
+        # Get user's sessions using user_email (correct foreign key)
         sessions = await db.fetch("""
             SELECT s.*, st.name as service_name, st.credits_required
             FROM sessions s
             LEFT JOIN service_types st ON s.service_type_id = st.id
-            WHERE s.user_id = $1
+            WHERE s.user_email = $1
             ORDER BY s.created_at DESC
-        """, user_id_int)
+        """, user_email)
         
         # Calculate spiritual progress metrics
         total_sessions = len(sessions)

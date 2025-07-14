@@ -12,6 +12,10 @@ def set_db_pool(pool):
     global db_pool
     db_pool = pool
 
+def get_db_pool():
+    """Get the current database pool"""
+    return db_pool
+
 async def get_db():
     """Get database connection from pool"""
     if db_pool is None:

@@ -85,17 +85,17 @@ async def test_spiritual_progress_security():
     print("-" * 40)
     
     try:
-        # Test sessions query with user_id
-        test_user_id = 1
+        # Test sessions query with user_email (correct foreign key)
+        test_user_email = "test@example.com"
         sessions = await conn.fetch("""
             SELECT s.*, st.name as service_name, st.credits_required
             FROM sessions s
             LEFT JOIN service_types st ON s.service_type_id = st.id
-            WHERE s.user_id = $1
+            WHERE s.user_email = $1
             ORDER BY s.created_at DESC
-        """, test_user_id)
+        """, test_user_email)
         
-        print(f"✅ Query executed successfully with user_id={test_user_id}")
+        print(f"✅ Query executed successfully with user_email={test_user_email}")
         print(f"   Found {len(sessions)} sessions")
         
         if sessions:
