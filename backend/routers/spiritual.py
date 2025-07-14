@@ -379,7 +379,8 @@ async def get_spiritual_guidance(request: Request):
         params = {
             "datetime": f"{date}T{time_}:00+05:30",
             "coordinates": coordinates,
-            "ayanamsa": "1"
+            "ayanamsa": "1",
+            "la": "en"  # Language parameter required by Prokerala API
         }
         
         logger.info(f"Prokerala params: {params}")

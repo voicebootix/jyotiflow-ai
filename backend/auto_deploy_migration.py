@@ -70,8 +70,14 @@ async def run_auto_deployment_migrations():
                                 await conn.execute(statement)
                                 logger.info(f"  ✅ Statement {i+1}/{len(statements)} executed")
                             except Exception as e:
-                                # Log warning but continue (many statements might be IF NOT EXISTS)
-                                logger.warning(f"  ⚠️ Statement {i+1} warning: {str(e)[:100]}")
+                                error_msg = str(e).lower()
+                                # Check if it's a critical error that should stop migration
+                                if any(critical in error_msg for critical in ['syntax error', 'permission denied', 'access denied', 'connection', 'authentication']):
+                                    logger.error(f"  ❌ Critical error in statement {i+1}: {str(e)[:100]}")
+                                    raise e
+                                else:
+                                    # Non-critical errors (IF NOT EXISTS, etc.)
+                                    logger.warning(f"  ⚠️ Statement {i+1} warning: {str(e)[:100]}")
                         
                         # Mark as applied
                         await conn.execute("""

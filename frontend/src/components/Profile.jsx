@@ -108,6 +108,11 @@ const Profile = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
       setCosmicInsights(data);
     } catch (error) {

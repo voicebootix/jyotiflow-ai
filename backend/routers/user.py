@@ -4,7 +4,7 @@ import jwt
 import os
 from datetime import datetime, timezone
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict
 import logging
 
 # Import the smart pricing service

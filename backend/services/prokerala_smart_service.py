@@ -89,14 +89,14 @@ class ProkeralaSmartService:
             # Calculate costs
             effective_api_cost = base_api_cost * (1 - cache_discount)
             
-            # Add other service costs
-            other_costs = {
-                "openai_gpt4": 0.09,  # ~2000 tokens
-                "rag_processing": 0.02,  # RAG knowledge retrieval
-                "server_compute": 0.01   # Server processing
-            }
+            # Add other service costs from configuration
+            from config.prokerala_costs import get_other_costs
+            other_costs = get_other_costs()
             
             # Add voice/video costs if enabled
+            from config.prokerala_costs import get_voice_video_costs
+            voice_video_costs = get_voice_video_costs()
+            
             service_features = await conn.fetchrow("""
                 SELECT avatar_video_enabled, live_chat_enabled, 
                        COALESCE(voice_enabled, false) as voice_enabled,
@@ -105,11 +105,11 @@ class ProkeralaSmartService:
             """, service_id)
             
             if service_features and service_features['voice_enabled']:
-                other_costs['elevenlabs_voice'] = 0.09  # ~500 chars
+                other_costs['elevenlabs_voice'] = voice_video_costs.get('voice_processing', 0.05)
             if service_features and service_features['video_enabled']:
-                other_costs['d_id_avatar'] = 0.10  # ~30 seconds
+                other_costs['d_id_avatar'] = voice_video_costs.get('video_processing', 0.08)
             if service_features and service_features['live_chat_enabled']:
-                other_costs['agora_live'] = 0.15  # ~15 minutes
+                other_costs['agora_live'] = voice_video_costs.get('live_chat_processing', 0.15)
             
             total_other_costs = sum(other_costs.values())
             total_cost = effective_api_cost + total_other_costs

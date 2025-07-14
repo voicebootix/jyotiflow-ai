@@ -20,6 +20,10 @@ const AdminPricingDashboard = () => {
   const [prokeralaCosts, setProkeralaCosts] = useState({});
   const [prokeralaConfig, setProkeralaConfig] = useState(null);
   const [services, setServices] = useState(null);
+  const [showEndpointModal, setShowEndpointModal] = useState(false);
+  const [modalService, setModalService] = useState(null);
+  const [modalEndpoints, setModalEndpoints] = useState([]);
+  const [modalCacheEffectiveness, setModalCacheEffectiveness] = useState(70);
 
   useEffect(() => {
     fetchPricingDashboard();
@@ -154,57 +158,47 @@ const AdminPricingDashboard = () => {
     }
   };
 
-  const configureServiceEndpoints = async (serviceId) => {
+  const configureServiceEndpoints = (serviceId) => {
     const service = services.find(s => s.id === serviceId);
     if (!service) return;
 
-    const endpointOptions = [
-      '/astrology/birth-details',
-      '/astrology/kundli/advanced', 
-      '/astrology/planet-position',
-      '/astrology/dasha-periods',
-      '/astrology/yoga',
-      '/astrology/nakshatra-porutham',
-      '/astrology/kundli-matching',
-      '/numerology/life-path-number',
-      '/numerology/destiny-number',
-      '/horoscope/daily',
-      '/astrology/auspicious-period',
-      '/astrology/birth-chart',
-      '/astrology/chart'
-    ];
+    setModalService(service);
+    setModalEndpoints(service.prokerala_endpoints || []);
+    setModalCacheEffectiveness(service.cache_effectiveness || 70);
+    setShowEndpointModal(true);
+  };
 
-    const currentEndpoints = service.prokerala_endpoints || [];
-    const selectedEndpoints = prompt(
-      `Configure endpoints for ${service.name}:\n\nAvailable endpoints:\n${endpointOptions.join('\n')}\n\nCurrent: ${currentEndpoints.join(', ')}\n\nEnter comma-separated endpoints:`,
-      currentEndpoints.join(', ')
-    );
+  const saveEndpointConfiguration = async () => {
+    if (!modalService) return;
 
-    if (selectedEndpoints !== null) {
-      const endpoints = selectedEndpoints.split(',').map(e => e.trim()).filter(e => e);
-      const apiCalls = endpoints.length;
-      const cacheRate = prompt('Cache effectiveness percentage (0-100):', service.cache_effectiveness || '70');
+    try {
+      const response = await fetch(`/api/admin/products/service-types/${modalService.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...modalService,
+          prokerala_endpoints: modalEndpoints,
+          estimated_api_calls: modalEndpoints.length,
+          cache_effectiveness: modalCacheEffectiveness
+        })
+      });
 
-      try {
-        const response = await fetch(`/api/admin/products/service-types/${serviceId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ...service,
-            prokerala_endpoints: endpoints,
-            estimated_api_calls: apiCalls,
-            cache_effectiveness: parseFloat(cacheRate) || 70
-          })
-        });
-
-        if (response.ok) {
-          alert('Service configuration updated successfully');
-          loadServicesForConfiguration();
-        }
-      } catch (error) {
-        console.error('Error updating service:', error);
+      if (response.ok) {
+        alert('Service configuration updated successfully');
+        loadServicesForConfiguration();
+        setShowEndpointModal(false);
       }
+    } catch (error) {
+      console.error('Error updating service:', error);
     }
+  };
+
+  const handleEndpointToggle = (endpoint) => {
+    setModalEndpoints(prev => 
+      prev.includes(endpoint) 
+        ? prev.filter(e => e !== endpoint)
+        : [...prev, endpoint]
+    );
   };
 
   const getUrgencyColor = (urgency) => {
@@ -833,6 +827,81 @@ const AdminPricingDashboard = () => {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Endpoint Configuration Modal */}
+      {showEndpointModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+            <h3 className="text-lg font-semibold mb-4">
+              Configure Endpoints for {modalService?.name}
+            </h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Select Endpoints:
+                </label>
+                <div className="max-h-40 overflow-y-auto border rounded-md p-2">
+                  {[
+                    '/astrology/birth-details',
+                    '/astrology/kundli/advanced', 
+                    '/astrology/planet-position',
+                    '/astrology/dasha-periods',
+                    '/astrology/yoga',
+                    '/astrology/nakshatra-porutham',
+                    '/astrology/kundli-matching',
+                    '/numerology/life-path-number',
+                    '/numerology/destiny-number',
+                    '/horoscope/daily',
+                    '/astrology/auspicious-period',
+                    '/astrology/birth-chart',
+                    '/astrology/chart'
+                  ].map(endpoint => (
+                    <label key={endpoint} className="flex items-center space-x-2 p-1">
+                      <input
+                        type="checkbox"
+                        checked={modalEndpoints.includes(endpoint)}
+                        onChange={() => handleEndpointToggle(endpoint)}
+                        className="rounded"
+                      />
+                      <span className="text-sm">{endpoint}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Cache Effectiveness (%):
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={modalCacheEffectiveness}
+                  onChange={(e) => setModalCacheEffectiveness(Number(e.target.value))}
+                  className="w-full border rounded-md px-3 py-2"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-4">
+                <button
+                  onClick={() => setShowEndpointModal(false)}
+                  className="px-4 py-2 text-gray-600 border rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveEndpointConfiguration}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                >
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         </div>
