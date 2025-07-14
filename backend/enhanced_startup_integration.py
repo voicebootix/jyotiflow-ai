@@ -500,8 +500,8 @@ async def initialize_enhanced_jyotiflow():
     """Initialize the enhanced JyotiFlow system"""
     global _enhanced_startup_instance
     _enhanced_startup_instance = EnhancedJyotiFlowStartup()
-    await _enhanced_startup_instance.initialize_enhanced_system()
-    return _enhanced_startup_instance
+    success = await _enhanced_startup_instance.initialize_enhanced_system()
+    return success
 
 def get_enhancement_status():
     """Get current enhancement status with real-time system information"""
