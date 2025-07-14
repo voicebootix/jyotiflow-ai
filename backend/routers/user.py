@@ -263,17 +263,23 @@ async def _get_personalized_services(user_id: str, db) -> list:
                 # Calculate personalized pricing
                 cost_analysis = await smart_service.calculate_service_cost(service['id'], user_id)
                 
-                special_offer = cost_analysis['pricing']['savings_from_cache'] > 0
+                # Safely access nested dictionary keys with defaults
+                pricing_data = cost_analysis.get('pricing', {})
+                savings_from_cache = pricing_data.get('savings_from_cache', 0)
+                suggested_credits = pricing_data.get('suggested_credits', service['credits_required'])
+                user_message = pricing_data.get('user_message', '')
+                
+                special_offer = savings_from_cache > 0
                 
                 result.append({
                     "id": service['id'],
                     "name": service['display_name'] or service['name'],
                     "description": service['description'],
                     "original_credits": service['credits_required'],
-                    "personalized_credits": cost_analysis['pricing']['suggested_credits'],
-                    "savings": int(cost_analysis['pricing']['savings_from_cache']),
+                    "personalized_credits": suggested_credits,
+                    "savings": int(savings_from_cache),
                     "special_offer": special_offer,
-                    "user_message": cost_analysis['pricing']['user_message'],
+                    "user_message": user_message,
                     "duration": service['duration_minutes']
                 })
                 
