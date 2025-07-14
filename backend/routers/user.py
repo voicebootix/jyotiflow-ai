@@ -52,7 +52,16 @@ async def get_profile(request: Request, db=Depends(get_db)):
     
     user_id_int = convert_user_id_to_int(user_id)
     if user_id_int is None:
-        return {"error": "Invalid user ID"}
+        # Return guest user profile for invalid user IDs (maintain fallback behavior)
+        return {
+            "id": "guest",
+            "email": "guest@jyotiflow.ai",
+            "name": "Guest User",
+            "full_name": "Guest User",
+            "credits": 0,
+            "role": "guest",
+            "created_at": datetime.now(timezone.utc)
+        }
     
     user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id_int)
     if not user:
