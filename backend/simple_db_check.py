@@ -7,6 +7,7 @@ Tests if database is reachable using basic Python
 import socket
 import urllib.parse
 import sys
+import os
 
 def test_database_connection():
     """Test basic database connectivity"""
@@ -15,7 +16,11 @@ def test_database_connection():
     print("=" * 50)
     
     # Parse the database URL
-    db_url = "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db"
+    db_url = os.getenv("DATABASE_URL")
+    if not db_url:
+        print("❌ ERROR: DATABASE_URL environment variable is required but not set")
+        print("Please set the DATABASE_URL environment variable with your database connection string")
+        sys.exit(1)
     
     try:
         parsed = urllib.parse.urlparse(db_url)

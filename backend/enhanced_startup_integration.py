@@ -26,7 +26,10 @@ class EnhancedJyotiFlowStartup:
     """Handles startup integration for enhanced features with robust connection management"""
     
     def __init__(self):
-        self.database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = os.getenv("DATABASE_URL")
+        if not self.database_url:
+            logger.error("❌ DATABASE_URL environment variable is required but not set")
+            raise ValueError("DATABASE_URL environment variable must be provided")
         self.knowledge_seeded = False
         self.rag_initialized = False
         
