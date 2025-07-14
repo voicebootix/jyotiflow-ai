@@ -29,7 +29,7 @@ async def run_ai_pricing_migration():
         print("✅ தரவுத்தளம் வெற்றிகரமாக இணைக்கப்பட்டது")
         
         # Read and execute the migration SQL
-        migration_file = backend_dir / "migrations" / "ai_pricing_recommendations_table.sql"
+        migration_file = backend_dir / "migrations" / "add_pricing_tables.sql"
         
         if not migration_file.exists():
             print(f"❌ Migration file not found: {migration_file}")
