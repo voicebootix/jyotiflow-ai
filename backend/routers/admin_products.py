@@ -405,7 +405,14 @@ async def get_prokerala_cost_analysis(
                 "error": "Prokerala smart service not available"
             }
         
-        smart_service = get_prokerala_smart_service(db)
+        # Import db module to access the pool
+        from db import db_pool
+        if not db_pool:
+            return {
+                "success": False,
+                "error": "Database pool not available"
+            }
+        smart_service = get_prokerala_smart_service(db_pool)
         cost_analysis = await smart_service.calculate_service_cost(service_id, user_id)
         
         return {

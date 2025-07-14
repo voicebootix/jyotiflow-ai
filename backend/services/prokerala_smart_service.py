@@ -154,10 +154,10 @@ class ProkeralaSmartService:
             recent_session = await conn.fetchrow("""
                 SELECT created_at, prokerala_cache_used
                 FROM sessions 
-                WHERE user_id = $1 AND service_id = $2 
+                WHERE user_email = $1 AND service_type = $2 
                 AND created_at > NOW() - INTERVAL '30 days'
                 ORDER BY created_at DESC LIMIT 1
-            """, user_id, service_id)
+            """, user_id, str(service_id))
             
             if not recent_session:
                 return 0.0  # No cache available

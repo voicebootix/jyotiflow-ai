@@ -239,7 +239,23 @@ async def _get_personalized_services(user_id: str, db) -> list:
             ]
         
         # Get smart pricing for each service
-        smart_service = get_prokerala_smart_service(db)
+        # Import db module to access the pool
+        from db import db_pool
+        if not db_pool:
+            # Fallback to basic service data if pool not available
+            return [
+                {
+                    "id": service['id'],
+                    "name": service['name'],
+                    "description": service['description'],
+                    "credits": service['credits_required'],
+                    "duration": service['duration_minutes'],
+                    "special_offer": False
+                }
+                for service in services
+            ]
+        
+        smart_service = get_prokerala_smart_service(db_pool)
         result = []
         
         for service in services:

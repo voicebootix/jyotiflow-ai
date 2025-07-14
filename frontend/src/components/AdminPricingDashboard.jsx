@@ -24,6 +24,8 @@ const AdminPricingDashboard = () => {
   const [modalService, setModalService] = useState(null);
   const [modalEndpoints, setModalEndpoints] = useState([]);
   const [modalCacheEffectiveness, setModalCacheEffectiveness] = useState(70);
+  const [toastMessage, setToastMessage] = useState('');
+  const [toastType, setToastType] = useState(''); // 'success' or 'error'
 
   useEffect(() => {
     fetchPricingDashboard();
@@ -77,7 +79,7 @@ const AdminPricingDashboard = () => {
       });
       
       if (response.ok) {
-        alert(`Price updated for ${recommendation.display_name}`);
+        showToast(`Price updated for ${recommendation.display_name}`, 'success');
         fetchPricingDashboard();
       }
     } catch (error) {
@@ -94,7 +96,7 @@ const AdminPricingDashboard = () => {
       });
       
       if (response.ok) {
-        alert('Satsang event created successfully');
+        showToast('Satsang event created successfully', 'success');
         fetchSatsangEvents();
       }
     } catch (error) {
@@ -138,7 +140,7 @@ const AdminPricingDashboard = () => {
       });
       
       if (response.ok) {
-        alert('Prokerala configuration updated successfully');
+        showToast('Prokerala configuration updated successfully', 'success');
         loadProkeralaConfig();
       }
     } catch (error) {
@@ -184,7 +186,7 @@ const AdminPricingDashboard = () => {
       });
 
       if (response.ok) {
-        alert('Service configuration updated successfully');
+        showToast('Service configuration updated successfully', 'success');
         loadServicesForConfiguration();
         setShowEndpointModal(false);
       }
@@ -199,6 +201,15 @@ const AdminPricingDashboard = () => {
         ? prev.filter(e => e !== endpoint)
         : [...prev, endpoint]
     );
+  };
+
+  const showToast = (message, type = 'success') => {
+    setToastMessage(message);
+    setToastType(type);
+    setTimeout(() => {
+      setToastMessage('');
+      setToastType('');
+    }, 3000);
   };
 
   const getUrgencyColor = (urgency) => {
@@ -828,6 +839,23 @@ const AdminPricingDashboard = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed top-4 right-4 p-4 rounded-lg shadow-lg z-50 ${
+          toastType === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span>{toastMessage}</span>
+            <button
+              onClick={() => setToastMessage('')}
+              className="ml-4 text-white hover:text-gray-200"
+            >
+              ×
+            </button>
           </div>
         </div>
       )}
