@@ -141,9 +141,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 1. Birth Details Endpoint
             try:
-                birth_details_response = await client.post(
+                birth_details_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/birth-details",
-                    json=base_params,
+                    params=base_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Birth details response: {birth_details_response.status_code}")
@@ -160,9 +160,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 2. Chart Visualization Endpoint (South Indian Style)
             try:
-                chart_response = await client.post(
+                chart_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/chart",
-                    json=chart_params,
+                    params=chart_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Chart visualization response: {chart_response.status_code}")
@@ -179,9 +179,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 3. Planetary Positions Endpoint
             try:
-                planets_response = await client.post(
+                planets_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/planet-positions",
-                    json=base_params,
+                    params=base_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Planetary positions response: {planets_response.status_code}")
@@ -362,23 +362,27 @@ async def get_spiritual_guidance(request: Request):
         logger.info(f"Processing request for date: {date}, time: {time_}, location: {location}")
 
         # --- Prokerala API call with token refresh logic ---
-        payload = {
+        # CRITICAL FIX: Use GET method with query parameters (not POST with JSON)
+        # BUG FIX: Use consistent coordinate format (coordinates string like other functions)
+        coordinates = f"{latitude},{longitude}"
+        params = {
             "datetime": f"{date}T{time_}:00+05:30",
-            "coordinates": f"{latitude},{longitude}",
-            "ayanamsa": "1"
+            "coordinates": coordinates,
+            "ayanamsa": "1",
+            "la": "en"  # Language parameter required by Prokerala API
         }
         
-        logger.info(f"Prokerala payload: {payload}")
+        logger.info(f"Prokerala params: {params}")
         
         for attempt in range(2):
             logger.info(f"Prokerala API attempt {attempt + 1}")
             token = await get_prokerala_token()
             try:
                 async with httpx.AsyncClient() as client:
-                    resp = await client.post(
+                    resp = await client.get(  # GET method instead of POST
                         "https://api.prokerala.com/v2/astrology/birth-details",
                         headers={"Authorization": f"Bearer {token}"},
-                        json=payload
+                        params=params  # Query parameters instead of JSON
                     )
                     logger.info(f"Prokerala response status: {resp.status_code}")
                     
