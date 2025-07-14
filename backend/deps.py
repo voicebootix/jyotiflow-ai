@@ -101,20 +101,20 @@ async def get_admin_user(current_user: Dict[str, Any] = Depends(get_current_user
     
     # SECURITY FIX: Strict admin role verification in production
     if APP_ENV == "production":
-        # Production: Strict admin role checking - NO BYPASSES
+        # Production: First check for missing/empty role
+        if not user_role:
+            print(f"SECURITY: Missing role for user {user_email}")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Invalid admin credentials"
+            )
+        
+        # Production: Second check for non-admin role
         if user_role != "admin":
             print(f"SECURITY: Access denied for user {user_email} (role: {user_role}) - admin role required")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied. Admin privileges required."
-            )
-        
-        # Additional production security: verify admin role is explicitly set
-        if not user_role or user_role != "admin":
-            print(f"SECURITY: Invalid or missing admin role for user {user_email}")
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Invalid admin credentials"
             )
             
         print(f"SECURITY: Admin access granted to {user_email} in production")
