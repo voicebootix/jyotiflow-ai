@@ -294,31 +294,32 @@ app = FastAPI(
 )
 
 # --- CORS Middleware (English & Tamil) ---
-# Configure CORS based on environment
+# எப்போதும் frontend deploy domain-ஐ allow செய்ய வேண்டும் (CORS fix)
+ALWAYS_ALLOW_ORIGINS = ["https://jyotiflow-ai-frontend.onrender.com"]
+
 def get_cors_origins():
     """Get CORS origins based on environment"""
     app_env = os.getenv("APP_ENV", "development").lower()
     
     if app_env == "production":
-        # Production: Only allow specific trusted origins
         cors_origins = os.getenv(
             "CORS_ORIGINS", 
             "https://jyotiflow.ai,https://www.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com"
         ).split(",")
     elif app_env == "staging":
-        # Staging: Allow staging and development origins
         cors_origins = os.getenv(
             "CORS_ORIGINS",
             "https://staging.jyotiflow.ai,https://dev.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com,http://localhost:3000,http://localhost:5173"
         ).split(",")
     else:
-        # Development: Allow common development origins
         cors_origins = os.getenv(
             "CORS_ORIGINS",
             "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173,https://jyotiflow-ai-frontend.onrender.com"
         ).split(",")
-    
-    # Clean up any whitespace from split
+    # எப்போதும் frontend deploy domain-ஐ சேர்க்கவும்
+    for origin in ALWAYS_ALLOW_ORIGINS:
+        if origin not in cors_origins:
+            cors_origins.append(origin)
     return [origin.strip() for origin in cors_origins if origin.strip()]
 
 def get_cors_methods():
