@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from db import get_db
-import jwt
 import os
 import time
 from datetime import datetime, timezone
@@ -12,6 +11,9 @@ import logging
 # Import the enhanced birth chart logic from spiritual.py to avoid duplication
 from .spiritual import get_prokerala_birth_chart_data, create_south_indian_chart_structure
 
+# Import centralized JWT handler
+from auth.jwt_config import JWTHandler
+
 # OPENAI INTEGRATION
 import openai
 
@@ -19,38 +21,18 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
-# SECURITY FIX: Remove hardcoded fallback
-JWT_SECRET = os.getenv("JWT_SECRET")
-if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
-JWT_ALGORITHM = "HS256"
-
 logger = logging.getLogger(__name__)
 
 def get_user_id_from_token(request: Request) -> str:
-    """Extract user ID from JWT token"""
-    auth = request.headers.get("Authorization")
-    if not auth or not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = auth.split(" ")[1]
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        # SURGICAL FIX: Use 'sub' field to match livechat and deps.py
-        return payload.get("sub") or payload.get("user_id")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    """Extract user ID from JWT token using centralized handler"""
+    return JWTHandler.get_user_id_from_token(request)
 
 async def get_user_email_from_token(request: Request) -> str:
-    """Extract user email from JWT token"""
-    auth = request.headers.get("Authorization")
-    if not auth or not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = auth.split(" ")[1]
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload.get("email") or payload.get("user_email")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    """Extract user email from JWT token using centralized handler"""
+    email = JWTHandler.get_user_email_from_token(request)
+    if not email:
+        raise HTTPException(status_code=401, detail="User email not found in token")
+    return email
 
 async def generate_spiritual_guidance_with_ai(question: str, astrology_data: Dict[str, Any]) -> str:
     """Generate spiritual guidance using OpenAI with enhanced birth chart data"""
