@@ -19,7 +19,17 @@ async def verify_jwt_configuration():
     """Verify JWT configuration is consistent across all modules"""
     logger.info("🔍 Verifying JWT configuration...")
     
-    jwt_secret = os.getenv("JWT_SECRET", "1cdc8d78417b8fc61716ccc3d5e169cc")
+    jwt_secret = os.getenv("JWT_SECRET")
+    if not jwt_secret:
+        logger.error("❌ JWT_SECRET environment variable is not set!")
+        raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
+    
+    # Verify secret is not the old hardcoded value
+    if jwt_secret == "1cdc8d78417b8fc61716ccc3d5e169cc":
+        logger.error("❌ JWT_SECRET is using the old hardcoded value! This is a security vulnerability.")
+        raise RuntimeError("JWT_SECRET cannot use the old hardcoded value. Please generate a new secure secret.")
+    
+    logger.info("✅ JWT_SECRET is properly configured")
     
     # Check key files for JWT secret consistency
     files_to_check = [

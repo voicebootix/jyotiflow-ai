@@ -15,8 +15,10 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
-# SURGICAL FIX: Use consistent JWT secret configuration
-JWT_SECRET_KEY = os.getenv("JWT_SECRET", "1cdc8d78417b8fc61716ccc3d5e169cc")
+# SECURITY FIX: Remove hardcoded fallback
+JWT_SECRET_KEY = os.getenv("JWT_SECRET")
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
 JWT_ALGORITHM = "HS256"
 
 # --- Helper function to extract user email from JWT token (OPTIONAL) ---

@@ -8,7 +8,10 @@ from typing import Dict, Any
 
 router = APIRouter(prefix="/api/user", tags=["User"])
 
-JWT_SECRET = os.getenv("JWT_SECRET", "jyotiflow_secret")
+# SECURITY FIX: Remove hardcoded fallback
+JWT_SECRET = os.getenv("JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
 JWT_ALGORITHM = "HS256"
 
 def get_user_id_from_token(request: Request) -> str:
