@@ -7,6 +7,7 @@ Run this script to apply the follow-up system database changes
 import asyncio
 import asyncpg
 import os
+import sys
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,7 +16,11 @@ async def run_migration():
     """Run the follow-up tracking columns migration"""
     
     # Get database URL from environment
-    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+    database_url = os.getenv('DATABASE_URL')
+    if not database_url:
+        print("❌ ERROR: DATABASE_URL environment variable is required but not set")
+        print("Please set the DATABASE_URL environment variable with your database connection string")
+        sys.exit(1)
     
     try:
         # Connect to database

@@ -47,7 +47,9 @@ class UniversalPricingEngine:
     """Universal pricing engine for all JyotiFlow services"""
     
     def __init__(self, database_url: str = None):
-        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = database_url or os.getenv("DATABASE_URL")
+        if not self.database_url:
+            raise ValueError("DATABASE_URL environment variable must be provided")
         self.api_keys = self._load_api_keys()
         self.rate_limits = self._initialize_rate_limits()
         
@@ -578,7 +580,10 @@ async def calculate_universal_pricing(service_name: str) -> PricingResult:
 async def get_smart_pricing_recommendations() -> Dict[str, Any]:
     """Get smart pricing recommendations based on system performance"""
     try:
-        database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            print("❌ ERROR: DATABASE_URL environment variable is required but not set")
+            return {}
         conn = await asyncpg.connect(database_url)
         
         try:
