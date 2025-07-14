@@ -25,6 +25,15 @@ def get_user_id_from_token(request: Request) -> str | None:
     except Exception:
         return None
 
+def convert_user_id_to_int(user_id: str | None) -> int | None:
+    """Convert string user_id to integer for database queries"""
+    if not user_id:
+        return None
+    try:
+        return int(user_id)
+    except ValueError:
+        return None
+
 # தமிழ் - பயனர் சுயவிவரம் பெறுதல்
 @router.get("/profile")
 async def get_profile(request: Request, db=Depends(get_db)):
@@ -41,7 +50,11 @@ async def get_profile(request: Request, db=Depends(get_db)):
             "created_at": datetime.now(timezone.utc)
         }
     
-    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id)
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        return {"error": "Invalid user ID"}
+    
+    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id_int)
     if not user:
         # Return guest user profile if user not found
         return {
@@ -53,13 +66,14 @@ async def get_profile(request: Request, db=Depends(get_db)):
             "role": "guest",
             "created_at": datetime.now(timezone.utc)
         }
+    
     return {
-        "id": str(user["id"]),
+        "id": user["id"],
         "email": user["email"],
-        "name": user.get("full_name") or user.get("name"),
-        "full_name": user.get("full_name"),
+        "name": user["name"],
+        "full_name": user["full_name"],
         "credits": user["credits"],
-        "role": user.get("role", "user"),  # Include role in response
+        "role": user["role"],
         "created_at": user["created_at"]
     }
 
@@ -69,7 +83,11 @@ async def get_credits(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": {"credits": 0}}
     
-    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id)
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        return {"success": False, "error": "Invalid user ID"}
+    
+    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id_int)
     if not user:
         return {"success": True, "data": {"credits": 0}}
     return {"success": True, "data": {"credits": user["credits"]}}
@@ -80,7 +98,11 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": []}
     
-    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id)
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        return {"success": False, "error": "Invalid user ID"}
+    
+    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id_int)
     if not user:
         return {"success": True, "data": []}
     sessions = await db.fetch("SELECT id, service_type_id, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
@@ -103,54 +125,46 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
                 "general": "🌟 The universe holds infinite possibilities for those who seek",
                 "daily": "✨ Today brings opportunities for spiritual growth",
                 "love": "💕 Love energy is flowing in your direction",
-                "career": "💼 Professional success awaits the prepared mind"
+                "career": "💼 Success awaits those who align with their purpose",
+                "spiritual": "🧘 Your spiritual journey is beginning to unfold"
             }
         }
     
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        return {"status": "error", "message": "Invalid user ID"}
+    
     try:
-        # Check for existing birth profile
+        # Get user's basic info and birth chart data
         user_data = await db.fetchrow("""
-            SELECT email, name, birth_chart_data, created_at
-            FROM users WHERE id = $1
-        """, user_id)
+            SELECT id, email, full_name, date_of_birth, birth_time, birth_location, 
+                   birth_chart_data, credits, created_at
+            FROM users 
+            WHERE id = $1
+        """, user_id_int)
         
         if not user_data:
             return {"status": "error", "message": "User not found"}
         
-        # Check if user has birth chart data
-        if not user_data['birth_chart_data']:
-            return {
-                "status": "incomplete",
-                "message": "Complete your birth profile for free personalized insights",
-                "action_required": "add_birth_details",
-                "teaser_insights": {
-                    "moon_sign": "🌙 Your lunar energy awaits discovery...",
-                    "lucky_period": "✨ Auspicious times are hidden in your birth chart",
-                    "compatibility": "💕 Cosmic compatibility secrets lie within your stars",
-                    "career": "💼 Your professional destiny is written in the planets"
-                }
-            }
+        # Generate personalized cosmic insights
+        insights = await _generate_cosmic_insights(user_id, dict(user_data), db)
         
-        # Get basic insights with smart pricing teaser
-        insights = await _generate_cosmic_insights(user_id, user_data, db)
-        
-        # Get personalized service recommendations with cache-based pricing
+        # Get personalized service recommendations
         services = await _get_personalized_services(user_id, db)
         
         return {
-            "status": "active",
-            "user_name": user_data['name'],
+            "status": "success",
+            "user_credits": user_data["credits"],
             "insights": insights,
-            "services": services,
-            "call_to_action": "Unlock your complete cosmic blueprint"
+            "personalized_services": services,
+            "upgrade_message": "✨ Unlock your complete cosmic blueprint with a personalized reading",
+            "call_to_action": "Get your detailed birth chart analysis and guidance"
         }
-        
     except Exception as e:
-        logger.error(f"Error in cosmic insights: {e}")
+        logger.error(f"Error generating cosmic insights: {e}")
         return {
             "status": "error",
-            "message": "Unable to load cosmic insights",
-            "error": str(e)
+            "message": "Unable to generate cosmic insights at this time"
         }
 
 async def _generate_cosmic_insights(user_id: str, user_data: dict, db) -> dict:

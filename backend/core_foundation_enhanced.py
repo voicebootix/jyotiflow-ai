@@ -216,26 +216,37 @@ class StandardResponse(BaseModel):
 # ️ ENHANCED DATABASE BASE CLASS (MOVED FROM PRODUCTION DEPLOYMENT)
 # =============================================================================
 class EnhancedJyotiFlowDatabase:
+    """Enhanced database operations with AI avatar support"""
+    
     def __init__(self):
-        self.database_type = "PostgreSQL"
-        self.is_sqlite = False
         self.pool = None
     
+    def convert_user_id_to_int(self, user_id):
+        """Convert string user_id to integer for database queries"""
+        if not user_id:
+            return None
+        try:
+            return int(user_id)
+        except (ValueError, TypeError):
+            return None
+
     async def initialize(self):
         """Initialize database connection pool"""
         try:
-            # Initialize PostgreSQL connection pool
             self.pool = await asyncpg.create_pool(
                 settings.database_url,
                 min_size=5,
                 max_size=settings.database_pool_size,
-                command_timeout=settings.database_pool_timeout
+                timeout=settings.database_pool_timeout
             )
-            logger.info("✅ Enhanced PostgreSQL connection pool created")
-            return True
+            
+            # Initialize enhanced tables
+            await self.initialize_enhanced_tables()
+            
+            print("✅ Enhanced database initialized successfully")
         except Exception as e:
-            logger.error(f"Database initialization failed: {e}")
-            return False
+            print(f"❌ Database initialization failed: {e}")
+            raise
     
     async def close(self):
         """Close database connections"""
@@ -540,9 +551,13 @@ class EnhancedJyotiFlowDatabase:
     async def get_user_credits(self, user_id):
         """Get user credits"""
         try:
+            user_id_int = self.convert_user_id_to_int(user_id)
+            if user_id_int is None:
+                return 0
+            
             conn = await self.get_connection()
             try:
-                result = await conn.fetchval("SELECT credits FROM users WHERE id = $1", user_id)
+                result = await conn.fetchval("SELECT credits FROM users WHERE id = $1", user_id_int)
                 return result or 0
             finally:
                 await self.release_connection(conn)
@@ -606,17 +621,20 @@ class EnhancedJyotiFlowDatabase:
             return 0
 
     async def get_user_profile(self, user_id):
+        """Get user profile with avatar preferences"""
         try:
+            user_id_int = self.convert_user_id_to_int(user_id)
+            if user_id_int is None:
+                return None
+            
             conn = await self.get_connection()
             try:
-                result = await conn.fetchrow(
-                    "SELECT * FROM users WHERE id = $1", user_id
+                return await conn.fetchrow(
+                    "SELECT * FROM users WHERE id = $1", user_id_int
                 )
-                return dict(result) if result else None
             finally:
                 await self.release_connection(conn)
-        except Exception as e:
-            logger.error(f"get_user_profile failed: {e}")
+        except Exception:
             return None
 
 # =============================================================================

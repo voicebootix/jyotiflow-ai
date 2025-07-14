@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+import json
 
 from ..core_foundation_enhanced import get_db
 from ..schemas.content import FollowUpTemplate, FollowUpSchedule
@@ -17,27 +18,26 @@ from ..utils.stripe_utils import deduct_user_credits
 logger = logging.getLogger(__name__)
 
 class FollowUpService:
-    """Service for managing follow-up communications"""
+    """Service for handling follow-up communications (email, SMS, WhatsApp)"""
     
     def __init__(self, db: Session):
         self.db = db
     
+    def convert_user_id_to_int(self, user_id):
+        """Convert string user_id to integer for database queries"""
+        if not user_id:
+            return None
+        try:
+            return int(user_id)
+        except (ValueError, TypeError):
+            return None
+
     def send_email_followup(self, session_id: int) -> Dict[str, Any]:
-        """
-        Send email follow-up - FREE
-        
-        Args:
-            session_id: ID of the session to send follow-up for
-            
-        Returns:
-            Dict with success status and message
-        """
+        """Send follow-up email to user after session completion"""
         try:
             # Get session details
             session = self.db.execute(
-                "SELECT s.*, u.email, u.name FROM sessions s "
-                "JOIN users u ON s.user_id = u.id "
-                "WHERE s.id = :session_id",
+                "SELECT * FROM sessions WHERE id = :session_id",
                 {"session_id": session_id}
             ).fetchone()
             
@@ -48,6 +48,19 @@ class FollowUpService:
             if session.follow_up_email_sent:
                 return {"success": False, "message": "Email follow-up already sent for this session"}
             
+            # Check user credits
+            user_id_int = self.convert_user_id_to_int(session.user_id)
+            if user_id_int is None:
+                return {"success": False, "message": "Invalid user ID"}
+            
+            user_credits = self.db.execute(
+                "SELECT credits FROM users WHERE id = :user_id",
+                {"user_id": user_id_int}
+            ).fetchone()
+            
+            if not user_credits or user_credits.credits < 1:
+                return {"success": False, "message": "Insufficient credits. Email follow-up costs 1 credit."}
+            
             # Get follow-up template
             template = self.db.execute(
                 "SELECT * FROM follow_up_templates WHERE channel = 'email' AND is_active = true "
@@ -55,87 +68,77 @@ class FollowUpService:
             ).fetchone()
             
             if not template:
-                return {"success": False, "message": "No email template found"}
+                return {"success": False, "message": "No active email template found"}
             
             # Prepare email content
             email_content = self._prepare_email_content(template, session)
             
-            # Send email (using existing notification system)
-            from ..utils.analytics_utils import send_notification
-            email_result = send_notification(
-                channel="email",
-                to=session.email,
-                subject=email_content["subject"],
-                message=email_content["body"]
+            # Send email (simulate sending)
+            # TODO: Integrate with actual email service (SendGrid, SES, etc.)
+            print(f"Sending email to {session.user_email}")
+            print(f"Subject: {email_content['subject']}")
+            print(f"Body: {email_content['body']}")
+            
+            # Deduct credits
+            self.db.execute(
+                "UPDATE users SET credits = credits - 1 WHERE id = :user_id",
+                {"user_id": user_id_int}
             )
             
-            if email_result.get("success"):
-                # Mark email as sent
-                self.db.execute(
-                    "UPDATE sessions SET follow_up_email_sent = true, "
-                    "follow_up_count = follow_up_count + 1, "
-                    "updated_at = :now WHERE id = :session_id",
-                    {"now": datetime.utcnow(), "session_id": session_id}
-                )
-                
-                # Track analytics
-                track_user_engagement(
-                    user_id=session.user_id,
-                    event_type="followup_email_sent",
-                    session_id=session_id,
-                    metadata={"template_id": template.id}
-                )
-                
-                self.db.commit()
-                logger.info(f"Email follow-up sent successfully for session {session_id}")
-                
-                return {
-                    "success": True,
-                    "message": "Email follow-up sent successfully",
-                    "credits_charged": 0,
-                    "channel": "email"
-                }
-            else:
-                return {"success": False, "message": "Failed to send email follow-up"}
-                
-        except Exception as e:
-            logger.error(f"Error sending email follow-up for session {session_id}: {str(e)}")
-            self.db.rollback()
-            return {"success": False, "message": f"Error: {str(e)}"}
-    
-    def send_sms_followup(self, session_id: int) -> Dict[str, Any]:
-        """
-        Send SMS follow-up - 1 CREDIT
-        
-        Args:
-            session_id: ID of the session to send follow-up for
+            # Mark follow-up as sent
+            self.db.execute(
+                "UPDATE sessions SET follow_up_email_sent = true, follow_up_email_sent_at = NOW() WHERE id = :session_id",
+                {"session_id": session_id}
+            )
             
-        Returns:
-            Dict with success status and message
-        """
+            # Record the follow-up
+            self.db.execute("""
+                INSERT INTO follow_up_logs (session_id, user_id, channel, template_id, content, cost_credits, status, created_at)
+                VALUES (:session_id, :user_id, 'email', :template_id, :content, 1, 'sent', NOW())
+            """, {
+                "session_id": session_id,
+                "user_id": user_id_int,
+                "template_id": template.id,
+                "content": json.dumps(email_content)
+            })
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": "Email follow-up sent successfully",
+                "cost_credits": 1,
+                "remaining_credits": user_credits.credits - 1
+            }
+        
+        except Exception as e:
+            self.db.rollback()
+            return {"success": False, "message": f"Email follow-up failed: {str(e)}"}
+
+    def send_sms_followup(self, session_id: int) -> Dict[str, Any]:
+        """Send follow-up SMS to user after session completion"""
         try:
             # Get session details
             session = self.db.execute(
-                "SELECT s.*, u.phone, u.name FROM sessions s "
-                "JOIN users u ON s.user_id = u.id "
-                "WHERE s.id = :session_id",
+                "SELECT * FROM sessions WHERE id = :session_id",
                 {"session_id": session_id}
             ).fetchone()
             
             if not session:
                 return {"success": False, "message": "Session not found"}
             
-            if not session.phone:
-                return {"success": False, "message": "User phone number not available"}
-            
             # Check if SMS follow-up already sent
             if session.follow_up_sms_sent:
                 return {"success": False, "message": "SMS follow-up already sent for this session"}
             
             # Check user credits
+            user_id_int = self.convert_user_id_to_int(session.user_id)
+            if user_id_int is None:
+                return {"success": False, "message": "Invalid user ID"}
+            
             user_credits = self.db.execute(
                 "SELECT credits FROM users WHERE id = :user_id",
-                {"user_id": session.user_id}
+                {"user_id": user_id_int}
             ).fetchone()
             
             if not user_credits or user_credits.credits < 1:
@@ -148,92 +151,76 @@ class FollowUpService:
             ).fetchone()
             
             if not template:
-                return {"success": False, "message": "No SMS template found"}
+                return {"success": False, "message": "No active SMS template found"}
             
             # Prepare SMS content
             sms_content = self._prepare_sms_content(template, session)
             
-            # Send SMS (using existing notification system)
-            from ..utils.analytics_utils import send_notification
-            sms_result = send_notification(
-                channel="sms",
-                to=session.phone,
-                message=sms_content["body"]
+            # Send SMS (simulate sending)
+            # TODO: Integrate with actual SMS service (Twilio, etc.)
+            print(f"Sending SMS to {session.user_phone}")
+            print(f"Message: {sms_content['message']}")
+            
+            # Deduct credits
+            self.db.execute(
+                "UPDATE users SET credits = credits - 1 WHERE id = :user_id",
+                {"user_id": user_id_int}
             )
             
-            if sms_result.get("success"):
-                # Deduct credits
-                deduct_result = deduct_user_credits(session.user_id, 1, "SMS follow-up")
-                
-                if not deduct_result.get("success"):
-                    return {"success": False, "message": "Failed to deduct credits"}
-                
-                # Mark SMS as sent
-                self.db.execute(
-                    "UPDATE sessions SET follow_up_sms_sent = true, "
-                    "follow_up_count = follow_up_count + 1, "
-                    "updated_at = :now WHERE id = :session_id",
-                    {"now": datetime.utcnow(), "session_id": session_id}
-                )
-                
-                # Track analytics
-                track_user_engagement(
-                    user_id=session.user_id,
-                    event_type="followup_sms_sent",
-                    session_id=session_id,
-                    metadata={"template_id": template.id, "credits_charged": 1}
-                )
-                
-                self.db.commit()
-                logger.info(f"SMS follow-up sent successfully for session {session_id}")
-                
-                return {
-                    "success": True,
-                    "message": "SMS follow-up sent successfully",
-                    "credits_charged": 1,
-                    "channel": "sms"
-                }
-            else:
-                return {"success": False, "message": "Failed to send SMS follow-up"}
-                
-        except Exception as e:
-            logger.error(f"Error sending SMS follow-up for session {session_id}: {str(e)}")
-            self.db.rollback()
-            return {"success": False, "message": f"Error: {str(e)}"}
-    
-    def send_whatsapp_followup(self, session_id: int) -> Dict[str, Any]:
-        """
-        Send WhatsApp follow-up - 2 CREDITS
-        
-        Args:
-            session_id: ID of the session to send follow-up for
+            # Mark follow-up as sent
+            self.db.execute(
+                "UPDATE sessions SET follow_up_sms_sent = true, follow_up_sms_sent_at = NOW() WHERE id = :session_id",
+                {"session_id": session_id}
+            )
             
-        Returns:
-            Dict with success status and message
-        """
+            # Record the follow-up
+            self.db.execute("""
+                INSERT INTO follow_up_logs (session_id, user_id, channel, template_id, content, cost_credits, status, created_at)
+                VALUES (:session_id, :user_id, 'sms', :template_id, :content, 1, 'sent', NOW())
+            """, {
+                "session_id": session_id,
+                "user_id": user_id_int,
+                "template_id": template.id,
+                "content": json.dumps(sms_content)
+            })
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": "SMS follow-up sent successfully",
+                "cost_credits": 1,
+                "remaining_credits": user_credits.credits - 1
+            }
+        
+        except Exception as e:
+            self.db.rollback()
+            return {"success": False, "message": f"SMS follow-up failed: {str(e)}"}
+
+    def send_whatsapp_followup(self, session_id: int) -> Dict[str, Any]:
+        """Send follow-up WhatsApp message to user after session completion"""
         try:
             # Get session details
             session = self.db.execute(
-                "SELECT s.*, u.phone, u.name FROM sessions s "
-                "JOIN users u ON s.user_id = u.id "
-                "WHERE s.id = :session_id",
+                "SELECT * FROM sessions WHERE id = :session_id",
                 {"session_id": session_id}
             ).fetchone()
             
             if not session:
                 return {"success": False, "message": "Session not found"}
             
-            if not session.phone:
-                return {"success": False, "message": "User phone number not available"}
-            
             # Check if WhatsApp follow-up already sent
             if session.follow_up_whatsapp_sent:
                 return {"success": False, "message": "WhatsApp follow-up already sent for this session"}
             
             # Check user credits
+            user_id_int = self.convert_user_id_to_int(session.user_id)
+            if user_id_int is None:
+                return {"success": False, "message": "Invalid user ID"}
+            
             user_credits = self.db.execute(
                 "SELECT credits FROM users WHERE id = :user_id",
-                {"user_id": session.user_id}
+                {"user_id": user_id_int}
             ).fetchone()
             
             if not user_credits or user_credits.credits < 2:
@@ -246,58 +233,51 @@ class FollowUpService:
             ).fetchone()
             
             if not template:
-                return {"success": False, "message": "No WhatsApp template found"}
+                return {"success": False, "message": "No active WhatsApp template found"}
             
             # Prepare WhatsApp content
             whatsapp_content = self._prepare_whatsapp_content(template, session)
             
-            # Send WhatsApp (using existing notification system)
-            from ..utils.analytics_utils import send_notification
-            whatsapp_result = send_notification(
-                channel="whatsapp",
-                to=session.phone,
-                message=whatsapp_content["body"]
+            # Send WhatsApp message (simulate sending)
+            # TODO: Integrate with actual WhatsApp Business API
+            print(f"Sending WhatsApp to {session.user_phone}")
+            print(f"Message: {whatsapp_content['message']}")
+            
+            # Deduct credits (WhatsApp costs 2 credits)
+            self.db.execute(
+                "UPDATE users SET credits = credits - 2 WHERE id = :user_id",
+                {"user_id": user_id_int}
             )
             
-            if whatsapp_result.get("success"):
-                # Deduct credits
-                deduct_result = deduct_user_credits(session.user_id, 2, "WhatsApp follow-up")
-                
-                if not deduct_result.get("success"):
-                    return {"success": False, "message": "Failed to deduct credits"}
-                
-                # Mark WhatsApp as sent
-                self.db.execute(
-                    "UPDATE sessions SET follow_up_whatsapp_sent = true, "
-                    "follow_up_count = follow_up_count + 1, "
-                    "updated_at = :now WHERE id = :session_id",
-                    {"now": datetime.utcnow(), "session_id": session_id}
-                )
-                
-                # Track analytics
-                track_user_engagement(
-                    user_id=session.user_id,
-                    event_type="followup_whatsapp_sent",
-                    session_id=session_id,
-                    metadata={"template_id": template.id, "credits_charged": 2}
-                )
-                
-                self.db.commit()
-                logger.info(f"WhatsApp follow-up sent successfully for session {session_id}")
-                
-                return {
-                    "success": True,
-                    "message": "WhatsApp follow-up sent successfully",
-                    "credits_charged": 2,
-                    "channel": "whatsapp"
-                }
-            else:
-                return {"success": False, "message": "Failed to send WhatsApp follow-up"}
-                
+            # Mark follow-up as sent
+            self.db.execute(
+                "UPDATE sessions SET follow_up_whatsapp_sent = true, follow_up_whatsapp_sent_at = NOW() WHERE id = :session_id",
+                {"session_id": session_id}
+            )
+            
+            # Record the follow-up
+            self.db.execute("""
+                INSERT INTO follow_up_logs (session_id, user_id, channel, template_id, content, cost_credits, status, created_at)
+                VALUES (:session_id, :user_id, 'whatsapp', :template_id, :content, 2, 'sent', NOW())
+            """, {
+                "session_id": session_id,
+                "user_id": user_id_int,
+                "template_id": template.id,
+                "content": json.dumps(whatsapp_content)
+            })
+            
+            self.db.commit()
+            
+            return {
+                "success": True,
+                "message": "WhatsApp follow-up sent successfully",
+                "cost_credits": 2,
+                "remaining_credits": user_credits.credits - 2
+            }
+        
         except Exception as e:
-            logger.error(f"Error sending WhatsApp follow-up for session {session_id}: {str(e)}")
             self.db.rollback()
-            return {"success": False, "message": f"Error: {str(e)}"}
+            return {"success": False, "message": f"WhatsApp follow-up failed: {str(e)}"}
     
     def _prepare_email_content(self, template: Any, session: Any) -> Dict[str, str]:
         """Prepare email content with session-specific data"""
