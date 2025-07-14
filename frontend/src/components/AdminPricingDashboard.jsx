@@ -9,6 +9,7 @@ import {
   Clock, Target, BarChart3, Settings, Zap, Users,
   Heart, Video, Mic, MessageCircle, Gift, Calendar
 } from 'lucide-react';
+import { getProkeralaEndpoints } from '../config/prokeralaEndpoints';
 
 const AdminPricingDashboard = () => {
   const [pricingData, setPricingData] = useState(null);
@@ -874,21 +875,7 @@ const AdminPricingDashboard = () => {
                   Select Endpoints:
                 </label>
                 <div className="max-h-40 overflow-y-auto border rounded-md p-2">
-                  {[
-                    '/astrology/birth-details',
-                    '/astrology/kundli/advanced', 
-                    '/astrology/planet-position',
-                    '/astrology/dasha-periods',
-                    '/astrology/yoga',
-                    '/astrology/nakshatra-porutham',
-                    '/astrology/kundli-matching',
-                    '/numerology/life-path-number',
-                    '/numerology/destiny-number',
-                    '/horoscope/daily',
-                    '/astrology/auspicious-period',
-                    '/astrology/birth-chart',
-                    '/astrology/chart'
-                  ].map(endpoint => (
+                  {getProkeralaEndpoints().map(endpoint => (
                     <label key={endpoint} className="flex items-center space-x-2 p-1">
                       <input
                         type="checkbox"

@@ -150,6 +150,21 @@ class ProkeralaSmartService:
         Based on their recent usage patterns
         """
         async with self.db_pool.acquire() as conn:
+            # Get user email from user_id and service name from service_id
+            user_data = await conn.fetchrow("""
+                SELECT email FROM users WHERE id = $1
+            """, user_id)
+            
+            if not user_data:
+                return 0.0  # User not found
+            
+            service_data = await conn.fetchrow("""
+                SELECT name FROM service_types WHERE id = $1
+            """, service_id)
+            
+            if not service_data:
+                return 0.0  # Service not found
+            
             # Check if user has recent sessions for this service
             recent_session = await conn.fetchrow("""
                 SELECT created_at, prokerala_cache_used
@@ -157,7 +172,7 @@ class ProkeralaSmartService:
                 WHERE user_email = $1 AND service_type = $2 
                 AND created_at > NOW() - INTERVAL '30 days'
                 ORDER BY created_at DESC LIMIT 1
-            """, user_id, str(service_id))
+            """, user_data['email'], service_data['name'])
             
             if not recent_session:
                 return 0.0  # No cache available

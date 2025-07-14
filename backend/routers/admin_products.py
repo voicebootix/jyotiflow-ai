@@ -431,20 +431,29 @@ async def update_prokerala_config(
 ):
     """Update Prokerala cost configuration"""
     try:
-        # Use INSERT ON CONFLICT to handle both insert and update cases
-        await db.execute("""
-            INSERT INTO prokerala_cost_config 
-            (id, max_cost_per_call, margin_percentage, cache_discount_enabled, last_updated)
-            VALUES (1, $1, $2, $3, NOW())
-            ON CONFLICT (id) DO UPDATE SET 
-                max_cost_per_call = EXCLUDED.max_cost_per_call,
-                margin_percentage = EXCLUDED.margin_percentage,
-                cache_discount_enabled = EXCLUDED.cache_discount_enabled,
+        # First try to update existing configuration
+        result = await db.execute("""
+            UPDATE prokerala_cost_config 
+            SET max_cost_per_call = $1, 
+                margin_percentage = $2,
+                cache_discount_enabled = $3,
                 last_updated = NOW()
+            WHERE id = (SELECT id FROM prokerala_cost_config ORDER BY last_updated DESC LIMIT 1)
         """, 
         config.get('max_cost_per_call', 0.036),
         config.get('margin_percentage', 500),
         config.get('cache_discount_enabled', True))
+        
+        # If no rows were updated, insert a new configuration
+        if result == "UPDATE 0":
+            await db.execute("""
+                INSERT INTO prokerala_cost_config 
+                (max_cost_per_call, margin_percentage, cache_discount_enabled, last_updated)
+                VALUES ($1, $2, $3, NOW())
+            """, 
+            config.get('max_cost_per_call', 0.036),
+            config.get('margin_percentage', 500),
+            config.get('cache_discount_enabled', True))
         
         return {"success": True, "message": "Configuration updated"}
     except Exception as e:
