@@ -345,7 +345,16 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     # Update session with cache tracking information
     if birth_details:
         try:
-            cache_key = f"birth_chart:{birth_details.get('date', '')}:{birth_details.get('time', '')}:{birth_details.get('location', {}).get('name', '')}"
+            # BUG FIX: Handle location as both string and dict to prevent AttributeError
+            location = birth_details.get('location', '')
+            if isinstance(location, dict):
+                location_name = location.get('name', '')
+            elif isinstance(location, str):
+                location_name = location
+            else:
+                location_name = str(location) if location else ''
+            
+            cache_key = f"birth_chart:{birth_details.get('date', '')}:{birth_details.get('time', '')}:{location_name}"
             cached_data = await db.fetchrow("""
                 SELECT created_at FROM api_cache 
                 WHERE cache_key = $1 AND created_at > NOW() - INTERVAL '30 days'

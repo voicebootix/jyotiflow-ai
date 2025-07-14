@@ -374,10 +374,11 @@ async def get_spiritual_guidance(request: Request):
 
         # --- Prokerala API call with token refresh logic ---
         # CRITICAL FIX: Use GET method with query parameters (not POST with JSON)
+        # BUG FIX: Use consistent coordinate format (coordinates string like other functions)
+        coordinates = f"{latitude},{longitude}"
         params = {
             "datetime": f"{date}T{time_}:00+05:30",
-            "latitude": latitude,
-            "longitude": longitude,
+            "coordinates": coordinates,
             "ayanamsa": "1"
         }
         

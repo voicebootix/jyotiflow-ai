@@ -38,6 +38,8 @@
 ### **4. API Integration Fixes**
 - ✅ **File**: `backend/routers/spiritual.py`
 - ✅ **Critical Fix**: Changed POST with JSON → GET with query parameters
+- ✅ **Coordinate Format Fix**: Unified coordinate parameter format across all functions
+- ✅ **Cache Key Fix**: Robust handling of location data types (dict/string/null)
 - ✅ **Multiple Endpoint Updates**: Fixed all API calls to use correct method
 
 ### **5. Sessions Router Enhancement**
