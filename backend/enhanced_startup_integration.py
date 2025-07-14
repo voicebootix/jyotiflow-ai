@@ -116,6 +116,11 @@ class EnhancedJyotiFlowStartup:
     
     async def _ensure_database_tables(self):
         """Ensure all required database tables exist"""
+        if not ASYNCPG_AVAILABLE or not asyncpg:
+            logger.warning("⚠️ asyncpg not available, skipping database table creation")
+            return
+            
+        conn = None
         try:
             conn = await self._create_robust_connection()
             
@@ -130,13 +135,49 @@ class EnhancedJyotiFlowStartup:
                 logger.info("✅ Enhanced database tables already exist")
             else:
                 logger.info("📊 Creating enhanced database tables...")
-                # Table creation logic would go here if needed
                 
-            await conn.close()
-            
+                # Create rag_knowledge_base table if it doesn't exist
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS rag_knowledge_base (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        knowledge_domain VARCHAR(100) NOT NULL,
+                        content_type VARCHAR(50) NOT NULL DEFAULT 'knowledge',
+                        title VARCHAR(500) NOT NULL,
+                        content TEXT NOT NULL,
+                        metadata JSONB DEFAULT '{}',
+                        embedding_vector TEXT,
+                        tags TEXT[] DEFAULT '{}',
+                        source_reference VARCHAR(500),
+                        authority_level INTEGER DEFAULT 1,
+                        cultural_context VARCHAR(100) DEFAULT 'universal',
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        updated_at TIMESTAMP DEFAULT NOW()
+                    )
+                """)
+                logger.info("✅ rag_knowledge_base table created")
+                
+                # Create service_configuration_cache table if it doesn't exist
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS service_configuration_cache (
+                        service_name VARCHAR(100) PRIMARY KEY,
+                        configuration JSONB NOT NULL,
+                        persona_config JSONB NOT NULL,
+                        knowledge_domains TEXT NOT NULL,
+                        cached_at TIMESTAMP DEFAULT NOW(),
+                        expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '1 hour')
+                    )
+                """)
+                logger.info("✅ service_configuration_cache table created")
+                
+                logger.info("✅ Enhanced database tables created successfully")
+                
         except Exception as e:
-            logger.error(f"Database table check error: {e}")
-            pass
+            logger.error(f"Database table creation error: {e}")
+            logger.error(f"Full traceback: {traceback.format_exc()}")
+            # Don't raise - system should try to continue
+        finally:
+            if conn:
+                await conn.close()
 
     async def _ensure_knowledge_base(self):
         """Ensure knowledge base is populated with robust connection handling"""

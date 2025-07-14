@@ -50,8 +50,11 @@ class KnowledgeSeeder:
             # Validate database connection first with timeout
             if self.db_pool:
                 try:
-                    async with asyncio.timeout(10.0):  # 10 second timeout for connection acquisition
-                        async with self.db_pool.acquire() as conn:
+                    # Use asyncio.wait_for for Python 3.10+ compatibility
+                    async with await asyncio.wait_for(
+                        self.db_pool.acquire(), 
+                        timeout=10.0
+                    ) as conn:
                             # Check if table exists
                             table_exists = await conn.fetchval("""
                                 SELECT EXISTS (
