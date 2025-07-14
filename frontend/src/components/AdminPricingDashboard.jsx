@@ -19,6 +19,7 @@ const AdminPricingDashboard = () => {
   const [apiStatus, setApiStatus] = useState({});
   const [prokeralaCosts, setProkeralaCosts] = useState({});
   const [prokeralaConfig, setProkeralaConfig] = useState(null);
+  const [services, setServices] = useState(null);
 
   useEffect(() => {
     fetchPricingDashboard();
@@ -138,6 +139,71 @@ const AdminPricingDashboard = () => {
       }
     } catch (error) {
       console.error('Error updating Prokerala config:', error);
+    }
+  };
+
+  const loadServicesForConfiguration = async () => {
+    try {
+      const response = await fetch('/api/admin/products/service-types');
+      const data = await response.json();
+      if (response.ok) {
+        setServices(data);
+      }
+    } catch (error) {
+      console.error('Error loading services:', error);
+    }
+  };
+
+  const configureServiceEndpoints = async (serviceId) => {
+    const service = services.find(s => s.id === serviceId);
+    if (!service) return;
+
+    const endpointOptions = [
+      '/astrology/birth-details',
+      '/astrology/kundli/advanced', 
+      '/astrology/planet-position',
+      '/astrology/dasha-periods',
+      '/astrology/yoga',
+      '/astrology/nakshatra-porutham',
+      '/astrology/kundli-matching',
+      '/numerology/life-path-number',
+      '/numerology/destiny-number',
+      '/horoscope/daily',
+      '/astrology/auspicious-period',
+      '/astrology/birth-chart',
+      '/astrology/chart'
+    ];
+
+    const currentEndpoints = service.prokerala_endpoints || [];
+    const selectedEndpoints = prompt(
+      `Configure endpoints for ${service.name}:\n\nAvailable endpoints:\n${endpointOptions.join('\n')}\n\nCurrent: ${currentEndpoints.join(', ')}\n\nEnter comma-separated endpoints:`,
+      currentEndpoints.join(', ')
+    );
+
+    if (selectedEndpoints !== null) {
+      const endpoints = selectedEndpoints.split(',').map(e => e.trim()).filter(e => e);
+      const apiCalls = endpoints.length;
+      const cacheRate = prompt('Cache effectiveness percentage (0-100):', service.cache_effectiveness || '70');
+
+      try {
+        const response = await fetch(`/api/admin/products/service-types/${serviceId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...service,
+            prokerala_endpoints: endpoints,
+            estimated_api_calls: apiCalls,
+            cache_effectiveness: parseFloat(cacheRate) || 70
+          })
+        });
+
+        if (response.ok) {
+          alert('Service configuration updated successfully');
+          loadServicesForConfiguration();
+        }
+      } catch (error) {
+        console.error('Error updating service:', error);
+      }
     }
   };
 
@@ -629,81 +695,133 @@ const AdminPricingDashboard = () => {
           <div className="bg-white p-6 rounded-lg shadow border">
             <h4 className="text-md font-semibold text-gray-900 mb-4">Service Cost Analysis</h4>
             
-            <div className="space-y-4">
-              {[1, 2, 3, 4, 5].map(serviceId => (
-                <div key={serviceId} className="border-l-4 border-purple-500 pl-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <h5 className="font-semibold text-gray-900">Service {serviceId}</h5>
-                      <button 
-                        onClick={() => loadProkeralaCosts(serviceId)}
-                        className="text-sm text-purple-600 hover:underline"
-                      >
-                        Calculate API Costs
-                      </button>
-                    </div>
-                    
-                    {prokeralaCosts[serviceId] && (
-                      <div className="text-right">
-                        <p className="text-lg font-bold text-purple-600">
-                          {prokeralaCosts[serviceId].pricing.suggested_credits} credits
-                        </p>
-                        <p className="text-sm text-gray-600">
-                          {prokeralaCosts[serviceId].pricing.user_message}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {prokeralaCosts[serviceId] && (
-                    <div className="mt-4 p-4 bg-gray-50 rounded">
-                      <h6 className="font-semibold mb-2">Cost Breakdown</h6>
-                      
-                      <div className="space-y-2 text-sm">
-                        <div className="flex justify-between">
-                          <span>Base API Cost:</span>
-                          <span>${prokeralaCosts[serviceId].cost_breakdown.prokerala_base_cost.toFixed(3)}</span>
-                        </div>
-                        
-                        {prokeralaCosts[serviceId].cost_breakdown.cache_discount_rate > 0 && (
-                          <div className="flex justify-between text-green-600">
-                            <span>Cache Discount ({prokeralaCosts[serviceId].cost_breakdown.cache_discount_rate.toFixed(0)}%):</span>
-                            <span>-${(prokeralaCosts[serviceId].cost_breakdown.prokerala_base_cost - prokeralaCosts[serviceId].cost_breakdown.prokerala_effective_cost).toFixed(3)}</span>
-                          </div>
-                        )}
-                        
-                        <div className="flex justify-between font-semibold">
-                          <span>Effective API Cost:</span>
-                          <span>${prokeralaCosts[serviceId].cost_breakdown.prokerala_effective_cost.toFixed(3)}</span>
-                        </div>
-                        
-                        <div className="border-t pt-2 mt-2">
-                          {Object.entries(prokeralaCosts[serviceId].cost_breakdown.other_costs).map(([key, value]) => (
-                            <div key={key} className="flex justify-between">
-                              <span>{key.replace(/_/g, ' ')}:</span>
-                              <span>${value.toFixed(3)}</span>
-                            </div>
-                          ))}
-                        </div>
-                        
-                        <div className="border-t pt-2 mt-2">
-                          <div className="flex justify-between font-bold text-lg">
-                            <span>Suggested Credits:</span>
-                            <span className="text-purple-600">{prokeralaCosts[serviceId].pricing.suggested_credits}</span>
-                          </div>
-                          {prokeralaCosts[serviceId].pricing.savings_from_cache > 0 && (
-                            <div className="flex justify-between text-green-600">
-                              <span>Cache Savings:</span>
-                              <span>{prokeralaCosts[serviceId].pricing.savings_from_cache.toFixed(1)} credits</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {prokeralaCosts[serviceId].suggestions.length > 0 && (
-                        <div className="mt-4">
-                          <h6 className="font-semibold mb-2">💡 Value Suggestions</h6>
-                          {prokeralaCosts[serviceId].suggestions.map((sugg, idx) => (
+                         <div className="space-y-4">
+               {/* Service Configuration */}
+               <div className="mb-6">
+                 <button
+                   onClick={loadServicesForConfiguration}
+                   className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
+                 >
+                   Load Services for Configuration
+                 </button>
+               </div>
+               
+               {services && services.map(service => (
+                 <div key={service.id} className="border-l-4 border-purple-500 pl-4">
+                   <div className="flex justify-between items-start">
+                     <div>
+                       <h5 className="font-semibold text-gray-900">{service.display_name || service.name}</h5>
+                       <p className="text-sm text-gray-600">{service.description}</p>
+                       
+                       {/* Endpoint Configuration */}
+                       <div className="mt-2">
+                         <label className="block text-xs font-medium text-gray-700 mb-1">
+                           Prokerala Endpoints:
+                         </label>
+                         <div className="flex flex-wrap gap-1 mb-2">
+                           {(service.prokerala_endpoints || []).map((endpoint, idx) => (
+                             <span key={idx} className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
+                               {endpoint}
+                             </span>
+                           ))}
+                           {(!service.prokerala_endpoints || service.prokerala_endpoints.length === 0) && (
+                             <span className="text-gray-500 text-xs">No endpoints configured</span>
+                           )}
+                         </div>
+                         
+                         <div className="grid grid-cols-3 gap-2">
+                           <div>
+                             <label className="block text-xs text-gray-600">API Calls:</label>
+                             <span className="text-sm font-medium">{service.estimated_api_calls || 1}</span>
+                           </div>
+                           <div>
+                             <label className="block text-xs text-gray-600">Cache Rate:</label>
+                             <span className="text-sm font-medium">{service.cache_effectiveness || 70}%</span>
+                           </div>
+                           <div>
+                             <label className="block text-xs text-gray-600">Credits:</label>
+                             <span className="text-sm font-medium">{service.credits_required}</span>
+                           </div>
+                         </div>
+                       </div>
+                       
+                       <div className="mt-2 space-x-2">
+                         <button 
+                           onClick={() => loadProkeralaCosts(service.id)}
+                           className="text-sm text-purple-600 hover:underline"
+                         >
+                           Calculate API Costs
+                         </button>
+                         <button 
+                           onClick={() => configureServiceEndpoints(service.id)}
+                           className="text-sm text-indigo-600 hover:underline"
+                         >
+                           Configure Endpoints
+                         </button>
+                       </div>
+                                           </div>
+                     
+                     {prokeralaCosts[service.id] && (
+                       <div className="text-right">
+                         <p className="text-lg font-bold text-purple-600">
+                           {prokeralaCosts[service.id].pricing.suggested_credits} credits
+                                                 </p>
+                         <p className="text-sm text-gray-600">
+                           {prokeralaCosts[service.id].pricing.user_message}
+                         </p>
+                       </div>
+                     )}
+                   </div>
+                   
+                   {prokeralaCosts[service.id] && (
+                     <div className="mt-4 p-4 bg-gray-50 rounded">
+                       <h6 className="font-semibold mb-2">Cost Breakdown</h6>
+                       
+                       <div className="space-y-2 text-sm">
+                         <div className="flex justify-between">
+                           <span>Base API Cost:</span>
+                           <span>${prokeralaCosts[service.id].cost_breakdown.prokerala_base_cost.toFixed(3)}</span>
+                         </div>
+                         
+                         {prokeralaCosts[service.id].cost_breakdown.cache_discount_rate > 0 && (
+                           <div className="flex justify-between text-green-600">
+                             <span>Cache Discount ({prokeralaCosts[service.id].cost_breakdown.cache_discount_rate.toFixed(0)}%):</span>
+                             <span>-${(prokeralaCosts[service.id].cost_breakdown.prokerala_base_cost - prokeralaCosts[service.id].cost_breakdown.prokerala_effective_cost).toFixed(3)}</span>
+                           </div>
+                         )}
+                         
+                         <div className="flex justify-between font-semibold">
+                           <span>Effective API Cost:</span>
+                           <span>${prokeralaCosts[service.id].cost_breakdown.prokerala_effective_cost.toFixed(3)}</span>
+                         </div>
+                         
+                         <div className="border-t pt-2 mt-2">
+                           {Object.entries(prokeralaCosts[service.id].cost_breakdown.other_costs).map(([key, value]) => (
+                             <div key={key} className="flex justify-between">
+                               <span>{key.replace(/_/g, ' ')}:</span>
+                               <span>${value.toFixed(3)}</span>
+                             </div>
+                           ))}
+                         </div>
+                         
+                         <div className="border-t pt-2 mt-2">
+                           <div className="flex justify-between font-bold text-lg">
+                             <span>Suggested Credits:</span>
+                             <span className="text-purple-600">{prokeralaCosts[service.id].pricing.suggested_credits}</span>
+                           </div>
+                           {prokeralaCosts[service.id].pricing.savings_from_cache > 0 && (
+                             <div className="flex justify-between text-green-600">
+                               <span>Cache Savings:</span>
+                               <span>{prokeralaCosts[service.id].pricing.savings_from_cache.toFixed(1)} credits</span>
+                             </div>
+                           )}
+                         </div>
+                       </div>
+                       
+                       {prokeralaCosts[service.id].suggestions.length > 0 && (
+                         <div className="mt-4">
+                           <h6 className="font-semibold mb-2">💡 Value Suggestions</h6>
+                           {prokeralaCosts[service.id].suggestions.map((sugg, idx) => (
                             <div key={idx} className="text-sm bg-blue-50 p-2 rounded mb-2">
                               <p>{sugg.suggestion}</p>
                               <p className="text-gray-600">Cost impact: {sugg.cost_impact}</p>

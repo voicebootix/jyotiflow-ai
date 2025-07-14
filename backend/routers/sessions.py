@@ -228,12 +228,17 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
                 detail="Credit deduction failed - insufficient credits or concurrent transaction"
             )
         
-        # Create session record
+        # Initialize cache tracking variables
+        cache_used = False
+        endpoints_used = []
+        
+        # Create session record with cache tracking (will be updated later with actual cache info)
         session_id = str(uuid.uuid4())
         await db.execute("""
             INSERT INTO sessions (id, user_email, service_type, question, guidance, 
-                                avatar_video_url, credits_used, original_price, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', NOW())
+                                avatar_video_url, credits_used, original_price, status, 
+                                prokerala_cache_used, prokerala_endpoints_used, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', $9, $10, NOW())
         """, 
             session_id, 
             user["email"], 
@@ -242,7 +247,9 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
             f"Divine guidance for: {session_data.get('question', '')}",
             None,  # avatar_video_url
             service["credits_required"],
-            service["price_usd"]
+            service["price_usd"],
+            cache_used,
+            endpoints_used
         )
         
         # Calculate remaining credits
@@ -334,6 +341,38 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
                 session_data.get("question", ""), 
                 astrology_data
             )
+    
+    # Update session with cache tracking information
+    if birth_details:
+        try:
+            cache_key = f"birth_chart:{birth_details.get('date', '')}:{birth_details.get('time', '')}:{birth_details.get('location', {}).get('name', '')}"
+            cached_data = await db.fetchrow("""
+                SELECT created_at FROM api_cache 
+                WHERE cache_key = $1 AND created_at > NOW() - INTERVAL '30 days'
+            """, cache_key)
+            
+            if cached_data:
+                cache_used = True
+                logger.info(f"[Session] Cache hit detected for session {session_id}")
+                
+                # Get service endpoint configuration
+                service_config = await db.fetchrow("""
+                    SELECT prokerala_endpoints FROM service_types WHERE name = $1
+                """, service_type)
+                
+                if service_config and service_config['prokerala_endpoints']:
+                    endpoints_used = service_config['prokerala_endpoints']
+                
+                # Update session with cache information
+                await db.execute("""
+                    UPDATE sessions 
+                    SET prokerala_cache_used = $1, prokerala_endpoints_used = $2
+                    WHERE id = $3
+                """, cache_used, endpoints_used, session_id)
+                
+                logger.info(f"[Session] Updated session {session_id} with cache info: used={cache_used}, endpoints={len(endpoints_used)}")
+        except Exception as e:
+            logger.warning(f"[Session] Cache tracking failed for session {session_id}: {e}")
     
     # Schedule automatic follow-up (non-blocking)
     asyncio.create_task(schedule_session_followup(session_id, user["email"], service_type, db))

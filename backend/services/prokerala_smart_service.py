@@ -2,12 +2,13 @@ import httpx
 import time
 import os
 import json
+import logging
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import asyncpg
-from backend.utils.logger import setup_logger
 
-logger = setup_logger("prokerala_smart_service")
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("prokerala_smart_service")
 
 class ProkeralaSmartService:
     """
