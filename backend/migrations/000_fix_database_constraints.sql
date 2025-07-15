@@ -43,7 +43,7 @@ BEGIN
         SELECT 1 FROM pg_constraint 
         WHERE conname = 'sessions_id_unique'
     ) THEN
-        ALTER TABLE sessions ADD CONSTRAINT sessions_id_unique UNIQUE (id);
+        ALTER TABLE public.sessions ADD CONSTRAINT sessions_id_unique UNIQUE (id);
     END IF;
 END $$;
 
@@ -54,7 +54,7 @@ BEGIN
         SELECT 1 FROM pg_constraint 
         WHERE conname = 'sessions_session_id_unique'
     ) THEN
-        ALTER TABLE sessions ADD CONSTRAINT sessions_session_id_unique UNIQUE (session_id);
+        ALTER TABLE public.sessions ADD CONSTRAINT sessions_session_id_unique UNIQUE (session_id);
     END IF;
 END $$;
 
@@ -63,7 +63,7 @@ END $$;
 -- ========================================
 
 -- Ensure service_types table exists with proper structure and ID generation
-CREATE TABLE IF NOT EXISTS service_types (
+CREATE TABLE IF NOT EXISTS public.service_types (
     id SERIAL PRIMARY KEY,
     name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
@@ -98,7 +98,7 @@ BEGIN
         SELECT 1 FROM pg_constraint 
         WHERE conname = 'service_types_name_unique'
     ) THEN
-        ALTER TABLE service_types ADD CONSTRAINT service_types_name_unique UNIQUE (name);
+        ALTER TABLE public.service_types ADD CONSTRAINT service_types_name_unique UNIQUE (name);
     END IF;
 END $$;
 
@@ -113,14 +113,14 @@ BEGIN
         JOIN pg_attribute a ON d.refobjid = a.attrelid AND d.refobjsubid = a.attnum
         WHERE c.relname = 'service_types_id_seq' 
         AND a.attname = 'id' 
-        AND a.attrelid = 'service_types'::regclass
+        AND a.attrelid = 'public.service_types'::regclass
     ) THEN
         -- Only create sequence if it doesn't exist and isn't linked
         IF NOT EXISTS (SELECT 1 FROM pg_sequences WHERE sequencename = 'service_types_id_seq') THEN
-            CREATE SEQUENCE service_types_id_seq;
+            CREATE SEQUENCE public.service_types_id_seq;
         END IF;
-        ALTER TABLE service_types ALTER COLUMN id SET DEFAULT nextval('service_types_id_seq');
-        ALTER SEQUENCE service_types_id_seq OWNED BY service_types.id;
+        ALTER TABLE public.service_types ALTER COLUMN id SET DEFAULT nextval('public.service_types_id_seq');
+        ALTER SEQUENCE public.service_types_id_seq OWNED BY public.service_types.id;
     END IF;
 END $$;
 
@@ -129,7 +129,7 @@ END $$;
 -- ========================================
 
 -- Ensure users table exists for foreign key references
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE IF NOT EXISTS public.users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(255) NOT NULL,
@@ -160,7 +160,7 @@ BEGIN
         SELECT 1 FROM pg_constraint 
         WHERE conname = 'users_email_unique'
     ) THEN
-        ALTER TABLE users ADD CONSTRAINT users_email_unique UNIQUE (email);
+        ALTER TABLE public.users ADD CONSTRAINT users_email_unique UNIQUE (email);
     END IF;
 END $$;
 
@@ -169,7 +169,7 @@ END $$;
 -- ========================================
 
 -- Service configurations table with proper constraints
-CREATE TABLE IF NOT EXISTS service_configurations (
+CREATE TABLE IF NOT EXISTS public.service_configurations (
     id SERIAL PRIMARY KEY,
     service_name VARCHAR(100) UNIQUE NOT NULL,
     base_credits INTEGER NOT NULL DEFAULT 10,
@@ -190,7 +190,7 @@ BEGIN
         SELECT 1 FROM pg_constraint 
         WHERE conname = 'service_configurations_service_name_unique'
     ) THEN
-        ALTER TABLE service_configurations ADD CONSTRAINT service_configurations_service_name_unique UNIQUE (service_name);
+        ALTER TABLE public.service_configurations ADD CONSTRAINT service_configurations_service_name_unique UNIQUE (service_name);
     END IF;
 END $$;
 
@@ -207,7 +207,7 @@ BEGIN
             SELECT 1 FROM information_schema.columns 
             WHERE table_name = 'service_usage_logs' AND column_name = 'service_type'
         ) THEN
-            ALTER TABLE service_usage_logs ADD COLUMN service_type VARCHAR(100);
+            ALTER TABLE public.service_usage_logs ADD COLUMN service_type VARCHAR(100);
         END IF;
     END IF;
     
@@ -217,7 +217,7 @@ BEGIN
             SELECT 1 FROM information_schema.columns 
             WHERE table_name = 'ai_pricing_recommendations' AND column_name = 'service_type'
         ) THEN
-            ALTER TABLE ai_pricing_recommendations ADD COLUMN service_type VARCHAR(100);
+            ALTER TABLE public.ai_pricing_recommendations ADD COLUMN service_type VARCHAR(100);
         END IF;
     END IF;
     
@@ -227,7 +227,7 @@ BEGIN
             SELECT 1 FROM information_schema.columns 
             WHERE table_name = 'users' AND column_name = 'base_credits'
         ) THEN
-            ALTER TABLE users ADD COLUMN base_credits INTEGER DEFAULT 0;
+            ALTER TABLE public.users ADD COLUMN base_credits INTEGER DEFAULT 0;
         END IF;
     END IF;
     
@@ -237,7 +237,7 @@ BEGIN
             SELECT 1 FROM pg_constraint 
             WHERE conname = 'api_usage_metrics_unique_daily'
         ) THEN
-            ALTER TABLE api_usage_metrics ADD CONSTRAINT api_usage_metrics_unique_daily UNIQUE (api_name, endpoint, date);
+            ALTER TABLE public.api_usage_metrics ADD CONSTRAINT api_usage_metrics_unique_daily UNIQUE (api_name, endpoint, date);
         END IF;
     END IF;
     
@@ -246,7 +246,7 @@ BEGIN
             SELECT 1 FROM pg_constraint 
             WHERE conname = 'satsang_attendees_unique_attendance'
         ) THEN
-            ALTER TABLE satsang_attendees ADD CONSTRAINT satsang_attendees_unique_attendance UNIQUE (satsang_event_id, user_id);
+            ALTER TABLE public.satsang_attendees ADD CONSTRAINT satsang_attendees_unique_attendance UNIQUE (satsang_event_id, user_id);
         END IF;
     END IF;
     
@@ -293,7 +293,7 @@ CREATE TABLE IF NOT EXISTS platform_settings (
 -- ========================================
 
 -- Insert basic service types with proper ID generation
-INSERT INTO service_types (
+INSERT INTO public.service_types (
     name, description, base_credits, duration_minutes, video_enabled, 
     icon, gradient_class, is_premium, category
 ) VALUES 
