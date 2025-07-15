@@ -44,29 +44,14 @@ def _clear_sessions_schema_cache():
     _sessions_schema_cache = None
     logger.info("Sessions schema cache cleared")
 
-def get_user_id_from_token(request: Request) -> str | None:
-    """Extract user ID from JWT token - OPTIONAL"""
-    try:
-        return JWTHandler.get_user_id_from_token(request)
-    except Exception:
-        return None
+# Use centralized authentication helpers - eliminates duplication and inconsistencies
+get_user_id_from_token = AuthenticationHelper.get_user_id_optional
+convert_user_id_to_int = AuthenticationHelper.convert_user_id_to_int
 
 def get_user_id_as_int(request: Request) -> int | None:
     """Extract user ID from JWT token and convert to integer - OPTIONAL"""
-    try:
-        user_id_str = JWTHandler.get_user_id_from_token(request)
-        return int(user_id_str) if user_id_str else None
-    except (ValueError, TypeError):
-        return None
-
-def convert_user_id_to_int(user_id: str | None) -> int | None:
-    """Convert string user_id to integer for database queries"""
-    if not user_id:
-        return None
-    try:
-        return int(user_id)
-    except ValueError:
-        return None
+    user_id_str = get_user_id_from_token(request)
+    return convert_user_id_to_int(user_id_str)
 
 # தமிழ் - பயனர் சுயவிவரம் பெறுதல்
 @router.get("/profile")

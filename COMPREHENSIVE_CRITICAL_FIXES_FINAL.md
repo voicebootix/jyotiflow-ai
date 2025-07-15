@@ -120,10 +120,17 @@ END $$;
 
 ```sql
 -- Enhanced version with schema validation and idempotent operations
+-- Usage: SET target_schema = 'your_schema'; before running this script
 DO $$ 
 DECLARE
-    target_schema_name TEXT := :'target_schema';
+    -- Read schema name from server-side setting (universal client compatibility)
+    target_schema_name TEXT := current_setting('target_schema', true);
 BEGIN
+    -- Validate setting is provided
+    IF target_schema_name IS NULL OR target_schema_name = '' THEN
+        RAISE EXCEPTION 'Please SET target_schema before executing this migration. Example: SET target_schema = ''public'';';
+    END IF;
+
     -- Validate target table exists
     IF to_regclass(format('%I.sessions', target_schema_name)) IS NULL THEN
         RAISE EXCEPTION 'sessions table does not exist in schema %.  Run base DDL first.', target_schema_name;
@@ -135,6 +142,8 @@ BEGIN
     EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS service_type VARCHAR(100)', target_schema_name);
     EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS service_type_id INTEGER', target_schema_name);
     EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS user_id INTEGER', target_schema_name);
+    
+    RAISE NOTICE '✅ Successfully added missing columns to schema: %', target_schema_name;
 END $$;
 ```
 
@@ -292,9 +301,9 @@ psql "$DATABASE_URL" -f backend/migrations/add_missing_session_columns.sql
 # 1. Deploy code files
 git push origin main
 
-# 2. Run schema-specific migrations
-psql "$DATABASE_URL" -v target_schema=production -f backend/migrations/add_missing_session_columns_configurable.sql
-psql "$DATABASE_URL" -v target_schema=staging -f backend/migrations/add_missing_session_columns_configurable.sql
+# 2. Run schema-specific migrations  
+psql "$DATABASE_URL" -c "SET target_schema = 'production';" -f backend/migrations/add_missing_session_columns_configurable.sql
+psql "$DATABASE_URL" -c "SET target_schema = 'staging';" -f backend/migrations/add_missing_session_columns_configurable.sql
 
 # 3. Verify deployment
 psql "$DATABASE_URL" -c "SELECT column_name FROM information_schema.columns WHERE table_name = 'sessions' AND table_schema = 'production';"
