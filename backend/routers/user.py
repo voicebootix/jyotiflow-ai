@@ -3,7 +3,6 @@ from db import get_db
 import os
 from datetime import datetime, timezone
 import uuid
-
 import logging
 
 # Import the smart pricing service
@@ -38,20 +37,8 @@ async def get_profile(request: Request, db=Depends(get_db)):
             "created_at": datetime.now(timezone.utc)
         }
     
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        # Return guest user profile for invalid user IDs (maintain fallback behavior)
-        return {
-            "id": "guest",
-            "email": "guest@jyotiflow.ai",
-            "name": "Guest User",
-            "full_name": "Guest User",
-            "credits": 0,
-            "role": "guest",
-            "created_at": datetime.now(timezone.utc)
-        }
-    
-    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id_int)
+    # user_id is already an integer, no need for conversion
+    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id)
     if not user:
         # Return guest user profile if user not found
         return {
@@ -80,11 +67,8 @@ async def get_credits(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": {"credits": 0}}
     
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        return {"success": False, "error": "Invalid user ID"}
-    
-    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id_int)
+    # user_id is already an integer, no need for conversion
+    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id)
     if not user:
         return {"success": True, "data": {"credits": 0}}
     return {"success": True, "data": {"credits": user["credits"]}}
@@ -95,14 +79,12 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": []}
     
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        return {"success": False, "error": "Invalid user ID"}
-    
-    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id_int)
+    # user_id is already an integer, no need for conversion
+    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id)
     if not user:
         return {"success": True, "data": []}
-    sessions = await db.fetch("SELECT id, service_type, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
+    # Fixed: Changed service_type to service_type_id to match database schema
+    sessions = await db.fetch("SELECT id, service_type_id, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
     return {"success": True, "data": [dict(row) for row in sessions]}
 
 @router.get("/cosmic-insights")
@@ -111,7 +93,7 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
     Free cosmic insights that show limited data
     Implements smart teasing to encourage credit usage
     """
-    user_id = get_user_id_from_token(request)
+    user_id = AuthenticationHelper.get_user_id_optional(request)
     
     if not user_id:
         return {
@@ -122,12 +104,12 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
                 "general": "🌟 The universe holds infinite possibilities for those who seek",
                 "daily": "✨ Today brings opportunities for spiritual growth",
                 "love": "💕 Love energy is flowing in your direction",
-                "career": "💼 Success awaits those who align with their purpose",
+                "career": "💼 Professional success awaits the prepared mind",
                 "spiritual": "🧘 Your spiritual journey is beginning to unfold"
             }
         }
     
-    user_id_int = convert_user_id_to_int(user_id)
+    user_id_int = AuthenticationHelper.convert_user_id_to_int(user_id)
     if user_id_int is None:
         return {"status": "error", "message": "Invalid user ID"}
     
@@ -143,11 +125,11 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
         if not user_data:
             return {"status": "error", "message": "User not found"}
         
-        # Generate personalized cosmic insights
-        insights = await _generate_cosmic_insights(user_id, dict(user_data), db)
+        # Generate personalized cosmic insights - pass user_id_int for consistency
+        insights = await _generate_cosmic_insights(user_id_int, dict(user_data), db)
         
-        # Get personalized service recommendations
-        services = await _get_personalized_services(user_id, db)
+        # Get personalized service recommendations - pass user_id_int for consistency
+        services = await _get_personalized_services(user_id_int, db)
         
         return {
             "status": "success",
@@ -164,7 +146,7 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
             "message": "Unable to generate cosmic insights at this time"
         }
 
-async def _generate_cosmic_insights(user_id: str, user_data: dict, db) -> dict:
+async def _generate_cosmic_insights(user_id: int, user_data: dict, db) -> dict:
     """Generate teaser insights based on user's birth chart data"""
     try:
         birth_data = user_data.get('birth_chart_data', {})
@@ -212,7 +194,7 @@ async def _generate_cosmic_insights(user_id: str, user_data: dict, db) -> dict:
             "career": "💼 Success flows to those who seek guidance"
         }
 
-async def _get_personalized_services(user_id: str, db) -> list:
+async def _get_personalized_services(user_id: int, db) -> list:
     """Get personalized service recommendations with smart pricing"""
     try:
         # Get available services
@@ -262,8 +244,8 @@ async def _get_personalized_services(user_id: str, db) -> list:
         
         for service in services:
             try:
-                # Calculate personalized pricing
-                cost_analysis = await smart_service.calculate_service_cost(service['id'], user_id)
+                # Calculate personalized pricing - convert user_id back to string for smart service
+                cost_analysis = await smart_service.calculate_service_cost(service['id'], str(user_id))
                 
                 # Safely access nested dictionary keys with defaults
                 pricing_data = cost_analysis.get('pricing', {})
@@ -301,4 +283,8 @@ async def _get_personalized_services(user_id: str, db) -> list:
         
     except Exception as e:
         logger.error(f"Error getting personalized services: {e}")
+<<<<<<< HEAD
         return [] 
+=======
+        return []
+>>>>>>> origin/master

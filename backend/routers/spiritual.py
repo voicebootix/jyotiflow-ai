@@ -4,7 +4,7 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from services.birth_chart_cache_service import BirthChartCacheService
 import uuid
 import logging
@@ -958,9 +958,14 @@ async def get_complete_birth_chart_profile(request: Request):
                     else:
                         # If cached_at is not a string or datetime, treat as expired
                         logger.warning(f"Invalid cached_at format for user {user_email}: {type(cached_at)}")
-                        cached_date = datetime.min  # Force regeneration
+                        cached_date = datetime.min.replace(tzinfo=timezone.utc)  # Force regeneration with timezone
                     
-                    if (datetime.now() - cached_date).days < 30:
+                    # Ensure both dates are timezone-aware for comparison
+                    now = datetime.now(timezone.utc)
+                    if cached_date.tzinfo is None:
+                        cached_date = cached_date.replace(tzinfo=timezone.utc)
+                    
+                    if (now - cached_date).days < 30:
                         return {
                             "success": True,
                             "complete_profile": chart_data

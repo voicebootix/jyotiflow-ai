@@ -1290,8 +1290,7 @@ const Profile = () => {
                           </p>
                         </div>
                         <div className="grid md:grid-cols-3 gap-4">
-                          {dashboardData?.birthChart?.swamiji_reading?.personality_insights && 
-                           Array.isArray(dashboardData.birthChart.swamiji_reading.personality_insights) && (
+                          {Array.isArray(dashboardData?.birthChart?.swamiji_reading?.personality_insights) && (
                             <div>
                               <h4 className="font-medium text-orange-700 mb-2">Personality Insights:</h4>
                               <ul className="text-sm text-orange-600 space-y-1">
@@ -1301,8 +1300,7 @@ const Profile = () => {
                               </ul>
                             </div>
                           )}
-                          {dashboardData?.birthChart?.swamiji_reading?.spiritual_guidance && 
-                           Array.isArray(dashboardData.birthChart.swamiji_reading.spiritual_guidance) && (
+                          {Array.isArray(dashboardData?.birthChart?.swamiji_reading?.spiritual_guidance) && (
                             <div>
                               <h4 className="font-medium text-orange-700 mb-2">Spiritual Guidance:</h4>
                               <ul className="text-sm text-orange-600 space-y-1">
@@ -1312,8 +1310,7 @@ const Profile = () => {
                               </ul>
                             </div>
                           )}
-                          {dashboardData?.birthChart?.swamiji_reading?.practical_advice && 
-                           Array.isArray(dashboardData.birthChart.swamiji_reading.practical_advice) && (
+                          {Array.isArray(dashboardData?.birthChart?.swamiji_reading?.practical_advice) && (
                             <div>
                               <h4 className="font-medium text-orange-700 mb-2">Practical Advice:</h4>
                               <ul className="text-sm text-orange-600 space-y-1">
