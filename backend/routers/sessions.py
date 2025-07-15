@@ -11,8 +11,8 @@ import logging
 # Import the enhanced birth chart logic from spiritual.py to avoid duplication
 from .spiritual import get_prokerala_birth_chart_data, create_south_indian_chart_structure
 
-# Import centralized JWT handler
-from auth.jwt_config import JWTHandler
+# Import centralized authentication helper
+from auth.auth_helpers import AuthenticationHelper
 
 # OPENAI INTEGRATION
 import openai
@@ -23,22 +23,13 @@ router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
 logger = logging.getLogger(__name__)
 
-def get_user_id_from_token(request: Request) -> str:
-    """Extract user ID from JWT token"""
-    return JWTHandler.get_user_id_from_token(request)
-
-def convert_user_id_to_int(user_id: str) -> int | None:
-    """Convert string user_id to integer for database queries"""
-    if not user_id:
-        return None
-    try:
-        return int(user_id)
-    except ValueError:
-        return None
+# Use centralized authentication helpers - no duplication
+get_user_id_from_token = AuthenticationHelper.get_user_id_strict
+convert_user_id_to_int = AuthenticationHelper.convert_user_id_to_int
 
 async def get_user_email_from_token(request: Request) -> str:
     """Extract user email from JWT token"""
-    return JWTHandler.get_user_email_from_token(request)
+    return AuthenticationHelper.get_user_email_strict(request)
 
 async def generate_spiritual_guidance_with_ai(question: str, astrology_data: Dict[str, Any]) -> str:
     """Generate spiritual guidance using OpenAI with enhanced birth chart data"""
