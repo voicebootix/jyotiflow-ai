@@ -68,7 +68,7 @@ else:
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
 from routers import admin_overview, admin_integrations
-from routers import content
+from routers import content, ai, community, session_analytics
 import db
 
 # Import the migration runner
@@ -367,17 +367,13 @@ def get_cors_headers():
         # Development/Staging: Allow all headers for flexibility
         return ["*"]
 
-# Add CORS middleware with environment-based configuration
-cors_origins = get_cors_origins()
-cors_methods = get_cors_methods()
-cors_headers = get_cors_headers()
-
+# Add CORS middleware with simplified configuration for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
-    allow_methods=cors_methods,
-    allow_headers=cors_headers,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Global Exception Handler ---
@@ -482,6 +478,20 @@ app.include_router(donations.router)
 app.include_router(credits.router)
 app.include_router(services.router)
 app.include_router(content.router)
+app.include_router(ai.router)
+app.include_router(community.router)
+app.include_router(session_analytics.router)
+
+# Register missing endpoints
+try:
+    from missing_endpoints import ai_router, user_router as missing_user_router, sessions_router as missing_sessions_router, community_router
+    app.include_router(ai_router)
+    app.include_router(missing_user_router)
+    app.include_router(missing_sessions_router)
+    app.include_router(community_router)
+    print("✅ Missing endpoints registered successfully")
+except ImportError as e:
+    print(f"❌ Failed to register missing endpoints: {e}")
 
 # Admin routers
 app.include_router(admin_products.router)

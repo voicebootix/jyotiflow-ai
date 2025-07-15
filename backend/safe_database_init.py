@@ -465,6 +465,49 @@ class SafeDatabaseInitializer:
                 
         except Exception as e:
             logger.warning(f"⚠️ Could not fix content_type column: {e}")
+                
+        # Fix cultural_context column in rag_knowledge_base table
+        try:
+            logger.info("🔍 Checking rag_knowledge_base table for cultural_context column...")
+            
+            # Check if table exists
+            table_exists = await conn.fetchval("""
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = 'rag_knowledge_base'
+            """)
+            
+            if table_exists:
+                # Check if cultural_context column exists
+                column_exists = await conn.fetchval("""
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'rag_knowledge_base' 
+                    AND column_name = 'cultural_context'
+                """)
+                
+                if not column_exists:
+                    logger.info("⚠️ cultural_context column missing in rag_knowledge_base. Adding it...")
+                    await conn.execute("""
+                        ALTER TABLE rag_knowledge_base 
+                        ADD COLUMN cultural_context VARCHAR(100) NOT NULL DEFAULT 'universal'
+                    """)
+                    logger.info("✅ cultural_context column added to rag_knowledge_base")
+                    
+                    # Update existing records with default cultural context
+                    records_count = await conn.fetchval("SELECT COUNT(*) FROM rag_knowledge_base")
+                    if records_count > 0:
+                        await conn.execute("""
+                            UPDATE rag_knowledge_base 
+                            SET cultural_context = 'universal' 
+                            WHERE cultural_context IS NULL
+                        """)
+                        logger.info(f"✅ Updated cultural_context for {records_count} existing records")
+                else:
+                    logger.info("✅ cultural_context column already exists in rag_knowledge_base")
+            else:
+                logger.info("⚠️ rag_knowledge_base table does not exist yet")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ Could not fix cultural_context column: {e}")
         
         # Add missing columns to service_types
         columns_to_add = [
