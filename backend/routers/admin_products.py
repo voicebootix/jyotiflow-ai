@@ -73,7 +73,7 @@ async def get_products(db=Depends(get_db)):
 # --- SERVICE TYPES ENDPOINTS (with real DB logic) ---
 @router.post("/service-types")
 async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)):
-    print("SERVICE TYPE POST CALLED")
+    logger.info("Service type POST endpoint called")
     enabled = service_type.get("enabled", service_type.get("is_active", True))
     await db.execute(
         """
@@ -109,7 +109,7 @@ async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)
 
 @router.get("/service-types")
 async def get_service_types(db=Depends(get_db)):
-    print("SERVICE TYPE GET CALLED")
+    logger.info("Service type GET endpoint called")
     result = await db.fetch("SELECT * FROM service_types ORDER BY credits_required")
     return [
         {
@@ -143,7 +143,7 @@ async def get_service_types(db=Depends(get_db)):
 
 @router.put("/service-types/{service_type_id}")
 async def update_service_type(service_type_id: int, service_type: dict = Body(...), db=Depends(get_db)):
-    print("SERVICE TYPE PUT CALLED")
+    logger.info(f"Service type PUT endpoint called for ID: {service_type_id}")
     enabled = service_type.get("enabled", service_type.get("is_active", True))
     result = await db.execute(
         """
@@ -185,7 +185,7 @@ async def update_service_type(service_type_id: int, service_type: dict = Body(..
 
 @router.delete("/service-types/{service_type_id}")
 async def delete_service_type(service_type_id: int, db=Depends(get_db)):
-    print("SERVICE TYPE DELETE CALLED")
+    logger.info(f"Service type DELETE endpoint called for ID: {service_type_id}")
     result = await db.execute(
         "UPDATE service_types SET enabled=FALSE WHERE id=$1",
         int(service_type_id)
@@ -197,7 +197,7 @@ async def delete_service_type(service_type_id: int, db=Depends(get_db)):
 # --- PRICING CONFIG ENDPOINTS ---
 @router.get("/pricing-config")
 async def get_pricing_config(db=Depends(get_db)):
-    print("PRICING CONFIG GET CALLED")
+    logger.info("Pricing config GET endpoint called")
     result = await db.fetch("SELECT * FROM pricing_config ORDER BY id ASC")
     return [
         {
@@ -214,7 +214,7 @@ async def get_pricing_config(db=Depends(get_db)):
 
 @router.post("/pricing-config")
 async def create_pricing_config(config: dict = Body(...), db=Depends(get_db)):
-    print("PRICING CONFIG POST CALLED")
+    logger.info("Pricing config POST endpoint called")
     await db.execute(
         """
         INSERT INTO pricing_config (key, value, type, description, is_active, updated_at)
@@ -230,7 +230,7 @@ async def create_pricing_config(config: dict = Body(...), db=Depends(get_db)):
 
 @router.put("/pricing-config/{config_key}")
 async def update_pricing_config(config_key: str, config: dict = Body(...), db=Depends(get_db)):
-    print("PRICING CONFIG PUT CALLED")
+    logger.info(f"Pricing config PUT endpoint called for key: {config_key}")
     result = await db.execute(
         """
         UPDATE pricing_config SET value=$1, type=$2, description=$3, 
@@ -585,15 +585,15 @@ async def get_prokerala_config(db=Depends(get_db)):
 # --- PRODUCT ENDPOINTS (must be below service-types endpoints) ---
 @router.post("/{product_id}")
 async def update_product_post(product_id: uuid.UUID, product: dict = Body(...)):
-    print("PRODUCT POST CALLED")
+    logger.info(f"Product POST endpoint called for ID: {product_id}")
     return {"success": True, "debug": f"product endpoint hit for {product_id}"}
 
 @router.put("/{product_id}")
 async def update_product(product_id: uuid.UUID, product: dict = Body(...)):
-    print("PRODUCT PUT CALLED")
+    logger.info(f"Product PUT endpoint called for ID: {product_id}")
     return {"success": True, "debug": f"product endpoint hit for {product_id}"}
 
 @router.delete("/{product_id}")
 async def delete_product(product_id: uuid.UUID):
-    print("PRODUCT DELETE CALLED")
+    logger.info(f"Product DELETE endpoint called for ID: {product_id}")
     return {"success": True, "debug": f"product endpoint hit for {product_id}"} 

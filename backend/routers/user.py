@@ -283,8 +283,4 @@ async def _get_personalized_services(user_id: int, db) -> list:
         
     except Exception as e:
         logger.error(f"Error getting personalized services: {e}")
-<<<<<<< HEAD
-        return [] 
-=======
         return []
->>>>>>> origin/master
