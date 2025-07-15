@@ -119,85 +119,73 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user:
         return {"success": True, "data": []}
     
-    # TRULY BULLETPROOF: Start with guaranteed columns only, add more as available
+    # BULLETPROOF: Check column existence first, then query safely
     
-    # Level 1: Try with only columns guaranteed to exist in ANY sessions table
+    # Step 1: Determine which columns actually exist in sessions table
+    available_columns = set()
     try:
-        sessions = await db.fetch("""
-            SELECT id, created_at 
-            FROM sessions 
-            ORDER BY created_at DESC 
-            LIMIT 100
+        columns_result = await db.fetch("""
+            SELECT column_name 
+            FROM information_schema.columns 
+            WHERE table_name = 'sessions' AND table_schema = 'public'
         """)
+        available_columns = {row['column_name'] for row in columns_result}
+    except Exception:
+        # Can't check columns, assume none exist except basic ones
+        available_columns = {'id', 'created_at'}
+    
+    # Step 2: Build safe query based on available columns
+    select_parts = ['id', 'created_at']  # Always safe
+    
+    # Add optional columns only if they exist
+    if 'service_type' in available_columns:
+        select_parts.append("service_type")
+    if 'service_type_id' in available_columns and 'service_type' not in available_columns:
+        select_parts.append("service_type_id::text as service_type")
+    if 'question' in available_columns:
+        select_parts.append("question")
+    
+    # Determine user filtering capability
+    user_filter = ""
+    user_params = []
+    if 'user_email' in available_columns:
+        user_filter = "WHERE user_email = $1"
+        user_params = [user["email"]]
+    elif 'user_id' in available_columns:
+        user_filter = "WHERE user_id = $1"
+        user_params = [user_id_int]
+    # If no user columns, return recent sessions for any user
+    
+    # Step 3: Execute safe query
+    try:
+        query = f"""
+            SELECT {', '.join(select_parts)}
+            FROM sessions 
+            {user_filter}
+            ORDER BY created_at DESC 
+            LIMIT 50
+        """
         
-        # Got basic sessions, now enhance with available columns
-        enhanced_sessions = []
+        if user_params:
+            sessions = await db.fetch(query, *user_params)
+        else:
+            sessions = await db.fetch(query)
+        
+        # Step 4: Normalize response format
+        sessions_data = []
         for session in sessions:
             session_data = {
                 "id": session["id"],
-                "service_type": "unknown",
-                "question": "No question recorded",
+                "service_type": session.get("service_type", "unknown"),
+                "question": session.get("question", "No question recorded"),
                 "created_at": session["created_at"]
             }
-            enhanced_sessions.append(session_data)
+            sessions_data.append(session_data)
         
-        # Level 2: Try to add user filtering if user columns exist
-        user_filtered_sessions = []
-        try:
-            # Try user_email filtering
-            user_sessions = await db.fetch("""
-                SELECT id, created_at 
-                FROM sessions 
-                WHERE user_email = $1
-                ORDER BY created_at DESC
-            """, user["email"])
-            user_filtered_sessions = [dict(row) for row in user_sessions]
-        except Exception:
-            try:
-                # Try user_id filtering  
-                user_sessions = await db.fetch("""
-                    SELECT id, created_at 
-                    FROM sessions 
-                    WHERE user_id = $1
-                    ORDER BY created_at DESC
-                """, user_id_int)
-                user_filtered_sessions = [dict(row) for row in user_sessions]
-            except Exception:
-                # No user filtering possible, use first 10 from all sessions
-                user_filtered_sessions = [dict(row) for row in sessions[:10]]
-        
-        # Level 3: Try to enhance with additional columns if they exist
-        final_sessions = []
-        for session in user_filtered_sessions:
-            session_data = {
-                "id": session["id"],
-                "service_type": "unknown",
-                "question": "No question recorded",
-                "created_at": session["created_at"]
-            }
-            
-            # Try to get enhanced data for this specific session
-            try:
-                enhanced = await db.fetchrow("""
-                    SELECT 
-                        COALESCE(service_type, 'unknown') as service_type,
-                        COALESCE(question, 'No question recorded') as question
-                    FROM sessions 
-                    WHERE id = $1
-                """, session["id"])
-                if enhanced:
-                    session_data["service_type"] = enhanced["service_type"]
-                    session_data["question"] = enhanced["question"]
-            except Exception:
-                # Enhanced columns don't exist, keep defaults
-                pass
-            
-            final_sessions.append(session_data)
-        
-        return {"success": True, "data": final_sessions}
+        return {"success": True, "data": sessions_data}
         
     except Exception as e1:
-        # Even basic id/created_at query failed - sessions table might not exist
+        # Fallback: Return empty data if query fails
         return {"success": True, "data": []}
 # தமிழ் - கடன் வரலாறு பெறுதல்
 @router.get("/credit-history")
