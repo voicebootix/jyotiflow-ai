@@ -208,96 +208,100 @@ async def lifespan(app: FastAPI):
         # await apply_migrations()
         print("⏭️ Skipping migrations - Database already set up")
         
-        # Initialize database connection pool with enhanced settings
+        # Check DATABASE_URL configuration
+        if not DATABASE_URL or DATABASE_URL == "postgresql://user:password@localhost:5432/yourdb":
+            print("❌ ERROR: DATABASE_URL is not properly configured!")
+            print(f"Current DATABASE_URL: {DATABASE_URL}")
+            print("Please set the DATABASE_URL environment variable in your Render dashboard.")
+            print("Go to: Dashboard > Service > Environment > Add Environment Variable")
+            print("Key: DATABASE_URL")
+            print("Value: Your PostgreSQL connection string")
+            raise ValueError("DATABASE_URL environment variable must be properly configured")
+        
+        print(f"🔗 Attempting to connect to database...")
+        print(f"📍 Database host: {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else 'unknown'}")
+        
+        # Initialize database connection pool with enhanced settings and retry logic
         global db_pool
-        db_pool = await asyncpg.create_pool(
-            DATABASE_URL,
-            min_size=5,
-            max_size=20,
-            command_timeout=60,
-            server_settings={
-                'application_name': 'jyotiflow_main_pool',
-                'tcp_keepalives_idle': '600',
-                'tcp_keepalives_interval': '60',
-                'tcp_keepalives_count': '5'
-            }
-        )
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                print(f"🔄 Database connection attempt {attempt + 1}/{max_retries}")
+                
+                db_pool = await asyncpg.create_pool(
+                    DATABASE_URL,
+                    min_size=2,  # Reduced for free tier
+                    max_size=10,  # Reduced for free tier
+                    command_timeout=30,  # Reduced timeout
+                    server_settings={
+                        'application_name': 'jyotiflow_main_pool',
+                        'tcp_keepalives_idle': '300',  # Reduced keepalive
+                        'tcp_keepalives_interval': '30',
+                        'tcp_keepalives_count': '3'
+                    },
+                    timeout=20  # Connection timeout
+                )
+                
+                # Test the connection
+                async with db_pool.acquire() as conn:
+                    await conn.execute("SELECT 1")
+                    print("✅ Database connection test successful")
+                
+                break  # Success, exit retry loop
+                
+            except asyncio.TimeoutError:
+                print(f"⏱️ Database connection timeout on attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    print(f"🔄 Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    print("❌ All database connection attempts failed due to timeout")
+                    print("💡 Possible solutions:")
+                    print("   1. Check if DATABASE_URL is correct in Render dashboard")
+                    print("   2. Ensure PostgreSQL service is running")
+                    print("   3. Check database connection limits")
+                    print("   4. Verify network connectivity")
+                    raise
+                    
+            except Exception as e:
+                print(f"❌ Database connection error on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    print(f"🔄 Retrying in {retry_delay} seconds...")
+                    await asyncio.sleep(retry_delay)
+                else:
+                    print("❌ All database connection attempts failed")
+                    print(f"🔍 Final error: {str(e)}")
+                    print("💡 Debugging steps:")
+                    print("   1. Verify DATABASE_URL format: postgresql://user:pass@host:port/db")
+                    print("   2. Check database credentials")
+                    print("   3. Ensure database exists and is accessible")
+                    print("   4. Check firewall/security group settings")
+                    raise
         
         # Set the pool in the db module for all routers to use
         db.set_db_pool(db_pool)
         
         print("✅ Database connection pool initialized")
+        print(f"📊 Pool size: min={db_pool.get_min_size()}, max={db_pool.get_max_size()}")
         
-        # Test database connection
-        if db_pool is not None:
-            async with db_pool.acquire() as conn:
-                await conn.fetchval("SELECT 1")
-            print("✅ Database connection test successful")
-        else:
-            raise Exception("Database pool is not initialized.")
-        
-        # Skip column checks - they use ALTER TABLE
-        print("⏭️ Skipping column checks - Database already configured")
-        
-        # Skip schema fixes - they use ALTER TABLE
-        print("⏭️ Skipping schema fixes - Database already fixed")
-        
-        # Safe database initialization might be OK if it only INSERTs data
-        try:
-            print("🚀 Checking if safe database initialization is needed...")
-            from safe_database_init import safe_initialize_database
-            # This should only INSERT data, not create/alter tables
-            success = await safe_initialize_database()
-            if success:
-                print("✅ Safe database initialization completed!")
-        except Exception as e:
-            print(f"⚠️ Safe initialization skipped: {e}")
-            # This is OK - tables exist, just might be missing some seed data
-        
-        # Surgical fix for admin user authentication - DISABLED
-        # This is now handled by safe_database_init.py with consistent bcrypt hashing
-        print("⏭️ Skipping surgical admin authentication fix - handled by safe_database_init.py")
-        
-        # Initialize enhanced system if available
-        if ENHANCED_ROUTER_AVAILABLE:
-            try:
-                from enhanced_startup_integration import initialize_enhanced_jyotiflow
-                success = await initialize_enhanced_jyotiflow()
-                if success:
-                    print("✅ Enhanced JyotiFlow system initialized successfully")
-                else:
-                    print("⚠️ Enhanced system initialization had issues but will continue in fallback mode")
-            except Exception as e:
-                print(f"⚠️ Enhanced system initialization failed: {e}")
-        
-        # Run comprehensive startup fixes if available
-        if STARTUP_FIXER_AVAILABLE:
-            try:
-                from fix_startup_issues import JyotiFlowStartupFixer
-                startup_fixer = JyotiFlowStartupFixer()
-                await startup_fixer.fix_all_issues()
-                print("✅ Comprehensive startup fixes applied successfully")
-            except Exception as e:
-                print(f"⚠️ Comprehensive startup fixes failed: {e}")
-        
-        print("🎉 JyotiFlow.ai backend startup completed successfully!")
+        # Yield control to the application
+        yield
         
     except Exception as e:
-        print(f"❌ Backend startup failed: {e}")
+        print(f"❌ Backend startup failed: {str(e)}")
         raise
-    
-    # Yield control to the application
-    yield
-    
-    # Shutdown
-    try:
-        print("🛑 Shutting down JyotiFlow.ai backend...")
-        if db_pool is not None:
-            await db_pool.close()
-            print("✅ Database connections closed")
-        print("👋 JyotiFlow.ai backend shutdown completed")
-    except Exception as e:
-        print(f"❌ Backend shutdown error: {e}")
+        
+    finally:
+        # Shutdown
+        try:
+            if db_pool:
+                print("🔄 Closing database connection pool...")
+                await db_pool.close()
+                print("✅ Database connection pool closed")
+        except Exception as e:
+            print(f"⚠️ Error closing database pool: {str(e)}")
 
 # Create FastAPI app with lifespan manager
 app = FastAPI(
