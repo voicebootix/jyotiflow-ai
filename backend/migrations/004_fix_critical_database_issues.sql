@@ -145,25 +145,40 @@ BEGIN
             
             -- Instead, implement a proper approach that preserves data integrity
             BEGIN
-                -- First, create a backup of the current plan_id values
-                CREATE TEMP TABLE plan_id_backup AS 
-                SELECT id, plan_id, plan_id::text as plan_id_text 
+                -- First, create a permanent backup table (not TEMP) to preserve data across sessions
+                -- This prevents data loss when the database session ends
+                DROP TABLE IF EXISTS public.plan_id_backup_migration;
+                CREATE TABLE public.plan_id_backup_migration AS 
+                SELECT id, plan_id, plan_id::text as plan_id_text, 
+                       CURRENT_TIMESTAMP as backup_created_at
                 FROM public.user_subscriptions 
                 WHERE plan_id IS NOT NULL;
                 
-                RAISE NOTICE '✅ Created backup of plan_id values';
+                RAISE NOTICE '✅ Created permanent backup table: public.plan_id_backup_migration';
+                
+                -- Check if plan_id column has NOT NULL constraint
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'user_subscriptions' 
+                    AND column_name = 'plan_id' 
+                    AND is_nullable = 'NO'
+                ) THEN
+                    -- Drop NOT NULL constraint before setting values to NULL
+                    ALTER TABLE public.user_subscriptions ALTER COLUMN plan_id DROP NOT NULL;
+                    RAISE NOTICE '✅ Dropped NOT NULL constraint on plan_id column';
+                END IF;
                 
                 -- Check if we have existing subscription_plans to map to
                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_plans') THEN
                     -- If subscription_plans table exists, we need to map UUIDs to existing plan IDs
-                    -- For now, set all UUID plan_ids to NULL to prevent foreign key constraint issues
-                    -- This preserves the data in the backup table for manual mapping later
+                    -- Set all UUID plan_ids to NULL to prevent foreign key constraint issues
+                    -- This preserves the data in the permanent backup table for manual mapping later
                     UPDATE public.user_subscriptions 
                     SET plan_id = NULL 
                     WHERE plan_id IS NOT NULL;
                     
                     RAISE NOTICE '⚠️  Set all UUID plan_id values to NULL to prevent constraint issues';
-                    RAISE NOTICE '📋 UUID values are preserved in plan_id_backup table for manual mapping';
+                    RAISE NOTICE '📋 UUID values are preserved in public.plan_id_backup_migration table';
                     RAISE NOTICE '🔧 Manual intervention required: Map UUIDs to subscription_plans.id values';
                     
                 ELSE
@@ -176,9 +191,9 @@ BEGIN
                 
                 -- Log the conversion results for audit purposes
                 RAISE NOTICE '📊 Data preservation summary:';
-                RAISE NOTICE '   - Total records with plan_id: %', (SELECT COUNT(*) FROM plan_id_backup);
+                RAISE NOTICE '   - Total records with plan_id: %', (SELECT COUNT(*) FROM public.plan_id_backup_migration);
                 RAISE NOTICE '   - Records set to NULL: %', (SELECT COUNT(*) FROM public.user_subscriptions WHERE plan_id IS NULL);
-                RAISE NOTICE '   - Backup table created: plan_id_backup';
+                RAISE NOTICE '   - Permanent backup table: public.plan_id_backup_migration';
                 
             EXCEPTION WHEN OTHERS THEN
                 RAISE NOTICE '❌ Failed to process plan_id column: %', SQLERRM;
@@ -187,13 +202,14 @@ BEGIN
             END;
             
             -- Note: Foreign key constraint will be added after manual UUID to INTEGER mapping
-            -- For now, we preserve the UUID data in the backup table and set plan_id to NULL
+            -- For now, we preserve the UUID data in the permanent backup table and set plan_id to NULL
             -- This prevents constraint violations while preserving all original data
             RAISE NOTICE '📋 Next steps:';
-            RAISE NOTICE '   1. Review plan_id_backup table for UUID values';
+            RAISE NOTICE '   1. Review public.plan_id_backup_migration table for UUID values';
             RAISE NOTICE '   2. Map UUIDs to appropriate subscription_plans.id values';
             RAISE NOTICE '   3. Update user_subscriptions.plan_id with mapped INTEGER values';
             RAISE NOTICE '   4. Add foreign key constraint after mapping is complete';
+            RAISE NOTICE '   5. Drop public.plan_id_backup_migration table after successful mapping';
         END IF;
     END IF;
 END $$;
