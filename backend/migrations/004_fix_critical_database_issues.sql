@@ -137,15 +137,49 @@ BEGIN
                 RAISE NOTICE '✅ Dropped problematic user_subscriptions_plan_id_fkey constraint';
             END IF;
             
-            -- Change plan_id column type to INTEGER
-            ALTER TABLE user_subscriptions ALTER COLUMN plan_id TYPE INTEGER USING plan_id::text::integer;
-            RAISE NOTICE '✅ Changed user_subscriptions.plan_id from UUID to INTEGER';
+            -- Check if there are any non-numeric UUID values that would cause conversion to fail
+            IF EXISTS (
+                SELECT 1 FROM user_subscriptions 
+                WHERE plan_id IS NOT NULL 
+                AND plan_id::text !~ '^[0-9]+$'
+            ) THEN
+                -- Handle non-numeric UUIDs by setting them to NULL or a default value
+                UPDATE user_subscriptions 
+                SET plan_id = NULL 
+                WHERE plan_id IS NOT NULL 
+                AND plan_id::text !~ '^[0-9]+$';
+                RAISE NOTICE '⚠️  Found non-numeric UUID values in plan_id - set to NULL for safety';
+            END IF;
             
-            -- Re-add the foreign key constraint
-            ALTER TABLE user_subscriptions 
-            ADD CONSTRAINT user_subscriptions_plan_id_fkey 
-            FOREIGN KEY (plan_id) REFERENCES subscription_plans(id);
-            RAISE NOTICE '✅ Re-added user_subscriptions_plan_id_fkey constraint with correct types';
+            -- Change plan_id column type to INTEGER with safe conversion
+            BEGIN
+                ALTER TABLE user_subscriptions ALTER COLUMN plan_id TYPE INTEGER USING 
+                    CASE 
+                        WHEN plan_id IS NULL THEN NULL
+                        WHEN plan_id::text ~ '^[0-9]+$' THEN plan_id::text::integer
+                        ELSE NULL
+                    END;
+                RAISE NOTICE '✅ Changed user_subscriptions.plan_id from UUID to INTEGER safely';
+            EXCEPTION WHEN OTHERS THEN
+                RAISE NOTICE '❌ Failed to convert plan_id column type: %', SQLERRM;
+                RAISE NOTICE '⚠️  Keeping plan_id as UUID type - manual intervention may be required';
+                RETURN;
+            END;
+            
+            -- Re-add the foreign key constraint only if subscription_plans table exists
+            IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_plans') THEN
+                BEGIN
+                    ALTER TABLE user_subscriptions 
+                    ADD CONSTRAINT user_subscriptions_plan_id_fkey 
+                    FOREIGN KEY (plan_id) REFERENCES subscription_plans(id);
+                    RAISE NOTICE '✅ Re-added user_subscriptions_plan_id_fkey constraint with correct types';
+                EXCEPTION WHEN OTHERS THEN
+                    RAISE NOTICE '❌ Failed to add foreign key constraint: %', SQLERRM;
+                    RAISE NOTICE '⚠️  Foreign key constraint not added - manual intervention may be required';
+                END;
+            ELSE
+                RAISE NOTICE '⚠️  subscription_plans table does not exist - skipping foreign key constraint';
+            END IF;
         END IF;
     END IF;
 END $$;
