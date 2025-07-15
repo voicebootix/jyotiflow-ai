@@ -1,11 +1,4 @@
 services:
-  # PostgreSQL Database Service
-  - type: pgsql
-    name: jyotiflow-database
-    databaseName: jyotiflow_db
-    user: jyotiflow_user
-    plan: free  # Change to starter or standard for production
-
   - type: web
     name: jyotiflow-backend
     env: python
@@ -16,11 +9,9 @@ services:
         value: 3.11.0
       - key: PORT
         value: 8000
-      # Database Configuration
+      # Database Configuration (will use your existing DATABASE_URL from dashboard)
       - key: DATABASE_URL
-        fromDatabase:
-          name: jyotiflow-database
-          property: connectionString
+        sync: false  # Use the one already configured in your dashboard
       # JWT Secret (should be set in Render dashboard for security)
       - key: JWT_SECRET
         sync: false

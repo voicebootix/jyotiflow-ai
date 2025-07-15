@@ -212,96 +212,132 @@ async def lifespan(app: FastAPI):
         if not DATABASE_URL or DATABASE_URL == "postgresql://user:password@localhost:5432/yourdb":
             print("❌ ERROR: DATABASE_URL is not properly configured!")
             print(f"Current DATABASE_URL: {DATABASE_URL}")
-            print("Please set the DATABASE_URL environment variable in your Render dashboard.")
-            print("Go to: Dashboard > Service > Environment > Add Environment Variable")
-            print("Key: DATABASE_URL")
-            print("Value: Your PostgreSQL connection string")
+            print("Please ensure DATABASE_URL is set in your Render dashboard.")
+            print("Go to: Dashboard > Service > Environment > DATABASE_URL")
             raise ValueError("DATABASE_URL environment variable must be properly configured")
         
-        print(f"🔗 Attempting to connect to database...")
+        print(f"🔗 Attempting to connect to existing Render database...")
         print(f"📍 Database host: {DATABASE_URL.split('@')[1].split('/')[0] if '@' in DATABASE_URL else 'unknown'}")
         
-        # Initialize database connection pool with enhanced settings and retry logic
+        # Initialize database connection pool with enhanced settings for Render
         global db_pool
-        max_retries = 3
-        retry_delay = 5
+        max_retries = 5  # Increased for Render cold starts
+        base_delay = 3
+        max_delay = 30
         
         for attempt in range(max_retries):
             try:
+                # Calculate exponential backoff delay
+                delay = min(base_delay * (2 ** attempt), max_delay)
+                if attempt > 0:
+                    print(f"⏸️ Waiting {delay} seconds before retry...")
+                    await asyncio.sleep(delay)
+                
                 print(f"🔄 Database connection attempt {attempt + 1}/{max_retries}")
+                
+                # Extended timeout for Render database cold starts
+                connection_timeout = 45 if attempt == 0 else 60
                 
                 db_pool = await asyncpg.create_pool(
                     DATABASE_URL,
-                    min_size=2,  # Reduced for free tier
-                    max_size=10,  # Reduced for free tier
-                    command_timeout=30,  # Reduced timeout
+                    min_size=1,  # Start small for Render
+                    max_size=8,  # Reasonable for Render free/starter tiers
+                    command_timeout=60,
                     server_settings={
                         'application_name': 'jyotiflow_main_pool',
-                        'tcp_keepalives_idle': '300',  # Reduced keepalive
-                        'tcp_keepalives_interval': '30',
+                        'tcp_keepalives_idle': '600',
+                        'tcp_keepalives_interval': '60',
                         'tcp_keepalives_count': '3'
                     },
-                    timeout=20  # Connection timeout
+                    timeout=connection_timeout  # Extended timeout for cold starts
                 )
                 
-                # Test the connection
+                # Test the connection with a simple query
+                print("🧪 Testing database connection...")
                 async with db_pool.acquire() as conn:
-                    await conn.execute("SELECT 1")
-                    print("✅ Database connection test successful")
+                    result = await conn.fetchval("SELECT 1 as test")
+                    if result == 1:
+                        print("✅ Database connection test successful")
+                    else:
+                        raise Exception("Database test query returned unexpected result")
+                
+                # Test basic database access
+                try:
+                    async with db_pool.acquire() as conn:
+                        version = await conn.fetchval("SELECT version()")
+                        print(f"🗄️ Connected to: {version.split(',')[0] if version else 'PostgreSQL'}")
+                except Exception as e:
+                    print(f"⚠️ Database version check failed: {e}")
                 
                 break  # Success, exit retry loop
                 
             except asyncio.TimeoutError:
-                print(f"⏱️ Database connection timeout on attempt {attempt + 1}")
+                print(f"⏱️ Database connection timeout on attempt {attempt + 1} (waited {connection_timeout}s)")
                 if attempt < max_retries - 1:
-                    print(f"🔄 Retrying in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
+                    print("🔥 This might be a cold start - database is spinning up...")
+                    print("💡 Render databases can take up to 60 seconds to start from cold state")
                 else:
                     print("❌ All database connection attempts failed due to timeout")
-                    print("💡 Possible solutions:")
-                    print("   1. Check if DATABASE_URL is correct in Render dashboard")
-                    print("   2. Ensure PostgreSQL service is running")
-                    print("   3. Check database connection limits")
-                    print("   4. Verify network connectivity")
+                    print("💡 Troubleshooting steps:")
+                    print("   1. Check Render dashboard - is your database service running?")
+                    print("   2. Verify DATABASE_URL is correct in environment variables")
+                    print("   3. Try manual redeploy - database might be in error state")
+                    print("   4. Check Render status page for database outages")
                     raise
                     
+            except asyncpg.InvalidAuthorizationSpecificationError as e:
+                print(f"🔐 Database authentication failed on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    print("🔄 Retrying in case of temporary auth issues...")
+                else:
+                    print("❌ Database authentication failed after all retries")
+                    print("💡 Check your DATABASE_URL credentials in Render dashboard")
+                    raise
+                    
+            except asyncpg.InvalidCatalogNameError as e:
+                print(f"🗄️ Database not found on attempt {attempt + 1}: {str(e)}")
+                print("❌ Database does not exist or is not accessible")
+                print("💡 Verify database name in your DATABASE_URL")
+                raise  # Don't retry for this error
+                
             except Exception as e:
                 print(f"❌ Database connection error on attempt {attempt + 1}: {str(e)}")
+                print(f"🔍 Error type: {type(e).__name__}")
                 if attempt < max_retries - 1:
-                    print(f"🔄 Retrying in {retry_delay} seconds...")
-                    await asyncio.sleep(retry_delay)
+                    print("🔄 Retrying with exponential backoff...")
                 else:
                     print("❌ All database connection attempts failed")
-                    print(f"🔍 Final error: {str(e)}")
-                    print("💡 Debugging steps:")
-                    print("   1. Verify DATABASE_URL format: postgresql://user:pass@host:port/db")
-                    print("   2. Check database credentials")
-                    print("   3. Ensure database exists and is accessible")
-                    print("   4. Check firewall/security group settings")
+                    print("💡 Final troubleshooting:")
+                    print("   1. Check DATABASE_URL format and credentials")
+                    print("   2. Ensure database service is healthy in Render dashboard")
+                    print("   3. Try restarting your database service")
+                    print("   4. Contact Render support if issues persist")
                     raise
         
         # Set the pool in the db module for all routers to use
         db.set_db_pool(db_pool)
         
-        print("✅ Database connection pool initialized")
-        print(f"📊 Pool size: min={db_pool.get_min_size()}, max={db_pool.get_max_size()}")
+        print("✅ Database connection pool initialized successfully!")
+        print(f"📊 Pool configuration: min={db_pool.get_min_size()}, max={db_pool.get_max_size()}")
+        print(f"🎯 Ready to serve JyotiFlow.ai API requests")
         
         # Yield control to the application
         yield
         
     except Exception as e:
         print(f"❌ Backend startup failed: {str(e)}")
+        print("🔧 For debugging, check your Render dashboard and environment variables")
         raise
         
     finally:
         # Shutdown
         try:
             if db_pool:
-                print("🔄 Closing database connection pool...")
+                print("🔄 Gracefully closing database connection pool...")
                 await db_pool.close()
-                print("✅ Database connection pool closed")
+                print("✅ Database connection pool closed cleanly")
         except Exception as e:
-            print(f"⚠️ Error closing database pool: {str(e)}")
+            print(f"⚠️ Error during database pool cleanup: {str(e)}")
 
 # Create FastAPI app with lifespan manager
 app = FastAPI(
