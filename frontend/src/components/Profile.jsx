@@ -399,31 +399,16 @@ const Profile = () => {
     handleBirthChartAction('refresh', '✅ Your birth chart has been refreshed with the latest insights!');
   };
 
+  // Toast notification state
+  const [toast, setToast] = useState({ show: false, type: '', message: '' });
+
   // Toast notification function
   const showToast = (type, message) => {
-    // Create toast element
-    const toast = document.createElement('div');
-    toast.className = `fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 ${
-      type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
-    }`;
-    toast.textContent = message;
+    setToast({ show: true, type, message });
     
-    // Add to DOM
-    document.body.appendChild(toast);
-    
-    // Animate in
+    // Auto-hide after 5 seconds
     setTimeout(() => {
-      toast.style.transform = 'translateX(0)';
-    }, 100);
-    
-    // Remove after 5 seconds
-    setTimeout(() => {
-      toast.style.transform = 'translateX(100%)';
-      setTimeout(() => {
-        if (document.body.contains(toast)) {
-          document.body.removeChild(toast);
-        }
-      }, 300);
+      setToast({ show: false, type: '', message: '' });
     }, 5000);
   };
 
@@ -497,6 +482,15 @@ const Profile = () => {
 
   return (
     <div className="pt-16 min-h-screen">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg transform transition-all duration-300 ${
+          toast.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+        }`}>
+          {toast.message}
+        </div>
+      )}
+      
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-600 to-purple-600 py-16 relative">
         <div className="max-w-4xl mx-auto px-4">

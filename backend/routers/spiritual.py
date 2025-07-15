@@ -949,13 +949,23 @@ async def get_complete_birth_chart_profile(request: Request):
                 chart_data = json.loads(user_data['birth_chart_data']) if isinstance(user_data['birth_chart_data'], str) else user_data['birth_chart_data']
                 # Check if data is recent (less than 30 days old)
                 if chart_data.get('cached_at'):
-                    cached_date = datetime.fromisoformat(chart_data['cached_at'].replace('Z', '+00:00'))
+                    # Handle cached_at field safely - it might be a string, datetime, or other type
+                    cached_at = chart_data['cached_at']
+                    if isinstance(cached_at, str):
+                        cached_date = datetime.fromisoformat(cached_at.replace('Z', '+00:00'))
+                    elif isinstance(cached_at, datetime):
+                        cached_date = cached_at
+                    else:
+                        # If cached_at is not a string or datetime, treat as expired
+                        logger.warning(f"Invalid cached_at format for user {user_email}: {type(cached_at)}")
+                        cached_date = datetime.min  # Force regeneration
+                    
                     if (datetime.now() - cached_date).days < 30:
                         return {
                             "success": True,
                             "complete_profile": chart_data
                         }
-            except (json.JSONDecodeError, KeyError, TypeError) as e:
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError) as e:
                 logger.warning(f"Corrupted birth chart data for user {user_email}: {e}")
                 pass  # Continue to regenerate if data is corrupted
         
