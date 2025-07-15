@@ -567,13 +567,13 @@ async def get_birth_chart_cache_statistics(request: Request):
     if not user_email:
         raise HTTPException(status_code=401, detail="Authentication required")
     
+    conn = None
     try:
         # Check if user is admin - FIXED: Use role column instead of is_admin
         conn = await db_manager.get_connection()
         user_data = await conn.fetchrow("""
             SELECT role FROM users WHERE email = $1
         """, user_email)
-        await conn.close()
         
         if not user_data or user_data['role'] != 'admin':
             raise HTTPException(status_code=403, detail="Admin access required")
@@ -589,6 +589,9 @@ async def get_birth_chart_cache_statistics(request: Request):
     except Exception as e:
         logger.error(f"Error getting cache statistics: {e}")
         raise HTTPException(status_code=500, detail="Failed to get cache statistics")
+    finally:
+        if conn:
+            await db_manager.release_connection(conn)
 
 @router.post("/birth-chart/cache-cleanup")
 async def cleanup_expired_birth_chart_cache(request: Request):
@@ -598,13 +601,13 @@ async def cleanup_expired_birth_chart_cache(request: Request):
     if not user_email:
         raise HTTPException(status_code=401, detail="Authentication required")
     
+    conn = None
     try:
         # Check if user is admin - FIXED: Use role column instead of is_admin
         conn = await db_manager.get_connection()
         user_data = await conn.fetchrow("""
             SELECT role FROM users WHERE email = $1
         """, user_email)
-        await conn.close()
         
         if not user_data or user_data['role'] != 'admin':
             raise HTTPException(status_code=403, detail="Admin access required")
