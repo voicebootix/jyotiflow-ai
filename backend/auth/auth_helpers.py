@@ -89,12 +89,15 @@ class AuthenticationHelper:
             return None
     
     @staticmethod
-    def get_user_email_strict(request: Request) -> Optional[str]:
+    def get_user_email_strict(request: Request) -> str:
         """
         Extract user email from JWT token - STRICT MODE
         Throws 401 if token is missing or invalid.
         """
-        return JWTHandler.get_user_email_from_token(request)
+        email = JWTHandler.get_user_email_from_token(request)
+        if email is None:
+            raise HTTPException(status_code=401, detail="User email not found in token")
+        return email
     
     @staticmethod
     def get_user_email_optional(request: Request) -> Optional[str]:
