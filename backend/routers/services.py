@@ -10,7 +10,7 @@ try:
     DYNAMIC_PRICING_AVAILABLE = True
 except ImportError:
     DYNAMIC_PRICING_AVAILABLE = False
-    print("⚠️ Dynamic comprehensive pricing not available")
+    logger.warning("Dynamic comprehensive pricing not available - falling back to basic pricing")
 
 router = APIRouter(prefix="/api/services", tags=["Services"])
 logger = logging.getLogger(__name__)
@@ -19,9 +19,21 @@ async def get_dynamic_pricing(db, service_name: str = ""):
     """Get dynamic pricing from admin settings with enhanced comprehensive pricing"""
     try:
         # Try to get enhanced comprehensive pricing first
-        enhanced_pricing = await get_enhanced_comprehensive_pricing(db, service_name)
-        if enhanced_pricing.get('enhanced_pricing_enabled'):
-            return enhanced_pricing
+        if DYNAMIC_PRICING_AVAILABLE and service_name:
+            try:
+                dynamic_pricing = DynamicComprehensivePricing()
+                comprehensive_pricing = await dynamic_pricing.calculate_comprehensive_reading_price(
+                    service_config={"service_name": service_name}
+                )
+                
+                return {
+                    'multiplier': 1.0,
+                    'service_pricing': {},
+                    'comprehensive_pricing': comprehensive_pricing,
+                    'enhanced_pricing_enabled': True
+                }
+            except Exception as e:
+                logger.error(f"Enhanced pricing error: {e}")
         
         # Fallback to basic dynamic pricing
         result = await db.fetchrow("""

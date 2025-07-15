@@ -10,6 +10,7 @@ import jwt
 import uuid
 import logging
 import json
+import asyncpg
 from db import db_manager
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
 
@@ -948,7 +949,8 @@ async def get_complete_birth_chart_profile(request: Request):
                             "success": True,
                             "complete_profile": chart_data
                         }
-            except:
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning(f"Corrupted birth chart data for user {user_email}: {e}")
                 pass  # Continue to regenerate if data is corrupted
         
         # Generate new complete profile using enhanced service
@@ -983,13 +985,13 @@ async def get_complete_birth_chart_profile(request: Request):
         
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error in birth chart profile: {e}")
-        raise HTTPException(status_code=500, detail="Invalid birth chart data format")
+        raise HTTPException(status_code=500, detail="Invalid birth chart data format") from e
     except asyncpg.PostgresError as e:
         logger.error(f"Database error in birth chart profile: {e}")
-        raise HTTPException(status_code=500, detail="Database connection error")
+        raise HTTPException(status_code=500, detail="Database connection error") from e
     except Exception as e:
         logger.error(f"Unexpected error getting complete birth chart profile: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get birth chart profile")
+        raise HTTPException(status_code=500, detail="Failed to get birth chart profile") from e
 
 @router.post("/birth-chart/generate-for-user")
 async def generate_birth_chart_for_user(request: Request):
@@ -1049,10 +1051,10 @@ async def generate_birth_chart_for_user(request: Request):
         
     except json.JSONDecodeError as e:
         logger.error(f"JSON decode error generating birth chart: {e}")
-        raise HTTPException(status_code=500, detail="Invalid birth chart data format")
+        raise HTTPException(status_code=500, detail="Invalid birth chart data format") from e
     except asyncpg.PostgresError as e:
         logger.error(f"Database error generating birth chart: {e}")
-        raise HTTPException(status_code=500, detail="Database connection error")
+        raise HTTPException(status_code=500, detail="Database connection error") from e
     except Exception as e:
         logger.error(f"Unexpected error generating birth chart for user: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate birth chart") 
+        raise HTTPException(status_code=500, detail="Failed to generate birth chart") from e 

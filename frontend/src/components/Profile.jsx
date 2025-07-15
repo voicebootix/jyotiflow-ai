@@ -1079,10 +1079,13 @@ const Profile = () => {
                         <div className="text-2xl">✅</div>
                         <div>
                           <h3 className="font-semibold text-green-800">
-                            Complete Spiritual Profile Available
+                            {dashboardData?.birthChart?.swamiji_reading ? 'Complete Spiritual Profile Available' : 'Birth Chart Generated'}
                           </h3>
                           <p className="text-green-600 text-sm">
-                            Your birth chart with Swamiji's personalized insights is ready
+                            {dashboardData?.birthChart?.swamiji_reading 
+                              ? 'Your birth chart with Swamiji\'s personalized insights is ready'
+                              : 'Your birth chart has been generated and is being processed'
+                            }
                           </p>
                         </div>
                       </div>
