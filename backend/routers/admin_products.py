@@ -1,6 +1,11 @@
-from fastapi import APIRouter, Body, Depends
-from db import get_db
+from fastapi import APIRouter, Depends, HTTPException, Request, Body
+from datetime import datetime
 import uuid
+import logging
+from db import get_db
+from utils.welcome_credits_utils import get_dynamic_welcome_credits, set_dynamic_welcome_credits, validate_welcome_credits
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/admin/products", tags=["Admin Products"])
 
@@ -55,7 +60,7 @@ async def get_products(db=Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"Products endpoint error: {e}")
+        logger.error(f"Products endpoint error: {e}")
         return {"success": False, "error": str(e), "data": []}
 
 # --- SERVICE TYPES ENDPOINTS (with real DB logic) ---
@@ -239,10 +244,8 @@ async def update_pricing_config(config_key: str, config: dict = Body(...), db=De
 async def get_welcome_credits_config(db=Depends(get_db)):
     """Get current welcome credits configuration"""
     try:
-        result = await db.fetch("SELECT value FROM pricing_config WHERE key = 'welcome_credits'")
-        row = result[0] if result else None
-        
-        welcome_credits = int(row[0]) if row and row[0] else 20
+        # Use shared utility function
+        welcome_credits = await get_dynamic_welcome_credits()
         
         return {
             "success": True,
@@ -250,7 +253,7 @@ async def get_welcome_credits_config(db=Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"Error getting welcome credits config: {e}")
+        logger.error(f"Error getting welcome credits config: {e}")
         raise HTTPException(status_code=500, detail="Failed to get welcome credits configuration")
 
 @router.put("/pricing/welcome-credits")
@@ -260,30 +263,17 @@ async def update_welcome_credits_config(request: Request, db=Depends(get_db)):
         data = await request.json()
         welcome_credits = data.get("welcome_credits", 20)
         
-        if not isinstance(welcome_credits, int) or welcome_credits < 0:
+        # Validate welcome credits using shared utility
+        if not validate_welcome_credits(welcome_credits):
             raise HTTPException(status_code=400, detail="Invalid welcome credits value")
         
-        result = await db.execute(
-            """
-            INSERT INTO pricing_config (key, value, description, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (key) DO UPDATE SET
-                value = EXCLUDED.value,
-                description = EXCLUDED.description,
-                updated_at = EXCLUDED.updated_at
-            """,
-            ('welcome_credits',
-            str(welcome_credits),
-            'Number of credits given to new users upon registration',
-            True,
-            datetime.now(),
-            datetime.now()
-            )
-        )
+        # Use shared utility function
+        success = await set_dynamic_welcome_credits(welcome_credits)
         
-        await db.commit()
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update welcome credits")
         
-        print(f"Welcome credits updated to: {welcome_credits}")
+        logger.info(f"Welcome credits updated to: {welcome_credits}")
         
         return {
             "success": True,
@@ -294,7 +284,7 @@ async def update_welcome_credits_config(request: Request, db=Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Error updating welcome credits config: {e}")
+        logger.error(f"Error updating welcome credits config: {e}")
         raise HTTPException(status_code=500, detail="Failed to update welcome credits configuration")
 
 # --- DONATIONS ENDPOINTS ---

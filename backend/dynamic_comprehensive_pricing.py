@@ -19,6 +19,7 @@ class DynamicComprehensivePricing:
     
     def __init__(self, database_url: str = None):
         self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.connection_pool = None
         self.base_cost_factors = {
             "openai_api_calls": 0.5,  # Credits per API call
             "knowledge_retrieval": 0.2,  # Credits per knowledge piece
@@ -30,6 +31,32 @@ class DynamicComprehensivePricing:
             "profit_margin": 1.3,  # 30% profit margin
             "market_demand_factor": 1.0  # Dynamic based on demand
         }
+    
+    async def initialize_pool(self):
+        """Initialize connection pool"""
+        if not self.connection_pool:
+            self.connection_pool = await asyncpg.create_pool(
+                self.database_url,
+                min_size=2,
+                max_size=10
+            )
+    
+    async def get_connection(self):
+        """Get connection from pool"""
+        if not self.connection_pool:
+            await self.initialize_pool()
+        return await self.connection_pool.acquire()
+    
+    async def release_connection(self, conn):
+        """Release connection back to pool"""
+        if self.connection_pool:
+            await self.connection_pool.release(conn)
+    
+    async def close_pool(self):
+        """Close connection pool"""
+        if self.connection_pool:
+            await self.connection_pool.close()
+            self.connection_pool = None
     
     async def calculate_comprehensive_reading_price(self, 
                                                    service_config: Optional[Dict[str, Any]] = None,
@@ -77,7 +104,7 @@ class DynamicComprehensivePricing:
     async def _calculate_actual_costs(self) -> Dict[str, float]:
         """Calculate actual costs based on recent usage"""
         try:
-            conn = await asyncpg.connect(self.database_url)
+            conn = await self.get_connection()
             try:
                 # Get recent comprehensive reading sessions
                 recent_sessions = await conn.fetchval("""
@@ -113,7 +140,7 @@ class DynamicComprehensivePricing:
                 return costs
                 
             finally:
-                await conn.close()
+                await self.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Cost calculation error: {e}")
@@ -181,7 +208,7 @@ class DynamicComprehensivePricing:
     async def _get_demand_factor(self) -> float:
         """Calculate demand factor based on recent usage patterns"""
         try:
-            conn = await asyncpg.connect(self.database_url)
+            conn = await self.get_connection()
             try:
                 # Get sessions from last 24 hours vs previous 24 hours
                 result = await conn.fetchrow("""
@@ -198,21 +225,20 @@ class DynamicComprehensivePricing:
                 
                 # Calculate demand factor
                 if previous_demand == 0:
-                    demand_factor = 1.0 if recent_demand == 0 else 1.2
+                    demand_factor = 1.0  # No change if no previous data
                 else:
                     demand_ratio = recent_demand / previous_demand
-                    # Convert to demand factor (0.8 to 1.4 range)
-                    demand_factor = 0.8 + (demand_ratio * 0.6)
-                    demand_factor = max(0.8, min(1.4, demand_factor))
+                    # Normalize demand factor between 0.8 and 1.5
+                    demand_factor = max(0.8, min(1.5, demand_ratio))
                 
                 return demand_factor
                 
             finally:
-                await conn.close()
+                await self.release_connection(conn)
                 
         except Exception as e:
-            logger.error(f"Demand calculation error: {e}")
-            return 1.0  # Default neutral demand
+            logger.error(f"Demand factor calculation error: {e}")
+            return 1.0  # Default to no change
     
     async def _get_ai_price_recommendation(self) -> Dict[str, Any]:
         """Get AI-based pricing recommendation"""

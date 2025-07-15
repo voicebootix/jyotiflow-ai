@@ -20,6 +20,14 @@ async def test_birthchart_100_percent():
     print("🧪 TESTING BIRTHCHART TAB - 100% FUNCTIONALITY VERIFICATION")
     print("=" * 70)
     
+    # Define common test data
+    birth_details = {
+        "date": "1990-01-15",
+        "time": "14:30",
+        "location": "Chennai, Tamil Nadu",
+        "timezone": "Asia/Kolkata"
+    }
+    
     test_results = {
         "total_tests": 0,
         "passed": 0,
@@ -35,8 +43,7 @@ async def test_birthchart_100_percent():
         else:
             test_results["failed"] += 1
             print(f"❌ {test_name}")
-            if details:
-                print(f"   Details: {details}")
+            print(f"   Details: {details}")
         
         test_results["details"].append({
             "test": test_name,
@@ -50,12 +57,6 @@ async def test_birthchart_100_percent():
         from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
         
         service = EnhancedBirthChartCacheService()
-        birth_details = {
-            "date": "1990-01-15",
-            "time": "14:30",
-            "location": "Chennai, Tamil Nadu",
-            "timezone": "Asia/Kolkata"
-        }
         
         # Test hash generation
         hash_result = service.generate_birth_details_hash(birth_details)

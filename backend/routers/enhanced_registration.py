@@ -18,38 +18,12 @@ import logging
 import os
 
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
+from utils.welcome_credits_utils import get_dynamic_welcome_credits
 import db
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-
-async def get_dynamic_welcome_credits() -> int:
-    """Get dynamic welcome credits from pricing configuration"""
-    try:
-        conn = await db.get_connection()
-        
-        if db.is_sqlite:
-            result = await conn.execute(
-                "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
-            )
-            row = await result.fetchone()
-        else:
-            row = await conn.fetchrow(
-                "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
-            )
-        
-        await conn.close()
-        
-        if row and row[0]:
-            return int(row[0])
-        else:
-            # Default fallback if not configured
-            return 20
-            
-    except Exception as e:
-        logger.error(f"Error getting dynamic welcome credits: {e}")
-        return 20  # Default fallback
 
 # Enhanced registration models
 class BirthDetails(BaseModel):
@@ -108,33 +82,6 @@ class EnhancedRegistrationService:
         self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
         self.birth_chart_service = EnhancedBirthChartCacheService(self.database_url)
     
-    async def get_dynamic_welcome_credits(self) -> int:
-        """Get dynamic welcome credits from pricing configuration"""
-        try:
-            conn = await db.get_connection()
-            
-            if db.is_sqlite:
-                result = await conn.execute(
-                    "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
-                )
-                row = await result.fetchone()
-            else:
-                row = await conn.fetchrow(
-                    "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
-                )
-            
-            await conn.close()
-            
-            if row and row[0]:
-                return int(row[0])
-            else:
-                # Default fallback if not configured
-                return 20
-                
-        except Exception as e:
-            logger.error(f"Error getting dynamic welcome credits: {e}")
-            return 20  # Default fallback
-    
     async def register_user_with_birth_chart(self, user_data: EnhancedUserRegistration) -> RegistrationResponse:
         """Register user and automatically generate complete birth chart profile"""
         try:
@@ -168,8 +115,8 @@ class EnhancedRegistrationService:
             # Hash password
             password_hash = bcrypt.hashpw(user_data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
-            # Get dynamic welcome credits
-            welcome_credits = await self.get_dynamic_welcome_credits()
+            # Get dynamic welcome credits using shared utility
+            welcome_credits = await get_dynamic_welcome_credits()
             
             conn = await db.get_connection()
             

@@ -1547,28 +1547,9 @@ async def register_user(user_data: UserRegistration):
             # Hash password
             password_hash = security_manager.hash_password(user_data.password)
             
-            # Get dynamic welcome credits
-            welcome_credits = 10  # Default fallback
-            try:
-                if db_manager.is_sqlite:
-                    credit_result = await conn.execute("""
-                        SELECT config_value FROM pricing_config 
-                        WHERE config_key = 'welcome_credits' AND is_active = 1
-                    """)
-                    credit_row = await credit_result.fetchone()
-                else:
-                    credit_row = await conn.fetchrow("""
-                        SELECT config_value FROM pricing_config 
-                        WHERE config_key = 'welcome_credits' AND is_active = true
-                    """)
-                
-                if credit_row and credit_row['config_value']:
-                    welcome_credits = int(credit_row['config_value'])
-                    logger.info(f"Using dynamic welcome credits: {welcome_credits}")
-                else:
-                    logger.warning("Welcome credits not configured, using default 10")
-            except Exception as e:
-                logger.error(f"Error getting dynamic welcome credits: {e}, using default 10")
+            # Get dynamic welcome credits using shared utility
+            from utils.welcome_credits_utils import get_dynamic_welcome_credits
+            welcome_credits = await get_dynamic_welcome_credits()
 
             # Generate referral code
             referral_code = f"REF_{user_data.email.split('@')[0].upper()}_{datetime.now().strftime('%Y%m%d')}"

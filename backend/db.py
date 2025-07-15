@@ -24,4 +24,27 @@ async def get_db():
     else:
         # Use connection pool
         async with db_pool.acquire() as conn:
-            yield conn 
+            yield conn
+
+# Database manager for compatibility
+class DatabaseManager:
+    def __init__(self):
+        self.database_url = DATABASE_URL
+        self.is_sqlite = False  # We're using PostgreSQL
+    
+    async def get_connection(self):
+        """Get database connection"""
+        if db_pool is None:
+            return await asyncpg.connect(self.database_url)
+        else:
+            return await db_pool.acquire()
+    
+    async def release_connection(self, conn):
+        """Release database connection"""
+        if db_pool is None:
+            await conn.close()
+        else:
+            await db_pool.release(conn)
+
+# Create global instance
+db_manager = DatabaseManager() 

@@ -946,8 +946,8 @@ async def get_complete_birth_chart_profile(request: Request):
         
         # Generate new complete profile using enhanced service
         birth_details = {
-            'date': user_data['birth_date'].strftime('%Y-%m-%d'),
-            'time': user_data['birth_time'].strftime('%H:%M'),
+            'date': user_data['birth_date'] if isinstance(user_data['birth_date'], str) else user_data['birth_date'].strftime('%Y-%m-%d'),
+            'time': user_data['birth_time'] if isinstance(user_data['birth_time'], str) else user_data['birth_time'].strftime('%H:%M'),
             'location': user_data['birth_location'] or 'Jaffna, Sri Lanka',
             'timezone': 'Asia/Colombo'
         }
@@ -998,8 +998,8 @@ async def generate_birth_chart_for_user(request: Request):
             }
         
         birth_details = {
-            'date': user_data['birth_date'].strftime('%Y-%m-%d'),
-            'time': user_data['birth_time'].strftime('%H:%M'),
+            'date': user_data['birth_date'] if isinstance(user_data['birth_date'], str) else user_data['birth_date'].strftime('%Y-%m-%d'),
+            'time': user_data['birth_time'] if isinstance(user_data['birth_time'], str) else user_data['birth_time'].strftime('%H:%M'),
             'location': user_data['birth_location'] or 'Jaffna, Sri Lanka',
             'timezone': 'Asia/Colombo'
         }

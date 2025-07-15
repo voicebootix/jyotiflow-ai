@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from db import get_db
 from typing import List, Dict, Any
 import json
+import logging
 
 # Import dynamic comprehensive pricing
 try:
@@ -12,6 +13,7 @@ except ImportError:
     print("⚠️ Dynamic comprehensive pricing not available")
 
 router = APIRouter(prefix="/api/services", tags=["Services"])
+logger = logging.getLogger(__name__)
 
 async def get_dynamic_pricing(db, service_name: str = ""):
     """Get dynamic pricing from admin settings with enhanced comprehensive pricing"""
@@ -127,7 +129,8 @@ async def get_service_types(db=Depends(get_db)):
             if pricing_config.get('enhanced_pricing_enabled') and pricing_config.get('comprehensive_pricing'):
                 comprehensive_pricing = pricing_config['comprehensive_pricing']
                 service_dict['price_usd'] = comprehensive_pricing['recommended_price']
-                service_dict['credits_required'] = int(comprehensive_pricing['recommended_price'])
+                # FIXED: Use proper rounding instead of direct int conversion to preserve precision
+                service_dict['credits_required'] = round(comprehensive_pricing['recommended_price'])
                 
                 # Add comprehensive pricing metadata
                 service_dict['pricing_info'] = {
@@ -178,7 +181,7 @@ async def get_service_types(db=Depends(get_db)):
             }
         }
     except Exception as e:
-        print(f"Service types error: {e}")
+        logger.error(f"Service types error: {e}")
         # Return empty result instead of throwing error
         return {
             "success": True,

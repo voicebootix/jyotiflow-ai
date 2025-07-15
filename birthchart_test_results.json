@@ -1,22 +1,32 @@
 {
-  "total_tests": 21,
-  "passed": 18,
-  "failed": 3,
+  "total_tests": 23,
+  "passed": 22,
+  "failed": 1,
   "details": [
     {
-      "test": "Enhanced Cache Service",
-      "passed": false,
-      "details": "Error: The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable"
+      "test": "Hash Generation",
+      "passed": true,
+      "details": "Generated hash: c6d90040b4..."
     },
     {
-      "test": "RAG Knowledge Engine",
-      "passed": false,
-      "details": "Error: cannot access local variable 'birth_details' where it is not associated with a value"
+      "test": "Profile Status Check",
+      "passed": true,
+      "details": "Status: unknown"
+    },
+    {
+      "test": "Knowledge Query Structure",
+      "passed": true,
+      "details": "Query: What does my birth chart reveal about my career?"
+    },
+    {
+      "test": "Knowledge Domains",
+      "passed": true,
+      "details": "Found 8 domains"
     },
     {
       "test": "Spiritual Router",
       "passed": false,
-      "details": "Error: No module named 'jwt'"
+      "details": "Error: DATABASE_URL environment variable is required"
     },
     {
       "test": "Auto-generation for Registered Users",
