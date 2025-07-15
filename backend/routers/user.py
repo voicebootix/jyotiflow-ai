@@ -129,11 +129,41 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id_int)
     if not user:
         return {"success": True, "data": []}
-<<<<<<< HEAD
-    sessions = await db.fetch("SELECT id, service_type_id, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
-    return {"success": True, "data": [dict(row) for row in sessions]}
-
-<<<<<<< HEAD
+    
+    # Fixed query: Use existing columns and handle missing columns gracefully
+    try:
+        sessions = await db.fetch("""
+            SELECT 
+                id, 
+                COALESCE(service_type, service_type_id::text, 'unknown') as service_type,
+                COALESCE(question, 'No question recorded') as question,
+                created_at 
+            FROM sessions 
+            WHERE user_email = $1 OR user_id = $2
+            ORDER BY created_at DESC
+        """, user["email"], user_id_int)
+        return {"success": True, "data": [dict(row) for row in sessions]}
+    except Exception as e:
+        # Fallback query if columns don't exist
+        try:
+            sessions = await db.fetch("""
+                SELECT id, created_at 
+                FROM sessions 
+                WHERE user_email = $1 OR user_id = $2
+                ORDER BY created_at DESC
+            """, user["email"], user_id_int)
+            # Add default values for missing columns
+            sessions_data = []
+            for session in sessions:
+                sessions_data.append({
+                    "id": session["id"],
+                    "service_type": "unknown",
+                    "question": "No question recorded", 
+                    "created_at": session["created_at"]
+                })
+            return {"success": True, "data": sessions_data}
+        except Exception as e2:
+            return {"success": False, "error": f"Database error: {str(e2)}"}
 # தமிழ் - கடன் வரலாறு பெறுதல்
 @router.get("/credit-history")
 async def get_credit_history(request: Request, db=Depends(get_db)):

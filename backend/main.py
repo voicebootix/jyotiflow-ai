@@ -482,14 +482,14 @@ app.include_router(ai.router)
 app.include_router(community.router)
 app.include_router(session_analytics.router)
 
-# Register missing endpoints
+# Register missing endpoints (avoid duplicates)
 try:
-    from missing_endpoints import ai_router, user_router as missing_user_router, sessions_router as missing_sessions_router, community_router
+    from missing_endpoints import ai_router, user_router as missing_user_router, sessions_router as missing_sessions_router
     app.include_router(ai_router)
     app.include_router(missing_user_router)
     app.include_router(missing_sessions_router)
-    app.include_router(community_router)
-    print("✅ Missing endpoints registered successfully")
+    # Note: community_router not included to avoid duplicate with community.router above
+    print("✅ Missing endpoints registered successfully (excluding duplicate community router)")
 except ImportError as e:
     print(f"❌ Failed to register missing endpoints: {e}")
 
