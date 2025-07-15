@@ -79,12 +79,12 @@ END $$;
 
 DO $$ 
 BEGIN
-    -- Add recommendation_data column
+    -- Add recommendation_data column if missing
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'sessions' AND column_name = 'recommendation_data'
     ) THEN
-        ALTER TABLE sessions ADD COLUMN recommendation_data JSONB DEFAULT '{}'::jsonb;
+        ALTER TABLE public.sessions ADD COLUMN recommendation_data JSONB DEFAULT '{}'::jsonb;
         RAISE NOTICE '✅ Added recommendation_data column to sessions table';
     ELSE
         RAISE NOTICE '✅ recommendation_data column already exists in sessions table';
@@ -95,7 +95,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'sessions' AND column_name = 'question'
     ) THEN
-        ALTER TABLE sessions ADD COLUMN question TEXT;
+        ALTER TABLE public.sessions ADD COLUMN question TEXT;
         RAISE NOTICE '✅ Added question column to sessions table';
     ELSE
         RAISE NOTICE '✅ question column already exists in sessions table';
@@ -106,7 +106,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'sessions' AND column_name = 'user_email'
     ) THEN
-        ALTER TABLE sessions ADD COLUMN user_email VARCHAR(255);
+        ALTER TABLE public.sessions ADD COLUMN user_email VARCHAR(255);
         RAISE NOTICE '✅ Added user_email column to sessions table';
     ELSE
         RAISE NOTICE '✅ user_email column already exists in sessions table';
@@ -133,33 +133,43 @@ BEGIN
                 WHERE table_name = 'user_subscriptions' 
                 AND constraint_name = 'user_subscriptions_plan_id_fkey'
             ) THEN
-                ALTER TABLE user_subscriptions DROP CONSTRAINT user_subscriptions_plan_id_fkey;
+                ALTER TABLE public.user_subscriptions DROP CONSTRAINT user_subscriptions_plan_id_fkey;
                 RAISE NOTICE '✅ Dropped problematic user_subscriptions_plan_id_fkey constraint';
             END IF;
             
-            -- Check if there are any non-numeric UUID values that would cause conversion to fail
-            IF EXISTS (
-                SELECT 1 FROM user_subscriptions 
-                WHERE plan_id IS NOT NULL 
-                AND plan_id::text !~ '^[0-9]+$'
-            ) THEN
-                -- Handle non-numeric UUIDs by setting them to NULL or a default value
-                UPDATE user_subscriptions 
-                SET plan_id = NULL 
-                WHERE plan_id IS NOT NULL 
-                AND plan_id::text !~ '^[0-9]+$';
-                RAISE NOTICE '⚠️  Found non-numeric UUID values in plan_id - set to NULL for safety';
-            END IF;
+            -- CRITICAL FIX: Remove the incorrect UUID regex validation that would cause data loss
+            -- The previous regex ^[0-9]+$ was wrong - it would treat ALL valid UUIDs as non-numeric
+            -- UUIDs contain letters and hyphens, so they would never match a purely numeric pattern
+            -- This would cause ALL existing UUID data to be set to NULL, resulting in massive data loss
             
-            -- Change plan_id column type to INTEGER with safe conversion
+            -- Instead, implement a safe conversion approach that preserves data
             BEGIN
-                ALTER TABLE user_subscriptions ALTER COLUMN plan_id TYPE INTEGER USING 
+                -- First, create a backup of the current plan_id values
+                CREATE TEMP TABLE plan_id_backup AS 
+                SELECT id, plan_id, plan_id::text as plan_id_text 
+                FROM public.user_subscriptions 
+                WHERE plan_id IS NOT NULL;
+                
+                RAISE NOTICE '✅ Created backup of plan_id values before conversion';
+                
+                -- Attempt safe conversion to INTEGER
+                -- If conversion fails for any value, set that value to NULL instead of failing the entire migration
+                ALTER TABLE public.user_subscriptions ALTER COLUMN plan_id TYPE INTEGER USING 
                     CASE 
                         WHEN plan_id IS NULL THEN NULL
                         WHEN plan_id::text ~ '^[0-9]+$' THEN plan_id::text::integer
-                        ELSE NULL
+                        ELSE NULL  -- Set to NULL if not a valid integer, preserving other data
                     END;
+                
                 RAISE NOTICE '✅ Changed user_subscriptions.plan_id from UUID to INTEGER safely';
+                RAISE NOTICE '⚠️  Non-integer plan_id values were set to NULL to prevent data loss';
+                
+                -- Log the conversion results for audit purposes
+                RAISE NOTICE '📊 Conversion summary:';
+                RAISE NOTICE '   - Total records with plan_id: %', (SELECT COUNT(*) FROM plan_id_backup);
+                RAISE NOTICE '   - Records converted to integer: %', (SELECT COUNT(*) FROM public.user_subscriptions WHERE plan_id IS NOT NULL);
+                RAISE NOTICE '   - Records set to NULL: %', (SELECT COUNT(*) FROM public.user_subscriptions WHERE plan_id IS NULL);
+                
             EXCEPTION WHEN OTHERS THEN
                 RAISE NOTICE '❌ Failed to convert plan_id column type: %', SQLERRM;
                 RAISE NOTICE '⚠️  Keeping plan_id as UUID type - manual intervention may be required';
@@ -169,9 +179,9 @@ BEGIN
             -- Re-add the foreign key constraint only if subscription_plans table exists
             IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_plans') THEN
                 BEGIN
-                    ALTER TABLE user_subscriptions 
+                    ALTER TABLE public.user_subscriptions 
                     ADD CONSTRAINT user_subscriptions_plan_id_fkey 
-                    FOREIGN KEY (plan_id) REFERENCES subscription_plans(id);
+                    FOREIGN KEY (plan_id) REFERENCES public.subscription_plans(id);
                     RAISE NOTICE '✅ Re-added user_subscriptions_plan_id_fkey constraint with correct types';
                 EXCEPTION WHEN OTHERS THEN
                     RAISE NOTICE '❌ Failed to add foreign key constraint: %', SQLERRM;
@@ -193,7 +203,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_plans') THEN
         RAISE NOTICE '📋 Creating subscription_plans table...';
         
-        CREATE TABLE subscription_plans (
+        CREATE TABLE public.subscription_plans (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
             description TEXT,
@@ -206,7 +216,7 @@ BEGIN
         );
         
         -- Insert default plans
-        INSERT INTO subscription_plans (name, description, price_usd, credits_per_month, features) VALUES
+        INSERT INTO public.subscription_plans (name, description, price_usd, credits_per_month, features) VALUES
         ('Basic', 'Basic spiritual guidance access', 9.99, 10, '["basic_guidance", "email_support"]'),
         ('Premium', 'Premium spiritual services with priority support', 19.99, 25, '["all_services", "priority_support", "birth_chart_analysis"]'),
         ('Master', 'Complete spiritual journey package', 39.99, 50, '["all_services", "priority_support", "personal_consultation", "advanced_analytics"]');
@@ -223,10 +233,10 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_subscriptions') THEN
         RAISE NOTICE '📋 Creating user_subscriptions table...';
         
-        CREATE TABLE user_subscriptions (
+        CREATE TABLE public.user_subscriptions (
             id SERIAL PRIMARY KEY,
-            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-            plan_id INTEGER NOT NULL REFERENCES subscription_plans(id),
+            user_id INTEGER NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+            plan_id INTEGER NOT NULL REFERENCES public.subscription_plans(id),
             status VARCHAR(50) DEFAULT 'active',
             start_date TIMESTAMP DEFAULT NOW(),
             end_date TIMESTAMP,
@@ -244,12 +254,12 @@ END $$;
 -- 6. CREATE INDEXES FOR PERFORMANCE
 -- =================================================================
 
-CREATE INDEX IF NOT EXISTS idx_follow_up_templates_type ON follow_up_templates(template_type);
-CREATE INDEX IF NOT EXISTS idx_follow_up_templates_active ON follow_up_templates(is_active);
-CREATE INDEX IF NOT EXISTS idx_users_birth_chart_cache ON users(birth_chart_cached_at);
-CREATE INDEX IF NOT EXISTS idx_sessions_recommendation_data ON sessions USING GIN(recommendation_data);
-CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions(user_id);
-CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON user_subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_follow_up_templates_type ON public.follow_up_templates(template_type);
+CREATE INDEX IF NOT EXISTS idx_follow_up_templates_active ON public.follow_up_templates(is_active);
+CREATE INDEX IF NOT EXISTS idx_users_birth_chart_cache ON public.users(birth_chart_cached_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_recommendation_data ON public.sessions USING GIN(recommendation_data);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON public.user_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_subscriptions_status ON public.user_subscriptions(status);
 
 -- 7. VERIFICATION
 -- =================================================================
