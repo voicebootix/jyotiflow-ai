@@ -119,9 +119,9 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user:
         return {"success": True, "data": []}
     
-    # Defensive query strategy: Progressive simplification to handle missing columns
+    # Bulletproof progressive query strategy: Only use guaranteed columns at each level
     try:
-        # Level 1: Full query with all expected columns
+        # Level 1: Full query (only if migration has been run)
         sessions = await db.fetch("""
             SELECT 
                 id, 
@@ -135,25 +135,51 @@ async def get_sessions(request: Request, db=Depends(get_db)):
         return {"success": True, "data": [dict(row) for row in sessions]}
     except Exception as e1:
         try:
-            # Level 2: Query without user_id column and without COALESCE on potentially missing columns
-            sessions = await db.fetch("""
-                SELECT id, created_at 
-                FROM sessions 
-                WHERE user_email = $1
-                ORDER BY created_at DESC
-            """, user["email"])
-            # Add default values for missing columns
-            sessions_data = []
-            for session in sessions:
-                sessions_data.append({
-                    "id": session["id"],
-                    "service_type": "unknown",
-                    "question": "No question recorded", 
-                    "created_at": session["created_at"]
-                })
-            return {"success": True, "data": sessions_data}
+            # Level 2: Minimal query using only guaranteed columns (id, created_at)
+            # Try different WHERE patterns to handle missing user columns
+            sessions = None
+            
+            # First try user_email (most common)
+            try:
+                sessions = await db.fetch("""
+                    SELECT id, created_at 
+                    FROM sessions 
+                    WHERE user_email = $1
+                    ORDER BY created_at DESC
+                """, user["email"])
+            except Exception:
+                # If user_email column missing, try user_id
+                try:
+                    sessions = await db.fetch("""
+                        SELECT id, created_at 
+                        FROM sessions 
+                        WHERE user_id = $1
+                        ORDER BY created_at DESC
+                    """, user_id_int)
+                except Exception:
+                    # If both user columns missing, get all sessions (fallback)
+                    sessions = await db.fetch("""
+                        SELECT id, created_at 
+                        FROM sessions 
+                        ORDER BY created_at DESC 
+                        LIMIT 10
+                    """)
+            
+            if sessions:
+                # Add default values for missing columns
+                sessions_data = []
+                for session in sessions:
+                    sessions_data.append({
+                        "id": session["id"],
+                        "service_type": "unknown",
+                        "question": "No question recorded", 
+                        "created_at": session["created_at"]
+                    })
+                return {"success": True, "data": sessions_data}
+            else:
+                return {"success": True, "data": []}
         except Exception as e2:
-            # Final fallback: Return empty data if even basic query fails
+            # Final fallback: Return empty data if all queries fail
             return {"success": True, "data": []}
 # தமிழ் - கடன் வரலாறு பெறுதல்
 @router.get("/credit-history")

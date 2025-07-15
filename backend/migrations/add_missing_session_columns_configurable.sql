@@ -15,6 +15,7 @@
 
 -- Add missing columns to sessions table with schema-aware checks
 DO $$ 
+LANGUAGE plpgsql
 DECLARE
     target_schema_name TEXT := :'target_schema';
 BEGIN
@@ -25,25 +26,17 @@ BEGIN
         RAISE EXCEPTION 'sessions table does not exist in schema %.  Run base DDL first.', target_schema_name;
     END IF;
 
-    -- Add question column (idempotent)
-    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS question TEXT', target_schema_name);
-    RAISE NOTICE '✅ Ensured question column exists in %.sessions table', target_schema_name;
-
-    -- Add user_email column (idempotent)
-    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)', target_schema_name);
-    RAISE NOTICE '✅ Ensured user_email column exists in %.sessions table', target_schema_name;
-
-    -- Add service_type column (idempotent)
-    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS service_type VARCHAR(100)', target_schema_name);
-    RAISE NOTICE '✅ Ensured service_type column exists in %.sessions table', target_schema_name;
-
-    -- Add service_type_id column (idempotent)
-    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS service_type_id INTEGER', target_schema_name);
-    RAISE NOTICE '✅ Ensured service_type_id column exists in %.sessions table', target_schema_name;
-
-    -- Add user_id column (idempotent)
-    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS user_id INTEGER', target_schema_name);
-    RAISE NOTICE '✅ Ensured user_id column exists in %.sessions table', target_schema_name;
+    -- Add all columns in a single operation to minimize lock time
+    EXECUTE format('
+        ALTER TABLE %I.sessions
+            ADD COLUMN IF NOT EXISTS question          TEXT,
+            ADD COLUMN IF NOT EXISTS user_email        VARCHAR(255),
+            ADD COLUMN IF NOT EXISTS service_type      VARCHAR(100),
+            ADD COLUMN IF NOT EXISTS service_type_id   INTEGER,
+            ADD COLUMN IF NOT EXISTS user_id           INTEGER
+    ', target_schema_name);
+    
+    RAISE NOTICE '✅ Added all missing columns to %.sessions table in single operation', target_schema_name;
 
     RAISE NOTICE '🎉 Migration completed for schema: %', target_schema_name;
 
