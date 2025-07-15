@@ -1,10 +1,10 @@
 -- Follow-up System Database Migration
 -- Add follow_up_sent column to sessions table
-ALTER TABLE sessions ADD COLUMN IF NOT EXISTS follow_up_sent BOOLEAN DEFAULT FALSE;
-ALTER TABLE sessions ADD COLUMN IF NOT EXISTS follow_up_count INTEGER DEFAULT 0;
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS follow_up_sent BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS follow_up_count INTEGER DEFAULT 0;
 
 -- Create follow_up_templates table
-CREATE TABLE IF NOT EXISTS follow_up_templates (
+CREATE TABLE IF NOT EXISTS public.follow_up_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     tamil_name VARCHAR(100),
@@ -22,11 +22,11 @@ CREATE TABLE IF NOT EXISTS follow_up_templates (
 );
 
 -- Create follow_up_schedules table
-CREATE TABLE IF NOT EXISTS follow_up_schedules (
+CREATE TABLE IF NOT EXISTS public.follow_up_schedules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_email VARCHAR(255) NOT NULL,
-    session_id VARCHAR(255) REFERENCES sessions(id),
-    template_id UUID REFERENCES follow_up_templates(id),
+    session_id VARCHAR(255) REFERENCES public.sessions(id),
+    template_id UUID REFERENCES public.follow_up_templates(id),
     channel VARCHAR(20) NOT NULL DEFAULT 'email',
     scheduled_at TIMESTAMP NOT NULL,
     status VARCHAR(20) DEFAULT 'pending',
@@ -40,10 +40,10 @@ CREATE TABLE IF NOT EXISTS follow_up_schedules (
 );
 
 -- Create follow_up_analytics table
-CREATE TABLE IF NOT EXISTS follow_up_analytics (
+CREATE TABLE IF NOT EXISTS public.follow_up_analytics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     date DATE NOT NULL,
-    template_id UUID REFERENCES follow_up_templates(id),
+    template_id UUID REFERENCES public.follow_up_templates(id),
     channel VARCHAR(20) NOT NULL,
     total_sent INTEGER DEFAULT 0,
     total_delivered INTEGER DEFAULT 0,
@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS follow_up_analytics (
 );
 
 -- Create follow_up_settings table
-CREATE TABLE IF NOT EXISTS follow_up_settings (
+CREATE TABLE IF NOT EXISTS public.follow_up_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     setting_key VARCHAR(100) UNIQUE NOT NULL,
     setting_value TEXT NOT NULL,
@@ -69,7 +69,7 @@ CREATE TABLE IF NOT EXISTS follow_up_settings (
 );
 
 -- Insert default follow-up templates
-INSERT INTO follow_up_templates (name, tamil_name, description, template_type, channel, subject, content, tamil_content, variables, credits_cost) VALUES
+INSERT INTO public.follow_up_templates (name, tamil_name, description, template_type, channel, subject, content, tamil_content, variables, credits_cost) VALUES
 (
     'Session Follow-up 1',
     'அமர்வு பின்தொடர்தல் 1',
@@ -204,7 +204,7 @@ With divine blessings 🙏',
 );
 
 -- Insert default follow-up settings
-INSERT INTO follow_up_settings (setting_key, setting_value, setting_type, description) VALUES
+INSERT INTO public.follow_up_settings (setting_key, setting_value, setting_type, description) VALUES
 ('auto_followup_enabled', 'true', 'boolean', 'Enable automatic follow-up system'),
 ('default_credits_cost', '5', 'integer', 'Default credits cost for follow-ups'),
 ('max_followups_per_session', '3', 'integer', 'Maximum follow-ups allowed per session'),
@@ -216,9 +216,9 @@ INSERT INTO follow_up_settings (setting_key, setting_value, setting_type, descri
 ('enable_analytics', 'true', 'boolean', 'Enable follow-up analytics tracking');
 
 -- Create indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_user_email ON follow_up_schedules(user_email);
-CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_session_id ON follow_up_schedules(session_id);
-CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_status ON follow_up_schedules(status);
-CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_scheduled_at ON follow_up_schedules(scheduled_at);
-CREATE INDEX IF NOT EXISTS idx_follow_up_templates_active ON follow_up_templates(is_active);
-CREATE INDEX IF NOT EXISTS idx_follow_up_analytics_date ON follow_up_analytics(date); 
+CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_user_email ON public.follow_up_schedules(user_email);
+CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_session_id ON public.follow_up_schedules(session_id);
+CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_status ON public.follow_up_schedules(status);
+CREATE INDEX IF NOT EXISTS idx_follow_up_schedules_scheduled_at ON public.follow_up_schedules(scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_follow_up_templates_active ON public.follow_up_templates(is_active);
+CREATE INDEX IF NOT EXISTS idx_follow_up_analytics_date ON public.follow_up_analytics(date); 

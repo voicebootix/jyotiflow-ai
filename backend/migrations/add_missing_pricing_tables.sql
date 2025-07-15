@@ -12,16 +12,16 @@ BEGIN
         -- Add missing columns if they don't exist
         IF NOT EXISTS (SELECT FROM information_schema.columns 
                       WHERE table_name = 'sessions' AND column_name = 'duration_minutes') THEN
-            ALTER TABLE sessions ADD COLUMN duration_minutes INTEGER DEFAULT 0;
+            ALTER TABLE public.sessions ADD COLUMN duration_minutes INTEGER DEFAULT 0;
         END IF;
         
         IF NOT EXISTS (SELECT FROM information_schema.columns 
                       WHERE table_name = 'sessions' AND column_name = 'session_data') THEN
-            ALTER TABLE sessions ADD COLUMN session_data TEXT;
+            ALTER TABLE public.sessions ADD COLUMN session_data TEXT;
         END IF;
     ELSE
         -- Create sessions table if it doesn't exist
-        CREATE TABLE sessions (
+        CREATE TABLE public.sessions (
             id SERIAL PRIMARY KEY,
             user_id TEXT,
             service_type TEXT NOT NULL,
@@ -36,7 +36,7 @@ BEGIN
 END $$;
 
 -- AI pricing recommendations table
-CREATE TABLE IF NOT EXISTS ai_pricing_recommendations (
+CREATE TABLE IF NOT EXISTS public.ai_pricing_recommendations (
     id SERIAL PRIMARY KEY,
     service_type TEXT NOT NULL,
     recommendation_data TEXT NOT NULL, -- JSON data
@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS ai_pricing_recommendations (
 );
 
 -- Service usage logs for cost tracking
-CREATE TABLE IF NOT EXISTS service_usage_logs (
+CREATE TABLE IF NOT EXISTS public.service_usage_logs (
     id SERIAL PRIMARY KEY,
     service_type TEXT NOT NULL,
     api_name TEXT NOT NULL, -- elevenlabs, d_id, agora, openai
@@ -71,15 +71,15 @@ BEGIN
         IF NOT EXISTS (SELECT FROM information_schema.table_constraints 
                       WHERE table_name = 'service_usage_logs' 
                       AND constraint_name = 'service_usage_logs_session_id_fkey') THEN
-            ALTER TABLE service_usage_logs 
+            ALTER TABLE public.service_usage_logs 
             ADD CONSTRAINT service_usage_logs_session_id_fkey 
-            FOREIGN KEY (session_id) REFERENCES sessions(id);
+            FOREIGN KEY (session_id) REFERENCES public.sessions(id);
         END IF;
     END IF;
 END $$;
 
 -- API usage metrics for real-time monitoring
-CREATE TABLE IF NOT EXISTS api_usage_metrics (
+CREATE TABLE IF NOT EXISTS public.api_usage_metrics (
     id SERIAL PRIMARY KEY,
     api_name TEXT NOT NULL,
     endpoint TEXT,
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS api_usage_metrics (
 );
 
 -- Satsang events table (enhanced)
-CREATE TABLE IF NOT EXISTS satsang_events (
+CREATE TABLE IF NOT EXISTS public.satsang_events (
     id SERIAL PRIMARY KEY,
     title TEXT NOT NULL,
     description TEXT,
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS satsang_events (
 );
 
 -- Satsang donations/superchats table
-CREATE TABLE IF NOT EXISTS satsang_donations (
+CREATE TABLE IF NOT EXISTS public.satsang_donations (
     id SERIAL PRIMARY KEY,
     satsang_event_id INTEGER NOT NULL,
     user_id TEXT,
@@ -129,11 +129,11 @@ CREATE TABLE IF NOT EXISTS satsang_donations (
     highlight_duration INTEGER DEFAULT 0, -- seconds to highlight
     donation_type TEXT DEFAULT 'general', -- general, superchat, dedication
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (satsang_event_id) REFERENCES satsang_events(id)
+    FOREIGN KEY (satsang_event_id) REFERENCES public.satsang_events(id)
 );
 
 -- Satsang attendees table
-CREATE TABLE IF NOT EXISTS satsang_attendees (
+CREATE TABLE IF NOT EXISTS public.satsang_attendees (
     id SERIAL PRIMARY KEY,
     satsang_event_id INTEGER NOT NULL,
     user_id TEXT NOT NULL,
@@ -142,36 +142,36 @@ CREATE TABLE IF NOT EXISTS satsang_attendees (
     interaction_count INTEGER DEFAULT 0,
     donation_total REAL DEFAULT 0,
     attendance_duration INTEGER DEFAULT 0, -- minutes
-    FOREIGN KEY (satsang_event_id) REFERENCES satsang_events(id),
+    FOREIGN KEY (satsang_event_id) REFERENCES public.satsang_events(id),
     UNIQUE(satsang_event_id, user_id)
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON sessions(service_type);
-CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at);
-CREATE INDEX IF NOT EXISTS idx_ai_recommendations_service ON ai_pricing_recommendations(service_type, status);
-CREATE INDEX IF NOT EXISTS idx_usage_logs_service_api ON service_usage_logs(service_type, api_name);
-CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON service_usage_logs(created_at);
-CREATE INDEX IF NOT EXISTS idx_api_metrics_date ON api_usage_metrics(date, api_name);
-CREATE INDEX IF NOT EXISTS idx_satsang_events_scheduled ON satsang_events(scheduled_at, status);
-CREATE INDEX IF NOT EXISTS idx_satsang_donations_event ON satsang_donations(satsang_event_id);
-CREATE INDEX IF NOT EXISTS idx_satsang_attendees_event ON satsang_attendees(satsang_event_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON public.sessions(service_type);
+CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON public.sessions(created_at);
+CREATE INDEX IF NOT EXISTS idx_ai_recommendations_service ON public.ai_pricing_recommendations(service_type, status);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_service_api ON public.service_usage_logs(service_type, api_name);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON public.service_usage_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_api_metrics_date ON public.api_usage_metrics(date, api_name);
+CREATE INDEX IF NOT EXISTS idx_satsang_events_scheduled ON public.satsang_events(scheduled_at, status);
+CREATE INDEX IF NOT EXISTS idx_satsang_donations_event ON public.satsang_donations(satsang_event_id);
+CREATE INDEX IF NOT EXISTS idx_satsang_attendees_event ON public.satsang_attendees(satsang_event_id);
 
 -- Sample data for testing (PostgreSQL syntax)
-INSERT INTO sessions (service_type, duration_minutes, credits_used, created_at) VALUES
+INSERT INTO public.sessions (service_type, duration_minutes, credits_used, created_at) VALUES
 ('comprehensive_life_reading_30min', 30, 15, CURRENT_TIMESTAMP - INTERVAL '1 day'),
 ('comprehensive_life_reading_30min', 30, 15, CURRENT_TIMESTAMP - INTERVAL '2 hours'),
 ('horoscope_reading_quick', 10, 8, CURRENT_TIMESTAMP - INTERVAL '3 hours'),
 ('satsang_community', 60, 5, CURRENT_TIMESTAMP - INTERVAL '1 day')
 ON CONFLICT DO NOTHING;
 
-INSERT INTO ai_pricing_recommendations (service_type, recommendation_data, confidence_score, status) VALUES
+INSERT INTO public.ai_pricing_recommendations (service_type, recommendation_data, confidence_score, status) VALUES
 ('comprehensive_life_reading_30min', '{"suggested_price": 16.5, "reasoning": "High demand and increased API costs"}', 0.78, 'pending'),
 ('horoscope_reading_quick', '{"suggested_price": 9.0, "reasoning": "Stable demand, optimized costs"}', 0.65, 'pending')
 ON CONFLICT DO NOTHING;
 
 -- Sample satsang event
-INSERT INTO satsang_events (
+INSERT INTO public.satsang_events (
     title, description, scheduled_at, duration_minutes, theme, event_type, 
     has_donations, interactive_level, voice_enabled, video_enabled, base_credits
 ) VALUES (
@@ -198,17 +198,17 @@ END;
 $$ language 'plpgsql';
 
 CREATE TRIGGER update_sessions_timestamp 
-    BEFORE UPDATE ON sessions 
+    BEFORE UPDATE ON public.sessions 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_satsang_events_timestamp 
-    BEFORE UPDATE ON satsang_events 
+    BEFORE UPDATE ON public.satsang_events 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
 CREATE TRIGGER update_api_metrics_timestamp 
-    BEFORE UPDATE ON api_usage_metrics 
+    BEFORE UPDATE ON public.api_usage_metrics 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
