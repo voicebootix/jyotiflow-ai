@@ -4,6 +4,8 @@ from typing import List, Dict, Any
 import json
 import logging
 
+logger = logging.getLogger(__name__)
+
 # Import dynamic comprehensive pricing
 try:
     from dynamic_comprehensive_pricing import DynamicComprehensivePricing
@@ -13,7 +15,6 @@ except ImportError:
     logger.warning("Dynamic comprehensive pricing not available - falling back to basic pricing")
 
 router = APIRouter(prefix="/api/services", tags=["Services"])
-logger = logging.getLogger(__name__)
 
 async def get_dynamic_pricing(db, service_name: str = ""):
     """Get dynamic pricing from admin settings with enhanced comprehensive pricing"""

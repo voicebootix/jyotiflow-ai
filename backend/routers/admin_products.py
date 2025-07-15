@@ -254,7 +254,7 @@ async def get_welcome_credits_config(db=Depends(get_db)):
         
     except Exception as e:
         logger.error(f"Error getting welcome credits config: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get welcome credits configuration")
+        raise HTTPException(status_code=500, detail="Failed to get welcome credits configuration") from e
 
 @router.put("/pricing/welcome-credits")
 async def update_welcome_credits_config(request: Request, db=Depends(get_db)):
@@ -285,7 +285,7 @@ async def update_welcome_credits_config(request: Request, db=Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error updating welcome credits config: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update welcome credits configuration")
+        raise HTTPException(status_code=500, detail="Failed to update welcome credits configuration") from e
 
 # --- DONATIONS ENDPOINTS ---
 @router.get("/donations")

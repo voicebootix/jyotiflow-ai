@@ -229,13 +229,20 @@ class DynamicComprehensivePricing:
             recent_demand = result['recent'] or 0
             previous_demand = result['previous'] or 0
             
-            # Calculate demand factor
+            # Calculate demand factor with improved logic
             if previous_demand == 0:
-                demand_factor = 1.0  # No change if no previous data
+                if recent_demand > 0:
+                    # New demand detected - encourage growth with slightly higher pricing
+                    demand_factor = 1.2
+                else:
+                    # No demand at all - neutral pricing
+                    demand_factor = 1.0
             else:
                 demand_ratio = recent_demand / previous_demand
-                # Normalize demand factor between 0.8 and 1.5
-                demand_factor = max(0.8, min(1.5, demand_ratio))
+                # Use scaled ratio approach: 0.8 + (demand_ratio * 0.6) clamped to [0.8, 1.4]
+                # This provides more nuanced pricing based on demand changes
+                scaled_factor = 0.8 + (demand_ratio * 0.6)
+                demand_factor = max(0.8, min(1.4, scaled_factor))
             
             return demand_factor
             

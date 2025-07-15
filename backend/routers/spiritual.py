@@ -589,7 +589,7 @@ async def get_birth_chart_cache_statistics(request: Request):
         raise
     except Exception as e:
         logger.error(f"Error getting cache statistics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get cache statistics")
+        raise HTTPException(status_code=500, detail="Failed to get cache statistics") from e
     finally:
         if conn:
             await db_manager.release_connection(conn)
@@ -623,7 +623,7 @@ async def cleanup_expired_birth_chart_cache(request: Request):
         raise
     except Exception as e:
         logger.error(f"Error cleaning up cache: {e}")
-        raise HTTPException(status_code=500, detail="Failed to cleanup cache")
+        raise HTTPException(status_code=500, detail="Failed to cleanup cache") from e
 
 @router.post("/birth-chart/link-to-user")
 async def link_anonymous_chart_to_user(request: Request):
