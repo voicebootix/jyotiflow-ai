@@ -130,11 +130,11 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
         if not user_data:
             return {"status": "error", "message": "User not found"}
         
-        # Generate personalized cosmic insights
-        insights = await _generate_cosmic_insights(user_id, dict(user_data), db)
+        # Generate personalized cosmic insights - pass user_id_int for consistency
+        insights = await _generate_cosmic_insights(user_id_int, dict(user_data), db)
         
-        # Get personalized service recommendations
-        services = await _get_personalized_services(user_id, db)
+        # Get personalized service recommendations - pass user_id_int for consistency
+        services = await _get_personalized_services(user_id_int, db)
         
         return {
             "status": "success",
@@ -151,7 +151,7 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
             "message": "Unable to generate cosmic insights at this time"
         }
 
-async def _generate_cosmic_insights(user_id: str, user_data: dict, db) -> dict:
+async def _generate_cosmic_insights(user_id: int, user_data: dict, db) -> dict:
     """Generate teaser insights based on user's birth chart data"""
     try:
         birth_data = user_data.get('birth_chart_data', {})
@@ -199,7 +199,7 @@ async def _generate_cosmic_insights(user_id: str, user_data: dict, db) -> dict:
             "career": "💼 Success flows to those who seek guidance"
         }
 
-async def _get_personalized_services(user_id: str, db) -> list:
+async def _get_personalized_services(user_id: int, db) -> list:
     """Get personalized service recommendations with smart pricing"""
     try:
         # Get available services
@@ -249,8 +249,8 @@ async def _get_personalized_services(user_id: str, db) -> list:
         
         for service in services:
             try:
-                # Calculate personalized pricing
-                cost_analysis = await smart_service.calculate_service_cost(service['id'], user_id)
+                # Calculate personalized pricing - convert user_id back to string for smart service
+                cost_analysis = await smart_service.calculate_service_cost(service['id'], str(user_id))
                 
                 # Safely access nested dictionary keys with defaults
                 pricing_data = cost_analysis.get('pricing', {})
