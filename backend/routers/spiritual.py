@@ -568,14 +568,14 @@ async def get_birth_chart_cache_statistics(request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        # Check if user is admin
+        # Check if user is admin - FIXED: Use role column instead of is_admin
         conn = await db_manager.get_connection()
         user_data = await conn.fetchrow("""
-            SELECT is_admin FROM users WHERE email = $1
+            SELECT role FROM users WHERE email = $1
         """, user_email)
         await conn.close()
         
-        if not user_data or not user_data['is_admin']:
+        if not user_data or user_data['role'] != 'admin':
             raise HTTPException(status_code=403, detail="Admin access required")
         
         # Get cache statistics
@@ -587,7 +587,7 @@ async def get_birth_chart_cache_statistics(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[BirthChart] Error getting cache statistics: {e}")
+        logger.error(f"Error getting cache statistics: {e}")
         raise HTTPException(status_code=500, detail="Failed to get cache statistics")
 
 @router.post("/birth-chart/cache-cleanup")
@@ -599,14 +599,14 @@ async def cleanup_expired_birth_chart_cache(request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        # Check if user is admin
+        # Check if user is admin - FIXED: Use role column instead of is_admin
         conn = await db_manager.get_connection()
         user_data = await conn.fetchrow("""
-            SELECT is_admin FROM users WHERE email = $1
+            SELECT role FROM users WHERE email = $1
         """, user_email)
         await conn.close()
         
-        if not user_data or not user_data['is_admin']:
+        if not user_data or user_data['role'] != 'admin':
             raise HTTPException(status_code=403, detail="Admin access required")
         
         # Cleanup expired cache
@@ -618,7 +618,7 @@ async def cleanup_expired_birth_chart_cache(request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[BirthChart] Error cleaning up cache: {e}")
+        logger.error(f"Error cleaning up cache: {e}")
         raise HTTPException(status_code=500, detail="Failed to cleanup cache")
 
 @router.post("/birth-chart/link-to-user")
@@ -970,8 +970,14 @@ async def get_complete_birth_chart_profile(request: Request):
             "complete_profile": complete_profile
         }
         
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error in birth chart profile: {e}")
+        raise HTTPException(status_code=500, detail="Invalid birth chart data format")
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error in birth chart profile: {e}")
+        raise HTTPException(status_code=500, detail="Database connection error")
     except Exception as e:
-        logger.error(f"Error getting complete birth chart profile: {e}")
+        logger.error(f"Unexpected error getting complete birth chart profile: {e}")
         raise HTTPException(status_code=500, detail="Failed to get birth chart profile")
 
 @router.post("/birth-chart/generate-for-user")
@@ -1022,6 +1028,12 @@ async def generate_birth_chart_for_user(request: Request):
             "complete_profile": complete_profile
         }
         
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error generating birth chart: {e}")
+        raise HTTPException(status_code=500, detail="Invalid birth chart data format")
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error generating birth chart: {e}")
+        raise HTTPException(status_code=500, detail="Database connection error")
     except Exception as e:
-        logger.error(f"Error generating birth chart for user: {e}")
+        logger.error(f"Unexpected error generating birth chart for user: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate birth chart") 

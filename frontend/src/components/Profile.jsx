@@ -1095,7 +1095,9 @@ const Profile = () => {
                           🌙 Moon Sign (Rashi)
                         </h3>
                         <p className="text-purple-600">
-                          {dashboardData?.birthChart?.birth_chart?.moon_sign || 'Available in your chart'}
+                          {dashboardData?.birthChart?.birth_chart?.chandra_rasi?.name || 
+                           dashboardData?.birthChart?.birth_chart?.moon_sign || 
+                           'Available in your chart'}
                         </p>
                       </div>
                       <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -1103,7 +1105,9 @@ const Profile = () => {
                           ⭐ Nakshatra
                         </h3>
                         <p className="text-yellow-600">
-                          {dashboardData?.birthChart?.birth_chart?.nakshatra || 'Available in your chart'}
+                          {dashboardData?.birthChart?.birth_chart?.nakshatra?.name || 
+                           dashboardData?.birthChart?.birth_chart?.nakshatra || 
+                           'Available in your chart'}
                         </p>
                       </div>
                       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1111,7 +1115,9 @@ const Profile = () => {
                           ☀️ Sun Sign
                         </h3>
                         <p className="text-blue-600">
-                          {dashboardData?.birthChart?.birth_chart?.sun_sign || 'Available in your chart'}
+                          {dashboardData?.birthChart?.birth_chart?.soorya_rasi?.name || 
+                           dashboardData?.birthChart?.birth_chart?.sun_sign || 
+                           'Available in your chart'}
                         </p>
                       </div>
                       <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -1119,7 +1125,9 @@ const Profile = () => {
                           🔮 Ascendant (Lagna)
                         </h3>
                         <p className="text-green-600">
-                          {dashboardData?.birthChart?.birth_chart?.ascendant || 'Available in your chart'}
+                          {dashboardData?.birthChart?.birth_chart?.lagna?.name || 
+                           dashboardData?.birthChart?.birth_chart?.ascendant || 
+                           'Available in your chart'}
                         </p>
                       </div>
                     </div>
@@ -1135,11 +1143,14 @@ const Profile = () => {
                             "{dashboardData?.birthChart?.swamiji_reading?.summary || 
                               (dashboardData?.birthChart?.swamiji_reading?.full_reading ? 
                                 dashboardData.birthChart.swamiji_reading.full_reading.substring(0, 200) + '...' : 
+                                dashboardData?.birthChart?.swamiji_reading?.complete_reading ? 
+                                dashboardData.birthChart.swamiji_reading.complete_reading.substring(0, 200) + '...' :
                                 'Swamiji\'s personalized reading is being prepared...')}"
                           </p>
                         </div>
                         <div className="grid md:grid-cols-3 gap-4">
-                          {dashboardData?.birthChart?.swamiji_reading?.personality_insights && (
+                          {dashboardData?.birthChart?.swamiji_reading?.personality_insights && 
+                           Array.isArray(dashboardData.birthChart.swamiji_reading.personality_insights) && (
                             <div>
                               <h4 className="font-medium text-orange-700 mb-2">Personality Insights:</h4>
                               <ul className="text-sm text-orange-600 space-y-1">
@@ -1149,7 +1160,8 @@ const Profile = () => {
                               </ul>
                             </div>
                           )}
-                          {dashboardData?.birthChart?.swamiji_reading?.spiritual_guidance && (
+                          {dashboardData?.birthChart?.swamiji_reading?.spiritual_guidance && 
+                           Array.isArray(dashboardData.birthChart.swamiji_reading.spiritual_guidance) && (
                             <div>
                               <h4 className="font-medium text-orange-700 mb-2">Spiritual Guidance:</h4>
                               <ul className="text-sm text-orange-600 space-y-1">
@@ -1159,7 +1171,8 @@ const Profile = () => {
                               </ul>
                             </div>
                           )}
-                          {dashboardData?.birthChart?.swamiji_reading?.practical_advice && (
+                          {dashboardData?.birthChart?.swamiji_reading?.practical_advice && 
+                           Array.isArray(dashboardData.birthChart.swamiji_reading.practical_advice) && (
                             <div>
                               <h4 className="font-medium text-orange-700 mb-2">Practical Advice:</h4>
                               <ul className="text-sm text-orange-600 space-y-1">

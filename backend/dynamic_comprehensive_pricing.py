@@ -20,6 +20,8 @@ class DynamicComprehensivePricing:
     def __init__(self, database_url: str = None):
         self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
         self.connection_pool = None
+        # Initialize connection pool asynchronously
+        asyncio.create_task(self.initialize_pool())
         self.base_cost_factors = {
             "openai_api_calls": 0.5,  # Credits per API call
             "knowledge_retrieval": 0.2,  # Credits per knowledge piece
@@ -103,45 +105,43 @@ class DynamicComprehensivePricing:
     
     async def _calculate_actual_costs(self) -> Dict[str, float]:
         """Calculate actual costs based on recent usage"""
+        conn = None
         try:
             conn = await self.get_connection()
-            try:
-                # Get recent comprehensive reading sessions
-                recent_sessions = await conn.fetchval("""
-                    SELECT COUNT(*) as session_count 
-                    FROM sessions 
-                    WHERE service_type = 'comprehensive_life_reading_30min' 
-                    AND created_at > NOW() - INTERVAL '7 days'
-                """) or 1
-                
-                # Calculate average costs
-                costs = {
-                    "openai_api_cost": self._estimate_openai_costs(),
-                    "knowledge_processing_cost": self._estimate_knowledge_costs(),
-                    "chart_generation_cost": self._estimate_chart_costs(),
-                    "remedies_generation_cost": self._estimate_remedies_costs(),
-                    "server_processing_cost": self._estimate_processing_costs(),
-                    "elevenlabs_voice_cost": self._estimate_elevenlabs_costs(),
-                    "did_video_generation_cost": self._estimate_did_costs(),
-                    "total_operational_cost": 0
-                }
-                
-                # Sum total operational cost
-                costs["total_operational_cost"] = sum([
-                    costs["openai_api_cost"],
-                    costs["knowledge_processing_cost"], 
-                    costs["chart_generation_cost"],
-                    costs["remedies_generation_cost"],
-                    costs["server_processing_cost"],
-                    costs["elevenlabs_voice_cost"],
-                    costs["did_video_generation_cost"]
-                ])
-                
-                return costs
-                
-            finally:
-                await self.release_connection(conn)
-                
+            
+            # Get recent comprehensive reading sessions
+            recent_sessions = await conn.fetchval("""
+                SELECT COUNT(*) as session_count 
+                FROM sessions 
+                WHERE service_type = 'comprehensive_life_reading_30min' 
+                AND created_at > NOW() - INTERVAL '7 days'
+            """) or 1
+            
+            # Calculate average costs
+            costs = {
+                "openai_api_cost": self._estimate_openai_costs(),
+                "knowledge_processing_cost": self._estimate_knowledge_costs(),
+                "chart_generation_cost": self._estimate_chart_costs(),
+                "remedies_generation_cost": self._estimate_remedies_costs(),
+                "server_processing_cost": self._estimate_processing_costs(),
+                "elevenlabs_voice_cost": self._estimate_elevenlabs_costs(),
+                "did_video_generation_cost": self._estimate_did_costs(),
+                "total_operational_cost": 0
+            }
+            
+            # Sum total operational cost
+            costs["total_operational_cost"] = sum([
+                costs["openai_api_cost"],
+                costs["knowledge_processing_cost"], 
+                costs["chart_generation_cost"],
+                costs["remedies_generation_cost"],
+                costs["server_processing_cost"],
+                costs["elevenlabs_voice_cost"],
+                costs["did_video_generation_cost"]
+            ])
+            
+            return costs
+            
         except Exception as e:
             logger.error(f"Cost calculation error: {e}")
             # Return default costs if calculation fails
@@ -155,6 +155,9 @@ class DynamicComprehensivePricing:
                 "did_video_generation_cost": 4.0,
                 "total_operational_cost": 14.5
             }
+        finally:
+            if conn:
+                await self.release_connection(conn)
     
     def _estimate_openai_costs(self) -> float:
         """Estimate OpenAI API costs for comprehensive reading"""
@@ -207,38 +210,39 @@ class DynamicComprehensivePricing:
     
     async def _get_demand_factor(self) -> float:
         """Calculate demand factor based on recent usage patterns"""
+        conn = None
         try:
             conn = await self.get_connection()
-            try:
-                # Get sessions from last 24 hours vs previous 24 hours
-                result = await conn.fetchrow("""
-                    SELECT 
-                        COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as recent,
-                        COUNT(CASE WHEN created_at BETWEEN NOW() - INTERVAL '2 days' AND NOW() - INTERVAL '1 day' THEN 1 END) as previous
-                    FROM sessions 
-                    WHERE service_type = 'comprehensive_life_reading_30min'
-                    AND created_at > NOW() - INTERVAL '2 days'
-                """)
-                
-                recent_demand = result['recent'] or 0
-                previous_demand = result['previous'] or 0
-                
-                # Calculate demand factor
-                if previous_demand == 0:
-                    demand_factor = 1.0  # No change if no previous data
-                else:
-                    demand_ratio = recent_demand / previous_demand
-                    # Normalize demand factor between 0.8 and 1.5
-                    demand_factor = max(0.8, min(1.5, demand_ratio))
-                
-                return demand_factor
-                
-            finally:
-                await self.release_connection(conn)
-                
+            
+            # Get sessions from last 24 hours vs previous 24 hours
+            result = await conn.fetchrow("""
+                SELECT 
+                    COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as recent,
+                    COUNT(CASE WHEN created_at BETWEEN NOW() - INTERVAL '2 days' AND NOW() - INTERVAL '1 day' THEN 1 END) as previous
+                FROM sessions 
+                WHERE service_type = 'comprehensive_life_reading_30min'
+                AND created_at > NOW() - INTERVAL '2 days'
+            """)
+            
+            recent_demand = result['recent'] or 0
+            previous_demand = result['previous'] or 0
+            
+            # Calculate demand factor
+            if previous_demand == 0:
+                demand_factor = 1.0  # No change if no previous data
+            else:
+                demand_ratio = recent_demand / previous_demand
+                # Normalize demand factor between 0.8 and 1.5
+                demand_factor = max(0.8, min(1.5, demand_ratio))
+            
+            return demand_factor
+            
         except Exception as e:
             logger.error(f"Demand factor calculation error: {e}")
             return 1.0  # Default to no change
+        finally:
+            if conn:
+                await self.release_connection(conn)
     
     async def _get_ai_price_recommendation(self) -> Dict[str, Any]:
         """Get AI-based pricing recommendation"""
