@@ -19,6 +19,7 @@ import secrets
 # Import dependencies
 from deps import get_current_user
 from db import get_db
+from auth.auth_helpers import AuthenticationHelper
 
 # SURGICAL FIX: Safe Agora service import with fallback
 try:

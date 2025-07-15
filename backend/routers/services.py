@@ -62,7 +62,7 @@ async def get_daily_free_credits_config(db):
 
 @router.get("/types")
 async def get_service_types(db=Depends(get_db)):
-    """Get public service types for customers with dynamic pricing"""
+    """Get all service types with dynamic pricing"""
     try:
         # Use a more robust query that handles missing columns gracefully
         services = await db.fetch("""
@@ -81,7 +81,7 @@ async def get_service_types(db=Depends(get_db)):
                 COALESCE(live_chat_enabled, false) as live_chat_enabled,
                 COALESCE(voice_enabled, false) as voice_enabled,
                 COALESCE(video_enabled, false) as video_enabled,
-                COALESCE(interactive_enabled, comprehensive_reading_enabled, false) as interactive_enabled,
+                COALESCE(interactive_enabled, false) as interactive_enabled,
                 created_at,
                 updated_at
             FROM service_types 

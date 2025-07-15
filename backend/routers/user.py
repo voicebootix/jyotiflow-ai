@@ -12,27 +12,15 @@ try:
 except ImportError:
     get_prokerala_smart_service = None
 
-# Import centralized JWT handler
-from auth.jwt_config import JWTHandler
+# Import centralized authentication helper
+from auth.auth_helpers import AuthenticationHelper
 
 router = APIRouter(prefix="/api/user", tags=["User"])
 logger = logging.getLogger(__name__)
 
-def get_user_id_from_token(request: Request) -> str | None:
-    """Extract user ID from JWT token - OPTIONAL"""
-    try:
-        return JWTHandler.get_user_id_from_token(request)
-    except Exception:
-        return None
-
-def convert_user_id_to_int(user_id: str | None) -> int | None:
-    """Convert string user_id to integer for database queries"""
-    if not user_id:
-        return None
-    try:
-        return int(user_id)
-    except ValueError:
-        return None
+# Use centralized authentication helpers - no duplication
+get_user_id_from_token = AuthenticationHelper.get_user_id_optional
+convert_user_id_to_int = AuthenticationHelper.convert_user_id_to_int
 
 # தமிழ் - பயனர் சுயவிவரம் பெறுதல்
 @router.get("/profile")
