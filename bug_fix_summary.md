@@ -1,88 +1,40 @@
-# Bug Fix Summary: EnhancedBirthChartCacheService Security Vulnerability
+# Type Mismatch Bug Fix - User Profile and Credits Endpoints
 
-## Issue Description
-The `_cache_complete_profile` method in `EnhancedBirthChartCacheService` was using `INSERT OR REPLACE` on the `users` table, which caused critical security and data integrity issues:
+## Problem
+A type mismatch bug affected the `/api/user/profile` and `/api/user/credits` endpoints due to incorrect double conversion of user IDs.
 
-- **Data Corruption**: Existing user account details (name, password hash, role, credits) were being overwritten with temporary or default values
-- **Security Vulnerability**: User password hashes were being replaced with hardcoded 'temp_hash' values
-- **Account Compromise**: Users would lose access to their accounts as their credentials were corrupted
+### Root Cause
+- `get_user_id_as_int()` returns `int | None` (already converts string to integer)
+- `convert_user_id_to_int()` expects `str | None` input and returns `int | None`
+- The profile and credits endpoints were incorrectly passing the already-converted integer from `get_user_id_as_int()` to `convert_user_id_to_int()`, causing runtime type errors
 
-## Root Cause
-The method was designed to cache birth chart data but was incorrectly using `INSERT OR REPLACE`, which:
-1. Completely replaced existing user records instead of updating specific fields
-2. Used hardcoded temporary values for critical account information
-3. Didn't differentiate between new user creation and existing user updates
+## Solution
+**Fixed both endpoints to use `get_user_id_as_int()` directly without the redundant second conversion:**
 
-## Solution Implemented
-Fixed the `_cache_complete_profile` method in `backend/services/enhanced_birth_chart_cache_service.py` (lines 461-481) to:
+### Profile Endpoint Fix (`/api/user/profile`)
+- **Before**: Called `get_user_id_as_int()`, then passed result to `convert_user_id_to_int()` 
+- **After**: Uses `get_user_id_as_int()` result directly as `user_id_int`
+- **Removed**: Redundant conversion step and unnecessary fallback logic
 
-### 1. Check User Existence
+### Credits Endpoint Fix (`/api/user/credits`)
+- **Before**: Called `get_user_id_as_int()`, then passed result to `convert_user_id_to_int()`
+- **After**: Uses `get_user_id_as_int()` result directly as `user_id_int`
+- **Removed**: Redundant conversion step and "Invalid user ID" error path
+
+## Pattern Consistency
+Both endpoints now follow the same pattern as the `/api/user/sessions` endpoint, which was already implemented correctly:
+
 ```python
-cursor.execute("SELECT id FROM users WHERE email = ?", (user_email,))
-user_exists = cursor.fetchone()
+user_id_int = get_user_id_as_int(request)  # Already returns int or None
+if not user_id_int:
+    # Handle unauthenticated case
+    return ...
 ```
-
-### 2. Update Existing Users Safely
-For existing users, only update birth chart related fields:
-```python
-cursor.execute("""
-    UPDATE users 
-    SET birth_chart_data = ?, 
-        birth_chart_hash = ?, 
-        birth_chart_cached_at = ?, 
-        birth_chart_expires_at = ?, 
-        has_free_birth_chart = ?,
-        birth_date = COALESCE(birth_date, ?),
-        birth_time = COALESCE(birth_time, ?),
-        birth_location = COALESCE(birth_location, ?)
-    WHERE email = ?
-""")
-```
-
-### 3. Preserve Critical Account Data
-- **Password hashes**: Remain unchanged for existing users
-- **User names**: Preserved from original registration
-- **Roles and credits**: Maintain existing values
-- **Account details**: Only update birth chart related fields
-
-### 4. Safe New User Creation
-For new users (rare case), insert complete record with proper validation:
-```python
-cursor.execute("""
-    INSERT INTO users 
-    (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
-     birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
-     birth_location, name, password_hash, role, credits, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-""")
-```
-
-## Key Improvements
-1. **Data Integrity**: User account information is preserved
-2. **Security**: Password hashes are never overwritten
-3. **Functional Separation**: Birth chart caching vs. user account management
-4. **Error Prevention**: Proper existence checks before operations
-5. **Backward Compatibility**: Existing birth chart data structures remain unchanged
-
-## Testing Recommendations
-1. Test existing user registration flow
-2. Test birth chart caching for existing users
-3. Verify user login functionality after chart generation
-4. Test edge cases with multiple chart generations
-5. Verify data integrity across user sessions
 
 ## Files Modified
-- `backend/services/enhanced_birth_chart_cache_service.py` - Fixed the `_cache_complete_profile` method
-
-## Impact
-- **Security**: Eliminated password corruption vulnerability
-- **Data Integrity**: User accounts remain intact during birth chart operations
-- **User Experience**: Users can access their accounts after chart generation
-- **System Stability**: Prevents account lockouts and data loss
+- `backend/routers/user.py` (lines 58-85 and 109-116)
 
 ## Verification
-The fix ensures that:
-- Registration flow creates user accounts properly via `_create_user_account`
-- Birth chart caching updates only chart-related fields
-- User credentials and account data remain secure
-- No `INSERT OR REPLACE` operations compromise existing data
+- Syntax check passed successfully
+- Type consistency ensured across all user endpoints
+- Runtime type errors eliminated
