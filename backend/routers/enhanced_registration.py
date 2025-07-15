@@ -81,6 +81,33 @@ class EnhancedRegistrationService:
         self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
         self.birth_chart_service = EnhancedBirthChartCacheService(self.database_url)
     
+    async def get_dynamic_welcome_credits(self) -> int:
+        """Get welcome credits from pricing_config table dynamically"""
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                result = await conn.fetchrow("""
+                    SELECT config_value 
+                    FROM pricing_config 
+                    WHERE config_key = 'welcome_credits' 
+                    AND is_active = true
+                """)
+                
+                if result and result['config_value']:
+                    return int(result['config_value'])
+                else:
+                    # Default fallback if not configured
+                    logger.warning("Welcome credits not configured, using default 10")
+                    return 10
+                    
+            finally:
+                await conn.close()
+                
+        except Exception as e:
+            logger.error(f"Error getting dynamic welcome credits: {e}")
+            # Fallback to default
+            return 10
+    
     async def register_user_with_birth_chart(self, user_data: EnhancedUserRegistration) -> RegistrationResponse:
         """Register user and automatically generate complete birth chart profile"""
         try:
@@ -114,46 +141,49 @@ class EnhancedRegistrationService:
             # Hash password
             password_hash = bcrypt.hashpw(user_data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
+            # Get dynamic welcome credits
+            welcome_credits = await self.get_dynamic_welcome_credits()
+            
             conn = await asyncpg.connect(self.database_url)
-            try:
-                # Check if user already exists
-                existing_user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)
-                if existing_user:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="User already exists"
-                    )
-                
-                # Insert new user
-                user_id = await conn.fetchval("""
-                    INSERT INTO users (
-                        name, email, password_hash, phone, birth_date, birth_time, 
-                        birth_location, spiritual_level, preferred_language, 
-                        role, credits, created_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-                    RETURNING id
-                """, 
-                    user_data.name,
-                    user_data.email,
-                    password_hash,
-                    user_data.phone,
-                    user_data.birth_details.date,
-                    user_data.birth_details.time,
-                    user_data.birth_details.location,
-                    user_data.spiritual_level,
-                    user_data.preferred_language,
-                    'user',
-                    50  # Welcome credits
+            
+            # Check if user already exists
+            existing_user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="User already exists"
                 )
-                
-                if user_id is None:
-                    raise ValueError("Failed to get user ID after insertion")
-                
-                return user_id
-                
-            finally:
-                await conn.close()
-                
+            
+            # Insert new user
+            user_id = await conn.fetchval("""
+                INSERT INTO users (
+                    name, email, password_hash, phone, birth_date, birth_time, 
+                    birth_location, spiritual_level, preferred_language, 
+                    role, credits, created_at
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                RETURNING id
+            """, 
+                user_data.name,
+                user_data.email,
+                password_hash,
+                user_data.phone,
+                user_data.birth_details.date,
+                user_data.birth_details.time,
+                user_data.birth_details.location,
+                user_data.spiritual_level,
+                user_data.preferred_language,
+                'user',
+                welcome_credits  # Dynamic welcome credits
+            )
+            
+            await conn.close()
+            
+            if user_id is None:
+                raise ValueError("Failed to get user ID after insertion")
+            
+            logger.info(f"✅ User account created with {welcome_credits} welcome credits")
+            return user_id
+            
         except Exception as e:
             logger.error(f"User account creation failed: {e}")
             raise

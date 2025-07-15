@@ -1524,57 +1524,62 @@ async def health_check():
 
 @auth_router.post("/register")
 async def register_user(user_data: UserRegistration):
-    """User registration with complete field handling"""
+    """Enhanced user registration with birth details and dynamic welcome credits"""
     try:
-        # Defensive fix: Ensure birth_date and birth_time are always strings
-        birth_date = user_data.birth_date
-        birth_time = user_data.birth_time
-        if birth_date is not None and not isinstance(birth_date, str):
-            try:
-                birth_date = str(birth_date)
-            except Exception as e:
-                logger.error(f"birth_date conversion error: {e}")
-                return StandardResponse(
-                    success=False,
-                    message="Registration failed: Invalid birth_date format. Please use YYYY-MM-DD.",
-                    data={"error": str(e)}
-                ).dict()
-        if birth_time is not None and not isinstance(birth_time, str):
-            try:
-                birth_time = str(birth_time)
-            except Exception as e:
-                logger.error(f"birth_time conversion error: {e}")
-                return StandardResponse(
-                    success=False,
-                    message="Registration failed: Invalid birth_time format. Please use HH:MM:SS.",
-                    data={"error": str(e)}
-                ).dict()
-        # Check if user already exists
+        logger.info(f"Registration request for: {user_data.email}")
+
         conn = await db_manager.get_connection()
         try:
+            # Check if user already exists
             if db_manager.is_sqlite:
-                existing = await conn.execute("SELECT 1 FROM users WHERE email = ?", (user_data.email,))
-                exists = await existing.fetchone()
+                existing_user = await conn.execute("SELECT id FROM users WHERE email = ?", (user_data.email,))
+                existing = await existing_user.fetchone()
             else:
-                exists = await conn.fetchval("SELECT 1 FROM users WHERE email = $1", user_data.email)
+                existing = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)
             
-            if exists:
+            if existing:
                 return StandardResponse(
                     success=False,
-                    message="User with this email already exists",
+                    message="User already exists",
                     data={"error": "Email already registered"}
                 ).dict()
-            
+
             # Hash password
             password_hash = security_manager.hash_password(user_data.password)
             
-            # Generate unique referral code for new user
-            referral_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
+            # Get dynamic welcome credits
+            welcome_credits = 10  # Default fallback
+            try:
+                if db_manager.is_sqlite:
+                    credit_result = await conn.execute("""
+                        SELECT config_value FROM pricing_config 
+                        WHERE config_key = 'welcome_credits' AND is_active = 1
+                    """)
+                    credit_row = await credit_result.fetchone()
+                else:
+                    credit_row = await conn.fetchrow("""
+                        SELECT config_value FROM pricing_config 
+                        WHERE config_key = 'welcome_credits' AND is_active = true
+                    """)
+                
+                if credit_row and credit_row['config_value']:
+                    welcome_credits = int(credit_row['config_value'])
+                    logger.info(f"Using dynamic welcome credits: {welcome_credits}")
+                else:
+                    logger.warning("Welcome credits not configured, using default 10")
+            except Exception as e:
+                logger.error(f"Error getting dynamic welcome credits: {e}, using default 10")
+
+            # Generate referral code
+            referral_code = f"REF_{user_data.email.split('@')[0].upper()}_{datetime.now().strftime('%Y%m%d')}"
             
-            # Get current timestamp
+            # Parse birth details
+            birth_date = user_data.birth_date if user_data.birth_date else None
+            birth_time = user_data.birth_time if user_data.birth_time else None
+            
             now = datetime.now(timezone.utc)
             
-            # Insert user with ALL fields
+            # Insert user with dynamic welcome credits
             if db_manager.is_sqlite:
                 await conn.execute("""
                     INSERT INTO users (
@@ -1587,7 +1592,7 @@ async def register_user(user_data: UserRegistration):
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     user_data.email, password_hash, user_data.name, user_data.phone,
-                    3, "user",  # 3 welcome credits, user role
+                    welcome_credits, "user",  # Dynamic welcome credits, user role
                     birth_date, birth_time, user_data.birth_location,
                     user_data.preferred_avatar_style or "traditional",
                     user_data.voice_preference or "compassionate",
@@ -1609,7 +1614,7 @@ async def register_user(user_data: UserRegistration):
                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, NOW(), NOW())
                 """, 
                     user_data.email, password_hash, user_data.name, user_data.phone,
-                    3, "user",
+                    welcome_credits, "user",  # Dynamic welcome credits
                     birth_date, birth_time, user_data.birth_location,
                     user_data.preferred_avatar_style or "traditional",
                     user_data.voice_preference or "compassionate", 
@@ -1626,7 +1631,7 @@ async def register_user(user_data: UserRegistration):
                 data={
                     "email": user_data.email,
                     "name": user_data.name,
-                    "welcome_credits": 3,
+                    "welcome_credits": welcome_credits,  # Dynamic welcome credits
                     "spiritual_level": "beginner",
                     "referral_code": referral_code,
                     "avatar_preferences": {
@@ -1646,8 +1651,7 @@ async def register_user(user_data: UserRegistration):
             success=False,
             message="Registration failed",
             data={"error": str(e)}
-        ).dict() 
-    
+        ).dict()
 
 @auth_router.post("/login")
 async def login_user(login_data: UserLogin):
