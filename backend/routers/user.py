@@ -24,8 +24,8 @@ convert_user_id_to_int = AuthenticationHelper.convert_user_id_to_int
 # தமிழ் - பயனர் சுயவிவரம் பெறுதல்
 @router.get("/profile")
 async def get_profile(request: Request, db=Depends(get_db)):
-    user_id = get_user_id_from_token(request)
-    if not user_id:
+    user_id_str = get_user_id_from_token(request)
+    if not user_id_str:
         # Return guest user profile for non-authenticated requests
         return {
             "id": "guest",
@@ -37,7 +37,20 @@ async def get_profile(request: Request, db=Depends(get_db)):
             "created_at": datetime.now(timezone.utc)
         }
     
-    # user_id is already an integer, no need for conversion
+    # Convert string user_id to integer for database query
+    user_id = convert_user_id_to_int(user_id_str)
+    if user_id is None:
+        # Return guest user profile if user ID is invalid
+        return {
+            "id": "guest",
+            "email": "guest@jyotiflow.ai",
+            "name": "Guest User",
+            "full_name": "Guest User",
+            "credits": 0,
+            "role": "guest",
+            "created_at": datetime.now(timezone.utc)
+        }
+    
     user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id)
     if not user:
         # Return guest user profile if user not found
@@ -63,11 +76,15 @@ async def get_profile(request: Request, db=Depends(get_db)):
 
 @router.get("/credits")
 async def get_credits(request: Request, db=Depends(get_db)):
-    user_id = get_user_id_from_token(request)
-    if not user_id:
+    user_id_str = get_user_id_from_token(request)
+    if not user_id_str:
         return {"success": True, "data": {"credits": 0}}
     
-    # user_id is already an integer, no need for conversion
+    # Convert string user_id to integer for database query
+    user_id = convert_user_id_to_int(user_id_str)
+    if user_id is None:
+        return {"success": True, "data": {"credits": 0}}
+    
     user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id)
     if not user:
         return {"success": True, "data": {"credits": 0}}
@@ -75,11 +92,15 @@ async def get_credits(request: Request, db=Depends(get_db)):
 
 @router.get("/sessions")
 async def get_sessions(request: Request, db=Depends(get_db)):
-    user_id = get_user_id_from_token(request)
-    if not user_id:
+    user_id_str = get_user_id_from_token(request)
+    if not user_id_str:
         return {"success": True, "data": []}
     
-    # user_id is already an integer, no need for conversion
+    # Convert string user_id to integer for database query
+    user_id = convert_user_id_to_int(user_id_str)
+    if user_id is None:
+        return {"success": True, "data": []}
+    
     user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id)
     if not user:
         return {"success": True, "data": []}
@@ -93,9 +114,9 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
     Free cosmic insights that show limited data
     Implements smart teasing to encourage credit usage
     """
-    user_id = AuthenticationHelper.get_user_id_optional(request)
+    user_id_str = get_user_id_from_token(request)
     
-    if not user_id:
+    if not user_id_str:
         return {
             "status": "guest",
             "message": "Login to see your personalized cosmic insights",
@@ -109,7 +130,7 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
             }
         }
     
-    user_id_int = AuthenticationHelper.convert_user_id_to_int(user_id)
+    user_id_int = convert_user_id_to_int(user_id_str)
     if user_id_int is None:
         return {"status": "error", "message": "Invalid user ID"}
     

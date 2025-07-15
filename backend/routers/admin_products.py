@@ -316,7 +316,7 @@ async def get_donations(db=Depends(get_db)):
         ]
     except Exception as e:
         logger.error(f"Error fetching donations: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch donations")
+        raise HTTPException(status_code=500, detail="Failed to fetch donations") from e
 
 @router.post("/donations")
 async def create_donation(donation: dict = Body(...), db=Depends(get_db)):
@@ -339,7 +339,7 @@ async def create_donation(donation: dict = Body(...), db=Depends(get_db)):
         return {"success": True}
     except Exception as e:
         logger.error(f"Error creating donation: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create donation")
+        raise HTTPException(status_code=500, detail="Failed to create donation") from e
 
 @router.put("/donations/{donation_id}")
 async def update_donation(donation_id: str, donation: dict = Body(...), db=Depends(get_db)):
@@ -369,7 +369,7 @@ async def update_donation(donation_id: str, donation: dict = Body(...), db=Depen
         raise
     except Exception as e:
         logger.error(f"Error updating donation {donation_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update donation")
+        raise HTTPException(status_code=500, detail="Failed to update donation") from e
 
 @router.delete("/donations/{donation_id}")
 async def delete_donation(donation_id: str, db=Depends(get_db)):
@@ -388,7 +388,7 @@ async def delete_donation(donation_id: str, db=Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error deleting donation {donation_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete donation")
+        raise HTTPException(status_code=500, detail="Failed to delete donation") from e
 
 # --- CREDIT PACKAGES ENDPOINTS ---
 @router.get("/credit-packages")
@@ -412,7 +412,7 @@ async def get_credit_packages(db=Depends(get_db)):
         ]
     except Exception as e:
         logger.error(f"Error fetching credit packages: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch credit packages")
+        raise HTTPException(status_code=500, detail="Failed to fetch credit packages") from e
 
 @router.post("/credit-packages")
 async def create_credit_package(package: dict = Body(...), db=Depends(get_db)):
@@ -436,7 +436,7 @@ async def create_credit_package(package: dict = Body(...), db=Depends(get_db)):
         return {"success": True}
     except Exception as e:
         logger.error(f"Error creating credit package: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create credit package")
+        raise HTTPException(status_code=500, detail="Failed to create credit package") from e
 
 @router.put("/credit-packages/{package_id}")
 async def update_credit_package(package_id: str, package: dict = Body(...), db=Depends(get_db)):
@@ -466,7 +466,7 @@ async def update_credit_package(package_id: str, package: dict = Body(...), db=D
         raise
     except Exception as e:
         logger.error(f"Error updating credit package {package_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to update credit package")
+        raise HTTPException(status_code=500, detail="Failed to update credit package") from e
 
 @router.delete("/credit-packages/{package_id}")
 async def delete_credit_package(package_id: str, db=Depends(get_db)):
@@ -485,7 +485,7 @@ async def delete_credit_package(package_id: str, db=Depends(get_db)):
         raise
     except Exception as e:
         logger.error(f"Error deleting credit package {package_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete credit package")
+        raise HTTPException(status_code=500, detail="Failed to delete credit package") from e
 
 # --- PROKERALA SMART PRICING ENDPOINTS ---
 @router.get("/pricing/prokerala-cost/{service_id}")
