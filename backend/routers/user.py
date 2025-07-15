@@ -25,12 +25,22 @@ def get_user_id_from_token(request: Request) -> str | None:
     except Exception:
         return None
 
+<<<<<<< HEAD
 def get_user_id_as_int(request: Request) -> int | None:
     """Extract user ID from JWT token and convert to integer - OPTIONAL"""
     try:
         user_id_str = JWTHandler.get_user_id_from_token(request)
         return int(user_id_str) if user_id_str else None
     except (ValueError, TypeError):
+=======
+def convert_user_id_to_int(user_id: str | None) -> int | None:
+    """Convert string user_id to integer for database queries"""
+    if not user_id:
+        return None
+    try:
+        return int(user_id)
+    except ValueError:
+>>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
         return None
 
 # தமிழ் - பயனர் சுயவிவரம் பெறுதல்
@@ -49,7 +59,20 @@ async def get_profile(request: Request, db=Depends(get_db)):
             "created_at": datetime.now(timezone.utc)
         }
     
-    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id)
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        # Return guest user profile for invalid user IDs (maintain fallback behavior)
+        return {
+            "id": "guest",
+            "email": "guest@jyotiflow.ai",
+            "name": "Guest User",
+            "full_name": "Guest User",
+            "credits": 0,
+            "role": "guest",
+            "created_at": datetime.now(timezone.utc)
+        }
+    
+    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id_int)
     if not user:
         # Return guest user profile if user not found
         return {
@@ -61,13 +84,14 @@ async def get_profile(request: Request, db=Depends(get_db)):
             "role": "guest",
             "created_at": datetime.now(timezone.utc)
         }
+    
     return {
-        "id": str(user["id"]),
+        "id": user["id"],
         "email": user["email"],
-        "name": user.get("full_name") or user.get("name"),
-        "full_name": user.get("full_name"),
+        "name": user["name"],
+        "full_name": user["full_name"],
         "credits": user["credits"],
-        "role": user.get("role", "user"),  # Include role in response
+        "role": user["role"],
         "created_at": user["created_at"]
     }
 
@@ -77,7 +101,11 @@ async def get_credits(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": {"credits": 0}}
     
-    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id)
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        return {"success": False, "error": "Invalid user ID"}
+    
+    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id_int)
     if not user:
         return {"success": True, "data": {"credits": 0}}
     return {"success": True, "data": {"credits": user["credits"]}}
@@ -88,9 +116,14 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": []}
     
-    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id)
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        return {"success": False, "error": "Invalid user ID"}
+    
+    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id_int)
     if not user:
         return {"success": True, "data": []}
+<<<<<<< HEAD
     sessions = await db.fetch("SELECT id, service_type_id, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
     return {"success": True, "data": [dict(row) for row in sessions]}
 
@@ -178,6 +211,11 @@ async def get_user_recommendations(request: Request, db=Depends(get_db)):
         print(f"Error generating recommendations: {e}")
         return {"success": True, "data": []} 
 =======
+=======
+    sessions = await db.fetch("SELECT id, service_type, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
+    return {"success": True, "data": [dict(row) for row in sessions]}
+
+>>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
 @router.get("/cosmic-insights")
 async def get_cosmic_insights(request: Request, db=Depends(get_db)):
     """
@@ -195,6 +233,7 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
                 "general": "🌟 The universe holds infinite possibilities for those who seek",
                 "daily": "✨ Today brings opportunities for spiritual growth",
                 "love": "💕 Love energy is flowing in your direction",
+<<<<<<< HEAD
                 "career": "💼 Professional success awaits the prepared mind"
             }
         }
@@ -205,10 +244,30 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
             SELECT email, name, birth_chart_data, created_at
             FROM users WHERE id = $1
         """, user_id)
+=======
+                "career": "💼 Success awaits those who align with their purpose",
+                "spiritual": "🧘 Your spiritual journey is beginning to unfold"
+            }
+        }
+    
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        return {"status": "error", "message": "Invalid user ID"}
+    
+    try:
+        # Get user's basic info and birth chart data
+        user_data = await db.fetchrow("""
+            SELECT id, email, full_name, date_of_birth, birth_time, birth_location, 
+                   birth_chart_data, credits, created_at
+            FROM users 
+            WHERE id = $1
+        """, user_id_int)
+>>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
         
         if not user_data:
             return {"status": "error", "message": "User not found"}
         
+<<<<<<< HEAD
         # Check if user has birth chart data
         if not user_data['birth_chart_data']:
             return {
@@ -243,6 +302,27 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
             "status": "error",
             "message": "Unable to load cosmic insights",
             "error": str(e)
+=======
+        # Generate personalized cosmic insights
+        insights = await _generate_cosmic_insights(user_id, dict(user_data), db)
+        
+        # Get personalized service recommendations
+        services = await _get_personalized_services(user_id, db)
+        
+        return {
+            "status": "success",
+            "user_credits": user_data["credits"],
+            "insights": insights,
+            "personalized_services": services,
+            "upgrade_message": "✨ Unlock your complete cosmic blueprint with a personalized reading",
+            "call_to_action": "Get your detailed birth chart analysis and guidance"
+        }
+    except Exception as e:
+        logger.error(f"Error generating cosmic insights: {e}")
+        return {
+            "status": "error",
+            "message": "Unable to generate cosmic insights at this time"
+>>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
         }
 
 async def _generate_cosmic_insights(user_id: str, user_data: dict, db) -> dict:
@@ -382,5 +462,9 @@ async def _get_personalized_services(user_id: str, db) -> list:
         
     except Exception as e:
         logger.error(f"Error getting personalized services: {e}")
+<<<<<<< HEAD
         return [] 
 >>>>>>> ebb270206b7cb1ec381dc99947af617c6f103580
+=======
+        return [] 
+>>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50

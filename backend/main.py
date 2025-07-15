@@ -123,12 +123,20 @@ except ImportError:
     DEBUG_ROUTER_AVAILABLE = False
     print("⚠️ Debug router not available")
 
+# Missing endpoints router for 404 fixes
+try:
+    from missing_endpoints import ai_router, user_router as missing_user_router, sessions_router, community_router
+    MISSING_ENDPOINTS_AVAILABLE = True
+except ImportError:
+    MISSING_ENDPOINTS_AVAILABLE = False
+    print("⚠️ Missing endpoints router not available")
+
 # Environment debug router
 try:
-    from debug_env_check import router as env_debug_router
-    ENV_DEBUG_AVAILABLE = True
+    from debug_env_check import env_debug_router
+    ENV_DEBUG_ROUTER_AVAILABLE = True
 except ImportError:
-    ENV_DEBUG_AVAILABLE = False
+    ENV_DEBUG_ROUTER_AVAILABLE = False
     print("⚠️ Environment debug router not available")
 
 # Import database initialization
@@ -510,9 +518,19 @@ if DEBUG_ROUTER_AVAILABLE:
     print("✅ Debug router registered")
 
 # Environment debug router for checking environment variables
-if ENV_DEBUG_AVAILABLE:
+if ENV_DEBUG_ROUTER_AVAILABLE:
     app.include_router(env_debug_router)
     print("✅ Environment debug router registered")
+
+# Missing endpoints router for 404 fixes
+if MISSING_ENDPOINTS_AVAILABLE:
+    app.include_router(ai_router)
+    app.include_router(missing_user_router)
+    app.include_router(sessions_router)
+    app.include_router(community_router)
+    print("✅ Missing endpoints router registered")
+
+print("🚀 All routers registered successfully!")
 
 # Surgical auth router - REMOVED (conflicting authentication system)
 # Using main auth system only (routers/auth.py)

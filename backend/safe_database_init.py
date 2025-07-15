@@ -325,6 +325,29 @@ class SafeDatabaseInitializer:
             """)
             logger.info("✅ Created ai_insights_cache table")
         
+        # User purchases table for credit transaction history
+        if 'user_purchases' not in existing_tables:
+            await conn.execute("""
+                CREATE TABLE user_purchases (
+                    id SERIAL PRIMARY KEY,
+                    user_email VARCHAR(255) NOT NULL,
+                    transaction_type VARCHAR(50) NOT NULL DEFAULT 'purchase',
+                    amount DECIMAL(10,2) NOT NULL,
+                    credits INTEGER NOT NULL,
+                    balance_before INTEGER DEFAULT 0,
+                    balance_after INTEGER DEFAULT 0,
+                    package_type VARCHAR(100),
+                    payment_method VARCHAR(50),
+                    stripe_session_id VARCHAR(255),
+                    stripe_payment_intent_id VARCHAR(255),
+                    description TEXT NOT NULL,
+                    status VARCHAR(50) DEFAULT 'completed',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (user_email) REFERENCES users(email) ON DELETE CASCADE
+                )
+            """)
+            logger.info("✅ Created user_purchases table")
+        
         # Note: Social media tables are created by migrations to avoid duplication
         # The migration system will handle:
         # - social_campaigns
@@ -346,7 +369,8 @@ class SafeDatabaseInitializer:
             if col_exists:
                 await conn.execute("ALTER TABLE users RENAME COLUMN last_login TO last_login_at")
                 logger.info("✅ Renamed last_login to last_login_at")
-        except:
+        except Exception as e:
+            logger.warning(f"⚠️ Could not rename last_login column: {e}")
             pass
         
         # Fix knowledge_domain column in rag_knowledge_base table
@@ -448,7 +472,20 @@ class SafeDatabaseInitializer:
             ("price_usd", "DECIMAL(10,2) DEFAULT 0"),
             ("service_category", "VARCHAR(100)"),
             ("avatar_video_enabled", "BOOLEAN DEFAULT false"),
-            ("live_chat_enabled", "BOOLEAN DEFAULT false")
+            ("live_chat_enabled", "BOOLEAN DEFAULT false"),
+            # NEW: Add missing columns that are causing current errors
+            ("comprehensive_reading_enabled", "BOOLEAN DEFAULT false"),
+            ("credits_required", "INTEGER DEFAULT 10"),
+            ("base_credits", "INTEGER DEFAULT 5"),
+            ("duration_minutes", "INTEGER DEFAULT 15"),
+            ("video_enabled", "BOOLEAN DEFAULT true"),
+            ("dynamic_pricing_enabled", "BOOLEAN DEFAULT false"),
+            ("personalized", "BOOLEAN DEFAULT false"),
+            ("includes_remedies", "BOOLEAN DEFAULT false"),
+            ("includes_predictions", "BOOLEAN DEFAULT false"),
+            ("includes_compatibility", "BOOLEAN DEFAULT false"),
+            ("knowledge_domains", "JSONB DEFAULT '[]'"),
+            ("persona_modes", "JSONB DEFAULT '[]'")
         ]
         
         for col_name, col_def in columns_to_add:
@@ -460,7 +497,79 @@ class SafeDatabaseInitializer:
                 if not col_exists:
                     await conn.execute(f"ALTER TABLE service_types ADD COLUMN {col_name} {col_def}")
                     logger.info(f"✅ Added {col_name} to service_types")
-            except:
+            except Exception as e:
+                logger.warning(f"⚠️ Could not add column {col_name} to service_types: {e}")
+                pass
+
+        # Create cache_analytics table if it doesn't exist
+        try:
+            table_exists = await conn.fetchval("""
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name='cache_analytics'
+            """)
+            if not table_exists:
+                await conn.execute("""
+                    CREATE TABLE cache_analytics (
+                        id SERIAL PRIMARY KEY,
+                        service_type_id INTEGER NOT NULL,
+                        date DATE NOT NULL,
+                        total_requests INTEGER DEFAULT 0,
+                        cache_hits INTEGER DEFAULT 0,
+                        cache_rate DECIMAL(5,2) DEFAULT 0.00,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        UNIQUE(service_type_id, date)
+                    )
+                """)
+                logger.info("✅ Created cache_analytics table")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not create cache_analytics table: {e}")
+
+        # Create followup_templates table if it doesn't exist
+        try:
+            table_exists = await conn.fetchval("""
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name='followup_templates'
+            """)
+            if not table_exists:
+                await conn.execute("""
+                    CREATE TABLE followup_templates (
+                        id SERIAL PRIMARY KEY,
+                        service_type VARCHAR(50) NOT NULL,
+                        template_name VARCHAR(100) NOT NULL,
+                        email_subject VARCHAR(200),
+                        email_body TEXT,
+                        sms_body TEXT,
+                        whatsapp_body TEXT,
+                        trigger_days INTEGER DEFAULT 1,
+                        is_active BOOLEAN DEFAULT true,
+                        created_at TIMESTAMP DEFAULT NOW(),
+                        UNIQUE(service_type, template_name)
+                    )
+                """)
+                logger.info("✅ Created followup_templates table")
+        except Exception as e:
+            logger.warning(f"⚠️ Could not create followup_templates table: {e}")
+            
+        # Add missing columns to sessions table
+        session_columns_to_add = [
+            ("follow_up_sent", "BOOLEAN DEFAULT FALSE"),
+            ("follow_up_count", "INTEGER DEFAULT 0"),
+            ("follow_up_email_sent", "BOOLEAN DEFAULT FALSE"),
+            ("follow_up_sms_sent", "BOOLEAN DEFAULT FALSE"),
+            ("follow_up_whatsapp_sent", "BOOLEAN DEFAULT FALSE")
+        ]
+        
+        for col_name, col_def in session_columns_to_add:
+            try:
+                col_exists = await conn.fetchval(f"""
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name='sessions' AND column_name='{col_name}'
+                """)
+                if not col_exists:
+                    await conn.execute(f"ALTER TABLE sessions ADD COLUMN {col_name} {col_def}")
+                    logger.info(f"✅ Added {col_name} to sessions table")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not add column {col_name} to sessions table: {e}")
                 pass
     
     async def _ensure_essential_data(self, conn):

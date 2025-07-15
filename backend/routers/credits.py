@@ -18,11 +18,24 @@ def get_user_id_from_token(request: Request) -> str:
             raise HTTPException(status_code=401, detail="அங்கீகாரம் தேவை - தயவுசெய்து மீண்டும் உள்நுழையவும்")
         raise e
 
+def convert_user_id_to_int(user_id: str) -> int | None:
+    """Convert string user_id to integer for database queries"""
+    if not user_id:
+        return None
+    try:
+        return int(user_id)
+    except ValueError:
+        return None
+
 @router.post("/purchase")
 async def purchase_credits(request: Request, db=Depends(get_db)):
     """Purchase credits with bonus credits for larger packages"""
     try:
         user_id = get_user_id_from_token(request)
+        user_id_int = convert_user_id_to_int(user_id)
+        if user_id_int is None:
+            raise HTTPException(status_code=400, detail="தவறான பயனர் அடையாளம்")
+        
         data = await request.json()
         
         package_id = data.get("package_id")
@@ -56,14 +69,14 @@ async def purchase_credits(request: Request, db=Depends(get_db)):
             # Update user credits
             await db.execute(
                 "UPDATE users SET credits = credits + $1 WHERE id = $2",
-                total_credits, user_id
+                total_credits, user_id_int
             )
             
             # Record the transaction
             await db.execute("""
                 INSERT INTO credit_transactions (user_id, package_id, credits_purchased, bonus_credits, total_credits, amount_usd, status, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6, 'completed', NOW())
-            """, user_id, package_id, base_credits, bonus_credits, total_credits, package["price_usd"])
+            """, user_id_int, package_id, base_credits, bonus_credits, total_credits, package["price_usd"])
         
         return {
             "success": True, 
