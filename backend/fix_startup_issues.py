@@ -54,6 +54,7 @@ class JyotiFlowStartupFixer:
                 except Exception as health_error:
                     # Health check failed - close connection before re-raising
                     await conn.close()
+                    conn = None  # Prevent double-close in outer handler
                     raise health_error
                     
             except (asyncio.TimeoutError, Exception) as e:
@@ -96,6 +97,7 @@ class JyotiFlowStartupFixer:
                 except Exception as health_error:
                     # Health check failed - close pool before re-raising
                     await pool.close()
+                    pool = None  # Prevent double-close in outer handler
                     raise health_error
                     
             except (asyncio.TimeoutError, Exception) as e:
