@@ -24,6 +24,33 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+async def get_dynamic_welcome_credits() -> int:
+    """Get dynamic welcome credits from pricing configuration"""
+    try:
+        conn = await db.get_connection()
+        
+        if db.is_sqlite:
+            result = await conn.execute(
+                "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
+            )
+            row = await result.fetchone()
+        else:
+            row = await conn.fetchrow(
+                "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
+            )
+        
+        await conn.close()
+        
+        if row and row[0]:
+            return int(row[0])
+        else:
+            # Default fallback if not configured
+            return 20
+            
+    except Exception as e:
+        logger.error(f"Error getting dynamic welcome credits: {e}")
+        return 20  # Default fallback
+
 # Enhanced registration models
 class BirthDetails(BaseModel):
     """Birth details for chart generation"""
@@ -82,31 +109,31 @@ class EnhancedRegistrationService:
         self.birth_chart_service = EnhancedBirthChartCacheService(self.database_url)
     
     async def get_dynamic_welcome_credits(self) -> int:
-        """Get welcome credits from pricing_config table dynamically"""
+        """Get dynamic welcome credits from pricing configuration"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
-                result = await conn.fetchrow("""
-                    SELECT config_value 
-                    FROM pricing_config 
-                    WHERE config_key = 'welcome_credits' 
-                    AND is_active = true
-                """)
-                
-                if result and result['config_value']:
-                    return int(result['config_value'])
-                else:
-                    # Default fallback if not configured
-                    logger.warning("Welcome credits not configured, using default 10")
-                    return 10
-                    
-            finally:
-                await conn.close()
+            conn = await db.get_connection()
+            
+            if db.is_sqlite:
+                result = await conn.execute(
+                    "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
+                )
+                row = await result.fetchone()
+            else:
+                row = await conn.fetchrow(
+                    "SELECT value FROM pricing_config WHERE key = 'welcome_credits'"
+                )
+            
+            await conn.close()
+            
+            if row and row[0]:
+                return int(row[0])
+            else:
+                # Default fallback if not configured
+                return 20
                 
         except Exception as e:
             logger.error(f"Error getting dynamic welcome credits: {e}")
-            # Fallback to default
-            return 10
+            return 20  # Default fallback
     
     async def register_user_with_birth_chart(self, user_data: EnhancedUserRegistration) -> RegistrationResponse:
         """Register user and automatically generate complete birth chart profile"""
@@ -144,7 +171,7 @@ class EnhancedRegistrationService:
             # Get dynamic welcome credits
             welcome_credits = await self.get_dynamic_welcome_credits()
             
-            conn = await asyncpg.connect(self.database_url)
+            conn = await db.get_connection()
             
             # Check if user already exists
             existing_user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)

@@ -9,6 +9,9 @@ from services.birth_chart_cache_service import BirthChartCacheService
 import jwt
 import uuid
 import logging
+import json
+from db import db_manager
+from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -790,3 +793,99 @@ def get_default_lord(house_index: int) -> str:
         "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"
     ]
     return lords[house_index % 12] 
+
+@router.get("/birth-chart/complete-profile")
+async def get_complete_birth_chart_profile(request: Request):
+    """Get user's complete birth chart profile including Swamiji's readings"""
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get user's birth details from profile
+        conn = await db_manager.get_connection()
+        user_data = await conn.fetchrow("""
+            SELECT birth_date, birth_time, birth_location, birth_chart_data
+            FROM users WHERE email = $1
+        """, user_email)
+        await conn.close()
+        
+        if not user_data or not user_data['birth_date']:
+            return {
+                "success": False,
+                "message": "Birth details not found. Please complete your profile.",
+                "needs_birth_details": True
+            }
+        
+        # If birth chart data exists and is not expired, return it
+        if user_data['birth_chart_data']:
+            try:
+                chart_data = json.loads(user_data['birth_chart_data']) if isinstance(user_data['birth_chart_data'], str) else user_data['birth_chart_data']
+                return {
+                    "success": True,
+                    "complete_profile": chart_data
+                }
+            except:
+                pass  # Continue to regenerate if data is corrupted
+        
+        # Generate new complete profile
+        birth_details = {
+            'date': user_data['birth_date'].strftime('%Y-%m-%d'),
+            'time': user_data['birth_time'].strftime('%H:%M'),
+            'location': user_data['birth_location'] or 'Jaffna, Sri Lanka',
+            'timezone': 'Asia/Colombo'
+        }
+        
+        enhanced_service = EnhancedBirthChartCacheService()
+        complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
+        
+        return {
+            "success": True,
+            "complete_profile": complete_profile
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting complete birth chart profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get birth chart profile")
+
+@router.post("/birth-chart/generate-for-user")
+async def generate_birth_chart_for_user(request: Request):
+    """Generate birth chart for registered user using their profile data"""
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get user's birth details from profile
+        conn = await db_manager.get_connection()
+        user_data = await conn.fetchrow("""
+            SELECT birth_date, birth_time, birth_location
+            FROM users WHERE email = $1
+        """, user_email)
+        await conn.close()
+        
+        if not user_data or not user_data['birth_date']:
+            return {
+                "success": False,
+                "message": "Birth details not found. Please complete your profile.",
+                "needs_birth_details": True
+            }
+        
+        birth_details = {
+            'date': user_data['birth_date'].strftime('%Y-%m-%d'),
+            'time': user_data['birth_time'].strftime('%H:%M'),
+            'location': user_data['birth_location'] or 'Jaffna, Sri Lanka',
+            'timezone': 'Asia/Colombo'
+        }
+        
+        enhanced_service = EnhancedBirthChartCacheService()
+        complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
+        
+        return {
+            "success": True,
+            "complete_profile": complete_profile
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating birth chart for user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate birth chart") 

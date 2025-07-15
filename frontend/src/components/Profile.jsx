@@ -33,6 +33,9 @@ const Profile = () => {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(null);
 
+  // Birth chart generation state
+  const [birthChartGenerating, setBirthChartGenerating] = useState(false);
+
   // Check if user came from service selection or tab parameter
   useEffect(() => {
     const serviceFromUrl = searchParams.get('service');
@@ -328,7 +331,56 @@ const Profile = () => {
 
   const handleLogout = () => {
     spiritualAPI.logout();
-    navigate('/', { replace: true });
+    navigate('/login', { replace: true });
+  };
+
+  // Birth chart generation functions
+  const handleGenerateBirthChart = async () => {
+    setBirthChartGenerating(true);
+    try {
+      const result = await userDashboardAPI.generateUserBirthChart();
+      if (result) {
+        // Update dashboard data with new birth chart
+        setDashboardData(prev => ({
+          ...prev,
+          birthChart: result
+        }));
+        
+        // Show success message
+        alert('✅ Your complete birth chart with Swamiji\'s insights has been generated successfully!');
+      } else {
+        alert('❌ Failed to generate birth chart. Please try again.');
+      }
+    } catch (error) {
+      console.error('Birth chart generation error:', error);
+      alert('❌ Error generating birth chart. Please try again.');
+    } finally {
+      setBirthChartGenerating(false);
+    }
+  };
+
+  const handleRefreshBirthChart = async () => {
+    setBirthChartGenerating(true);
+    try {
+      const result = await userDashboardAPI.generateUserBirthChart();
+      if (result) {
+        // Update dashboard data with refreshed birth chart
+        setDashboardData(prev => ({
+          ...prev,
+          birthChart: result
+        }));
+        
+        // Show success message
+        alert('✅ Your birth chart has been refreshed with the latest insights!');
+      } else {
+        alert('❌ Failed to refresh birth chart. Please try again.');
+      }
+    } catch (error) {
+      console.error('Birth chart refresh error:', error);
+      alert('❌ Error refreshing birth chart. Please try again.');
+    } finally {
+      setBirthChartGenerating(false);
+    }
   };
 
   if (isLoading) {
@@ -970,23 +1022,23 @@ const Profile = () => {
                         <div className="text-2xl">✅</div>
                         <div>
                           <h3 className="font-semibold text-green-800">
-                            Birth Chart Available
+                            Complete Spiritual Profile Available
                           </h3>
                           <p className="text-green-600 text-sm">
-                            Your complete spiritual profile is ready with Swamiji's insights
+                            Your birth chart with Swamiji's personalized insights is ready
                           </p>
                         </div>
                       </div>
                     </div>
 
-                    {/* Birth Chart Insights */}
+                    {/* Birth Chart Key Insights */}
                     <div className="grid md:grid-cols-2 gap-6">
                       <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
                         <h3 className="font-semibold text-purple-800 mb-2">
                           🌙 Moon Sign (Rashi)
                         </h3>
                         <p className="text-purple-600">
-                          {dashboardData.birthChart.moon_sign || 'Available in your chart'}
+                          {dashboardData.birthChart.birth_chart?.moon_sign || 'Available in your chart'}
                         </p>
                       </div>
                       <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
@@ -994,7 +1046,7 @@ const Profile = () => {
                           ⭐ Nakshatra
                         </h3>
                         <p className="text-yellow-600">
-                          {dashboardData.birthChart.nakshatra || 'Available in your chart'}
+                          {dashboardData.birthChart.birth_chart?.nakshatra || 'Available in your chart'}
                         </p>
                       </div>
                       <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -1002,7 +1054,7 @@ const Profile = () => {
                           ☀️ Sun Sign
                         </h3>
                         <p className="text-blue-600">
-                          {dashboardData.birthChart.sun_sign || 'Available in your chart'}
+                          {dashboardData.birthChart.birth_chart?.sun_sign || 'Available in your chart'}
                         </p>
                       </div>
                       <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -1010,10 +1062,56 @@ const Profile = () => {
                           🔮 Ascendant (Lagna)
                         </h3>
                         <p className="text-green-600">
-                          {dashboardData.birthChart.ascendant || 'Available in your chart'}
+                          {dashboardData.birthChart.birth_chart?.ascendant || 'Available in your chart'}
                         </p>
                       </div>
                     </div>
+
+                    {/* Swamiji's Reading Preview */}
+                    {dashboardData.birthChart.swamiji_reading && (
+                      <div className="p-6 bg-gradient-to-r from-orange-50 to-yellow-50 rounded-lg border border-orange-200">
+                        <h3 className="text-xl font-semibold text-orange-800 mb-4">
+                          🕉️ Swamiji's Spiritual Guidance
+                        </h3>
+                        <div className="text-orange-700 mb-4">
+                          <p className="italic">
+                            "{dashboardData.birthChart.swamiji_reading.summary || dashboardData.birthChart.swamiji_reading.full_reading?.substring(0, 200)}..."
+                          </p>
+                        </div>
+                        <div className="grid md:grid-cols-3 gap-4">
+                          {dashboardData.birthChart.swamiji_reading.personality_insights && (
+                            <div>
+                              <h4 className="font-medium text-orange-700 mb-2">Personality Insights:</h4>
+                              <ul className="text-sm text-orange-600 space-y-1">
+                                {dashboardData.birthChart.swamiji_reading.personality_insights.slice(0, 2).map((insight, index) => (
+                                  <li key={index}>• {insight}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {dashboardData.birthChart.swamiji_reading.spiritual_guidance && (
+                            <div>
+                              <h4 className="font-medium text-orange-700 mb-2">Spiritual Guidance:</h4>
+                              <ul className="text-sm text-orange-600 space-y-1">
+                                {dashboardData.birthChart.swamiji_reading.spiritual_guidance.slice(0, 2).map((guidance, index) => (
+                                  <li key={index}>• {guidance}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {dashboardData.birthChart.swamiji_reading.practical_advice && (
+                            <div>
+                              <h4 className="font-medium text-orange-700 mb-2">Practical Advice:</h4>
+                              <ul className="text-sm text-orange-600 space-y-1">
+                                {dashboardData.birthChart.swamiji_reading.practical_advice.slice(0, 2).map((advice, index) => (
+                                  <li key={index}>• {advice}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Current Period Analysis */}
                     <div className="p-6 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg border border-indigo-200">
@@ -1049,7 +1147,7 @@ const Profile = () => {
                         to="/birth-chart" 
                         className="bg-purple-600 text-white px-6 py-3 rounded-lg hover:bg-purple-700 transition-colors"
                       >
-                        View Full Birth Chart
+                        View Complete Birth Chart
                       </Link>
                       <Link 
                         to="/spiritual-guidance" 
@@ -1057,23 +1155,35 @@ const Profile = () => {
                       >
                         Get Personalized Guidance
                       </Link>
+                      <button 
+                        onClick={handleRefreshBirthChart}
+                        className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors"
+                      >
+                        🔄 Refresh Chart
+                      </button>
                     </div>
                   </div>
                 ) : (
                   <div className="text-center py-8">
                     <div className="text-6xl mb-4">🌟</div>
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                      Generate Your Birth Chart
+                      Generate Your Complete Birth Chart
                     </h3>
                     <p className="text-gray-600 mb-6">
-                      Discover your cosmic blueprint and unlock personalized spiritual insights with Swamiji's ancient wisdom.
+                      Discover your cosmic blueprint with Swamiji's personalized spiritual insights and guidance.
                     </p>
-                    <Link 
-                      to="/birth-chart" 
-                      className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300"
+                    <button 
+                      onClick={handleGenerateBirthChart}
+                      disabled={birthChartGenerating}
+                      className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50"
                     >
-                      Generate Birth Chart
-                    </Link>
+                      {birthChartGenerating ? 'Generating...' : 'Generate Birth Chart'}
+                    </button>
+                    {birthChartGenerating && (
+                      <p className="text-sm text-gray-500 mt-2">
+                        This may take a few moments as Swamiji prepares your personalized reading...
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

@@ -235,6 +235,68 @@ async def update_pricing_config(config_key: str, config: dict = Body(...), db=De
         return {"success": False, "error": "Config not found"}, 404
     return {"success": True}
 
+@router.get("/pricing/welcome-credits")
+async def get_welcome_credits_config(db=Depends(get_db)):
+    """Get current welcome credits configuration"""
+    try:
+        result = await db.fetch("SELECT value FROM pricing_config WHERE key = 'welcome_credits'")
+        row = result[0] if result else None
+        
+        welcome_credits = int(row[0]) if row and row[0] else 20
+        
+        return {
+            "success": True,
+            "welcome_credits": welcome_credits
+        }
+        
+    except Exception as e:
+        print(f"Error getting welcome credits config: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get welcome credits configuration")
+
+@router.put("/pricing/welcome-credits")
+async def update_welcome_credits_config(request: Request, db=Depends(get_db)):
+    """Update welcome credits configuration"""
+    try:
+        data = await request.json()
+        welcome_credits = data.get("welcome_credits", 20)
+        
+        if not isinstance(welcome_credits, int) or welcome_credits < 0:
+            raise HTTPException(status_code=400, detail="Invalid welcome credits value")
+        
+        result = await db.execute(
+            """
+            INSERT INTO pricing_config (key, value, description, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (key) DO UPDATE SET
+                value = EXCLUDED.value,
+                description = EXCLUDED.description,
+                updated_at = EXCLUDED.updated_at
+            """,
+            ('welcome_credits',
+            str(welcome_credits),
+            'Number of credits given to new users upon registration',
+            True,
+            datetime.now(),
+            datetime.now()
+            )
+        )
+        
+        await db.commit()
+        
+        print(f"Welcome credits updated to: {welcome_credits}")
+        
+        return {
+            "success": True,
+            "message": f"Welcome credits updated to {welcome_credits}",
+            "welcome_credits": welcome_credits
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating welcome credits config: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update welcome credits configuration")
+
 # --- DONATIONS ENDPOINTS ---
 @router.get("/donations")
 async def get_donations(db=Depends(get_db)):
