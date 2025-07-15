@@ -1,0 +1,122 @@
+{
+  "total_tests": 23,
+  "passed": 22,
+  "failed": 1,
+  "details": [
+    {
+      "test": "Hash Generation",
+      "passed": true,
+      "details": "Generated hash: c6d90040b4..."
+    },
+    {
+      "test": "Profile Status Check",
+      "passed": true,
+      "details": "Status: unknown"
+    },
+    {
+      "test": "Knowledge Query Structure",
+      "passed": true,
+      "details": "Query: What does my birth chart reveal about my career?"
+    },
+    {
+      "test": "Knowledge Domains",
+      "passed": true,
+      "details": "Found 8 domains"
+    },
+    {
+      "test": "Spiritual Router",
+      "passed": false,
+      "details": "Error: DATABASE_URL environment variable is required"
+    },
+    {
+      "test": "Auto-generation for Registered Users",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Authentication Handling",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Complete Profile Integration",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Conversion Hooks",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Session Management",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Conversion Tracking",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "User Chart Linking",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Spiritual API Integration",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "API Authentication",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Fallback Removal",
+      "passed": true,
+      "details": "No fallback displays found"
+    },
+    {
+      "test": "Error Handling",
+      "passed": true,
+      "details": "Proper error handling implemented"
+    },
+    {
+      "test": "Caching System",
+      "passed": true,
+      "details": "Enhanced caching implemented"
+    },
+    {
+      "test": "Loading States",
+      "passed": true,
+      "details": "Loading states implemented"
+    },
+    {
+      "test": "Async Operations",
+      "passed": true,
+      "details": "Async operations implemented"
+    },
+    {
+      "test": "Admin Authentication",
+      "passed": true,
+      "details": "Admin auth implemented"
+    },
+    {
+      "test": "Cache Management",
+      "passed": true,
+      "details": "Cache management implemented"
+    },
+    {
+      "test": "Admin Statistics",
+      "passed": true,
+      "details": "Admin statistics implemented"
+    },
+    {
+      "test": "Complete Integration",
+      "passed": true,
+      "details": "All components integrated"
+    }
+  ]
+}

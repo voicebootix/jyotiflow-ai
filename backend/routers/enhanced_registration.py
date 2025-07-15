@@ -18,6 +18,7 @@ import logging
 import os
 
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
+from utils.welcome_credits_utils import get_dynamic_welcome_credits
 import db
 
 logger = logging.getLogger(__name__)
@@ -114,8 +115,13 @@ class EnhancedRegistrationService:
             # Hash password
             password_hash = bcrypt.hashpw(user_data.password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
             
-            conn = await asyncpg.connect(self.database_url)
+            # Get dynamic welcome credits using shared utility
+            welcome_credits = await get_dynamic_welcome_credits()
+            
+            conn = None
             try:
+                conn = await db.db_manager.get_connection()
+                
                 # Check if user already exists
                 existing_user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)
                 if existing_user:
@@ -143,17 +149,18 @@ class EnhancedRegistrationService:
                     user_data.spiritual_level,
                     user_data.preferred_language,
                     'user',
-                    50  # Welcome credits
+                    welcome_credits  # Dynamic welcome credits
                 )
-                
-                if user_id is None:
-                    raise ValueError("Failed to get user ID after insertion")
-                
-                return user_id
-                
             finally:
-                await conn.close()
-                
+                if conn:
+                    await db.db_manager.release_connection(conn)
+            
+            if user_id is None:
+                raise ValueError("Failed to get user ID after insertion")
+            
+            logger.info(f"✅ User account created with {welcome_credits} welcome credits")
+            return user_id
+            
         except Exception as e:
             logger.error(f"User account creation failed: {e}")
             raise

@@ -15,11 +15,7 @@ Files with conflicts:
 📁 backend/jyotiflow.db
 
 Conflict content:
-<<<<<<< HEAD (your-branch-name)
 [empty - file deleted]
-=======
-[binary file content or "Binary file differs"]
->>>>>>> master
 ```
 
 **✅ Resolution:**

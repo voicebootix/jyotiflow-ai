@@ -217,19 +217,39 @@ class UserDashboardAPI {
   }
   
   /**
-   * Get user's birth chart information
+   * Get user's complete birth chart information including Swamiji's readings
    */
   async getUserBirthChart() {
     try {
-      const response = await spiritualAPI.request('/api/spiritual/birth-chart/cache-status');
+      const response = await spiritualAPI.request('/api/spiritual/birth-chart/complete-profile');
       
       if (response && response.success) {
-        return response.cache_status;
+        return response.complete_profile;
       }
       
       return null;
     } catch (error) {
       console.error('[UserDashboard] Error fetching birth chart:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Generate birth chart for registered user using their profile data
+   */
+  async generateUserBirthChart() {
+    try {
+      const response = await spiritualAPI.request('/api/spiritual/birth-chart/generate-for-user', {
+        method: 'POST'
+      });
+      
+      if (response && response.success) {
+        return response.complete_profile;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[UserDashboard] Error generating birth chart:', error);
       return null;
     }
   }

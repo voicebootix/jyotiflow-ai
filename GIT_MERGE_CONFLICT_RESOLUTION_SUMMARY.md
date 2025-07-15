@@ -6,7 +6,6 @@ The deployment was failing with a `SyntaxError: invalid syntax` at line 434 in `
 ## Error Details
 ```
 File "/opt/render/project/src/backend/main.py", line 434
-    <<<<<<< HEAD
     ^^
 SyntaxError: invalid syntax
 ```

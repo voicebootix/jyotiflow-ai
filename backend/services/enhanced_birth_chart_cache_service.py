@@ -168,11 +168,11 @@ class EnhancedBirthChartCacheService:
     
     async def get_cached_complete_profile(self, user_email: str, birth_details: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Get complete cached profile including birth chart + PDF reports + AI reading"""
+        conn = None
+        result = None
         try:
             birth_hash = self.generate_birth_details_hash(birth_details)
-            
             conn = await asyncpg.connect(self.db_url)
-            
             result = await conn.fetchrow("""
                 SELECT birth_chart_data, birth_chart_cached_at, birth_chart_expires_at
                 FROM users 
@@ -181,29 +181,27 @@ class EnhancedBirthChartCacheService:
                 AND birth_chart_expires_at > NOW()
                 AND birth_chart_data IS NOT NULL
             """, user_email, birth_hash)
-            
-            await conn.close()
-            
-            if result:
-                logger.info(f"✅ Complete profile cache HIT for user {user_email}")
-                cached_data = result['birth_chart_data']
-                
-                return {
-                    'birth_chart': cached_data.get('birth_chart', {}),
-                    'pdf_reports': cached_data.get('pdf_reports', {}),
-                    'swamiji_reading': cached_data.get('swamiji_reading', {}),
-                    'cached_at': result['birth_chart_cached_at'],
-                    'expires_at': result['birth_chart_expires_at'],
-                    'cache_hit': True
-                }
-            else:
-                logger.info(f"❌ Complete profile cache MISS for user {user_email}")
-                return None
-                
         except Exception as e:
             logger.error(f"Error getting cached profile: {e}")
             return None
-    
+        finally:
+            if conn:
+                await conn.close()
+        if result:
+            logger.info(f"✅ Complete profile cache HIT for user {user_email}")
+            cached_data = result['birth_chart_data']
+            return {
+                'birth_chart': cached_data.get('birth_chart', {}),
+                'pdf_reports': cached_data.get('pdf_reports', {}),
+                'swamiji_reading': cached_data.get('swamiji_reading', {}),
+                'cached_at': result['birth_chart_cached_at'],
+                'expires_at': result['birth_chart_expires_at'],
+                'cache_hit': True
+            }
+        else:
+            logger.info(f"❌ Complete profile cache MISS for user {user_email}")
+            return None
+                
     async def generate_and_cache_complete_profile(self, user_email: str, birth_details: Dict[str, Any]) -> Dict[str, Any]:
         """Generate complete profile: birth chart + PDF reports + AI reading and cache it"""
         try:
@@ -299,67 +297,69 @@ class EnhancedBirthChartCacheService:
     async def _generate_swamiji_reading(self, birth_chart_data: Dict[str, Any], 
                                        pdf_reports: Dict[str, Any], 
                                        birth_details: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate AI reading with Swamiji's persona using RAG + PDF insights"""
+        """Generate Swamiji's personalized reading using OpenAI"""
         try:
             if not self.openai_client:
+                logger.warning("OpenAI not available for Swamiji reading")
                 return {
-                    'reading': 'AI reading service not available. Please configure OpenAI API key.',
-                    'generated_with': 'fallback',
-                    'error': 'OpenAI not available'
+                    'reading': 'Swamiji\'s personalized reading is currently unavailable. Please try again later.',
+                    'personality_insights': ['Reading generation temporarily unavailable'],
+                    'spiritual_guidance': ['Please check back later for personalized guidance'],
+                    'practical_advice': ['Service will be restored shortly'],
+                    'generated_at': datetime.now().isoformat(),
+                    'generated_with': 'service_unavailable'
                 }
             
-            # Build comprehensive prompt with all data
-            prompt = await self._build_swamiji_prompt(birth_chart_data, pdf_reports, birth_details)
+            # Build comprehensive prompt
+            prompt = self._build_swamiji_prompt(birth_chart_data, pdf_reports, birth_details)
             
-            # Generate AI response
+            # Generate reading with OpenAI
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are Swami Jyotirananthan, a revered Tamil Vedic astrology master. 
-                        You speak with wisdom, compassion, and authority. Mix Tamil phrases naturally with English.
-                        Always start with "Vanakkam" and end with "Tamil thaai arul kondae vazhlga".
-                        Base your reading on the provided astrological data and give practical spiritual guidance."""
+                        "content": "You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions. Provide personalized spiritual guidance with cultural authenticity."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                max_tokens=2000,
+                max_tokens=1500,
                 temperature=0.7
             )
             
-            ai_reading = response.choices[0].message.content
+            reading = response.choices[0].message.content
             
-            # Structure the reading
+            # Extract structured insights
+            personality_insights = self._extract_personality_insights(reading)
+            spiritual_guidance = self._extract_spiritual_guidance(reading)
+            practical_advice = self._extract_practical_advice(reading)
+            
             return {
-                'complete_reading': ai_reading,
-                'birth_chart_summary': self._extract_chart_summary(birth_chart_data),
-                'personality_insights': self._extract_personality_insights(ai_reading),
-                'spiritual_guidance': self._extract_spiritual_guidance(ai_reading),
-                'practical_advice': self._extract_practical_advice(ai_reading),
-                'generated_with': 'OpenAI GPT-4 + Swamiji Persona',
-                'data_sources_used': {
-                    'birth_chart': bool(birth_chart_data),
-                    'pdf_reports': list(pdf_reports.keys()),
-                    'ai_model': 'gpt-4'
-                },
-                'generated_at': datetime.now().isoformat()
+                'reading': reading,
+                'personality_insights': personality_insights,
+                'spiritual_guidance': spiritual_guidance,
+                'practical_advice': practical_advice,
+                'generated_at': datetime.now().isoformat(),
+                'generated_with': 'openai_enhanced'
             }
             
         except Exception as e:
-            logger.error(f"Swamiji reading generation failed: {e}")
+            logger.error(f"Error generating Swamiji reading: {e}")
             return {
-                'reading': f'Vanakkam! I apologize, but I am experiencing technical difficulties in generating your reading. Please try again later. Tamil thaai arul kondae vazhlga.',
-                'generated_with': 'fallback',
-                'error': str(e)
+                'reading': 'Unable to generate personalized reading at this time. Please try again later.',
+                'personality_insights': ['Reading generation failed'],
+                'spiritual_guidance': ['Please try again later'],
+                'practical_advice': ['Service temporarily unavailable'],
+                'generated_at': datetime.now().isoformat(),
+                'generated_with': 'error_fallback'
             }
     
-    async def _build_swamiji_prompt(self, birth_chart_data: Dict[str, Any], 
-                                   pdf_reports: Dict[str, Any], 
-                                   birth_details: Dict[str, Any]) -> str:
+    def _build_swamiji_prompt(self, birth_chart_data: Dict[str, Any], 
+                              pdf_reports: Dict[str, Any], 
+                              birth_details: Dict[str, Any]) -> str:
         """Build comprehensive prompt for Swamiji's reading"""
         
         # Extract key astrological data
@@ -454,42 +454,45 @@ Make it personal and practical for daily life.
             cached_at = datetime.now()
             expires_at = cached_at + timedelta(days=self.cache_duration_days)
             
-            conn = await asyncpg.connect(self.db_url)
-            
-            # Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) instead of INSERT OR REPLACE
-            await conn.execute("""
-                INSERT INTO users 
-                (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
-                 birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
-                 birth_location, name, password_hash, role, credits)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                ON CONFLICT (email) DO UPDATE SET
-                birth_chart_data = $2,
-                birth_chart_hash = $3,
-                birth_chart_cached_at = $4,
-                birth_chart_expires_at = $5,
-                has_free_birth_chart = $6,
-                birth_date = $7,
-                birth_time = $8,
-                birth_location = $9,
-                name = $10
-            """, 
-            user_email,
-            json.dumps(complete_profile),
-            birth_hash,
-            cached_at,
-            expires_at,
-            True,
-            birth_details.get('date'),
-            birth_details.get('time'),
-            birth_details.get('location'),
-            birth_details.get('name', 'User'),
-            'temp_hash',  # This would be set during actual registration
-            'user',
-            50  # Default credits for new users
-            )
-            
-            await conn.close()
+            conn = None
+            try:
+                conn = await asyncpg.connect(self.db_url)
+                
+                # Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) instead of INSERT OR REPLACE
+                await conn.execute("""
+                    INSERT INTO users 
+                    (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
+                     birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
+                     birth_location, name, password_hash, role, credits)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ON CONFLICT (email) DO UPDATE SET
+                    birth_chart_data = $2,
+                    birth_chart_hash = $3,
+                    birth_chart_cached_at = $4,
+                    birth_chart_expires_at = $5,
+                    has_free_birth_chart = $6,
+                    birth_date = $7,
+                    birth_time = $8,
+                    birth_location = $9,
+                    name = $10
+                """, 
+                user_email,
+                json.dumps(complete_profile),
+                birth_hash,
+                cached_at,
+                expires_at,
+                True,
+                birth_details.get('date'),
+                birth_details.get('time'),
+                birth_details.get('location'),
+                birth_details.get('name', 'User'),
+                'temp_hash',  # This would be set during actual registration
+                'user',
+                50  # Default credits for new users
+                )
+            finally:
+                if conn:
+                    await conn.close()
             
             logger.info(f"✅ Complete profile cached for {user_email}")
             return True
@@ -500,9 +503,10 @@ Make it personal and practical for daily life.
     
     async def get_user_profile_status(self, user_email: str) -> Dict[str, Any]:
         """Get user's complete profile status"""
+        conn = None
+        result = None
         try:
             conn = await asyncpg.connect(self.db_url)
-            
             result = await conn.fetchrow("""
                 SELECT birth_date, birth_time, birth_location, birth_chart_cached_at, 
                        birth_chart_expires_at, has_free_birth_chart,
@@ -511,28 +515,27 @@ Make it personal and practical for daily life.
                 FROM users 
                 WHERE email = $1
             """, user_email)
-            
-            await conn.close()
-            
-            if result:
-                return {
-                    'has_birth_details': bool(result['birth_date'] and result['birth_time'] and result['birth_location']),
-                    'has_cached_data': bool(result['has_cached_data']),
-                    'cache_valid': bool(result['cache_valid']),
-                    'cached_at': result['birth_chart_cached_at'],
-                    'expires_at': result['birth_chart_expires_at'],
-                    'has_free_birth_chart': bool(result['has_free_birth_chart'])
-                }
-            else:
-                return {
-                    'has_birth_details': False,
-                    'has_cached_data': False,
-                    'cache_valid': False,
-                    'cached_at': None,
-                    'expires_at': None,
-                    'has_free_birth_chart': False
-                }
-                
         except Exception as e:
             logger.error(f"Error getting user profile status: {e}")
             return {'error': str(e)}
+        finally:
+            if conn:
+                await conn.close()
+        if result:
+            return {
+                'has_birth_details': bool(result['birth_date'] and result['birth_time'] and result['birth_location']),
+                'has_cached_data': bool(result['has_cached_data']),
+                'cache_valid': bool(result['cache_valid']),
+                'cached_at': result['birth_chart_cached_at'],
+                'expires_at': result['birth_chart_expires_at'],
+                'has_free_birth_chart': bool(result['has_free_birth_chart'])
+            }
+        else:
+            return {
+                'has_birth_details': False,
+                'has_cached_data': False,
+                'cache_valid': False,
+                'cached_at': None,
+                'expires_at': None,
+                'has_free_birth_chart': False
+            }
