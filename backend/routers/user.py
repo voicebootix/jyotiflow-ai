@@ -119,7 +119,7 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user:
         return {"success": True, "data": []}
     
-    # BULLETPROOF: Check column existence first, then query safely
+    # SECURE: Check column existence first, ensure user privacy always protected
     
     # Step 1: Determine which columns actually exist in sessions table
     available_columns = set()
@@ -130,9 +130,21 @@ async def get_sessions(request: Request, db=Depends(get_db)):
             WHERE table_name = 'sessions' AND table_schema = 'public'
         """)
         available_columns = {row['column_name'] for row in columns_result}
-    except Exception:
-        # Can't check columns, assume none exist except basic ones
-        available_columns = {'id', 'created_at'}
+        logger.info(f"Available sessions columns: {available_columns}")
+    except Exception as e:
+        logger.exception("Failed to check sessions table columns", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to verify database schema"
+        )
+    
+    # SECURITY: Refuse to operate without user filtering capability
+    if 'user_email' not in available_columns and 'user_id' not in available_columns:
+        logger.error("Sessions table lacks user filtering columns (user_email, user_id) - cannot ensure data privacy")
+        raise HTTPException(
+            status_code=500,
+            detail="Database schema incomplete - user filtering not possible"
+        )
     
     # Step 2: Build safe query based on available columns
     select_parts = ['id', 'created_at']  # Always safe
@@ -145,7 +157,7 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if 'question' in available_columns:
         select_parts.append("question")
     
-    # Determine user filtering capability
+    # Step 3: Determine user filtering (guaranteed to exist due to check above)
     user_filter = ""
     user_params = []
     if 'user_email' in available_columns:
@@ -154,9 +166,8 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     elif 'user_id' in available_columns:
         user_filter = "WHERE user_id = $1"
         user_params = [user_id_int]
-    # If no user columns, return recent sessions for any user
     
-    # Step 3: Execute safe query
+    # Step 4: Execute secure query with guaranteed user filtering
     try:
         query = f"""
             SELECT {', '.join(select_parts)}
@@ -166,12 +177,10 @@ async def get_sessions(request: Request, db=Depends(get_db)):
             LIMIT 50
         """
         
-        if user_params:
-            sessions = await db.fetch(query, *user_params)
-        else:
-            sessions = await db.fetch(query)
+        sessions = await db.fetch(query, *user_params)
+        logger.info(f"Retrieved {len(sessions)} sessions for user {user_id_int}")
         
-        # Step 4: Normalize response format
+        # Step 5: Normalize response format
         sessions_data = []
         for session in sessions:
             session_data = {
@@ -184,9 +193,12 @@ async def get_sessions(request: Request, db=Depends(get_db)):
         
         return {"success": True, "data": sessions_data}
         
-    except Exception as e1:
-        # Fallback: Return empty data if query fails
-        return {"success": True, "data": []}
+    except Exception as e:
+        logger.exception("Sessions query failed", exc_info=e)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve sessions"
+        )
 # தமிழ் - கடன் வரலாறு பெறுதல்
 @router.get("/credit-history")
 async def get_credit_history(request: Request, db=Depends(get_db)):

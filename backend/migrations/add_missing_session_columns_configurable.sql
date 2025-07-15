@@ -3,22 +3,23 @@
 -- ================================================================
 -- Supports configurable schema for multi-schema environments
 -- Usage: 
---   For public schema: \set target_schema 'public'
---   For custom schema: \set target_schema 'your_schema_name'
---   Then include this file: \i add_missing_session_columns_configurable.sql
-
--- Set default schema if not provided
-\set target_schema 'public'
-
--- Display which schema we're targeting
-\echo 'Targeting schema:' :target_schema
+--   SET target_schema = 'public';
+--   \i add_missing_session_columns_configurable.sql
+-- Or via command line:
+--   psql "$DATABASE_URL" -c "SET target_schema = 'production';" -f add_missing_session_columns_configurable.sql
 
 -- Add missing columns to sessions table with schema-aware checks
 DO $$ 
 LANGUAGE plpgsql
 DECLARE
-    target_schema_name TEXT := :'target_schema';
+    target_schema_name TEXT;
 BEGIN
+    -- Expect the caller to run: SET target_schema = 'your_schema';
+    target_schema_name := current_setting('target_schema', true);
+    IF target_schema_name IS NULL THEN
+        RAISE EXCEPTION 'Please SET target_schema before executing this migration';
+    END IF;
+    
     RAISE NOTICE 'Running migration for schema: %', target_schema_name;
 
     -- Bail out early if the sessions table itself is missing
