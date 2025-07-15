@@ -9,6 +9,15 @@ services:
         value: 3.11.0
       - key: PORT
         value: 8000
+      # Database Configuration (will use your existing DATABASE_URL from dashboard)
+      - key: DATABASE_URL
+        sync: false  # Use the one already configured in your dashboard
+      # JWT Secret (should be set in Render dashboard for security)
+      - key: JWT_SECRET
+        sync: false
+      # OpenAI API Key (should be set in Render dashboard for security)
+      - key: OPENAI_API_KEY
+        sync: false
       # 🕉️ Notification System Environment Variables
       - key: SMTP_HOST
         value: "smtp.gmail.com"  # Replace with your SMTP host
@@ -40,6 +49,9 @@ services:
         sync: false  # Set this in Render dashboard for security
       - key: PROKERALA_CLIENT_SECRET
         sync: false  # Set this in Render dashboard for security
+      # Environment Configuration
+      - key: APP_ENV
+        value: "production"
     healthCheckPath: /health
 
   - type: web
@@ -51,7 +63,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: VITE_API_URL
-        value: https://jyotiflow-ai.onrender.com
+        value: https://jyotiflow-backend.onrender.com
     routes:
       - type: rewrite
         source: /*

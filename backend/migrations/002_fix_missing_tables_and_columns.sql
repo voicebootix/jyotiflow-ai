@@ -40,7 +40,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='users' AND column_name='last_login_at'
     ) THEN
-        ALTER TABLE users RENAME COLUMN last_login TO last_login_at;
+        ALTER TABLE public.users RENAME COLUMN last_login TO last_login_at;
     END IF;
     
     -- If neither exists, add last_login_at
@@ -48,7 +48,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='users' AND column_name='last_login_at'
     ) THEN
-        ALTER TABLE users ADD COLUMN last_login_at TIMESTAMP;
+        ALTER TABLE public.users ADD COLUMN last_login_at TIMESTAMP;
     END IF;
 END $$;
 
@@ -60,7 +60,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='service_types' AND column_name='enabled'
     ) THEN
-        ALTER TABLE service_types ADD COLUMN enabled BOOLEAN DEFAULT true;
+        ALTER TABLE public.service_types ADD COLUMN enabled BOOLEAN DEFAULT true;
     END IF;
     
     -- Add price_usd column
@@ -68,7 +68,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='service_types' AND column_name='price_usd'
     ) THEN
-        ALTER TABLE service_types ADD COLUMN price_usd DECIMAL(10,2) DEFAULT 0;
+        ALTER TABLE public.service_types ADD COLUMN price_usd DECIMAL(10,2) DEFAULT 0;
     END IF;
     
     -- Add service_category column
@@ -76,7 +76,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='service_types' AND column_name='service_category'
     ) THEN
-        ALTER TABLE service_types ADD COLUMN service_category VARCHAR(100);
+        ALTER TABLE public.service_types ADD COLUMN service_category VARCHAR(100);
     END IF;
     
     -- Add avatar_video_enabled column
@@ -84,7 +84,7 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='service_types' AND column_name='avatar_video_enabled'
     ) THEN
-        ALTER TABLE service_types ADD COLUMN avatar_video_enabled BOOLEAN DEFAULT false;
+        ALTER TABLE public.service_types ADD COLUMN avatar_video_enabled BOOLEAN DEFAULT false;
     END IF;
     
     -- Add live_chat_enabled column
@@ -92,12 +92,12 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='service_types' AND column_name='live_chat_enabled'
     ) THEN
-        ALTER TABLE service_types ADD COLUMN live_chat_enabled BOOLEAN DEFAULT false;
+        ALTER TABLE public.service_types ADD COLUMN live_chat_enabled BOOLEAN DEFAULT false;
     END IF;
 END $$;
 
 -- 4. Create payments table if missing
-CREATE TABLE IF NOT EXISTS payments (
+CREATE TABLE IF NOT EXISTS public.payments (
     id SERIAL PRIMARY KEY,
     user_email VARCHAR(255) NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 
 -- 5. Create ai_recommendations table if missing
-CREATE TABLE IF NOT EXISTS ai_recommendations (
+CREATE TABLE IF NOT EXISTS public.ai_recommendations (
     id SERIAL PRIMARY KEY,
     recommendation_type VARCHAR(50) NOT NULL,
     title VARCHAR(255) NOT NULL,
@@ -125,7 +125,7 @@ CREATE TABLE IF NOT EXISTS ai_recommendations (
 );
 
 -- 6. Create monetization_experiments table if missing
-CREATE TABLE IF NOT EXISTS monetization_experiments (
+CREATE TABLE IF NOT EXISTS public.monetization_experiments (
     id SERIAL PRIMARY KEY,
     experiment_name VARCHAR(255) NOT NULL,
     experiment_type VARCHAR(50) NOT NULL,
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS monetization_experiments (
 );
 
 -- 7. Create ai_insights_cache table if missing
-CREATE TABLE IF NOT EXISTS ai_insights_cache (
+CREATE TABLE IF NOT EXISTS public.ai_insights_cache (
     id SERIAL PRIMARY KEY,
     insight_type VARCHAR(50) NOT NULL,
     data JSONB NOT NULL,
@@ -160,8 +160,8 @@ BEGIN
         WHERE table_name='pricing_config' AND column_name='config_key'
     ) THEN
         -- Create a duplicate column for compatibility
-        ALTER TABLE pricing_config ADD COLUMN key VARCHAR(100);
-        UPDATE pricing_config SET key = config_key;
+        ALTER TABLE public.pricing_config ADD COLUMN key VARCHAR(100);
+        UPDATE public.pricing_config SET key = config_key;
     END IF;
     
     IF NOT EXISTS (
@@ -172,8 +172,8 @@ BEGIN
         WHERE table_name='pricing_config' AND column_name='config_value'
     ) THEN
         -- Create a duplicate column for compatibility
-        ALTER TABLE pricing_config ADD COLUMN value VARCHAR(500);
-        UPDATE pricing_config SET value = config_value;
+        ALTER TABLE public.pricing_config ADD COLUMN value VARCHAR(500);
+        UPDATE public.pricing_config SET value = config_value;
     END IF;
     
     IF NOT EXISTS (
@@ -184,20 +184,20 @@ BEGIN
         WHERE table_name='pricing_config' AND column_name='config_type'
     ) THEN
         -- Create a duplicate column for compatibility
-        ALTER TABLE pricing_config ADD COLUMN type VARCHAR(50);
-        UPDATE pricing_config SET type = config_type;
+        ALTER TABLE public.pricing_config ADD COLUMN type VARCHAR(50);
+        UPDATE public.pricing_config SET type = config_type;
     END IF;
 END $$;
 
 -- 9. Insert default credit packages if table is empty
-INSERT INTO credit_packages (name, credits_amount, price_usd, bonus_credits, description, enabled)
+INSERT INTO public.credit_packages (name, credits_amount, price_usd, bonus_credits, description, enabled)
 SELECT * FROM (VALUES
     ('Starter Pack', 10, 9.99, 2, 'Perfect for beginners - try our spiritual guidance services', true),
     ('Spiritual Seeker', 25, 19.99, 5, 'Great value for regular users - most popular choice', true),
     ('Divine Wisdom', 50, 34.99, 15, 'Best value with maximum bonus credits for serious seekers', true),
     ('Enlightened Master', 100, 59.99, 30, 'Ultimate spiritual journey package for dedicated practitioners', true)
 ) AS v(name, credits_amount, price_usd, bonus_credits, description, enabled)
-WHERE NOT EXISTS (SELECT 1 FROM credit_packages);
+WHERE NOT EXISTS (SELECT 1 FROM public.credit_packages);
 
 -- 10. Add missing columns to sessions table if needed
 DO $$
@@ -206,19 +206,19 @@ BEGIN
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='sessions' AND column_name='user_id'
     ) THEN
-        ALTER TABLE sessions ADD COLUMN user_id INTEGER;
+        ALTER TABLE public.sessions ADD COLUMN user_id INTEGER;
     END IF;
     
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
         WHERE table_name='sessions' AND column_name='user_rating'
     ) THEN
-        ALTER TABLE sessions ADD COLUMN user_rating INTEGER;
+        ALTER TABLE public.sessions ADD COLUMN user_rating INTEGER;
     END IF;
 END $$;
 
 -- 11. Create credit_transactions table (referenced in credits.py)
-CREATE TABLE IF NOT EXISTS credit_transactions (
+CREATE TABLE IF NOT EXISTS public.credit_transactions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,
     package_id INTEGER,
@@ -228,14 +228,14 @@ CREATE TABLE IF NOT EXISTS credit_transactions (
     amount_usd DECIMAL(10,2) NOT NULL,
     status VARCHAR(50) DEFAULT 'completed',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (package_id) REFERENCES credit_packages(id) ON DELETE SET NULL
+    FOREIGN KEY (user_id) REFERENCES public.users(id) ON DELETE CASCADE,
+    FOREIGN KEY (package_id) REFERENCES public.credit_packages(id) ON DELETE SET NULL
 );
 
 -- 12. Add missing indexes for performance
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON sessions(user_email);
-CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON sessions(service_type);
-CREATE INDEX IF NOT EXISTS idx_payments_user_email ON payments(user_email);
-CREATE INDEX IF NOT EXISTS idx_credit_packages_enabled ON credit_packages(enabled);
-CREATE INDEX IF NOT EXISTS idx_credit_transactions_user ON credit_transactions(user_id);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON public.sessions(user_email);
+CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON public.sessions(service_type);
+CREATE INDEX IF NOT EXISTS idx_payments_user_email ON public.payments(user_email);
+CREATE INDEX IF NOT EXISTS idx_credit_packages_enabled ON public.credit_packages(enabled);
+CREATE INDEX IF NOT EXISTS idx_credit_transactions_user ON public.credit_transactions(user_id);

@@ -4,10 +4,14 @@ from fastapi import APIRouter, Request, HTTPException, Depends
 import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from services.birth_chart_cache_service import BirthChartCacheService
 import uuid
 import logging
+import json
+import asyncpg
+from db import db_manager
+from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
 
 # Import centralized JWT handler
 from auth.jwt_config import JWTHandler
@@ -328,8 +332,8 @@ async def get_birth_chart(request: Request):
 
 @router.post("/guidance")
 async def get_spiritual_guidance(request: Request):
-    """SURGICAL FIX: Enhanced spiritual guidance endpoint with comprehensive logging"""
-    logger.info("🕉️ Spiritual guidance endpoint called")
+    """Enhanced spiritual guidance endpoint with RAG system integration"""
+    logger.info("🕉️ Spiritual guidance endpoint called with RAG integration")
     
     try:
         # Log request details
@@ -344,15 +348,57 @@ async def get_spiritual_guidance(request: Request):
         user_question = data.get("question")
         birth_details = data.get("birth_details")
         language = data.get("language", "ta")  # Default to Tamil if not provided
+        service_type = data.get("service_type", "general")
 
         logger.info(f"User question: {user_question}")
         logger.info(f"Birth details: {birth_details}")
         logger.info(f"Language: {language}")
+        logger.info(f"Service type: {service_type}")
 
         if not user_question or not birth_details:
             logger.error("❌ Missing question or birth details")
             raise HTTPException(status_code=400, detail="Missing question or birth details")
 
+        # Try to use RAG system first
+        try:
+            from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            
+            logger.info("🤖 Using RAG system for enhanced guidance")
+            rag_response = await get_rag_enhanced_guidance(
+                user_question, 
+                birth_details, 
+                service_type
+            )
+            
+            if rag_response and rag_response.get("success"):
+                logger.info("✅ RAG system provided enhanced guidance")
+                
+                # Add language-specific formatting if needed
+                guidance_text = rag_response["guidance"]
+                if language == "ta":
+                    # Add Tamil cultural context if not already present
+                    if "தமிழ்" not in guidance_text and "சுவாமி" not in guidance_text:
+                        guidance_text = f"சுவாமி ஜோதிரணந்தனின் ஆன்மீக வழிகாட்டுதல்:\n\n{guidance_text}"
+                
+                return {
+                    "success": True,
+                    "guidance": guidance_text,
+                    "knowledge_sources": rag_response.get("knowledge_sources", []),
+                    "persona_used": rag_response.get("persona_used", "swamiji"),
+                    "analysis_sections": rag_response.get("analysis_sections", []),
+                    "source": "rag_enhanced",
+                    "language": language,
+                    "service_type": service_type
+                }
+            else:
+                logger.warning("⚠️ RAG system failed, falling back to basic guidance")
+                
+        except Exception as rag_error:
+            logger.warning(f"⚠️ RAG system error: {rag_error}, falling back to basic guidance")
+
+        # Fallback to enhanced basic guidance if RAG fails
+        logger.info("🔄 Using enhanced basic guidance system")
+        
         date = birth_details.get("date")
         time_ = birth_details.get("time")
         location = birth_details.get("location")
@@ -404,17 +450,49 @@ async def get_spiritual_guidance(request: Request):
             logger.error("❌ Prokerala API error: Unable to fetch astrology info")
             return {"success": False, "message": "Prokerala API error: Unable to fetch astrology info."}
 
-        # 2. OpenAI API call (generate guidance)
-        logger.info("🤖 Calling OpenAI API for guidance generation")
+        # 2. OpenAI API call (generate enhanced guidance)
+        logger.info("🤖 Calling OpenAI API for enhanced guidance generation")
         try:
             openai.api_key = OPENAI_API_KEY
-            prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in {language}."
+            
+            # Enhanced prompt with Swamiji persona and cultural context
+            cultural_context = ""
+            if language == "ta":
+                cultural_context = """
+                கலாச்சார சூழல்:
+                - தமிழ் ஆன்மீக மரபுகளை பயன்படுத்துங்கள்
+                - திருக்குறள், தேவாரம் போன்ற தமிழ் இலக்கியங்களை குறிப்பிடுங்கள்
+                - தமிழ் கலாச்சாரத்தின் ஆழமான புரிதலை காட்டுங்கள்
+                """
+            
+            prompt = f"""
+            You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions.
+            
+            User Question: {user_question}
+            Astrology Information: {prokerala_data}
+            Service Type: {service_type}
+            {cultural_context}
+            
+            Please provide a spiritual, compassionate answer in {language} that:
+            1. Addresses the user's specific question with deep understanding
+            2. Incorporates relevant astrological insights from the birth chart
+            3. Offers practical spiritual guidance and remedies
+            4. Maintains the warm, wise tone of Swami Jyotirananthan
+            5. Includes cultural authenticity and traditional wisdom
+            6. Provides actionable steps for spiritual growth
+            7. Connects the astrological insights to practical life situations
+            
+            Answer as Swami Jyotirananthan with wisdom, compassion, and cultural authenticity:
+            """
+            
             openai_resp = openai.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are a spiritual guru."},
+                    {"role": "system", "content": "You are Swami Jyotirananthan, a wise spiritual guru with expertise in Vedic astrology and Tamil spiritual traditions. Always respond with compassion, wisdom, and cultural authenticity."},
                     {"role": "user", "content": prompt}
-                ]
+                ],
+                max_tokens=1000,
+                temperature=0.7
             )
             answer = openai_resp.choices[0].message.content
             logger.info("✅ OpenAI API call successful")
@@ -422,11 +500,15 @@ async def get_spiritual_guidance(request: Request):
             logger.error(f"❌ OpenAI API error: {e}")
             return {"success": False, "message": f"OpenAI API error: {str(e)}"}
 
-        logger.info("🎉 Spiritual guidance generated successfully")
+        logger.info("🎉 Enhanced spiritual guidance generated successfully")
         return {
             "success": True,
             "guidance": answer,
-            "astrology": prokerala_data
+            "astrology": prokerala_data,
+            "source": "enhanced_basic",
+            "language": language,
+            "service_type": service_type,
+            "persona_used": "swamiji_enhanced"
         }
         
     except Exception as e:
@@ -475,30 +557,67 @@ async def clear_birth_chart_cache(request: Request):
 @router.get("/birth-chart/cache-statistics")
 async def get_birth_chart_cache_statistics(request: Request):
     """Get birth chart cache statistics (admin only)"""
-    # TODO: Add admin authentication check
+    # Check admin authentication
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    conn = None
     try:
+        # Check if user is admin - FIXED: Use role column instead of is_admin
+        conn = await db_manager.get_connection()
+        user_data = await conn.fetchrow("""
+            SELECT role FROM users WHERE email = $1
+        """, user_email)
+        
+        if not user_data or user_data['role'] != 'admin':
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Get cache statistics
         stats = await birth_chart_cache.get_cache_statistics()
         return {
             "success": True,
-            "cache_statistics": stats
+            "statistics": stats
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[BirthChart] Error getting cache statistics: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get cache statistics")
+        logger.error(f"Error getting cache statistics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get cache statistics") from e
+    finally:
+        if conn:
+            await db_manager.release_connection(conn)
 
 @router.post("/birth-chart/cache-cleanup")
 async def cleanup_expired_birth_chart_cache(request: Request):
-    """Clean up expired birth chart cache entries"""
-    # TODO: Add admin authentication check
+    """Cleanup expired birth chart cache (admin only)"""
+    # Check admin authentication
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    conn = None
     try:
-        cleanup_count = await birth_chart_cache.cleanup_expired_cache()
+        # Check if user is admin - FIXED: Use role column instead of is_admin
+        conn = await db_manager.get_connection()
+        user_data = await conn.fetchrow("""
+            SELECT role FROM users WHERE email = $1
+        """, user_email)
+        
+        if not user_data or user_data['role'] != 'admin':
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Cleanup expired cache
+        result = await birth_chart_cache.cleanup_expired_cache()
         return {
             "success": True,
-            "message": f"Cleaned up {cleanup_count} expired cache entries"
+            "cleanup_result": result
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[BirthChart] Error cleaning up cache: {e}")
-        raise HTTPException(status_code=500, detail="Failed to cleanup cache")
+        logger.error(f"Error cleaning up cache: {e}")
+        raise HTTPException(status_code=500, detail="Failed to cleanup cache") from e
 
 @router.post("/birth-chart/link-to-user")
 async def link_anonymous_chart_to_user(request: Request):
@@ -796,3 +915,167 @@ def get_default_lord(house_index: int) -> str:
         "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"
     ]
     return lords[house_index % 12] 
+
+@router.get("/birth-chart/complete-profile")
+async def get_complete_birth_chart_profile(request: Request):
+    """Get user's complete birth chart profile including Swamiji's readings"""
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get user's birth details from profile
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            user_data = await conn.fetchrow("""
+                SELECT birth_date, birth_time, birth_location, birth_chart_data
+                FROM users WHERE email = $1
+            """, user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
+        
+        if not user_data or not user_data['birth_date']:
+            return {
+                "success": False,
+                "message": "Birth details not found. Please complete your profile.",
+                "needs_birth_details": True
+            }
+        
+        # If birth chart data exists and is not expired, return it
+        if user_data['birth_chart_data']:
+            try:
+                chart_data = json.loads(user_data['birth_chart_data']) if isinstance(user_data['birth_chart_data'], str) else user_data['birth_chart_data']
+                # Check if data is recent (less than 30 days old)
+                if chart_data.get('cached_at'):
+                    # Handle cached_at field safely - it might be a string, datetime, or other type
+                    cached_at = chart_data['cached_at']
+                    if isinstance(cached_at, str):
+                        cached_date = datetime.fromisoformat(cached_at.replace('Z', '+00:00'))
+                    elif isinstance(cached_at, datetime):
+                        cached_date = cached_at
+                    else:
+                        # If cached_at is not a string or datetime, treat as expired
+                        logger.warning(f"Invalid cached_at format for user {user_email}: {type(cached_at)}")
+                        cached_date = datetime.min.replace(tzinfo=timezone.utc)  # Force regeneration with timezone
+                    
+                    # Ensure both dates are timezone-aware for comparison
+                    now = datetime.now(timezone.utc)
+                    if cached_date.tzinfo is None:
+                        cached_date = cached_date.replace(tzinfo=timezone.utc)
+                    
+                    if (now - cached_date).days < 30:
+                        return {
+                            "success": True,
+                            "complete_profile": chart_data
+                        }
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError, AttributeError) as e:
+                logger.warning(f"Corrupted birth chart data for user {user_email}: {e}")
+                pass  # Continue to regenerate if data is corrupted
+        
+        # Generate new complete profile using enhanced service
+        birth_details = {
+            'date': user_data['birth_date'] if isinstance(user_data['birth_date'], str) else user_data['birth_date'].strftime('%Y-%m-%d'),
+            'time': user_data['birth_time'] if isinstance(user_data['birth_time'], str) else user_data['birth_time'].strftime('%H:%M'),
+            'location': user_data['birth_location'] or 'Jaffna, Sri Lanka',
+            'timezone': 'Asia/Colombo'
+        }
+        
+        # Use the enhanced birth chart cache service
+        enhanced_service = EnhancedBirthChartCacheService()
+        complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
+        
+        # Update user's birth chart data in database
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            await conn.execute("""
+                UPDATE users 
+                SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
+                WHERE email = $2
+            """, json.dumps(complete_profile), user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
+        
+        return {
+            "success": True,
+            "complete_profile": complete_profile
+        }
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error in birth chart profile: {e}")
+        raise HTTPException(status_code=500, detail="Invalid birth chart data format") from e
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error in birth chart profile: {e}")
+        raise HTTPException(status_code=500, detail="Database connection error") from e
+    except Exception as e:
+        logger.error(f"Unexpected error getting complete birth chart profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get birth chart profile") from e
+
+@router.post("/birth-chart/generate-for-user")
+async def generate_birth_chart_for_user(request: Request):
+    """Generate birth chart for registered user using their profile data"""
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
+    try:
+        # Get user's birth details from profile
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            user_data = await conn.fetchrow("""
+                SELECT birth_date, birth_time, birth_location
+                FROM users WHERE email = $1
+            """, user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
+        
+        if not user_data or not user_data['birth_date']:
+            return {
+                "success": False,
+                "message": "Birth details not found. Please complete your profile.",
+                "needs_birth_details": True
+            }
+        
+        birth_details = {
+            'date': user_data['birth_date'] if isinstance(user_data['birth_date'], str) else user_data['birth_date'].strftime('%Y-%m-%d'),
+            'time': user_data['birth_time'] if isinstance(user_data['birth_time'], str) else user_data['birth_time'].strftime('%H:%M'),
+            'location': user_data['birth_location'] or 'Jaffna, Sri Lanka',
+            'timezone': 'Asia/Colombo'
+        }
+        
+        # Use the enhanced birth chart cache service for complete profile generation
+        enhanced_service = EnhancedBirthChartCacheService()
+        complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
+        
+        # Update user's birth chart data in database
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            await conn.execute("""
+                UPDATE users 
+                SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
+                WHERE email = $2
+            """, json.dumps(complete_profile), user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
+        
+        return {
+            "success": True,
+            "complete_profile": complete_profile
+        }
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error generating birth chart: {e}")
+        raise HTTPException(status_code=500, detail="Invalid birth chart data format") from e
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database error generating birth chart: {e}")
+        raise HTTPException(status_code=500, detail="Database connection error") from e
+    except Exception as e:
+        logger.error(f"Unexpected error generating birth chart for user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate birth chart") from e 

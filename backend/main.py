@@ -200,7 +200,7 @@ db_pool = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan manager for startup and shutdown"""
-    # Startup
+    # Startup operations
     try:
         print("🚀 Starting JyotiFlow.ai backend...")
         
@@ -208,96 +208,160 @@ async def lifespan(app: FastAPI):
         # await apply_migrations()
         print("⏭️ Skipping migrations - Database already set up")
         
-        # Initialize database connection pool with enhanced settings
+        # Check DATABASE_URL configuration
+        if not DATABASE_URL or DATABASE_URL == "postgresql://user:password@localhost:5432/yourdb":
+            print("❌ ERROR: DATABASE_URL is not properly configured!")
+            print(f"Current DATABASE_URL: {DATABASE_URL}")
+            print("Please ensure DATABASE_URL is set in your Render dashboard.")
+            print("Go to: Dashboard > Service > Environment > DATABASE_URL")
+            raise ValueError("DATABASE_URL environment variable must be properly configured")
+        
+        print("🔗 Attempting to connect to existing Render database...")
+        
+        # Safely extract database host information
+        try:
+            from urllib.parse import urlparse
+            parsed = urlparse(DATABASE_URL)
+            host_info = f"{parsed.hostname}:{parsed.port}" if parsed.port else parsed.hostname
+            print(f"📍 Database host: {host_info}")
+        except Exception:
+            print("📍 Database host: could not parse URL")
+        
+        # Initialize database connection pool with enhanced settings for Render
         global db_pool
-        db_pool = await asyncpg.create_pool(
-            DATABASE_URL,
-            min_size=5,
-            max_size=20,
-            command_timeout=60,
-            server_settings={
-                'application_name': 'jyotiflow_main_pool',
-                'tcp_keepalives_idle': '600',
-                'tcp_keepalives_interval': '60',
-                'tcp_keepalives_count': '5'
-            }
-        )
+        max_retries = 5  # Increased for Render cold starts
+        base_delay = 3
+        max_delay = 30
+        db_pool = None  # Initialize to None
+        
+        for attempt in range(max_retries):
+            current_pool = None  # Track pool for cleanup on failure
+            try:
+                # Calculate exponential backoff delay
+                delay = min(base_delay * (2 ** attempt), max_delay)
+                if attempt > 0:
+                    print(f"⏸️ Waiting {delay} seconds before retry...")
+                    await asyncio.sleep(delay)
+                
+                print(f"🔄 Database connection attempt {attempt + 1}/{max_retries}")
+                
+                # Create connection pool (without unsupported timeout parameter)
+                current_pool = await asyncio.wait_for(
+                    asyncpg.create_pool(
+                        DATABASE_URL,
+                        min_size=1,  # Start small for Render
+                        max_size=8,  # Reasonable for Render free/starter tiers
+                        command_timeout=60,
+                        server_settings={
+                            'application_name': 'jyotiflow_main_pool',
+                            'tcp_keepalives_idle': '600',
+                            'tcp_keepalives_interval': '60',
+                            'tcp_keepalives_count': '3'
+                        }
+                    ),
+                    timeout=45 if attempt == 0 else 60  # Use asyncio.wait_for for timeout
+                )
+                
+                # Test the connection with a simple query
+                print("🧪 Testing database connection...")
+                async with current_pool.acquire() as conn:
+                    result = await conn.fetchval("SELECT 1 as test")
+                    if result == 1:
+                        print("✅ Database connection test successful")
+                    else:
+                        raise Exception("Database test query returned unexpected result")
+                
+                # Test basic database access
+                try:
+                    async with current_pool.acquire() as conn:
+                        version = await conn.fetchval("SELECT version()")
+                        print(f"🗄️ Connected to: {version.split(',')[0] if version else 'PostgreSQL'}")
+                except Exception as e:
+                    print(f"⚠️ Database version check failed: {e}")
+                
+                # Success! Assign the working pool
+                db_pool = current_pool
+                current_pool = None  # Prevent cleanup of successful pool
+                break  # Success, exit retry loop
+                
+            except asyncio.TimeoutError:
+                print(f"⏱️ Database connection timeout on attempt {attempt + 1}")
+                if attempt < max_retries - 1:
+                    print("🔥 This might be a cold start - database is spinning up...")
+                    print("💡 Render databases can take up to 60 seconds to start from cold state")
+                else:
+                    print("❌ All database connection attempts failed due to timeout")
+                    print("💡 Troubleshooting steps:")
+                    print("   1. Check Render dashboard - is your database service running?")
+                    print("   2. Verify DATABASE_URL is correct in environment variables")
+                    print("   3. Try manual redeploy - database might be in error state")
+                    print("   4. Check Render status page for database outages")
+                    raise
+                    
+            except asyncpg.InvalidAuthorizationSpecificationError as e:
+                print(f"🔐 Database authentication failed on attempt {attempt + 1}: {str(e)}")
+                if attempt < max_retries - 1:
+                    print("🔄 Retrying in case of temporary auth issues...")
+                else:
+                    print("❌ Database authentication failed after all retries")
+                    print("💡 Check your DATABASE_URL credentials in Render dashboard")
+                    raise
+                    
+            except asyncpg.InvalidCatalogNameError as e:
+                print(f"🗄️ Database not found on attempt {attempt + 1}: {str(e)}")
+                print("❌ Database does not exist or is not accessible")
+                print("💡 Verify database name in your DATABASE_URL")
+                raise  # Don't retry for this error
+                
+            except Exception as e:
+                print(f"❌ Database connection error on attempt {attempt + 1}: {str(e)}")
+                print(f"🔍 Error type: {type(e).__name__}")
+                if attempt < max_retries - 1:
+                    print("🔄 Retrying with exponential backoff...")
+                else:
+                    print("❌ All database connection attempts failed")
+                    print("💡 Final troubleshooting:")
+                    print("   1. Check DATABASE_URL format and credentials")
+                    print("   2. Ensure database service is healthy in Render dashboard")
+                    print("   3. Try restarting your database service")
+                    print("   4. Contact Render support if issues persist")
+                    raise
+            finally:
+                # Clean up failed pool to prevent resource leaks
+                if current_pool is not None:
+                    try:
+                        await current_pool.close()
+                        print("🧹 Cleaned up failed connection pool")
+                    except Exception as cleanup_error:
+                        print(f"⚠️ Error cleaning up failed pool: {cleanup_error}")
+        
+        # Ensure we have a valid pool
+        if db_pool is None:
+            raise Exception("Failed to establish database connection pool after all retries")
         
         # Set the pool in the db module for all routers to use
         db.set_db_pool(db_pool)
         
-        print("✅ Database connection pool initialized")
-        
-        # Test database connection
-        if db_pool is not None:
-            async with db_pool.acquire() as conn:
-                await conn.fetchval("SELECT 1")
-            print("✅ Database connection test successful")
-        else:
-            raise Exception("Database pool is not initialized.")
-        
-        # Skip column checks - they use ALTER TABLE
-        print("⏭️ Skipping column checks - Database already configured")
-        
-        # Skip schema fixes - they use ALTER TABLE
-        print("⏭️ Skipping schema fixes - Database already fixed")
-        
-        # Safe database initialization might be OK if it only INSERTs data
-        try:
-            print("🚀 Checking if safe database initialization is needed...")
-            from safe_database_init import safe_initialize_database
-            # This should only INSERT data, not create/alter tables
-            success = await safe_initialize_database()
-            if success:
-                print("✅ Safe database initialization completed!")
-        except Exception as e:
-            print(f"⚠️ Safe initialization skipped: {e}")
-            # This is OK - tables exist, just might be missing some seed data
-        
-        # Surgical fix for admin user authentication - DISABLED
-        # This is now handled by safe_database_init.py with consistent bcrypt hashing
-        print("⏭️ Skipping surgical admin authentication fix - handled by safe_database_init.py")
-        
-        # Initialize enhanced system if available
-        if ENHANCED_ROUTER_AVAILABLE:
-            try:
-                from enhanced_startup_integration import initialize_enhanced_jyotiflow
-                success = await initialize_enhanced_jyotiflow()
-                if success:
-                    print("✅ Enhanced JyotiFlow system initialized successfully")
-                else:
-                    print("⚠️ Enhanced system initialization had issues but will continue in fallback mode")
-            except Exception as e:
-                print(f"⚠️ Enhanced system initialization failed: {e}")
-        
-        # Run comprehensive startup fixes if available
-        if STARTUP_FIXER_AVAILABLE:
-            try:
-                from fix_startup_issues import JyotiFlowStartupFixer
-                startup_fixer = JyotiFlowStartupFixer()
-                await startup_fixer.fix_all_issues()
-                print("✅ Comprehensive startup fixes applied successfully")
-            except Exception as e:
-                print(f"⚠️ Comprehensive startup fixes failed: {e}")
-        
-        print("🎉 JyotiFlow.ai backend startup completed successfully!")
+        print("✅ Database connection pool initialized successfully!")
+        print("📊 Pool configuration: connections ready for use")
+        print("🎯 Ready to serve JyotiFlow.ai API requests")
         
     except Exception as e:
-        print(f"❌ Backend startup failed: {e}")
+        print(f"❌ Backend startup failed: {str(e)}")
+        print("🔧 For debugging, check your Render dashboard and environment variables")
         raise
     
-    # Yield control to the application
+    # Yield control to the application (this runs the app)
     yield
     
-    # Shutdown
+    # Shutdown operations (cleanup)
     try:
-        print("🛑 Shutting down JyotiFlow.ai backend...")
-        if db_pool is not None:
+        if db_pool:
+            print("🔄 Gracefully closing database connection pool...")
             await db_pool.close()
-            print("✅ Database connections closed")
-        print("👋 JyotiFlow.ai backend shutdown completed")
+            print("✅ Database connection pool closed cleanly")
     except Exception as e:
-        print(f"❌ Backend shutdown error: {e}")
+        print(f"⚠️ Error during database pool cleanup: {str(e)}")
 
 # Create FastAPI app with lifespan manager
 app = FastAPI(

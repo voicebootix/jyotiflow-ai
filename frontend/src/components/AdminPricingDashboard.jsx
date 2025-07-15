@@ -18,6 +18,8 @@ const AdminPricingDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('recommendations');
   const [apiStatus, setApiStatus] = useState({});
+  const [welcomeCredits, setWelcomeCredits] = useState(20);
+  const [updatingCredits, setUpdatingCredits] = useState(false);
   const [prokeralaCosts, setProkeralaCosts] = useState({});
   const [prokeralaConfig, setProkeralaConfig] = useState(null);
   const [services, setServices] = useState(null);
@@ -31,6 +33,7 @@ const AdminPricingDashboard = () => {
   useEffect(() => {
     fetchPricingDashboard();
     fetchSatsangEvents();
+    fetchWelcomeCredits();
   }, []);
 
   const fetchPricingDashboard = async () => {
@@ -64,6 +67,40 @@ const AdminPricingDashboard = () => {
       setSatsangEvents(data.events || []);
     } catch (error) {
       console.error('Error fetching Satsang events:', error);
+    }
+  };
+
+  const fetchWelcomeCredits = async () => {
+    try {
+      const response = await fetch('/api/admin/pricing/welcome-credits');
+      const data = await response.json();
+      if (data.success) {
+        setWelcomeCredits(data.welcome_credits);
+      }
+    } catch (error) {
+      console.error('Error fetching welcome credits:', error);
+    }
+  };
+
+  const updateWelcomeCredits = async () => {
+    setUpdatingCredits(true);
+    try {
+      const response = await fetch('/api/admin/pricing/welcome-credits', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ welcome_credits: welcomeCredits })
+      });
+      
+      if (response.ok) {
+        alert('Welcome credits updated successfully!');
+      } else {
+        alert('Failed to update welcome credits');
+      }
+    } catch (error) {
+      console.error('Error updating welcome credits:', error);
+      alert('Error updating welcome credits');
+    } finally {
+      setUpdatingCredits(false);
     }
   };
 
@@ -299,6 +336,55 @@ const AdminPricingDashboard = () => {
             </div>
             <Zap className={getApiStatusColor(apiStatus.openai)} size={20} />
           </div>
+        </div>
+      </div>
+
+      {/* Welcome Credits Configuration */}
+      <div className="bg-white p-6 rounded-lg shadow border mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Welcome Credits Configuration</h3>
+            <p className="text-sm text-gray-600">Set the number of credits given to new users upon registration</p>
+          </div>
+          <Gift className="text-purple-600" size={24} />
+        </div>
+        
+        <div className="flex items-center space-x-4">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Welcome Credits for New Users
+            </label>
+            <input
+              type="number"
+              min="0"
+              max="1000"
+              value={welcomeCredits}
+              onChange={(e) => setWelcomeCredits(parseInt(e.target.value) || 0)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Enter number of credits"
+            />
+          </div>
+          <button
+            onClick={updateWelcomeCredits}
+            disabled={updatingCredits}
+            className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 flex items-center space-x-2"
+          >
+            {updatingCredits ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span>Updating...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle size={16} />
+                <span>Update</span>
+              </>
+            )}
+          </button>
+        </div>
+        
+        <div className="mt-3 text-sm text-gray-500">
+          <p>💡 Tip: This affects all new user registrations. Consider your business strategy when setting this value.</p>
         </div>
       </div>
 

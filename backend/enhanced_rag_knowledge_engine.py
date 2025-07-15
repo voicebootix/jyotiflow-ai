@@ -31,6 +31,7 @@ try:
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
+    AsyncOpenAI = None
     
 try:
     import asyncpg

@@ -1,8 +1,10 @@
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Depends, HTTPException, Request, Body
 from db import get_db, get_db_pool  # get_db_pool() returns current pool state
 import uuid
 import logging
+import json
 from typing import Optional
+from utils.welcome_credits_utils import get_dynamic_welcome_credits, set_dynamic_welcome_credits, validate_welcome_credits
 
 # Import the smart pricing service
 try:
@@ -10,8 +12,9 @@ try:
 except ImportError:
     get_prokerala_smart_service = None
 
-router = APIRouter(prefix="/api/admin/products", tags=["Admin Products"])
 logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/admin/products", tags=["Admin Products"])
 
 # --- ROOT PRODUCTS ENDPOINT ---
 @router.get("/")
@@ -64,13 +67,13 @@ async def get_products(db=Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"Products endpoint error: {e}")
+        logger.error(f"Products endpoint error: {e}")
         return {"success": False, "error": str(e), "data": []}
 
 # --- SERVICE TYPES ENDPOINTS (with real DB logic) ---
 @router.post("/service-types")
 async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)):
-    print("SERVICE TYPE POST CALLED")
+    logger.info("Service type POST endpoint called")
     enabled = service_type.get("enabled", service_type.get("is_active", True))
     await db.execute(
         """
@@ -106,7 +109,7 @@ async def create_service_type(service_type: dict = Body(...), db=Depends(get_db)
 
 @router.get("/service-types")
 async def get_service_types(db=Depends(get_db)):
-    print("SERVICE TYPE GET CALLED")
+    logger.info("Service type GET endpoint called")
     result = await db.fetch("SELECT * FROM service_types ORDER BY credits_required")
     return [
         {
@@ -140,7 +143,7 @@ async def get_service_types(db=Depends(get_db)):
 
 @router.put("/service-types/{service_type_id}")
 async def update_service_type(service_type_id: int, service_type: dict = Body(...), db=Depends(get_db)):
-    print("SERVICE TYPE PUT CALLED")
+    logger.info(f"Service type PUT endpoint called for ID: {service_type_id}")
     enabled = service_type.get("enabled", service_type.get("is_active", True))
     result = await db.execute(
         """
@@ -182,7 +185,7 @@ async def update_service_type(service_type_id: int, service_type: dict = Body(..
 
 @router.delete("/service-types/{service_type_id}")
 async def delete_service_type(service_type_id: int, db=Depends(get_db)):
-    print("SERVICE TYPE DELETE CALLED")
+    logger.info(f"Service type DELETE endpoint called for ID: {service_type_id}")
     result = await db.execute(
         "UPDATE service_types SET enabled=FALSE WHERE id=$1",
         int(service_type_id)
@@ -194,7 +197,7 @@ async def delete_service_type(service_type_id: int, db=Depends(get_db)):
 # --- PRICING CONFIG ENDPOINTS ---
 @router.get("/pricing-config")
 async def get_pricing_config(db=Depends(get_db)):
-    print("PRICING CONFIG GET CALLED")
+    logger.info("Pricing config GET endpoint called")
     result = await db.fetch("SELECT * FROM pricing_config ORDER BY id ASC")
     return [
         {
@@ -211,7 +214,7 @@ async def get_pricing_config(db=Depends(get_db)):
 
 @router.post("/pricing-config")
 async def create_pricing_config(config: dict = Body(...), db=Depends(get_db)):
-    print("PRICING CONFIG POST CALLED")
+    logger.info("Pricing config POST endpoint called")
     await db.execute(
         """
         INSERT INTO pricing_config (key, value, type, description, is_active, updated_at)
@@ -227,7 +230,7 @@ async def create_pricing_config(config: dict = Body(...), db=Depends(get_db)):
 
 @router.put("/pricing-config/{config_key}")
 async def update_pricing_config(config_key: str, config: dict = Body(...), db=Depends(get_db)):
-    print("PRICING CONFIG PUT CALLED")
+    logger.info(f"Pricing config PUT endpoint called for key: {config_key}")
     result = await db.execute(
         """
         UPDATE pricing_config SET value=$1, type=$2, description=$3, 
@@ -244,148 +247,245 @@ async def update_pricing_config(config_key: str, config: dict = Body(...), db=De
         return {"success": False, "error": "Config not found"}, 404
     return {"success": True}
 
+@router.get("/pricing/welcome-credits")
+async def get_welcome_credits_config(db=Depends(get_db)):
+    """Get current welcome credits configuration"""
+    try:
+        # Use shared utility function
+        welcome_credits = await get_dynamic_welcome_credits()
+        
+        return {
+            "success": True,
+            "welcome_credits": welcome_credits
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting welcome credits config: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get welcome credits configuration") from e
+
+@router.put("/pricing/welcome-credits")
+async def update_welcome_credits_config(request: Request, db=Depends(get_db)):
+    """Update welcome credits configuration"""
+    try:
+        data = await request.json()
+        welcome_credits = data.get("welcome_credits", 20)
+        
+        # Validate welcome credits using shared utility
+        if not validate_welcome_credits(welcome_credits):
+            raise HTTPException(status_code=400, detail="Invalid welcome credits value")
+        
+        # Use shared utility function
+        success = await set_dynamic_welcome_credits(welcome_credits)
+        
+        if not success:
+            raise HTTPException(status_code=500, detail="Failed to update welcome credits")
+        
+        logger.info(f"Welcome credits updated to: {welcome_credits}")
+        
+        return {
+            "success": True,
+            "message": f"Welcome credits updated to {welcome_credits}",
+            "welcome_credits": welcome_credits
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating welcome credits config: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update welcome credits configuration") from e
+
 # --- DONATIONS ENDPOINTS ---
 @router.get("/donations")
 async def get_donations(db=Depends(get_db)):
-    print("DONATIONS GET CALLED")
-    result = await db.fetch("SELECT * FROM donations ORDER BY price_usd")
-    return [
-        {
-            "id": str(row["id"]),
-            "name": row["name"],
-            "tamil_name": row["tamil_name"],
-            "description": row["description"],
-            "price_usd": float(row["price_usd"]),
-            "icon": row["icon"],
-            "category": row["category"],
-            "enabled": row["enabled"],
-            "created_at": row["created_at"].isoformat() if row["created_at"] else None
-        }
-        for row in result
-    ]
+    logger.info("Donations GET endpoint called")
+    try:
+        result = await db.fetch("SELECT * FROM donations ORDER BY price_usd")
+        return [
+            {
+                "id": str(row["id"]),
+                "name": row["name"],
+                "tamil_name": row["tamil_name"],
+                "description": row["description"],
+                "price_usd": float(row["price_usd"]),
+                "icon": row["icon"],
+                "category": row["category"],
+                "enabled": row["enabled"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None
+            }
+            for row in result
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching donations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch donations") from e
 
 @router.post("/donations")
 async def create_donation(donation: dict = Body(...), db=Depends(get_db)):
-    print("DONATION POST CALLED")
-    await db.execute(
-        """
-        INSERT INTO donations (name, tamil_name, description, price_usd, icon, category, enabled, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        """,
-        donation.get("name"),
-        donation.get("tamil_name"),
-        donation.get("description"),
-        float(donation.get("price_usd", 0)),
-        donation.get("icon", "🪔"),
-        donation.get("category", "offering"),
-        donation.get("enabled", True)
-    )
-    return {"success": True}
+    logger.info("Donation POST endpoint called")
+    try:
+        await db.execute(
+            """
+            INSERT INTO donations (name, tamil_name, description, price_usd, icon, category, enabled, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            """,
+            donation.get("name"),
+            donation.get("tamil_name"),
+            donation.get("description"),
+            float(donation.get("price_usd", 0)),
+            donation.get("icon", "🪔"),
+            donation.get("category", "offering"),
+            donation.get("enabled", True)
+        )
+        logger.info(f"Donation created: {donation.get('name')}")
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error creating donation: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create donation") from e
 
 @router.put("/donations/{donation_id}")
 async def update_donation(donation_id: str, donation: dict = Body(...), db=Depends(get_db)):
-    print("DONATION PUT CALLED")
-    result = await db.execute(
-        """
-        UPDATE donations SET name=$1, tamil_name=$2, description=$3, price_usd=$4, 
-                            icon=$5, category=$6, enabled=$7, updated_at=NOW()
-        WHERE id=$8
-        """,
-        donation.get("name"),
-        donation.get("tamil_name"),
-        donation.get("description"),
-        float(donation.get("price_usd", 0)),
-        donation.get("icon", "🪔"),
-        donation.get("category", "offering"),
-        donation.get("enabled", True),
-        donation_id
-    )
-    if result == "UPDATE 0":
-        return {"success": False, "error": "Donation not found"}, 404
-    return {"success": True}
+    logger.info(f"Donation PUT endpoint called for ID: {donation_id}")
+    try:
+        result = await db.execute(
+            """
+            UPDATE donations SET name=$1, tamil_name=$2, description=$3, price_usd=$4, 
+                                icon=$5, category=$6, enabled=$7, updated_at=NOW()
+            WHERE id=$8
+            """,
+            donation.get("name"),
+            donation.get("tamil_name"),
+            donation.get("description"),
+            float(donation.get("price_usd", 0)),
+            donation.get("icon", "🪔"),
+            donation.get("category", "offering"),
+            donation.get("enabled", True),
+            donation_id
+        )
+        if result == "UPDATE 0":
+            logger.warning(f"Donation not found for update: {donation_id}")
+            raise HTTPException(status_code=404, detail="Donation not found")
+        logger.info(f"Donation updated: {donation_id}")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating donation {donation_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update donation") from e
 
 @router.delete("/donations/{donation_id}")
 async def delete_donation(donation_id: str, db=Depends(get_db)):
-    print("DONATION DELETE CALLED")
-    result = await db.execute(
-        "UPDATE donations SET enabled=FALSE WHERE id=$1",
-        donation_id
-    )
-    if result == "UPDATE 0":
-        return {"success": False, "error": "Donation not found"}, 404
-    return {"success": True}
+    logger.info(f"Donation DELETE endpoint called for ID: {donation_id}")
+    try:
+        result = await db.execute(
+            "UPDATE donations SET enabled=FALSE WHERE id=$1",
+            donation_id
+        )
+        if result == "UPDATE 0":
+            logger.warning(f"Donation not found for deletion: {donation_id}")
+            raise HTTPException(status_code=404, detail="Donation not found")
+        logger.info(f"Donation disabled: {donation_id}")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting donation {donation_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete donation") from e
 
 # --- CREDIT PACKAGES ENDPOINTS ---
 @router.get("/credit-packages")
 async def get_credit_packages(db=Depends(get_db)):
-    print("CREDIT PACKAGES GET CALLED")
-    result = await db.fetch("SELECT * FROM credit_packages ORDER BY credits_amount")
-    return [
-        {
-            "id": str(row["id"]),
-            "name": row["name"],
-            "credits_amount": row["credits_amount"],
-            "price_usd": float(row["price_usd"]),
-            "bonus_credits": row["bonus_credits"],
-            "stripe_product_id": row["stripe_product_id"],
-            "stripe_price_id": row["stripe_price_id"],
-            "enabled": row["enabled"],
-            "created_at": row["created_at"].isoformat() if row["created_at"] else None
-        }
-        for row in result
-    ]
+    logger.info("Credit packages GET endpoint called")
+    try:
+        result = await db.fetch("SELECT * FROM credit_packages ORDER BY credits_amount")
+        return [
+            {
+                "id": str(row["id"]),
+                "name": row["name"],
+                "credits_amount": row["credits_amount"],
+                "price_usd": float(row["price_usd"]),
+                "bonus_credits": row["bonus_credits"],
+                "stripe_product_id": row["stripe_product_id"],
+                "stripe_price_id": row["stripe_price_id"],
+                "enabled": row["enabled"],
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None
+            }
+            for row in result
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching credit packages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch credit packages") from e
 
 @router.post("/credit-packages")
 async def create_credit_package(package: dict = Body(...), db=Depends(get_db)):
-    print("CREDIT PACKAGE POST CALLED")
-    await db.execute(
-        """
-        INSERT INTO credit_packages (name, credits_amount, price_usd, bonus_credits, 
-                                   stripe_product_id, stripe_price_id, enabled, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
-        """,
-        package.get("name"),
-        int(package.get("credits_amount", 0)),
-        float(package.get("price_usd", 0)),
-        int(package.get("bonus_credits", 0)),
-        package.get("stripe_product_id"),
-        package.get("stripe_price_id"),
-        package.get("enabled", True)
-    )
-    return {"success": True}
+    logger.info("Credit package POST endpoint called")
+    try:
+        await db.execute(
+            """
+            INSERT INTO credit_packages (name, credits_amount, price_usd, bonus_credits, 
+                                       stripe_product_id, stripe_price_id, enabled, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+            """,
+            package.get("name"),
+            int(package.get("credits_amount", 0)),
+            float(package.get("price_usd", 0)),
+            int(package.get("bonus_credits", 0)),
+            package.get("stripe_product_id"),
+            package.get("stripe_price_id"),
+            package.get("enabled", True)
+        )
+        logger.info(f"Credit package created: {package.get('name')}")
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error creating credit package: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create credit package") from e
 
 @router.put("/credit-packages/{package_id}")
 async def update_credit_package(package_id: str, package: dict = Body(...), db=Depends(get_db)):
-    print("CREDIT PACKAGE PUT CALLED")
-    result = await db.execute(
-        """
-        UPDATE credit_packages SET name=$1, credits_amount=$2, price_usd=$3, bonus_credits=$4,
-                                 stripe_product_id=$5, stripe_price_id=$6, enabled=$7, updated_at=NOW()
-        WHERE id=$8
-        """,
-        package.get("name"),
-        int(package.get("credits_amount", 0)),
-        float(package.get("price_usd", 0)),
-        int(package.get("bonus_credits", 0)),
-        package.get("stripe_product_id"),
-        package.get("stripe_price_id"),
-        package.get("enabled", True),
-        package_id
-    )
-    if result == "UPDATE 0":
-        return {"success": False, "error": "Credit package not found"}, 404
-    return {"success": True}
+    logger.info(f"Credit package PUT endpoint called for ID: {package_id}")
+    try:
+        result = await db.execute(
+            """
+            UPDATE credit_packages SET name=$1, credits_amount=$2, price_usd=$3, bonus_credits=$4,
+                                     stripe_product_id=$5, stripe_price_id=$6, enabled=$7, updated_at=NOW()
+            WHERE id=$8
+            """,
+            package.get("name"),
+            int(package.get("credits_amount", 0)),
+            float(package.get("price_usd", 0)),
+            int(package.get("bonus_credits", 0)),
+            package.get("stripe_product_id"),
+            package.get("stripe_price_id"),
+            package.get("enabled", True),
+            package_id
+        )
+        if result == "UPDATE 0":
+            logger.warning(f"Credit package not found for update: {package_id}")
+            raise HTTPException(status_code=404, detail="Credit package not found")
+        logger.info(f"Credit package updated: {package_id}")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating credit package {package_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update credit package") from e
 
 @router.delete("/credit-packages/{package_id}")
 async def delete_credit_package(package_id: str, db=Depends(get_db)):
-    print("CREDIT PACKAGE DELETE CALLED")
-    result = await db.execute(
-        "DELETE FROM credit_packages WHERE id=$1",
-        package_id
-    )
-    if result == "DELETE 0":
-        return {"success": False, "error": "Credit package not found"}, 404
-    return {"success": True}
+    logger.info(f"Credit package DELETE endpoint called for ID: {package_id}")
+    try:
+        result = await db.execute(
+            "DELETE FROM credit_packages WHERE id=$1",
+            package_id
+        )
+        if result == "DELETE 0":
+            logger.warning(f"Credit package not found for deletion: {package_id}")
+            raise HTTPException(status_code=404, detail="Credit package not found")
+        logger.info(f"Credit package deleted: {package_id}")
+        return {"success": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting credit package {package_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to delete credit package") from e
 
 # --- PROKERALA SMART PRICING ENDPOINTS ---
 @router.get("/pricing/prokerala-cost/{service_id}")
@@ -485,15 +585,15 @@ async def get_prokerala_config(db=Depends(get_db)):
 # --- PRODUCT ENDPOINTS (must be below service-types endpoints) ---
 @router.post("/{product_id}")
 async def update_product_post(product_id: uuid.UUID, product: dict = Body(...)):
-    print("PRODUCT POST CALLED")
+    logger.info(f"Product POST endpoint called for ID: {product_id}")
     return {"success": True, "debug": f"product endpoint hit for {product_id}"}
 
 @router.put("/{product_id}")
 async def update_product(product_id: uuid.UUID, product: dict = Body(...)):
-    print("PRODUCT PUT CALLED")
+    logger.info(f"Product PUT endpoint called for ID: {product_id}")
     return {"success": True, "debug": f"product endpoint hit for {product_id}"}
 
 @router.delete("/{product_id}")
 async def delete_product(product_id: uuid.UUID):
-    print("PRODUCT DELETE CALLED")
+    logger.info(f"Product DELETE endpoint called for ID: {product_id}")
     return {"success": True, "debug": f"product endpoint hit for {product_id}"} 
