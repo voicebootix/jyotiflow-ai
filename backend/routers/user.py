@@ -56,22 +56,9 @@ def get_user_id_as_int(request: Request) -> int | None:
 # தமிழ் - பயனர் சுயவிவரம் பெறுதல்
 @router.get("/profile")
 async def get_profile(request: Request, db=Depends(get_db)):
-    user_id = get_user_id_as_int(request)
-    if not user_id:
+    user_id_int = get_user_id_as_int(request)  # Already returns int or None
+    if not user_id_int:
         # Return guest user profile for non-authenticated requests
-        return {
-            "id": "guest",
-            "email": "guest@jyotiflow.ai",
-            "name": "Guest User",
-            "full_name": "Guest User",
-            "credits": 0,
-            "role": "guest",
-            "created_at": datetime.now(timezone.utc)
-        }
-    
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        # Return guest user profile for invalid user IDs (maintain fallback behavior)
         return {
             "id": "guest",
             "email": "guest@jyotiflow.ai",
@@ -107,13 +94,9 @@ async def get_profile(request: Request, db=Depends(get_db)):
 
 @router.get("/credits")
 async def get_credits(request: Request, db=Depends(get_db)):
-    user_id = get_user_id_as_int(request)
-    if not user_id:
+    user_id_int = get_user_id_as_int(request)  # Already returns int or None
+    if not user_id_int:
         return {"success": True, "data": {"credits": 0}}
-    
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        return {"success": False, "error": "Invalid user ID"}
     
     user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id_int)
     if not user:
