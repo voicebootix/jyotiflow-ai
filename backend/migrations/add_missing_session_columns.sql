@@ -38,4 +38,15 @@ BEGIN
         RAISE NOTICE '✅ service_type column already exists in sessions table';
     END IF;
 
+    -- Check if user_id column exists (used in WHERE clauses)
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'sessions' AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE sessions ADD COLUMN user_id INTEGER;
+        RAISE NOTICE '✅ Added user_id column to sessions table';
+    ELSE
+        RAISE NOTICE '✅ user_id column already exists in sessions table';
+    END IF;
+
 END $$;

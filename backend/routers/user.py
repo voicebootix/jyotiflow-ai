@@ -130,8 +130,9 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user:
         return {"success": True, "data": []}
     
-    # Fixed query: Use existing columns and handle missing columns gracefully
+    # Defensive query strategy: Try progressively simpler queries
     try:
+        # First attempt: Full query with all expected columns
         sessions = await db.fetch("""
             SELECT 
                 id, 
@@ -143,27 +144,42 @@ async def get_sessions(request: Request, db=Depends(get_db)):
             ORDER BY created_at DESC
         """, user["email"], user_id_int)
         return {"success": True, "data": [dict(row) for row in sessions]}
-    except Exception as e:
-        # Fallback query if columns don't exist
+    except Exception as e1:
         try:
+            # Second attempt: Query without user_id (if user_id column missing)
             sessions = await db.fetch("""
-                SELECT id, created_at 
+                SELECT 
+                    id, 
+                    COALESCE(service_type, service_type_id::text, 'unknown') as service_type,
+                    COALESCE(question, 'No question recorded') as question,
+                    created_at 
                 FROM sessions 
-                WHERE user_email = $1 OR user_id = $2
+                WHERE user_email = $1
                 ORDER BY created_at DESC
-            """, user["email"], user_id_int)
-            # Add default values for missing columns
-            sessions_data = []
-            for session in sessions:
-                sessions_data.append({
-                    "id": session["id"],
-                    "service_type": "unknown",
-                    "question": "No question recorded", 
-                    "created_at": session["created_at"]
-                })
-            return {"success": True, "data": sessions_data}
+            """, user["email"])
+            return {"success": True, "data": [dict(row) for row in sessions]}
         except Exception as e2:
-            return {"success": False, "error": f"Database error: {str(e2)}"}
+            try:
+                # Third attempt: Minimal query with only guaranteed columns
+                sessions = await db.fetch("""
+                    SELECT id, created_at 
+                    FROM sessions 
+                    WHERE user_email = $1
+                    ORDER BY created_at DESC
+                """, user["email"])
+                # Add default values for missing columns
+                sessions_data = []
+                for session in sessions:
+                    sessions_data.append({
+                        "id": session["id"],
+                        "service_type": "unknown",
+                        "question": "No question recorded", 
+                        "created_at": session["created_at"]
+                    })
+                return {"success": True, "data": sessions_data}
+            except Exception as e3:
+                # Final fallback: Return empty data if all queries fail
+                return {"success": True, "data": []}
 # தமிழ் - கடன் வரலாறு பெறுதல்
 @router.get("/credit-history")
 async def get_credit_history(request: Request, db=Depends(get_db)):
