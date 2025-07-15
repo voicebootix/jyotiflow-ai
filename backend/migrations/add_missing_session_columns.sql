@@ -20,6 +20,9 @@ BEGIN
     ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS service_type VARCHAR(100);
     RAISE NOTICE '✅ Ensured service_type column exists in public.sessions table';
 
+    ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS service_type_id INTEGER;
+    RAISE NOTICE '✅ Ensured service_type_id column exists in public.sessions table';
+
     ALTER TABLE public.sessions ADD COLUMN IF NOT EXISTS user_id INTEGER;
     RAISE NOTICE '✅ Ensured user_id column exists in public.sessions table';
 

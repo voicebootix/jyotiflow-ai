@@ -37,6 +37,10 @@ BEGIN
     EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS service_type VARCHAR(100)', target_schema_name);
     RAISE NOTICE '✅ Ensured service_type column exists in %.sessions table', target_schema_name;
 
+    -- Add service_type_id column (idempotent)
+    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS service_type_id INTEGER', target_schema_name);
+    RAISE NOTICE '✅ Ensured service_type_id column exists in %.sessions table', target_schema_name;
+
     -- Add user_id column (idempotent)
     EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS user_id INTEGER', target_schema_name);
     RAISE NOTICE '✅ Ensured user_id column exists in %.sessions table', target_schema_name;
