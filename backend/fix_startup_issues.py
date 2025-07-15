@@ -34,6 +34,7 @@ class JyotiFlowStartupFixer:
     async def _create_robust_connection(self, max_retries: int = 5):
         """Create a robust database connection with progressive backoff"""
         for attempt in range(max_retries):
+            conn = None
             try:
                 # Progressive timeout: starts at 30s, increases by 10s each attempt
                 timeout = 30.0 + (attempt * 10)
@@ -46,10 +47,23 @@ class JyotiFlowStartupFixer:
                     timeout=timeout
                 )
                 
-                # Verify connection health
-                await conn.fetchval("SELECT 1")
-                return conn
+                # Verify connection health - separate try block to ensure cleanup
+                try:
+                    await conn.fetchval("SELECT 1")
+                    return conn
+                except Exception as health_error:
+                    # Health check failed - close connection before re-raising
+                    await conn.close()
+                    raise health_error
+                    
             except (asyncio.TimeoutError, Exception) as e:
+                # Ensure connection is closed if it was created but health check failed
+                if conn is not None:
+                    try:
+                        await conn.close()
+                    except Exception:
+                        pass  # Ignore cleanup errors
+                        
                 if attempt == max_retries - 1:
                     raise
                 delay = min(2 ** attempt, 10)  # Cap delay at 10 seconds
@@ -59,6 +73,7 @@ class JyotiFlowStartupFixer:
     async def _create_robust_pool(self, max_retries: int = 5):
         """Create a robust database pool with enhanced settings"""
         for attempt in range(max_retries):
+            pool = None
             try:
                 # Progressive timeout: starts at 40s, increases by 10s each attempt
                 timeout = 40.0 + (attempt * 10)
@@ -73,11 +88,24 @@ class JyotiFlowStartupFixer:
                     timeout=timeout
                 )
                 
-                # Test pool health
-                async with pool.acquire() as conn:
-                    await conn.fetchval("SELECT 1")
-                return pool
+                # Test pool health - separate try block to ensure cleanup
+                try:
+                    async with pool.acquire() as conn:
+                        await conn.fetchval("SELECT 1")
+                    return pool
+                except Exception as health_error:
+                    # Health check failed - close pool before re-raising
+                    await pool.close()
+                    raise health_error
+                    
             except (asyncio.TimeoutError, Exception) as e:
+                # Ensure pool is closed if it was created but health check failed
+                if pool is not None:
+                    try:
+                        await pool.close()
+                    except Exception:
+                        pass  # Ignore cleanup errors
+                        
                 if attempt == max_retries - 1:
                     raise
                 delay = min(2 ** attempt, 10)  # Cap delay at 10 seconds
