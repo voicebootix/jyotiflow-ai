@@ -208,13 +208,19 @@ async def lifespan(app: FastAPI):
         # await apply_migrations()
         print("⏭️ Skipping migrations - Database already set up")
         
-        # Initialize database connection pool
+        # Initialize database connection pool with enhanced settings
         global db_pool
         db_pool = await asyncpg.create_pool(
             DATABASE_URL,
             min_size=5,
             max_size=20,
-            command_timeout=60
+            command_timeout=60,
+            server_settings={
+                'application_name': 'jyotiflow_main_pool',
+                'tcp_keepalives_idle': '600',
+                'tcp_keepalives_interval': '60',
+                'tcp_keepalives_count': '5'
+            }
         )
         
         # Set the pool in the db module for all routers to use

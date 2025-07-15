@@ -18,42 +18,66 @@ class JyotiFlowStartupFixer:
     def __init__(self):
         self.database_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
         
-        # Enhanced connection settings
+        # Enhanced connection settings - optimized for Render environment
         self.connection_config = {
-            'min_size': 1,
-            'max_size': 3,
-            'command_timeout': 30,
+            'min_size': 2,
+            'max_size': 10,
+            'command_timeout': 60,
             'server_settings': {
                 'application_name': 'jyotiflow_startup_fixer',
-                'tcp_keepalives_idle': '300',
-                'tcp_keepalives_interval': '30',
-                'tcp_keepalives_count': '3'
+                'tcp_keepalives_idle': '600',
+                'tcp_keepalives_interval': '60',
+                'tcp_keepalives_count': '5'
             }
         }
         
-    async def _create_robust_connection(self, max_retries: int = 3):
-        """Create a robust database connection with retry logic"""
+    async def _create_robust_connection(self, max_retries: int = 5):
+        """Create a robust database connection with progressive backoff"""
         for attempt in range(max_retries):
+            conn = None
             try:
+                # Progressive timeout: starts at 30s, increases by 10s each attempt
+                timeout = 30.0 + (attempt * 10)
                 conn = await asyncio.wait_for(
                     asyncpg.connect(
                         self.database_url,
                         command_timeout=self.connection_config['command_timeout'],
                         server_settings=self.connection_config['server_settings']
                     ),
-                    timeout=15.0  # 15 second timeout for connection
+                    timeout=timeout
                 )
-                return conn
+                
+                # Verify connection health - separate try block to ensure cleanup
+                try:
+                    await conn.fetchval("SELECT 1")
+                    return conn
+                except Exception as health_error:
+                    # Health check failed - close connection before re-raising
+                    await conn.close()
+                    conn = None  # Prevent double-close in outer handler
+                    raise health_error
+                    
             except (asyncio.TimeoutError, Exception) as e:
+                # Ensure connection is closed if it was created but health check failed
+                if conn is not None:
+                    try:
+                        await conn.close()
+                    except Exception:
+                        pass  # Ignore cleanup errors
+                        
                 if attempt == max_retries - 1:
                     raise
-                logger.warning(f"Connection attempt {attempt + 1} failed: {e}, retrying...")
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                delay = min(2 ** attempt, 10)  # Cap delay at 10 seconds
+                logger.warning(f"Connection attempt {attempt + 1} failed: {e}, retrying in {delay}s...")
+                await asyncio.sleep(delay)
         
-    async def _create_robust_pool(self, max_retries: int = 3):
+    async def _create_robust_pool(self, max_retries: int = 5):
         """Create a robust database pool with enhanced settings"""
         for attempt in range(max_retries):
+            pool = None
             try:
+                # Progressive timeout: starts at 40s, increases by 10s each attempt
+                timeout = 40.0 + (attempt * 10)
                 pool = await asyncio.wait_for(
                     asyncpg.create_pool(
                         self.database_url,
@@ -62,14 +86,33 @@ class JyotiFlowStartupFixer:
                         command_timeout=self.connection_config['command_timeout'],
                         server_settings=self.connection_config['server_settings']
                     ),
-                    timeout=20.0  # 20 second timeout for pool creation
+                    timeout=timeout
                 )
-                return pool
+                
+                # Test pool health - separate try block to ensure cleanup
+                try:
+                    async with pool.acquire() as conn:
+                        await conn.fetchval("SELECT 1")
+                    return pool
+                except Exception as health_error:
+                    # Health check failed - close pool before re-raising
+                    await pool.close()
+                    pool = None  # Prevent double-close in outer handler
+                    raise health_error
+                    
             except (asyncio.TimeoutError, Exception) as e:
+                # Ensure pool is closed if it was created but health check failed
+                if pool is not None:
+                    try:
+                        await pool.close()
+                    except Exception:
+                        pass  # Ignore cleanup errors
+                        
                 if attempt == max_retries - 1:
                     raise
-                logger.warning(f"Pool creation attempt {attempt + 1} failed: {e}, retrying...")
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
+                delay = min(2 ** attempt, 10)  # Cap delay at 10 seconds
+                logger.warning(f"Pool creation attempt {attempt + 1} failed: {e}, retrying in {delay}s...")
+                await asyncio.sleep(delay)
     
     async def fix_all_issues(self):
         """Fix all identified startup issues"""
