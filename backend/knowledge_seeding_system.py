@@ -534,8 +534,14 @@ class KnowledgeSeeder:
             if vector_support:
                 embedding_data = embedding
             else:
-                # Store as JSON string when pgvector is not available
-                embedding_data = json.dumps(embedding)
+                # Ensure embedding is a list, not a JSON string
+                if isinstance(embedding, str):
+                    try:
+                        embedding_data = json.loads(embedding)
+                    except json.JSONDecodeError:
+                        embedding_data = embedding
+                else:
+                    embedding_data = embedding
             
             # Add to database - handle both pool and direct connection
             if self.db_pool:
@@ -651,7 +657,14 @@ class KnowledgeSeeder:
                         if vector_support:
                             embedding_data = embedding
                         else:
-                            embedding_data = json.dumps(embedding)
+                            # Ensure embedding is a list, not a JSON string
+                            if isinstance(embedding, str):
+                                try:
+                                    embedding_data = json.loads(embedding)
+                                except json.JSONDecodeError:
+                                    embedding_data = embedding
+                            else:
+                                embedding_data = embedding
                         
                         # Check if content_type column exists
                         content_type_exists = await conn.fetchval("""

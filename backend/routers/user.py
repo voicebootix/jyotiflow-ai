@@ -104,8 +104,8 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id)
     if not user:
         return {"success": True, "data": []}
-    # Fixed: Changed service_type to service_type_id to match database schema
-    sessions = await db.fetch("SELECT id, service_type_id, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
+    # Fixed: Changed service_type_id to service_type to match database schema
+    sessions = await db.fetch("SELECT id, service_type, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
     return {"success": True, "data": [dict(row) for row in sessions]}
 
 @router.get("/cosmic-insights")
