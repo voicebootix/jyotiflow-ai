@@ -2,6 +2,7 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict, Any
 from auth.jwt_config import JWTHandler
+from auth.auth_helpers import AuthenticationHelper
 from datetime import datetime, timezone
 import os
 
@@ -23,7 +24,7 @@ async def get_current_user(request: Request) -> Dict[str, Any]:
     """
     Dependency to get current authenticated user using centralized JWT handler
     """
-    return JWTHandler.get_full_user_info(request)
+    return AuthenticationHelper.get_user_info_strict(request)
 
 async def get_current_user_legacy(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)) -> Dict[str, Any]:
     """
@@ -53,22 +54,19 @@ async def get_current_admin(request: Request) -> Dict[str, Any]:
     """
     Dependency to get current authenticated admin using centralized JWT handler
     """
-    return JWTHandler.verify_admin_access(request)
+    return AuthenticationHelper.verify_admin_access_strict(request)
 
 async def get_current_admin_dependency(request: Request) -> Dict[str, Any]:
     """
     FastAPI dependency to get current authenticated admin
     """
-    return JWTHandler.verify_admin_access(request)
+    return AuthenticationHelper.verify_admin_access_strict(request)
 
 async def get_current_user_optional(request: Request) -> Dict[str, Any] | None:
     """
     Optional authentication - returns None if not authenticated
     """
-    try:
-        return JWTHandler.get_full_user_info(request)
-    except HTTPException:
-        return None
+    return AuthenticationHelper.get_user_info_optional(request)
 
 async def get_admin_user(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
     """
