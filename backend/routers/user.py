@@ -18,7 +18,6 @@ from auth.auth_helpers import AuthenticationHelper
 router = APIRouter(prefix="/api/user", tags=["User"])
 logger = logging.getLogger(__name__)
 
-<<<<<<< HEAD
 def get_user_id_from_token(request: Request) -> str | None:
     """Extract user ID from JWT token - OPTIONAL"""
     try:
@@ -26,14 +25,14 @@ def get_user_id_from_token(request: Request) -> str | None:
     except Exception:
         return None
 
-<<<<<<< HEAD
 def get_user_id_as_int(request: Request) -> int | None:
     """Extract user ID from JWT token and convert to integer - OPTIONAL"""
     try:
         user_id_str = JWTHandler.get_user_id_from_token(request)
         return int(user_id_str) if user_id_str else None
     except (ValueError, TypeError):
-=======
+        return None
+
 def convert_user_id_to_int(user_id: str | None) -> int | None:
     """Convert string user_id to integer for database queries"""
     if not user_id:
@@ -41,13 +40,7 @@ def convert_user_id_to_int(user_id: str | None) -> int | None:
     try:
         return int(user_id)
     except ValueError:
->>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
         return None
-=======
-# Use centralized authentication helpers - no duplication
-get_user_id_from_token = AuthenticationHelper.get_user_id_optional
-convert_user_id_to_int = AuthenticationHelper.convert_user_id_to_int
->>>>>>> 4b2b2c044fce8f71dd347a6e9148bb33d133aed0
 
 # தமிழ் - பயனர் சுயவிவரம் பெறுதல்
 @router.get("/profile")
@@ -118,21 +111,17 @@ async def get_credits(request: Request, db=Depends(get_db)):
 
 @router.get("/sessions")
 async def get_sessions(request: Request, db=Depends(get_db)):
-    user_id = get_user_id_as_int(request)
-    if not user_id:
+    user_id_int = get_user_id_as_int(request)  # Already returns int or None
+    if not user_id_int:
         return {"success": True, "data": []}
-    
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        return {"success": False, "error": "Invalid user ID"}
     
     user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id_int)
     if not user:
         return {"success": True, "data": []}
     
-    # Defensive query strategy: Try progressively simpler queries
+    # Defensive query strategy: Progressive simplification to handle missing columns
     try:
-        # First attempt: Full query with all expected columns
+        # Level 1: Full query with all expected columns
         sessions = await db.fetch("""
             SELECT 
                 id, 
@@ -146,40 +135,26 @@ async def get_sessions(request: Request, db=Depends(get_db)):
         return {"success": True, "data": [dict(row) for row in sessions]}
     except Exception as e1:
         try:
-            # Second attempt: Query without user_id (if user_id column missing)
+            # Level 2: Query without user_id column and without COALESCE on potentially missing columns
             sessions = await db.fetch("""
-                SELECT 
-                    id, 
-                    COALESCE(service_type, service_type_id::text, 'unknown') as service_type,
-                    COALESCE(question, 'No question recorded') as question,
-                    created_at 
+                SELECT id, created_at 
                 FROM sessions 
                 WHERE user_email = $1
                 ORDER BY created_at DESC
             """, user["email"])
-            return {"success": True, "data": [dict(row) for row in sessions]}
+            # Add default values for missing columns
+            sessions_data = []
+            for session in sessions:
+                sessions_data.append({
+                    "id": session["id"],
+                    "service_type": "unknown",
+                    "question": "No question recorded", 
+                    "created_at": session["created_at"]
+                })
+            return {"success": True, "data": sessions_data}
         except Exception as e2:
-            try:
-                # Third attempt: Minimal query with only guaranteed columns
-                sessions = await db.fetch("""
-                    SELECT id, created_at 
-                    FROM sessions 
-                    WHERE user_email = $1
-                    ORDER BY created_at DESC
-                """, user["email"])
-                # Add default values for missing columns
-                sessions_data = []
-                for session in sessions:
-                    sessions_data.append({
-                        "id": session["id"],
-                        "service_type": "unknown",
-                        "question": "No question recorded", 
-                        "created_at": session["created_at"]
-                    })
-                return {"success": True, "data": sessions_data}
-            except Exception as e3:
-                # Final fallback: Return empty data if all queries fail
-                return {"success": True, "data": []}
+            # Final fallback: Return empty data if even basic query fails
+            return {"success": True, "data": []}
 # தமிழ் - கடன் வரலாறு பெறுதல்
 @router.get("/credit-history")
 async def get_credit_history(request: Request, db=Depends(get_db)):

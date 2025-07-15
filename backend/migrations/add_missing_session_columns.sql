@@ -2,51 +2,27 @@
 -- Add Missing Session Columns Migration
 -- ================================================================
 
--- Add question column to sessions table
+-- Add missing session columns with idempotent operations
 DO $$ 
 BEGIN
-    -- Check if question column exists in sessions table
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'question' AND table_schema = 'public'
-    ) THEN
-        ALTER TABLE sessions ADD COLUMN question TEXT;
-        RAISE NOTICE '✅ Added question column to sessions table';
-    ELSE
-        RAISE NOTICE '✅ question column already exists in sessions table';
+    -- Verify sessions table exists in public schema
+    IF to_regclass('public.sessions') IS NULL THEN
+        RAISE EXCEPTION 'sessions table does not exist in public schema. Run base DDL first.';
     END IF;
 
-    -- Check if user_email column exists in sessions table  
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'user_email' AND table_schema = 'public'
-    ) THEN
-        ALTER TABLE sessions ADD COLUMN user_email VARCHAR(255);
-        RAISE NOTICE '✅ Added user_email column to sessions table';
-    ELSE
-        RAISE NOTICE '✅ user_email column already exists in sessions table';
-    END IF;
+    -- Add columns using idempotent operations (PostgreSQL 9.6+)
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS question TEXT;
+    RAISE NOTICE '✅ Ensured question column exists in sessions table';
 
-    -- Check if service_type column exists (used by many queries)
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'service_type' AND table_schema = 'public'
-    ) THEN
-        ALTER TABLE sessions ADD COLUMN service_type VARCHAR(100);
-        RAISE NOTICE '✅ Added service_type column to sessions table';
-    ELSE
-        RAISE NOTICE '✅ service_type column already exists in sessions table';
-    END IF;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_email VARCHAR(255);
+    RAISE NOTICE '✅ Ensured user_email column exists in sessions table';
 
-    -- Check if user_id column exists (used in WHERE clauses)
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'user_id' AND table_schema = 'public'
-    ) THEN
-        ALTER TABLE sessions ADD COLUMN user_id INTEGER;
-        RAISE NOTICE '✅ Added user_id column to sessions table';
-    ELSE
-        RAISE NOTICE '✅ user_id column already exists in sessions table';
-    END IF;
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS service_type VARCHAR(100);
+    RAISE NOTICE '✅ Ensured service_type column exists in sessions table';
+
+    ALTER TABLE sessions ADD COLUMN IF NOT EXISTS user_id INTEGER;
+    RAISE NOTICE '✅ Ensured user_id column exists in sessions table';
+
+    RAISE NOTICE '🎉 Migration completed successfully - all columns ensured';
 
 END $$;

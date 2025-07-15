@@ -20,57 +20,26 @@ DECLARE
 BEGIN
     RAISE NOTICE 'Running migration for schema: %', target_schema_name;
 
-    -- Check if question column exists in sessions table
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' 
-        AND column_name = 'question' 
-        AND table_schema = target_schema_name
-    ) THEN
-        EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN question TEXT', target_schema_name);
-        RAISE NOTICE '✅ Added question column to %.sessions table', target_schema_name;
-    ELSE
-        RAISE NOTICE '✅ question column already exists in %.sessions table', target_schema_name;
+    -- Bail out early if the sessions table itself is missing
+    IF to_regclass(format('%I.sessions', target_schema_name)) IS NULL THEN
+        RAISE EXCEPTION 'sessions table does not exist in schema %.  Run base DDL first.', target_schema_name;
     END IF;
 
-    -- Check if user_email column exists in sessions table  
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' 
-        AND column_name = 'user_email' 
-        AND table_schema = target_schema_name
-    ) THEN
-        EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN user_email VARCHAR(255)', target_schema_name);
-        RAISE NOTICE '✅ Added user_email column to %.sessions table', target_schema_name;
-    ELSE
-        RAISE NOTICE '✅ user_email column already exists in %.sessions table', target_schema_name;
-    END IF;
+    -- Add question column (idempotent)
+    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS question TEXT', target_schema_name);
+    RAISE NOTICE '✅ Ensured question column exists in %.sessions table', target_schema_name;
 
-    -- Check if service_type column exists (used by many queries)
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' 
-        AND column_name = 'service_type' 
-        AND table_schema = target_schema_name
-    ) THEN
-        EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN service_type VARCHAR(100)', target_schema_name);
-        RAISE NOTICE '✅ Added service_type column to %.sessions table', target_schema_name;
-    ELSE
-        RAISE NOTICE '✅ service_type column already exists in %.sessions table', target_schema_name;
-    END IF;
+    -- Add user_email column (idempotent)
+    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS user_email VARCHAR(255)', target_schema_name);
+    RAISE NOTICE '✅ Ensured user_email column exists in %.sessions table', target_schema_name;
 
-    -- Check if user_id column exists (used in WHERE clauses)
-    IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' 
-        AND column_name = 'user_id' 
-        AND table_schema = target_schema_name
-    ) THEN
-        EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN user_id INTEGER', target_schema_name);
-        RAISE NOTICE '✅ Added user_id column to %.sessions table', target_schema_name;
-    ELSE
-        RAISE NOTICE '✅ user_id column already exists in %.sessions table', target_schema_name;
-    END IF;
+    -- Add service_type column (idempotent)
+    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS service_type VARCHAR(100)', target_schema_name);
+    RAISE NOTICE '✅ Ensured service_type column exists in %.sessions table', target_schema_name;
+
+    -- Add user_id column (idempotent)
+    EXECUTE format('ALTER TABLE %I.sessions ADD COLUMN IF NOT EXISTS user_id INTEGER', target_schema_name);
+    RAISE NOTICE '✅ Ensured user_id column exists in %.sessions table', target_schema_name;
 
     RAISE NOTICE '🎉 Migration completed for schema: %', target_schema_name;
 
