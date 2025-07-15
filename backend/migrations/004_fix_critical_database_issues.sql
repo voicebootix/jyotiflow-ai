@@ -145,17 +145,20 @@ BEGIN
             
             -- Instead, implement a proper approach that preserves data integrity
             BEGIN
-                -- First, create a permanent backup table (not TEMP) to preserve data across sessions
-                -- This prevents data loss when the database session ends
-                DROP TABLE IF EXISTS public.plan_id_backup_migration;
-                CREATE TABLE public.plan_id_backup_migration AS 
-                SELECT id, plan_id, plan_id::text as plan_id_text, 
-                       CURRENT_TIMESTAMP as backup_created_at
-                FROM public.user_subscriptions 
-                WHERE plan_id IS NOT NULL;
-                
-                RAISE NOTICE '✅ Created permanent backup table: public.plan_id_backup_migration';
-                
+                -- Create a permanent backup table (not TEMP) to preserve data across sessions
+                -- Only create if it does not already exist
+                IF EXISTS (
+                    SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'plan_id_backup_migration'
+                ) THEN
+                    RAISE NOTICE '⚠️  Backup table public.plan_id_backup_migration already exists. Skipping backup creation to avoid overwriting.';
+                ELSE
+                    CREATE TABLE public.plan_id_backup_migration AS 
+                    SELECT id, plan_id, plan_id::text as plan_id_text, 
+                           CURRENT_TIMESTAMP as backup_created_at
+                    FROM public.user_subscriptions 
+                    WHERE plan_id IS NOT NULL;
+                    RAISE NOTICE '✅ Created permanent backup table: public.plan_id_backup_migration';
+                END IF;
                 -- Check if plan_id column has NOT NULL constraint
                 IF EXISTS (
                     SELECT 1 FROM information_schema.columns 
@@ -163,42 +166,29 @@ BEGIN
                     AND column_name = 'plan_id' 
                     AND is_nullable = 'NO'
                 ) THEN
-                    -- Drop NOT NULL constraint before setting values to NULL
                     ALTER TABLE public.user_subscriptions ALTER COLUMN plan_id DROP NOT NULL;
                     RAISE NOTICE '✅ Dropped NOT NULL constraint on plan_id column';
                 END IF;
-                
-                -- Check if we have existing subscription_plans to map to
+                -- Only set plan_id to NULL if subscription_plans table exists
                 IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'subscription_plans') THEN
-                    -- If subscription_plans table exists, we need to map UUIDs to existing plan IDs
-                    -- Set all UUID plan_ids to NULL to prevent foreign key constraint issues
-                    -- This preserves the data in the permanent backup table for manual mapping later
                     UPDATE public.user_subscriptions 
                     SET plan_id = NULL 
                     WHERE plan_id IS NOT NULL;
-                    
                     RAISE NOTICE '⚠️  Set all UUID plan_id values to NULL to prevent constraint issues';
                     RAISE NOTICE '📋 UUID values are preserved in public.plan_id_backup_migration table';
                     RAISE NOTICE '🔧 Manual intervention required: Map UUIDs to subscription_plans.id values';
-                    
+                    RAISE NOTICE '   - Records set to NULL: %', (SELECT COUNT(*) FROM public.user_subscriptions WHERE plan_id IS NULL);
                 ELSE
-                    -- If no subscription_plans table exists, keep plan_id as UUID
-                    -- This prevents data loss and allows proper setup later
                     RAISE NOTICE '⚠️  No subscription_plans table found - keeping plan_id as UUID type';
                     RAISE NOTICE '📋 Create subscription_plans table first, then run this migration again';
-                    -- Cannot RETURN inside DO block; control simply falls through
                 END IF;
-                
-                -- Log the conversion results for audit purposes
                 RAISE NOTICE '📊 Data preservation summary:';
                 RAISE NOTICE '   - Total records with plan_id: %', (SELECT COUNT(*) FROM public.plan_id_backup_migration);
-                RAISE NOTICE '   - Records set to NULL: %', (SELECT COUNT(*) FROM public.user_subscriptions WHERE plan_id IS NULL);
                 RAISE NOTICE '   - Permanent backup table: public.plan_id_backup_migration';
-                
+                RAISE NOTICE '   - After migration and manual mapping, drop the backup table to clean up.';
             EXCEPTION WHEN OTHERS THEN
                 RAISE NOTICE '❌ Failed to process plan_id column: %', SQLERRM;
                 RAISE NOTICE '⚠️  Keeping plan_id as UUID type - manual intervention required';
-                -- Cannot RETURN inside DO block; control simply falls through
             END;
             
             -- Note: Foreign key constraint will be added after manual UUID to INTEGER mapping

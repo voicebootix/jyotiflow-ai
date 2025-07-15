@@ -10,15 +10,31 @@
 CREATE TABLE IF NOT EXISTS public.sessions (
     id SERIAL PRIMARY KEY,
     session_id VARCHAR(255) UNIQUE NOT NULL,
-    user_email VARCHAR(255) NOT NULL,
-    service_type VARCHAR(100) NOT NULL,
-    question TEXT,
-    answer TEXT,
+    user_email VARCHAR(255),
+    user_id TEXT,
+    service_type TEXT NOT NULL,
+    duration_minutes INTEGER DEFAULT 0,
     credits_used INTEGER DEFAULT 0,
+    session_data TEXT,
+    question TEXT,
+    birth_details JSONB,
+    status VARCHAR(50) DEFAULT 'active',
+    result_summary TEXT,
+    full_result TEXT,
+    guidance TEXT,
+    avatar_video_url VARCHAR(500),
+    avatar_duration_seconds INTEGER,
+    avatar_generation_cost DECIMAL(10,2),
+    voice_synthesis_used BOOLEAN DEFAULT false,
+    avatar_quality VARCHAR(20) DEFAULT 'high',
+    original_price DECIMAL(10,2),
+    user_rating INTEGER CHECK (user_rating >= 1 AND user_rating <= 5),
+    user_feedback TEXT,
+    session_quality_score DECIMAL(3,2),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP
 );
-
 -- Note: No need to add UNIQUE constraints on id (PRIMARY KEY) or session_id (already UNIQUE)
 -- Adding redundant constraints would create duplicate indexes and slow performance
 
