@@ -200,7 +200,7 @@ db_pool = None
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan manager for startup and shutdown"""
-    # Startup
+    # Startup operations
     try:
         print("🚀 Starting JyotiFlow.ai backend...")
         
@@ -318,26 +318,25 @@ async def lifespan(app: FastAPI):
         db.set_db_pool(db_pool)
         
         print("✅ Database connection pool initialized successfully!")
-        print(f"📊 Pool configuration: min={db_pool.get_min_size()}, max={db_pool.get_max_size()}")
+        print(f"📊 Pool configuration: connections ready for use")
         print(f"🎯 Ready to serve JyotiFlow.ai API requests")
-        
-        # Yield control to the application
-        yield
         
     except Exception as e:
         print(f"❌ Backend startup failed: {str(e)}")
         print("🔧 For debugging, check your Render dashboard and environment variables")
         raise
-        
-    finally:
-        # Shutdown
-        try:
-            if db_pool:
-                print("🔄 Gracefully closing database connection pool...")
-                await db_pool.close()
-                print("✅ Database connection pool closed cleanly")
-        except Exception as e:
-            print(f"⚠️ Error during database pool cleanup: {str(e)}")
+    
+    # Yield control to the application (this runs the app)
+    yield
+    
+    # Shutdown operations (cleanup)
+    try:
+        if db_pool:
+            print("🔄 Gracefully closing database connection pool...")
+            await db_pool.close()
+            print("✅ Database connection pool closed cleanly")
+    except Exception as e:
+        print(f"⚠️ Error during database pool cleanup: {str(e)}")
 
 # Create FastAPI app with lifespan manager
 app = FastAPI(
