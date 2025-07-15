@@ -381,13 +381,23 @@ async def get_spiritual_guidance(request: Request):
             
             if rag_response and rag_response.get("success"):
                 logger.info("✅ RAG system provided enhanced guidance")
+                
+                # Add language-specific formatting if needed
+                guidance_text = rag_response["guidance"]
+                if language == "ta":
+                    # Add Tamil cultural context if not already present
+                    if "தமிழ்" not in guidance_text and "சுவாமி" not in guidance_text:
+                        guidance_text = f"சுவாமி ஜோதிரணந்தனின் ஆன்மீக வழிகாட்டுதல்:\n\n{guidance_text}"
+                
                 return {
                     "success": True,
-                    "guidance": rag_response["guidance"],
+                    "guidance": guidance_text,
                     "knowledge_sources": rag_response.get("knowledge_sources", []),
                     "persona_used": rag_response.get("persona_used", "swamiji"),
                     "analysis_sections": rag_response.get("analysis_sections", []),
-                    "source": "rag_enhanced"
+                    "source": "rag_enhanced",
+                    "language": language,
+                    "service_type": service_type
                 }
             else:
                 logger.warning("⚠️ RAG system failed, falling back to basic guidance")
@@ -395,8 +405,8 @@ async def get_spiritual_guidance(request: Request):
         except Exception as rag_error:
             logger.warning(f"⚠️ RAG system error: {rag_error}, falling back to basic guidance")
 
-        # Fallback to basic guidance if RAG fails
-        logger.info("🔄 Using fallback basic guidance system")
+        # Fallback to enhanced basic guidance if RAG fails
+        logger.info("🔄 Using enhanced basic guidance system")
         
         date = birth_details.get("date")
         time_ = birth_details.get("time")
@@ -445,34 +455,49 @@ async def get_spiritual_guidance(request: Request):
             logger.error("❌ Prokerala API error: Unable to fetch astrology info")
             return {"success": False, "message": "Prokerala API error: Unable to fetch astrology info."}
 
-        # 2. OpenAI API call (generate guidance)
-        logger.info("🤖 Calling OpenAI API for guidance generation")
+        # 2. OpenAI API call (generate enhanced guidance)
+        logger.info("🤖 Calling OpenAI API for enhanced guidance generation")
         try:
             openai.api_key = OPENAI_API_KEY
             
-            # Enhanced prompt with Swamiji persona
+            # Enhanced prompt with Swamiji persona and cultural context
+            cultural_context = ""
+            if language == "ta":
+                cultural_context = """
+                கலாச்சார சூழல்:
+                - தமிழ் ஆன்மீக மரபுகளை பயன்படுத்துங்கள்
+                - திருக்குறள், தேவாரம் போன்ற தமிழ் இலக்கியங்களை குறிப்பிடுங்கள்
+                - தமிழ் கலாச்சாரத்தின் ஆழமான புரிதலை காட்டுங்கள்
+                """
+            
             prompt = f"""
             You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions.
             
             User Question: {user_question}
             Astrology Information: {prokerala_data}
+            Service Type: {service_type}
+            {cultural_context}
             
             Please provide a spiritual, compassionate answer in {language} that:
-            1. Addresses the user's specific question
-            2. Incorporates relevant astrological insights
-            3. Offers practical spiritual guidance
+            1. Addresses the user's specific question with deep understanding
+            2. Incorporates relevant astrological insights from the birth chart
+            3. Offers practical spiritual guidance and remedies
             4. Maintains the warm, wise tone of Swami Jyotirananthan
             5. Includes cultural authenticity and traditional wisdom
+            6. Provides actionable steps for spiritual growth
+            7. Connects the astrological insights to practical life situations
             
-            Answer as Swami Jyotirananthan:
+            Answer as Swami Jyotirananthan with wisdom, compassion, and cultural authenticity:
             """
             
             openai_resp = openai.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are Swami Jyotirananthan, a wise spiritual guru with expertise in Vedic astrology and Tamil spiritual traditions."},
+                    {"role": "system", "content": "You are Swami Jyotirananthan, a wise spiritual guru with expertise in Vedic astrology and Tamil spiritual traditions. Always respond with compassion, wisdom, and cultural authenticity."},
                     {"role": "user", "content": prompt}
-                ]
+                ],
+                max_tokens=1000,
+                temperature=0.7
             )
             answer = openai_resp.choices[0].message.content
             logger.info("✅ OpenAI API call successful")
@@ -480,12 +505,15 @@ async def get_spiritual_guidance(request: Request):
             logger.error(f"❌ OpenAI API error: {e}")
             return {"success": False, "message": f"OpenAI API error: {str(e)}"}
 
-        logger.info("🎉 Spiritual guidance generated successfully")
+        logger.info("🎉 Enhanced spiritual guidance generated successfully")
         return {
             "success": True,
             "guidance": answer,
             "astrology": prokerala_data,
-            "source": "basic_enhanced"
+            "source": "enhanced_basic",
+            "language": language,
+            "service_type": service_type,
+            "persona_used": "swamiji_enhanced"
         }
         
     except Exception as e:
@@ -534,27 +562,61 @@ async def clear_birth_chart_cache(request: Request):
 @router.get("/birth-chart/cache-statistics")
 async def get_birth_chart_cache_statistics(request: Request):
     """Get birth chart cache statistics (admin only)"""
-    # TODO: Add admin authentication check
+    # Check admin authentication
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     try:
+        # Check if user is admin
+        conn = await db_manager.get_connection()
+        user_data = await conn.fetchrow("""
+            SELECT is_admin FROM users WHERE email = $1
+        """, user_email)
+        await conn.close()
+        
+        if not user_data or not user_data['is_admin']:
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Get cache statistics
         stats = await birth_chart_cache.get_cache_statistics()
         return {
             "success": True,
-            "cache_statistics": stats
+            "statistics": stats
         }
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[BirthChart] Error getting cache statistics: {e}")
         raise HTTPException(status_code=500, detail="Failed to get cache statistics")
 
 @router.post("/birth-chart/cache-cleanup")
 async def cleanup_expired_birth_chart_cache(request: Request):
-    """Clean up expired birth chart cache entries"""
-    # TODO: Add admin authentication check
+    """Cleanup expired birth chart cache (admin only)"""
+    # Check admin authentication
+    user_email = extract_user_email_from_token(request)
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     try:
-        cleanup_count = await birth_chart_cache.cleanup_expired_cache()
+        # Check if user is admin
+        conn = await db_manager.get_connection()
+        user_data = await conn.fetchrow("""
+            SELECT is_admin FROM users WHERE email = $1
+        """, user_email)
+        await conn.close()
+        
+        if not user_data or not user_data['is_admin']:
+            raise HTTPException(status_code=403, detail="Admin access required")
+        
+        # Cleanup expired cache
+        result = await birth_chart_cache.cleanup_expired_cache()
         return {
             "success": True,
-            "message": f"Cleaned up {cleanup_count} expired cache entries"
+            "cleanup_result": result
         }
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[BirthChart] Error cleaning up cache: {e}")
         raise HTTPException(status_code=500, detail="Failed to cleanup cache")

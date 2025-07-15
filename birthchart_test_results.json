@@ -1,0 +1,112 @@
+{
+  "total_tests": 21,
+  "passed": 18,
+  "failed": 3,
+  "details": [
+    {
+      "test": "Enhanced Cache Service",
+      "passed": false,
+      "details": "Error: The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable"
+    },
+    {
+      "test": "RAG Knowledge Engine",
+      "passed": false,
+      "details": "Error: cannot access local variable 'birth_details' where it is not associated with a value"
+    },
+    {
+      "test": "Spiritual Router",
+      "passed": false,
+      "details": "Error: No module named 'jwt'"
+    },
+    {
+      "test": "Auto-generation for Registered Users",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Authentication Handling",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Complete Profile Integration",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Conversion Hooks",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Session Management",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Conversion Tracking",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "User Chart Linking",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Spiritual API Integration",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "API Authentication",
+      "passed": true,
+      "details": ""
+    },
+    {
+      "test": "Fallback Removal",
+      "passed": true,
+      "details": "No fallback displays found"
+    },
+    {
+      "test": "Error Handling",
+      "passed": true,
+      "details": "Proper error handling implemented"
+    },
+    {
+      "test": "Caching System",
+      "passed": true,
+      "details": "Enhanced caching implemented"
+    },
+    {
+      "test": "Loading States",
+      "passed": true,
+      "details": "Loading states implemented"
+    },
+    {
+      "test": "Async Operations",
+      "passed": true,
+      "details": "Async operations implemented"
+    },
+    {
+      "test": "Admin Authentication",
+      "passed": true,
+      "details": "Admin auth implemented"
+    },
+    {
+      "test": "Cache Management",
+      "passed": true,
+      "details": "Cache management implemented"
+    },
+    {
+      "test": "Admin Statistics",
+      "passed": true,
+      "details": "Admin statistics implemented"
+    },
+    {
+      "test": "Complete Integration",
+      "passed": true,
+      "details": "All components integrated"
+    }
+  ]
+}

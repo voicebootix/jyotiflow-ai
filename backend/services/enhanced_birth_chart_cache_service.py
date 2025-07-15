@@ -299,62 +299,64 @@ class EnhancedBirthChartCacheService:
     async def _generate_swamiji_reading(self, birth_chart_data: Dict[str, Any], 
                                        pdf_reports: Dict[str, Any], 
                                        birth_details: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate AI reading with Swamiji's persona using RAG + PDF insights"""
+        """Generate Swamiji's personalized reading using OpenAI"""
         try:
             if not self.openai_client:
+                logger.warning("OpenAI not available for Swamiji reading")
                 return {
-                    'reading': 'AI reading service not available. Please configure OpenAI API key.',
-                    'generated_with': 'fallback',
-                    'error': 'OpenAI not available'
+                    'reading': 'Swamiji\'s personalized reading is currently unavailable. Please try again later.',
+                    'personality_insights': ['Reading generation temporarily unavailable'],
+                    'spiritual_guidance': ['Please check back later for personalized guidance'],
+                    'practical_advice': ['Service will be restored shortly'],
+                    'generated_at': datetime.now().isoformat(),
+                    'generated_with': 'service_unavailable'
                 }
             
-            # Build comprehensive prompt with all data
-            prompt = await self._build_swamiji_prompt(birth_chart_data, pdf_reports, birth_details)
+            # Build comprehensive prompt
+            prompt = self._build_swamiji_prompt(birth_chart_data, pdf_reports, birth_details)
             
-            # Generate AI response
+            # Generate reading with OpenAI
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {
                         "role": "system",
-                        "content": """You are Swami Jyotirananthan, a revered Tamil Vedic astrology master. 
-                        You speak with wisdom, compassion, and authority. Mix Tamil phrases naturally with English.
-                        Always start with "Vanakkam" and end with "Tamil thaai arul kondae vazhlga".
-                        Base your reading on the provided astrological data and give practical spiritual guidance."""
+                        "content": "You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions. Provide personalized spiritual guidance with cultural authenticity."
                     },
                     {
                         "role": "user",
                         "content": prompt
                     }
                 ],
-                max_tokens=2000,
+                max_tokens=1500,
                 temperature=0.7
             )
             
-            ai_reading = response.choices[0].message.content
+            reading = response.choices[0].message.content
             
-            # Structure the reading
+            # Extract structured insights
+            personality_insights = self._extract_personality_insights(reading)
+            spiritual_guidance = self._extract_spiritual_guidance(reading)
+            practical_advice = self._extract_practical_advice(reading)
+            
             return {
-                'complete_reading': ai_reading,
-                'birth_chart_summary': self._extract_chart_summary(birth_chart_data),
-                'personality_insights': self._extract_personality_insights(ai_reading),
-                'spiritual_guidance': self._extract_spiritual_guidance(ai_reading),
-                'practical_advice': self._extract_practical_advice(ai_reading),
-                'generated_with': 'OpenAI GPT-4 + Swamiji Persona',
-                'data_sources_used': {
-                    'birth_chart': bool(birth_chart_data),
-                    'pdf_reports': list(pdf_reports.keys()),
-                    'ai_model': 'gpt-4'
-                },
-                'generated_at': datetime.now().isoformat()
+                'reading': reading,
+                'personality_insights': personality_insights,
+                'spiritual_guidance': spiritual_guidance,
+                'practical_advice': practical_advice,
+                'generated_at': datetime.now().isoformat(),
+                'generated_with': 'openai_enhanced'
             }
             
         except Exception as e:
-            logger.error(f"Swamiji reading generation failed: {e}")
+            logger.error(f"Error generating Swamiji reading: {e}")
             return {
-                'reading': f'Vanakkam! I apologize, but I am experiencing technical difficulties in generating your reading. Please try again later. Tamil thaai arul kondae vazhlga.',
-                'generated_with': 'fallback',
-                'error': str(e)
+                'reading': 'Unable to generate personalized reading at this time. Please try again later.',
+                'personality_insights': ['Reading generation failed'],
+                'spiritual_guidance': ['Please try again later'],
+                'practical_advice': ['Service temporarily unavailable'],
+                'generated_at': datetime.now().isoformat(),
+                'generated_with': 'error_fallback'
             }
     
     async def _build_swamiji_prompt(self, birth_chart_data: Dict[str, Any], 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, Clock, MapPin, Sun, Moon, Star, Circle, Triangle, Square, AlertCircle, Loader2, Save, Info, Download, Share2 } from 'lucide-react';
+import { Calendar, Clock, MapPin, Sun, Moon, Star, Circle, Triangle, Square, AlertCircle, Loader2, Save, Info, Download, Share2, User, Crown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import './BirthChart.css'; // Add custom CSS for South Indian chart
 import spiritualAPI from '../lib/api';
@@ -23,6 +23,9 @@ const BirthChart = () => {
   const [showSavedCharts, setShowSavedCharts] = useState(false);
   const [showConversionHook, setShowConversionHook] = useState(false);
   const [conversionMessage, setConversionMessage] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [autoLoading, setAutoLoading] = useState(false);
 
   // Timezone options
   const timezones = [
@@ -37,6 +40,19 @@ const BirthChart = () => {
   ];
 
   useEffect(() => {
+    // Check authentication status
+    const checkAuth = async () => {
+      const authStatus = spiritualAPI.isAuthenticated();
+      setIsAuthenticated(authStatus);
+      
+      if (authStatus) {
+        // Auto-generate birth chart for registered users
+        await autoGenerateForRegisteredUser();
+      }
+    };
+    
+    checkAuth();
+    
     // Load saved charts from localStorage
     const saved = localStorage.getItem('jyotiflow_saved_charts');
     if (saved) {
@@ -47,6 +63,80 @@ const BirthChart = () => {
       }
     }
   }, []);
+
+  const autoGenerateForRegisteredUser = async () => {
+    setAutoLoading(true);
+    setError('');
+    
+    try {
+      // Get user's complete birth chart profile
+      const response = await spiritualAPI.request('/api/spiritual/birth-chart/complete-profile', {
+        method: 'GET'
+      });
+      
+      if (response.success && response.complete_profile) {
+        // User has complete profile with birth chart
+        setChartData(response.complete_profile);
+        setUserProfile(response.complete_profile);
+        
+        // Set birth details from profile
+        if (response.complete_profile.birth_chart?.birth_details) {
+          const details = response.complete_profile.birth_chart.birth_details;
+          setBirthDetails({
+            date: details.date || '',
+            time: details.time || '',
+            location: details.location || '',
+            timezone: details.timezone || 'Asia/Colombo'
+          });
+        }
+        
+        console.log('✅ Auto-generated birth chart for registered user');
+      } else if (response.needs_birth_details) {
+        // User needs to complete birth details in profile
+        setError('Please complete your birth details in your profile to generate your birth chart.');
+        console.log('⚠️ User needs to complete birth details');
+      } else {
+        // Generate new birth chart for user
+        await generateForRegisteredUser();
+      }
+    } catch (error) {
+      console.error('Error auto-generating birth chart:', error);
+      setError('Failed to load your birth chart. Please try again.');
+    } finally {
+      setAutoLoading(false);
+    }
+  };
+
+  const generateForRegisteredUser = async () => {
+    try {
+      const response = await spiritualAPI.request('/api/spiritual/birth-chart/generate-for-user', {
+        method: 'POST'
+      });
+      
+      if (response.success && response.complete_profile) {
+        setChartData(response.complete_profile);
+        setUserProfile(response.complete_profile);
+        
+        // Set birth details from profile
+        if (response.complete_profile.birth_chart?.birth_details) {
+          const details = response.complete_profile.birth_chart.birth_details;
+          setBirthDetails({
+            date: details.date || '',
+            time: details.time || '',
+            location: details.location || '',
+            timezone: details.timezone || 'Asia/Colombo'
+          });
+        }
+        
+        console.log('✅ Generated new birth chart for registered user');
+      } else {
+        setError(response.message || 'Failed to generate birth chart');
+      }
+    } catch (error) {
+      console.error('Error generating birth chart for user:', error);
+      setError('Failed to generate birth chart. Please try again.');
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -150,40 +240,56 @@ const BirthChart = () => {
     setChartData(null);
 
     try {
-      // Track conversion funnel event
-      birthChartSessionService.trackConversionEvent('chart_generation_started', {
-        location: birthDetails.location,
-        has_existing_chart: birthChartSessionService.hasGeneratedChart()
-      });
+      if (isAuthenticated) {
+        // For registered users, use the enhanced complete profile endpoint
+        const response = await spiritualAPI.request('/api/spiritual/birth-chart/generate-for-user', {
+          method: 'POST'
+        });
 
-      const response = await spiritualAPI.request('/api/spiritual/birth-chart', {
-        method: 'POST',
-        body: JSON.stringify({ 
-          birth_details: {
-            date: birthDetails.date,
-            time: birthDetails.time,
-            location: birthDetails.location,
-            timezone: birthDetails.timezone
-          }
-        })
-      });
+        if (response.success && response.complete_profile) {
+          setChartData(response.complete_profile);
+          setUserProfile(response.complete_profile);
+          
+          // Track successful generation for registered user
+          console.log('✅ Complete birth chart profile generated for registered user');
+        } else {
+          setError(response.message || 'Failed to generate birth chart');
+        }
+      } else {
+        // For anonymous users, use the basic birth chart endpoint
+        // Track conversion funnel event
+        birthChartSessionService.trackConversionEvent('chart_generation_started', {
+          location: birthDetails.location,
+          has_existing_chart: birthChartSessionService.hasGeneratedChart()
+        });
 
-      if (response.success) {
-        // Use .data if present, else fallback to root
-        const chart = response.birth_chart?.data ? {
-          ...response.birth_chart.data,
-          metadata: response.birth_chart.metadata
-        } : response.birth_chart;
-        setChartData(chart);
-        
-        // Store chart in session for potential user signup
-        const sessionId = birthChartSessionService.storeAnonymousChart(birthDetails, chart);
-        
-        // Save to localStorage (existing functionality)
-        saveChartToHistory(chart);
-        
-        // Show conversion hook after successful chart generation
-        if (!spiritualAPI.isAuthenticated()) {
+        const response = await spiritualAPI.request('/api/spiritual/birth-chart', {
+          method: 'POST',
+          body: JSON.stringify({ 
+            birth_details: {
+              date: birthDetails.date,
+              time: birthDetails.time,
+              location: birthDetails.location,
+              timezone: birthDetails.timezone
+            }
+          })
+        });
+
+        if (response.success) {
+          // Use .data if present, else fallback to root
+          const chart = response.birth_chart?.data ? {
+            ...response.birth_chart.data,
+            metadata: response.birth_chart.metadata
+          } : response.birth_chart;
+          setChartData(chart);
+          
+          // Store chart in session for potential user signup
+          const sessionId = birthChartSessionService.storeAnonymousChart(birthDetails, chart);
+          
+          // Save to localStorage (existing functionality)
+          saveChartToHistory(chart);
+          
+          // Show conversion hook after successful chart generation
           const conversionHook = birthChartSessionService.getConversionHookMessage();
           setConversionMessage(conversionHook);
           setShowConversionHook(true);
@@ -193,19 +299,28 @@ const BirthChart = () => {
             session_id: sessionId,
             chart_generated: true
           });
+          
+          // Track successful generation
+          birthChartSessionService.trackConversionEvent('chart_generation_completed', {
+            session_id: sessionId,
+            chart_type: 'basic',
+            location: birthDetails.location
+          });
+        } else {
+          setError(response.message || 'Failed to generate birth chart');
         }
-        
-        // Track successful generation
-        birthChartSessionService.trackConversionEvent('chart_generation_completed', {
-          session_id: sessionId,
-          is_authenticated: spiritualAPI.isAuthenticated()
-        });
-      } else {
-        setError(response.message || 'Failed to generate birth chart');
       }
-    } catch (err) {
-      console.error('Birth chart error:', err);
-      setError('Network error. Please try again.');
+    } catch (error) {
+      console.error('Error generating birth chart:', error);
+      setError('Failed to generate birth chart. Please check your details and try again.');
+      
+      // Track error event
+      if (!isAuthenticated) {
+        birthChartSessionService.trackConversionEvent('chart_generation_error', {
+          error: error.message,
+          location: birthDetails.location
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -957,6 +1072,17 @@ Report generated on: ${new Date().toISOString()}
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white">
       <div className="container mx-auto px-4 py-8">
+        {/* Auto-loading indicator for registered users */}
+        {autoLoading && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4 text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Loading Your Birth Chart</h3>
+              <p className="text-gray-600">Generating your complete spiritual profile...</p>
+            </div>
+          </div>
+        )}
+
         {/* Conversion Hook Modal */}
         {showConversionHook && conversionMessage && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -999,123 +1125,147 @@ Report generated on: ${new Date().toISOString()}
             </div>
           </div>
         )}
+
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold mb-4 flex items-center justify-center">
             <Star className="w-8 h-8 mr-3 text-yellow-400" />
             Vedic Birth Chart
+            {isAuthenticated && (
+              <Crown className="w-6 h-6 ml-2 text-yellow-400" title="Premium User" />
+            )}
           </h1>
           <p className="text-gray-300 text-lg">
-            Discover your cosmic blueprint through authentic Vedic astrology
+            {isAuthenticated 
+              ? "Your complete spiritual profile with Swamiji's personalized guidance"
+              : "Discover your cosmic blueprint through authentic Vedic astrology"
+            }
           </p>
         </div>
 
-        {/* Birth Details Form */}
-        <div className="max-w-2xl mx-auto mb-8">
-          <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
-            <h2 className="text-xl font-semibold mb-4 flex items-center">
-              <Calendar className="w-5 h-5 mr-2" />
-              Enter Your Birth Details
-            </h2>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Birth Date *
-                  </label>
-                  <input
-                    type="date"
-                    name="date"
-                    value={birthDetails.date}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    Birth Time *
-                  </label>
-                  <input
-                    type="time"
-                    name="time"
-                    value={birthDetails.time}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
-                    required
-                  />
-                </div>
-              </div>
-
+        {/* User Status Banner */}
+        {isAuthenticated && (
+          <div className="max-w-2xl mx-auto mb-6">
+            <div className="bg-green-900 border border-green-700 rounded-lg p-4 flex items-center">
+              <User className="w-5 h-5 mr-3 text-green-400" />
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Birth Location *
-                </label>
-                <input
-                  type="text"
-                  name="location"
-                  value={birthDetails.location}
-                  onChange={handleInputChange}
-                  placeholder="e.g., Chennai, Tamil Nadu, India"
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
-                  required
-                />
+                <h3 className="font-semibold text-green-200">Welcome back!</h3>
+                <p className="text-green-300 text-sm">
+                  {userProfile ? "Your complete birth chart profile is ready." : "Loading your personalized birth chart..."}
+                </p>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Timezone
-                </label>
-                <select
-                  name="timezone"
-                  value={birthDetails.timezone}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
-                >
-                  {timezones.map(tz => (
-                    <option key={tz.value} value={tz.value}>{tz.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Error Message */}
-              {error && (
-                <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-md flex items-center">
-                  <AlertCircle className="w-5 h-5 mr-2" />
-                  {error}
-                </div>
-              )}
-
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex items-center px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-md transition-colors"
-                >
-                  {loading ? (
-                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                  ) : (
-                    <Star className="w-5 h-5 mr-2" />
-                  )}
-                  {loading ? 'Generating Chart...' : 'Generate Birth Chart'}
-                </button>
-
-                {savedCharts.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowSavedCharts(!showSavedCharts)}
-                    className="flex items-center px-4 py-3 bg-gray-600 hover:bg-gray-700 rounded-md transition-colors"
-                  >
-                    <Save className="w-5 h-5 mr-2" />
-                    Saved Charts ({savedCharts.length})
-                  </button>
-                )}
-              </div>
-            </form>
+            </div>
           </div>
-        </div>
+        )}
+
+        {/* Birth Details Form - Only show for anonymous users or when user needs to update details */}
+        {(!isAuthenticated || (!userProfile && !autoLoading)) && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+              <h2 className="text-xl font-semibold mb-4 flex items-center">
+                <Calendar className="w-5 h-5 mr-2" />
+                {isAuthenticated ? 'Update Your Birth Details' : 'Enter Your Birth Details'}
+              </h2>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Birth Date *
+                    </label>
+                    <input
+                      type="date"
+                      name="date"
+                      value={birthDetails.date}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                      required
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                      Birth Time *
+                    </label>
+                    <input
+                      type="time"
+                      name="time"
+                      value={birthDetails.time}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Birth Location *
+                  </label>
+                  <input
+                    type="text"
+                    name="location"
+                    value={birthDetails.location}
+                    onChange={handleInputChange}
+                    placeholder="e.g., Chennai, Tamil Nadu, India"
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    Timezone
+                  </label>
+                  <select
+                    name="timezone"
+                    value={birthDetails.timezone}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 text-white"
+                  >
+                    {timezones.map(tz => (
+                      <option key={tz.value} value={tz.value}>{tz.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <div className="bg-red-900 border border-red-700 text-red-200 px-4 py-3 rounded-md flex items-center">
+                    <AlertCircle className="w-5 h-5 mr-2" />
+                    {error}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="flex items-center px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 rounded-md transition-colors"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    ) : (
+                      <Star className="w-5 h-5 mr-2" />
+                    )}
+                    {loading ? 'Generating Chart...' : (isAuthenticated ? 'Update Birth Chart' : 'Generate Birth Chart')}
+                  </button>
+
+                  {savedCharts.length > 0 && !isAuthenticated && (
+                    <button
+                      type="button"
+                      onClick={() => setShowSavedCharts(!showSavedCharts)}
+                      className="flex items-center px-4 py-3 bg-gray-600 hover:bg-gray-700 rounded-md transition-colors"
+                    >
+                      <Save className="w-5 h-5 mr-2" />
+                      Saved Charts ({savedCharts.length})
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         {/* Saved Charts Modal */}
         {showSavedCharts && (
@@ -1282,19 +1432,21 @@ Report generated on: ${new Date().toISOString()}
               )}
             </div>
 
-            {/* Conversion Hook - After user sees their chart */}
-            <div className="mt-8">
-              <FreeReportHook 
-                size="large"
-                buttonText="Get Your Complete Personalized Reading from Swamiji FREE"
-                onButtonClick={() => navigate('/register')}
-              />
-            </div>
+            {/* Conversion Hook - Only show for anonymous users */}
+            {!isAuthenticated && (
+              <div className="mt-8">
+                <FreeReportHook 
+                  size="large"
+                  buttonText="Get Your Complete Personalized Reading from Swamiji FREE"
+                  onButtonClick={() => navigate('/register')}
+                />
+              </div>
+            )}
           </div>
         )}
 
-        {/* Always show hook for non-logged in users */}
-        {!chartData && (
+        {/* Always show hook for non-logged in users without chart */}
+        {!chartData && !isAuthenticated && !autoLoading && (
           <div className="mt-8 max-w-4xl mx-auto">
             <FreeReportHook 
               size="default"
