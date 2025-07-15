@@ -383,6 +383,42 @@ const Profile = () => {
     }
   };
 
+  // Auto-load birth chart for registered users
+  const loadBirthChartForRegisteredUser = async () => {
+    if (userProfile && userProfile.birth_date && !dashboardData?.birthChart) {
+      setBirthChartGenerating(true);
+      try {
+        const result = await userDashboardAPI.getUserBirthChart();
+        if (result) {
+          setDashboardData(prev => ({
+            ...prev,
+            birthChart: result
+          }));
+        } else {
+          // Auto-generate if not available
+          const generatedResult = await userDashboardAPI.generateUserBirthChart();
+          if (generatedResult) {
+            setDashboardData(prev => ({
+              ...prev,
+              birthChart: generatedResult
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Auto-load birth chart error:', error);
+      } finally {
+        setBirthChartGenerating(false);
+      }
+    }
+  };
+
+  // Auto-load birth chart when profile data is loaded
+  useEffect(() => {
+    if (userProfile && userProfile.birth_date && !dashboardData?.birthChart) {
+      loadBirthChartForRegisteredUser();
+    }
+  }, [userProfile, dashboardData?.birthChart]);
+
   if (isLoading) {
     return (
       <div className="pt-16 min-h-screen flex items-center justify-center">
@@ -1167,22 +1203,39 @@ const Profile = () => {
                   <div className="text-center py-8">
                     <div className="text-6xl mb-4">🌟</div>
                     <h3 className="text-xl font-semibold text-gray-800 mb-2">
-                      Generate Your Complete Birth Chart
+                      {userProfile?.birth_date ? 'Loading Your Complete Birth Chart' : 'Complete Your Profile'}
                     </h3>
                     <p className="text-gray-600 mb-6">
-                      Discover your cosmic blueprint with Swamiji's personalized spiritual insights and guidance.
+                      {userProfile?.birth_date 
+                        ? 'Swamiji is preparing your personalized spiritual insights and birth chart analysis...'
+                        : 'Please complete your birth details in your profile to generate your birth chart.'
+                      }
                     </p>
-                    <button 
-                      onClick={handleGenerateBirthChart}
-                      disabled={birthChartGenerating}
-                      className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50"
-                    >
-                      {birthChartGenerating ? 'Generating...' : 'Generate Birth Chart'}
-                    </button>
-                    {birthChartGenerating && (
-                      <p className="text-sm text-gray-500 mt-2">
-                        This may take a few moments as Swamiji prepares your personalized reading...
-                      </p>
+                    
+                    {userProfile?.birth_date ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-center space-x-2">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-purple-600"></div>
+                          <span className="text-purple-600">Generating your complete birth chart...</span>
+                        </div>
+                        <p className="text-sm text-gray-500">
+                          This includes your birth chart, Swamiji's AI reading, and detailed astrological reports
+                        </p>
+                        <button 
+                          onClick={handleGenerateBirthChart}
+                          disabled={birthChartGenerating}
+                          className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 disabled:opacity-50"
+                        >
+                          {birthChartGenerating ? 'Generating...' : 'Generate Now'}
+                        </button>
+                      </div>
+                    ) : (
+                      <Link 
+                        to="/profile?tab=settings" 
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-8 py-3 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300"
+                      >
+                        Complete Profile
+                      </Link>
                     )}
                   </div>
                 )}

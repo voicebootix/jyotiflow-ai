@@ -3,10 +3,18 @@ from db import get_db
 from typing import List, Dict, Any
 import json
 
+# Import dynamic comprehensive pricing
+try:
+    from dynamic_comprehensive_pricing import DynamicComprehensivePricing
+    DYNAMIC_PRICING_AVAILABLE = True
+except ImportError:
+    DYNAMIC_PRICING_AVAILABLE = False
+    print("⚠️ Dynamic comprehensive pricing not available")
+
 router = APIRouter(prefix="/api/services", tags=["Services"])
 
 async def get_dynamic_pricing(db, service_name: str = ""):
-    """Get dynamic pricing from admin settings"""
+    """Get dynamic pricing from admin settings with enhanced comprehensive pricing"""
     try:
         # Get global pricing multiplier
         pricing_multiplier = await db.fetchrow("""
@@ -29,13 +37,31 @@ async def get_dynamic_pricing(db, service_name: str = ""):
             if service_override and service_override['value']:
                 service_pricing = service_override['value']
         
+        # Use enhanced dynamic pricing if available
+        if DYNAMIC_PRICING_AVAILABLE and service_name:
+            try:
+                dynamic_pricing = DynamicComprehensivePricing()
+                comprehensive_pricing = await dynamic_pricing.calculate_comprehensive_reading_price(
+                    service_config={"service_name": service_name}
+                )
+                
+                return {
+                    'multiplier': multiplier,
+                    'service_pricing': service_pricing,
+                    'comprehensive_pricing': comprehensive_pricing,
+                    'enhanced_pricing_enabled': True
+                }
+            except Exception as e:
+                print(f"Enhanced pricing error: {e}")
+        
         return {
             'multiplier': multiplier,
-            'service_pricing': service_pricing
+            'service_pricing': service_pricing,
+            'enhanced_pricing_enabled': False
         }
     except Exception as e:
         print(f"Dynamic pricing error: {e}")
-        return {'multiplier': 1.0, 'service_pricing': {}}
+        return {'multiplier': 1.0, 'service_pricing': {}, 'enhanced_pricing_enabled': False}
 
 async def get_daily_free_credits_config(db):
     """Get daily free credits configuration from admin settings"""
@@ -62,7 +88,7 @@ async def get_daily_free_credits_config(db):
 
 @router.get("/types")
 async def get_service_types(db=Depends(get_db)):
-    """Get public service types for customers with dynamic pricing"""
+    """Get public service types for customers with enhanced dynamic pricing"""
     try:
         # Use a more robust query that handles missing columns gracefully
         services = await db.fetch("""
@@ -89,33 +115,55 @@ async def get_service_types(db=Depends(get_db)):
             ORDER BY COALESCE(credits_required, base_credits, 1) ASC
         """)
         
-        # Apply dynamic pricing
-        pricing_config = await get_dynamic_pricing(db)
-        
         result = []
         for service in services:
             service_dict = dict(service)
-            
-            # Apply dynamic pricing
-            original_price = float(service_dict['price_usd'])
             service_name = service_dict['name']
             
-            # Check for service-specific pricing
-            if service_name in pricing_config['service_pricing']:
-                service_dict['price_usd'] = float(pricing_config['service_pricing'][service_name])
+            # Get enhanced dynamic pricing for this service
+            pricing_config = await get_dynamic_pricing(db, service_name)
+            
+            # Apply enhanced dynamic pricing if available
+            if pricing_config.get('enhanced_pricing_enabled') and pricing_config.get('comprehensive_pricing'):
+                comprehensive_pricing = pricing_config['comprehensive_pricing']
+                service_dict['price_usd'] = comprehensive_pricing['recommended_price']
+                service_dict['credits_required'] = int(comprehensive_pricing['recommended_price'])
+                
+                # Add comprehensive pricing metadata
+                service_dict['pricing_info'] = {
+                    'is_dynamic': True,
+                    'is_enhanced': True,
+                    'original_price': float(service_dict.get('price_usd', 0)),
+                    'recommended_price': comprehensive_pricing['recommended_price'],
+                    'base_cost': comprehensive_pricing['base_cost'],
+                    'demand_factor': comprehensive_pricing['demand_factor'],
+                    'confidence_level': comprehensive_pricing['confidence_level'],
+                    'pricing_rationale': comprehensive_pricing['pricing_rationale'],
+                    'last_calculated': comprehensive_pricing['last_calculated'],
+                    'next_review': comprehensive_pricing['next_review'],
+                    'requires_admin_approval': comprehensive_pricing['requires_admin_approval']
+                }
             else:
-                service_dict['price_usd'] = original_price * pricing_config['multiplier']
-            
-            # Round to 2 decimal places
-            service_dict['price_usd'] = round(service_dict['price_usd'], 2)
-            
-            # Add pricing metadata
-            service_dict['pricing_info'] = {
-                'is_dynamic': True,
-                'original_price': original_price,
-                'multiplier_applied': pricing_config['multiplier'],
-                'last_updated': service_dict.get('updated_at')
-            }
+                # Apply basic dynamic pricing
+                original_price = float(service_dict['price_usd'])
+                
+                # Check for service-specific pricing
+                if service_name in pricing_config['service_pricing']:
+                    service_dict['price_usd'] = float(pricing_config['service_pricing'][service_name])
+                else:
+                    service_dict['price_usd'] = original_price * pricing_config['multiplier']
+                
+                # Round to 2 decimal places
+                service_dict['price_usd'] = round(service_dict['price_usd'], 2)
+                
+                # Add basic pricing metadata
+                service_dict['pricing_info'] = {
+                    'is_dynamic': True,
+                    'is_enhanced': False,
+                    'original_price': original_price,
+                    'multiplier_applied': pricing_config['multiplier'],
+                    'last_updated': service_dict.get('updated_at')
+                }
             
             result.append(service_dict)
         
@@ -124,8 +172,9 @@ async def get_service_types(db=Depends(get_db)):
             "data": result,
             "pricing_config": {
                 "dynamic_pricing_enabled": True,
+                "enhanced_pricing_enabled": any(s.get('pricing_info', {}).get('is_enhanced', False) for s in result),
                 "last_updated": "now",
-                "multiplier": pricing_config['multiplier']
+                "multiplier": pricing_config.get('multiplier', 1.0)
             }
         }
     except Exception as e:
@@ -136,6 +185,7 @@ async def get_service_types(db=Depends(get_db)):
             "data": [],
             "pricing_config": {
                 "dynamic_pricing_enabled": False,
+                "enhanced_pricing_enabled": False,
                 "last_updated": "now",
                 "multiplier": 1.0
             }

@@ -341,8 +341,8 @@ async def get_birth_chart(request: Request):
 
 @router.post("/guidance")
 async def get_spiritual_guidance(request: Request):
-    """SURGICAL FIX: Enhanced spiritual guidance endpoint with comprehensive logging"""
-    logger.info("🕉️ Spiritual guidance endpoint called")
+    """Enhanced spiritual guidance endpoint with RAG system integration"""
+    logger.info("🕉️ Spiritual guidance endpoint called with RAG integration")
     
     try:
         # Log request details
@@ -357,15 +357,47 @@ async def get_spiritual_guidance(request: Request):
         user_question = data.get("question")
         birth_details = data.get("birth_details")
         language = data.get("language", "ta")  # Default to Tamil if not provided
+        service_type = data.get("service_type", "general")
 
         logger.info(f"User question: {user_question}")
         logger.info(f"Birth details: {birth_details}")
         logger.info(f"Language: {language}")
+        logger.info(f"Service type: {service_type}")
 
         if not user_question or not birth_details:
             logger.error("❌ Missing question or birth details")
             raise HTTPException(status_code=400, detail="Missing question or birth details")
 
+        # Try to use RAG system first
+        try:
+            from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            
+            logger.info("🤖 Using RAG system for enhanced guidance")
+            rag_response = await get_rag_enhanced_guidance(
+                user_question, 
+                birth_details, 
+                service_type
+            )
+            
+            if rag_response and rag_response.get("success"):
+                logger.info("✅ RAG system provided enhanced guidance")
+                return {
+                    "success": True,
+                    "guidance": rag_response["guidance"],
+                    "knowledge_sources": rag_response.get("knowledge_sources", []),
+                    "persona_used": rag_response.get("persona_used", "swamiji"),
+                    "analysis_sections": rag_response.get("analysis_sections", []),
+                    "source": "rag_enhanced"
+                }
+            else:
+                logger.warning("⚠️ RAG system failed, falling back to basic guidance")
+                
+        except Exception as rag_error:
+            logger.warning(f"⚠️ RAG system error: {rag_error}, falling back to basic guidance")
+
+        # Fallback to basic guidance if RAG fails
+        logger.info("🔄 Using fallback basic guidance system")
+        
         date = birth_details.get("date")
         time_ = birth_details.get("time")
         location = birth_details.get("location")
@@ -417,11 +449,28 @@ async def get_spiritual_guidance(request: Request):
         logger.info("🤖 Calling OpenAI API for guidance generation")
         try:
             openai.api_key = OPENAI_API_KEY
-            prompt = f"User question: {user_question}\nAstrology info: {prokerala_data}\nGive a spiritual, compassionate answer in {language}."
+            
+            # Enhanced prompt with Swamiji persona
+            prompt = f"""
+            You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions.
+            
+            User Question: {user_question}
+            Astrology Information: {prokerala_data}
+            
+            Please provide a spiritual, compassionate answer in {language} that:
+            1. Addresses the user's specific question
+            2. Incorporates relevant astrological insights
+            3. Offers practical spiritual guidance
+            4. Maintains the warm, wise tone of Swami Jyotirananthan
+            5. Includes cultural authenticity and traditional wisdom
+            
+            Answer as Swami Jyotirananthan:
+            """
+            
             openai_resp = openai.chat.completions.create(
                 model="gpt-4o-mini",
                 messages=[
-                    {"role": "system", "content": "You are a spiritual guru."},
+                    {"role": "system", "content": "You are Swami Jyotirananthan, a wise spiritual guru with expertise in Vedic astrology and Tamil spiritual traditions."},
                     {"role": "user", "content": prompt}
                 ]
             )
@@ -435,7 +484,8 @@ async def get_spiritual_guidance(request: Request):
         return {
             "success": True,
             "guidance": answer,
-            "astrology": prokerala_data
+            "astrology": prokerala_data,
+            "source": "basic_enhanced"
         }
         
     except Exception as e:
@@ -821,14 +871,18 @@ async def get_complete_birth_chart_profile(request: Request):
         if user_data['birth_chart_data']:
             try:
                 chart_data = json.loads(user_data['birth_chart_data']) if isinstance(user_data['birth_chart_data'], str) else user_data['birth_chart_data']
-                return {
-                    "success": True,
-                    "complete_profile": chart_data
-                }
+                # Check if data is recent (less than 30 days old)
+                if chart_data.get('cached_at'):
+                    cached_date = datetime.fromisoformat(chart_data['cached_at'].replace('Z', '+00:00'))
+                    if (datetime.now() - cached_date).days < 30:
+                        return {
+                            "success": True,
+                            "complete_profile": chart_data
+                        }
             except:
                 pass  # Continue to regenerate if data is corrupted
         
-        # Generate new complete profile
+        # Generate new complete profile using enhanced service
         birth_details = {
             'date': user_data['birth_date'].strftime('%Y-%m-%d'),
             'time': user_data['birth_time'].strftime('%H:%M'),
@@ -836,8 +890,18 @@ async def get_complete_birth_chart_profile(request: Request):
             'timezone': 'Asia/Colombo'
         }
         
+        # Use the enhanced birth chart cache service
         enhanced_service = EnhancedBirthChartCacheService()
         complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
+        
+        # Update user's birth chart data in database
+        conn = await db_manager.get_connection()
+        await conn.execute("""
+            UPDATE users 
+            SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
+            WHERE email = $2
+        """, json.dumps(complete_profile), user_email)
+        await conn.close()
         
         return {
             "success": True,
@@ -878,8 +942,18 @@ async def generate_birth_chart_for_user(request: Request):
             'timezone': 'Asia/Colombo'
         }
         
+        # Use the enhanced birth chart cache service for complete profile generation
         enhanced_service = EnhancedBirthChartCacheService()
         complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
+        
+        # Update user's birth chart data in database
+        conn = await db_manager.get_connection()
+        await conn.execute("""
+            UPDATE users 
+            SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
+            WHERE email = $2
+        """, json.dumps(complete_profile), user_email)
+        await conn.close()
         
         return {
             "success": True,

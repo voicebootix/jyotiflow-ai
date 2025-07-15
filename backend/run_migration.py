@@ -11,8 +11,10 @@ from datetime import datetime
 async def run_migration():
     """Run the welcome credits migration"""
     try:
-        # Get database URL from environment
-        database_url = os.getenv("DATABASE_URL", "postgresql://postgres:password@localhost:5432/jyotiflow")
+        # Get database URL from environment - use the same one as the system
+        database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        
+        print(f"Connecting to database: {database_url.split('@')[1]}")  # Don't log credentials
         
         # Connect to database
         conn = await asyncpg.connect(database_url)
