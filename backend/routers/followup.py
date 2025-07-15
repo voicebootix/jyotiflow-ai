@@ -19,8 +19,13 @@ router = APIRouter(prefix="/api/followup", tags=["Follow-up System"])
 
 # Initialize follow-up service
 async def get_followup_service():
-    db = await get_database()
-    return FollowUpService(db)
+    try:
+        db = await get_database()
+        return FollowUpService(db)
+    except Exception as e:
+        logger.error(f"Failed to initialize followup service: {e}")
+        # Return a fallback service or raise appropriate error
+        raise HTTPException(status_code=500, detail="Followup service unavailable")
 
 # =============================================================================
 # USER ENDPOINTS

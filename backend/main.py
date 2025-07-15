@@ -68,7 +68,7 @@ else:
 from routers import auth, user, spiritual, sessions, followup, donations, credits, services
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
 from routers import admin_overview, admin_integrations
-from routers import content
+from routers import content, ai, community, session_analytics
 import db
 
 # Import the migration runner
@@ -478,6 +478,9 @@ app.include_router(donations.router)
 app.include_router(credits.router)
 app.include_router(services.router)
 app.include_router(content.router)
+app.include_router(ai.router)
+app.include_router(community.router)
+app.include_router(session_analytics.router)
 
 # Register missing endpoints
 try:

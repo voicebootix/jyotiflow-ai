@@ -190,6 +190,20 @@ class ProkeralaSmartService:
                 return 20.0  # Minimal cache benefit
     
     async def _update_cache_analytics(self, service_id: int, cache_rate: float):
+<<<<<<< HEAD
+        """Track cache effectiveness for analytics"""
+        async with self.db_pool.acquire() as conn:
+            is_cache_hit = cache_rate > 50
+            
+            await conn.execute("""
+                INSERT INTO cache_analytics (service_type_id, date, total_requests, cache_hits)
+                VALUES ($1, CURRENT_DATE, 1, $2)
+                ON CONFLICT (service_type_id, date) 
+                DO UPDATE SET 
+                    total_requests = cache_analytics.total_requests + 1,
+                    cache_hits = cache_analytics.cache_hits + $2
+            """, service_id, 1 if is_cache_hit else 0)
+=======
         """Update cache analytics (with error handling for missing table)"""
         try:
             async with self.db_pool.acquire() as conn:
@@ -213,6 +227,7 @@ class ProkeralaSmartService:
         except Exception as e:
             logger.error(f"Error updating cache analytics: {e}")
             # Don't fail the entire operation, just log the error
+>>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
     
     async def _get_current_credits(self, service_id: int) -> int:
         """Get current credit requirement for service"""
