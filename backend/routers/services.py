@@ -18,75 +18,57 @@ logger = logging.getLogger(__name__)
 async def get_dynamic_pricing(db, service_name: str = ""):
     """Get dynamic pricing from admin settings with enhanced comprehensive pricing"""
     try:
-        # Get global pricing multiplier
-        pricing_multiplier = await db.fetchrow("""
-            SELECT value FROM platform_settings 
-            WHERE key = 'pricing_multiplier'
+        # Try to get enhanced comprehensive pricing first
+        enhanced_pricing = await get_enhanced_comprehensive_pricing(db, service_name)
+        if enhanced_pricing.get('enhanced_pricing_enabled'):
+            return enhanced_pricing
+        
+        # Fallback to basic dynamic pricing
+        result = await db.fetchrow("""
+            SELECT value FROM pricing_config 
+            WHERE key = 'dynamic_pricing_multiplier' AND is_active = true
         """)
         
-        multiplier = 1.0
-        if pricing_multiplier and pricing_multiplier['value']:
-            multiplier = float(pricing_multiplier['value'].get('multiplier', 1.0))
-        
-        # Get service-specific pricing overrides
-        service_pricing = {}
-        if service_name:
-            service_override = await db.fetchrow("""
-                SELECT value FROM platform_settings 
-                WHERE key = $1
-            """, f"service_pricing_{service_name}")
-            
-            if service_override and service_override['value']:
-                service_pricing = service_override['value']
-        
-        # Use enhanced dynamic pricing if available
-        if DYNAMIC_PRICING_AVAILABLE and service_name:
-            try:
-                dynamic_pricing = DynamicComprehensivePricing()
-                comprehensive_pricing = await dynamic_pricing.calculate_comprehensive_reading_price(
-                    service_config={"service_name": service_name}
-                )
-                
-                return {
-                    'multiplier': multiplier,
-                    'service_pricing': service_pricing,
-                    'comprehensive_pricing': comprehensive_pricing,
-                    'enhanced_pricing_enabled': True
-                }
-            except Exception as e:
-                print(f"Enhanced pricing error: {e}")
+        multiplier = float(result['value']) if result and result['value'] else 1.0
         
         return {
-            'multiplier': multiplier,
-            'service_pricing': service_pricing,
-            'enhanced_pricing_enabled': False
+            "enhanced_pricing_enabled": False,
+            "multiplier": multiplier,
+            "service_pricing": {}
         }
+        
     except Exception as e:
-        print(f"Dynamic pricing error: {e}")
-        return {'multiplier': 1.0, 'service_pricing': {}, 'enhanced_pricing_enabled': False}
+        logger.error(f"Dynamic pricing error: {e}")
+        return {
+            "enhanced_pricing_enabled": False,
+            "multiplier": 1.0,
+            "service_pricing": {}
+        }
 
 async def get_daily_free_credits_config(db):
-    """Get daily free credits configuration from admin settings"""
+    """Get daily free credits configuration"""
     try:
-        config = await db.fetchrow("""
-            SELECT value FROM platform_settings 
-            WHERE key = 'daily_free_credits'
+        result = await db.fetchrow("""
+            SELECT value FROM pricing_config 
+            WHERE key = 'daily_free_credits' AND is_active = true
         """)
         
-        if config and config['value']:
-            return config['value']
-        
-        # Default configuration
-        return {
-            'enabled': True,
-            'credits_per_day': 3,
-            'max_daily_limit': 5,
-            'reset_time': '00:00',
-            'services_included': ['basic_guidance', 'daily_wisdom']
-        }
+        if result and result['value']:
+            return json.loads(result['value'])
+        else:
+            return {
+                "enabled": True,
+                "credits_per_day": 3,
+                "max_consecutive_days": 7
+            }
+            
     except Exception as e:
-        print(f"Daily free credits config error: {e}")
-        return {'enabled': False}
+        logger.error(f"Daily free credits config error: {e}")
+        return {
+            "enabled": True,
+            "credits_per_day": 3,
+            "max_consecutive_days": 7
+        }
 
 @router.get("/types")
 async def get_service_types(db=Depends(get_db)):
@@ -234,7 +216,7 @@ async def get_platform_stats(db=Depends(get_db)):
                 }
             }
     except Exception as e:
-        print(f"Stats error: {e}")
+        logger.error(f"Stats error: {e}")
         # Fallback to reasonable defaults if query fails
         return {
             "success": True,
@@ -298,7 +280,7 @@ async def get_credit_packages_public(db=Depends(get_db)):
             }
         }
     except Exception as e:
-        print(f"Error fetching credit packages: {e}")
+        logger.error(f"Error fetching credit packages: {e}")
         # Return empty result instead of hardcoded packages
         return {
             "success": True,
@@ -322,20 +304,19 @@ async def get_daily_free_credits_info(db=Depends(get_db)):
             "data": {
                 "enabled": config.get('enabled', True),
                 "credits_per_day": config.get('credits_per_day', 3),
-                "max_daily_limit": config.get('max_daily_limit', 5),
-                "reset_time": config.get('reset_time', '00:00'),
-                "services_included": config.get('services_included', ['basic_guidance']),
-                "description": "Free daily credits for non-logged users",
-                "terms": "Limited to basic services only"
+                "max_consecutive_days": config.get('max_consecutive_days', 7),
+                "description": "Daily free credits for spiritual guidance"
             }
         }
     except Exception as e:
-        print(f"Daily free credits info error: {e}")
+        logger.error(f"Daily free credits info error: {e}")
         return {
-            "success": False,
+            "success": True,
             "data": {
                 "enabled": False,
-                "message": "Daily free credits not available"
+                "credits_per_day": 0,
+                "max_consecutive_days": 0,
+                "description": "Daily free credits temporarily unavailable"
             }
         }
 
@@ -396,5 +377,5 @@ async def use_daily_free_credits(request_data: dict, db=Depends(get_db)):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"Daily free credits usage error: {e}")
+        logger.error(f"Daily free credits usage error: {e}")
         raise HTTPException(status_code=500, detail="Failed to use daily free credits")
