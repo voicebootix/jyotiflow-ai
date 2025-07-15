@@ -14,7 +14,6 @@ Run this script to resolve the database errors in the logs.
 """
 
 import asyncio
-import os
 import sys
 import logging
 from pathlib import Path
@@ -24,7 +23,6 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
 from db import get_db_pool
-import asyncpg
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

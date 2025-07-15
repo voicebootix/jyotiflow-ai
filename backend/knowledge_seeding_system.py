@@ -534,14 +534,18 @@ class KnowledgeSeeder:
             if vector_support:
                 embedding_data = embedding
             else:
-                # Ensure embedding is a list, not a JSON string
+                # When pgvector is not supported, serialize list to JSON string for TEXT/JSONB columns
                 if isinstance(embedding, str):
                     try:
-                        embedding_data = json.loads(embedding)
+                        # If it's already a JSON string, parse and re-serialize to ensure consistency
+                        parsed_embedding = json.loads(embedding)
+                        embedding_data = json.dumps(parsed_embedding)
                     except json.JSONDecodeError:
+                        # If it's not valid JSON, keep as is
                         embedding_data = embedding
                 else:
-                    embedding_data = embedding
+                    # If it's a list, serialize to JSON string
+                    embedding_data = json.dumps(embedding)
             
             # Add to database - handle both pool and direct connection
             if self.db_pool:
@@ -657,14 +661,18 @@ class KnowledgeSeeder:
                         if vector_support:
                             embedding_data = embedding
                         else:
-                            # Ensure embedding is a list, not a JSON string
+                            # When pgvector is not supported, serialize list to JSON string for TEXT/JSONB columns
                             if isinstance(embedding, str):
                                 try:
-                                    embedding_data = json.loads(embedding)
+                                    # If it's already a JSON string, parse and re-serialize to ensure consistency
+                                    parsed_embedding = json.loads(embedding)
+                                    embedding_data = json.dumps(parsed_embedding)
                                 except json.JSONDecodeError:
+                                    # If it's not valid JSON, keep as is
                                     embedding_data = embedding
                             else:
-                                embedding_data = embedding
+                                # If it's a list, serialize to JSON string
+                                embedding_data = json.dumps(embedding)
                         
                         # Check if content_type column exists
                         content_type_exists = await conn.fetchval("""
