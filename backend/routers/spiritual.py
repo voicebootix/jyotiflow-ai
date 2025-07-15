@@ -1,12 +1,11 @@
 import os
 import time
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta
 from services.birth_chart_cache_service import BirthChartCacheService
-import jwt
 import uuid
 import logging
 import json
@@ -14,29 +13,20 @@ import asyncpg
 from db import db_manager
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
 
+# Import centralized JWT handler
+from auth.jwt_config import JWTHandler
+from db import get_db
+
 # Configure logger
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/spiritual", tags=["Spiritual"])
 
-# SECURITY FIX: Remove hardcoded fallback
-JWT_SECRET_KEY = os.getenv("JWT_SECRET")
-if not JWT_SECRET_KEY:
-    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
-JWT_ALGORITHM = "HS256"
-
 # --- Helper function to extract user email from JWT token (OPTIONAL) ---
-def extract_user_email_from_token(request: Request) -> str:
+def extract_user_email_from_token(request: Request) -> str | None:
     """Extract user email from JWT token in Authorization header - OPTIONAL"""
     try:
-        auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return None
-        
-        token = auth_header.split(" ")[1]
-        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-        user_email = payload.get("email")
-        return user_email
+        return JWTHandler.get_user_email_from_token(request)
     except:
         return None
 
@@ -156,9 +146,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 1. Birth Details Endpoint
             try:
-                birth_details_response = await client.post(
+                birth_details_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/birth-details",
-                    json=base_params,
+                    params=base_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Birth details response: {birth_details_response.status_code}")
@@ -175,9 +165,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 2. Chart Visualization Endpoint (South Indian Style)
             try:
-                chart_response = await client.post(
+                chart_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/chart",
-                    json=chart_params,
+                    params=chart_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Chart visualization response: {chart_response.status_code}")
@@ -194,9 +184,9 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             
             # 3. Planetary Positions Endpoint
             try:
-                planets_response = await client.post(
+                planets_response = await client.get(
                     "https://api.prokerala.com/v2/astrology/planet-positions",
-                    json=base_params,
+                    params=base_params,
                     headers=headers
                 )
                 logger.info(f"[BirthChart] Planetary positions response: {planets_response.status_code}")
@@ -419,23 +409,27 @@ async def get_spiritual_guidance(request: Request):
         logger.info(f"Processing request for date: {date}, time: {time_}, location: {location}")
 
         # --- Prokerala API call with token refresh logic ---
-        payload = {
+        # CRITICAL FIX: Use GET method with query parameters (not POST with JSON)
+        # BUG FIX: Use consistent coordinate format (coordinates string like other functions)
+        coordinates = f"{latitude},{longitude}"
+        params = {
             "datetime": f"{date}T{time_}:00+05:30",
-            "coordinates": f"{latitude},{longitude}",
-            "ayanamsa": "1"
+            "coordinates": coordinates,
+            "ayanamsa": "1",
+            "la": "en"  # Language parameter required by Prokerala API
         }
         
-        logger.info(f"Prokerala payload: {payload}")
+        logger.info(f"Prokerala params: {params}")
         
         for attempt in range(2):
             logger.info(f"Prokerala API attempt {attempt + 1}")
             token = await get_prokerala_token()
             try:
                 async with httpx.AsyncClient() as client:
-                    resp = await client.post(
+                    resp = await client.get(  # GET method instead of POST
                         "https://api.prokerala.com/v2/astrology/birth-details",
                         headers={"Authorization": f"Bearer {token}"},
-                        json=payload
+                        params=params  # Query parameters instead of JSON
                     )
                     logger.info(f"Prokerala response status: {resp.status_code}")
                     
@@ -674,7 +668,7 @@ async def link_anonymous_chart_to_user(request: Request):
         raise HTTPException(status_code=500, detail="Failed to link chart to user")
 
 @router.get("/progress/{user_id}")
-async def get_spiritual_progress(user_id: str, request: Request):
+async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_db)):
     """Get user's spiritual progress and journey metrics"""
     # Verify the user is accessing their own data or is admin
     user_email = extract_user_email_from_token(request)
@@ -682,17 +676,29 @@ async def get_spiritual_progress(user_id: str, request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     try:
-        # Connect to database to get user sessions and progress
-        from db import get_db
+        # SECURITY FIX: Verify user is accessing their own data or is admin
+        # Get current user's details from database
+        current_user = await db.fetchrow("SELECT id, email, role FROM users WHERE email = $1", user_email)
+        if not current_user:
+            raise HTTPException(status_code=404, detail="User not found")
         
-        db_connection = get_db()
-        db = await db_connection.__anext__()
+        # Convert user_id to integer for validation (if needed for future use)
+        try:
+            user_id_int = int(user_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid user ID format")
         
-        # Get user's sessions
+        # Check authorization: user can only access their own data unless admin
+        # Since sessions table uses user_email, we validate that the requested user_id
+        # corresponds to the authenticated user's ID
+        if current_user["id"] != user_id_int and current_user["role"] not in ["admin", "super_admin"]:
+            raise HTTPException(status_code=403, detail="Access denied - you can only view your own spiritual progress")
+        
+        # Get user's sessions using user_email (correct foreign key)
         sessions = await db.fetch("""
             SELECT s.*, st.name as service_name, st.credits_required
             FROM sessions s
-            LEFT JOIN service_types st ON s.service_type_id = st.id
+            LEFT JOIN service_types st ON s.service_type = st.name
             WHERE s.user_email = $1
             ORDER BY s.created_at DESC
         """, user_email)

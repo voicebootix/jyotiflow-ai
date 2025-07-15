@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from db import get_db
-import jwt
 import os
 import time
 from datetime import datetime, timezone
@@ -12,6 +11,9 @@ import logging
 # Import the enhanced birth chart logic from spiritual.py to avoid duplication
 from .spiritual import get_prokerala_birth_chart_data, create_south_indian_chart_structure
 
+# Import centralized authentication helper
+from auth.auth_helpers import AuthenticationHelper
+
 # OPENAI INTEGRATION
 import openai
 
@@ -19,38 +21,15 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "your-openai-api-key")
 
 router = APIRouter(prefix="/api/sessions", tags=["Sessions"])
 
-# SECURITY FIX: Remove hardcoded fallback
-JWT_SECRET = os.getenv("JWT_SECRET")
-if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
-JWT_ALGORITHM = "HS256"
-
 logger = logging.getLogger(__name__)
 
-def get_user_id_from_token(request: Request) -> str:
-    """Extract user ID from JWT token"""
-    auth = request.headers.get("Authorization")
-    if not auth or not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = auth.split(" ")[1]
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        # SURGICAL FIX: Use 'sub' field to match livechat and deps.py
-        return payload.get("sub") or payload.get("user_id")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+# Use centralized authentication helpers - no duplication
+get_user_id_from_token = AuthenticationHelper.get_user_id_strict
+convert_user_id_to_int = AuthenticationHelper.convert_user_id_to_int
 
 async def get_user_email_from_token(request: Request) -> str:
     """Extract user email from JWT token"""
-    auth = request.headers.get("Authorization")
-    if not auth or not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = auth.split(" ")[1]
-    try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        return payload.get("email") or payload.get("user_email")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    return AuthenticationHelper.get_user_email_strict(request)
 
 async def generate_spiritual_guidance_with_ai(question: str, astrology_data: Dict[str, Any]) -> str:
     """Generate spiritual guidance using OpenAI with enhanced birth chart data"""
@@ -183,6 +162,11 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     user_id = get_user_id_from_token(request)
     user_email = await get_user_email_from_token(request)
     
+    # Convert user_id to integer for database queries
+    user_id_int = convert_user_id_to_int(user_id)
+    if user_id_int is None:
+        raise HTTPException(status_code=400, detail="Invalid user ID")
+    
     # Get service details first
     service_type = session_data.get("service_type")
     if not service_type:
@@ -194,7 +178,7 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
         user = await db.fetchrow("""
             SELECT id, email, credits FROM users 
             WHERE id = $1 FOR UPDATE
-        """, user_id)
+        """, user_id_int)
         
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
@@ -220,7 +204,7 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
         result = await db.execute("""
             UPDATE users SET credits = credits - $1 
             WHERE id = $2 AND credits >= $1
-        """, service["credits_required"], user_id)
+        """, service["credits_required"], user_id_int)
         
         if result.rowcount == 0:
             raise HTTPException(
@@ -228,12 +212,17 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
                 detail="Credit deduction failed - insufficient credits or concurrent transaction"
             )
         
-        # Create session record
+        # Initialize cache tracking variables
+        cache_used = False
+        endpoints_used = []
+        
+        # Create session record with cache tracking (will be updated later with actual cache info)
         session_id = str(uuid.uuid4())
         await db.execute("""
             INSERT INTO sessions (id, user_email, service_type, question, guidance, 
-                                avatar_video_url, credits_used, original_price, status, created_at)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', NOW())
+                                avatar_video_url, credits_used, original_price, status, 
+                                prokerala_cache_used, prokerala_endpoints_used, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed', $9, $10, NOW())
         """, 
             session_id, 
             user["email"], 
@@ -242,7 +231,9 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
             f"Divine guidance for: {session_data.get('question', '')}",
             None,  # avatar_video_url
             service["credits_required"],
-            service["price_usd"]
+            service["price_usd"],
+            cache_used,
+            endpoints_used
         )
         
         # Calculate remaining credits
@@ -334,6 +325,47 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
                 session_data.get("question", ""), 
                 astrology_data
             )
+    
+    # Update session with cache tracking information
+    if birth_details:
+        try:
+            # BUG FIX: Handle location as both string and dict to prevent AttributeError
+            location = birth_details.get('location', '')
+            if isinstance(location, dict):
+                location_name = location.get('name', '')
+            elif isinstance(location, str):
+                location_name = location
+            else:
+                location_name = str(location) if location else ''
+            
+            cache_key = f"birth_chart:{birth_details.get('date', '')}:{birth_details.get('time', '')}:{location_name}"
+            cached_data = await db.fetchrow("""
+                SELECT created_at FROM api_cache 
+                WHERE cache_key = $1 AND created_at > NOW() - INTERVAL '30 days'
+            """, cache_key)
+            
+            if cached_data:
+                cache_used = True
+                logger.info(f"[Session] Cache hit detected for session {session_id}")
+                
+                # Get service endpoint configuration
+                service_config = await db.fetchrow("""
+                    SELECT prokerala_endpoints FROM service_types WHERE name = $1
+                """, service_type)
+                
+                if service_config and service_config['prokerala_endpoints']:
+                    endpoints_used = service_config['prokerala_endpoints']
+                
+                # Update session with cache information
+                await db.execute("""
+                    UPDATE sessions 
+                    SET prokerala_cache_used = $1, prokerala_endpoints_used = $2
+                    WHERE id = $3
+                """, cache_used, endpoints_used, session_id)
+                
+                logger.info(f"[Session] Updated session {session_id} with cache info: used={cache_used}, endpoints={len(endpoints_used)}")
+        except Exception as e:
+            logger.warning(f"[Session] Cache tracking failed for session {session_id}: {e}")
     
     # Schedule automatic follow-up (non-blocking)
     asyncio.create_task(schedule_session_followup(session_id, user["email"], service_type, db))

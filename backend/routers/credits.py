@@ -1,35 +1,41 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
 from db import get_db
-import jwt
 import os
 from datetime import datetime
 
+# Import centralized JWT handler
+from auth.jwt_config import JWTHandler
+
 router = APIRouter(prefix="/api/credits", tags=["Credits"])
 
-# SECURITY FIX: Remove hardcoded fallback
-JWT_SECRET = os.getenv("JWT_SECRET")
-if not JWT_SECRET:
-    raise RuntimeError("JWT_SECRET environment variable is required for security. Please set it before starting the application.")
-JWT_ALGORITHM = "HS256"
-
 def get_user_id_from_token(request: Request) -> str:
-    """Extract user ID from JWT token"""
-    auth = request.headers.get("Authorization")
-    if not auth or not auth.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="அங்கீகாரம் தேவை - தயவுசெய்து மீண்டும் உள்நுழையவும்")
-    token = auth.split(" ")[1]
+    """Extract user ID from JWT token using centralized handler"""
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        # SURGICAL FIX: Use 'sub' field to match livechat and deps.py
-        return payload.get("sub") or payload.get("user_id")
-    except Exception:
-        raise HTTPException(status_code=401, detail="தவறான அங்கீகாரம் - தயவுசெய்து மீண்டும் உள்நுழையவும்")
+        return JWTHandler.get_user_id_from_token(request)
+    except HTTPException as e:
+        # Convert to Tamil error messages
+        if e.status_code == 401:
+            raise HTTPException(status_code=401, detail="அங்கீகாரம் தேவை - தயவுசெய்து மீண்டும் உள்நுழையவும்")
+        raise e
+
+def convert_user_id_to_int(user_id: str) -> int | None:
+    """Convert string user_id to integer for database queries"""
+    if not user_id:
+        return None
+    try:
+        return int(user_id)
+    except ValueError:
+        return None
 
 @router.post("/purchase")
 async def purchase_credits(request: Request, db=Depends(get_db)):
     """Purchase credits with bonus credits for larger packages"""
     try:
         user_id = get_user_id_from_token(request)
+        user_id_int = convert_user_id_to_int(user_id)
+        if user_id_int is None:
+            raise HTTPException(status_code=400, detail="தவறான பயனர் அடையாளம்")
+        
         data = await request.json()
         
         package_id = data.get("package_id")
@@ -63,14 +69,14 @@ async def purchase_credits(request: Request, db=Depends(get_db)):
             # Update user credits
             await db.execute(
                 "UPDATE users SET credits = credits + $1 WHERE id = $2",
-                total_credits, user_id
+                total_credits, user_id_int
             )
             
             # Record the transaction
             await db.execute("""
                 INSERT INTO credit_transactions (user_id, package_id, credits_purchased, bonus_credits, total_credits, amount_usd, status, created_at)
                 VALUES ($1, $2, $3, $4, $5, $6, 'completed', NOW())
-            """, user_id, package_id, base_credits, bonus_credits, total_credits, package["price_usd"])
+            """, user_id_int, package_id, base_credits, bonus_credits, total_credits, package["price_usd"])
         
         return {
             "success": True, 

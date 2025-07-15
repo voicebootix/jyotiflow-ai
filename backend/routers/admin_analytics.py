@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import List, Dict, Any
 from db import get_db
 from utils.analytics_utils import calculate_revenue_metrics, generate_ai_recommendations
@@ -6,10 +6,14 @@ import uuid
 import random
 from datetime import datetime
 
+# Import centralized authentication helper
+from auth.auth_helpers import AuthenticationHelper
+
 router = APIRouter(prefix="/api/admin/analytics", tags=["Admin Analytics"])
 
 @router.get("/analytics")
-async def analytics(db=Depends(get_db)):
+async def analytics(request: Request, db=Depends(get_db)):
+    admin_user = AuthenticationHelper.verify_admin_access_strict(request)
     return {
         "users": await db.fetchval("SELECT COUNT(*) FROM users"),
         "revenue": await db.fetchval("SELECT SUM(amount) FROM payments"),
@@ -17,26 +21,30 @@ async def analytics(db=Depends(get_db)):
     }
 
 @router.get("/revenue-insights")
-async def revenue_insights(db=Depends(get_db)):
+async def revenue_insights(request: Request, db=Depends(get_db)):
+    admin_user = AuthenticationHelper.verify_admin_access_strict(request)
     return {
         "monthly": await db.fetch("SELECT date_trunc('month', created_at) as month, SUM(amount) as total FROM payments GROUP BY month ORDER BY month DESC LIMIT 12"),
         "by_product": await db.fetch("SELECT product_id, SUM(amount) as total FROM payments GROUP BY product_id")
     }
 
 @router.get("/pricing-recommendations")
-async def pricing_recommendations(db=Depends(get_db)):
+async def pricing_recommendations(request: Request, db=Depends(get_db)):
+    admin_user = AuthenticationHelper.verify_admin_access_strict(request)
     rows = await db.fetch("SELECT * FROM ai_recommendations WHERE recommendation_type='pricing' ORDER BY created_at DESC")
     return [dict(row) for row in rows]
 
 @router.get("/ab-test-results")
-async def ab_test_results(db=Depends(get_db)):
+async def ab_test_results(request: Request, db=Depends(get_db)):
+    admin_user = AuthenticationHelper.verify_admin_access_strict(request)
     rows = await db.fetch("SELECT * FROM monetization_experiments ORDER BY created_at DESC")
     return [dict(row) for row in rows]
 
 # தமிழ் - மேலோட்டம் மற்றும் பகுப்பாய்வு
 @router.get("/overview")
-async def get_overview(db=Depends(get_db)):
+async def get_overview(request: Request, db=Depends(get_db)):
     """Get admin dashboard overview statistics"""
+    admin_user = AuthenticationHelper.verify_admin_access_strict(request)
     total_users = await db.fetchval("SELECT COUNT(*) FROM users")
     active_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days'")
     total_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='completed'")
@@ -72,7 +80,8 @@ async def get_overview(db=Depends(get_db)):
 
 # Add missing sessions endpoint
 @router.get("/sessions")
-async def get_sessions(db=Depends(get_db)):
+async def get_sessions(request: Request, db=Depends(get_db)):
+    admin_user = JWTHandler.verify_admin_access(request)
     """Get session analytics for admin dashboard"""
     try:
         # Get recent sessions
@@ -142,7 +151,8 @@ async def get_sessions(db=Depends(get_db)):
 
 # தமிழ் - AI நுண்ணறிவு பரிந்துரைகள்
 @router.get("/ai-insights")
-async def get_ai_insights(db=Depends(get_db)):
+async def get_ai_insights(request: Request, db=Depends(get_db)):
+    admin_user = JWTHandler.verify_admin_access(request)
     """Get AI insights and recommendations for admin dashboard"""
     try:
         # Get real AI recommendations from database
@@ -274,7 +284,8 @@ async def get_ai_insights(db=Depends(get_db)):
 
 # தமிழ் - AI விலை பரிந்துரைகள்
 @router.get("/ai-pricing-recommendations")
-async def get_ai_pricing_recommendations(db=Depends(get_db)):
+async def get_ai_pricing_recommendations(request: Request, db=Depends(get_db)):
+    admin_user = JWTHandler.verify_admin_access(request)
     try:
         # Get AI pricing recommendations from the new table
         recommendations = await db.fetch("""
@@ -343,8 +354,10 @@ async def get_ai_pricing_recommendations(db=Depends(get_db)):
 async def update_ai_pricing_recommendation(
     recommendation_id: int, 
     action: str, 
+    request: Request,
     db=Depends(get_db)
 ):
+    admin_user = JWTHandler.verify_admin_access(request)
     """Update AI pricing recommendation status (approve/reject)"""
     try:
         if action not in ['approve', 'reject']:

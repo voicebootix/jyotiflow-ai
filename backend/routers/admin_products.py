@@ -1,9 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
+from db import get_db, get_db_pool  # get_db_pool() returns current pool state
 import uuid
 import logging
 import json
-from db import get_db
+from typing import Optional
 from utils.welcome_credits_utils import get_dynamic_welcome_credits, set_dynamic_welcome_credits, validate_welcome_credits
+
+# Import the smart pricing service
+try:
+    from services.prokerala_smart_service import get_prokerala_smart_service
+except ImportError:
+    get_prokerala_smart_service = None
 
 logger = logging.getLogger(__name__)
 
@@ -479,6 +486,101 @@ async def delete_credit_package(package_id: str, db=Depends(get_db)):
     except Exception as e:
         logger.error(f"Error deleting credit package {package_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete credit package")
+
+# --- PROKERALA SMART PRICING ENDPOINTS ---
+@router.get("/pricing/prokerala-cost/{service_id}")
+async def get_prokerala_cost_analysis(
+    service_id: int,
+    user_id: Optional[str] = None,
+    db=Depends(get_db)
+):
+    """
+    Get smart cost analysis for Prokerala API usage
+    Shows real costs with cache optimization
+    """
+    try:
+        if not get_prokerala_smart_service:
+            return {
+                "success": False,
+                "error": "Prokerala smart service not available"
+            }
+        
+        db_pool = get_db_pool()
+        if not db_pool:
+            return {
+                "success": False,
+                "error": "Database pool not available"
+            }
+        smart_service = get_prokerala_smart_service(db_pool)
+        cost_analysis = await smart_service.calculate_service_cost(service_id, user_id)
+        
+        return {
+            "success": True,
+            "data": cost_analysis
+        }
+    except Exception as e:
+        logger.error(f"Error calculating Prokerala costs: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@router.post("/pricing/update-prokerala-config")
+async def update_prokerala_config(
+    config: dict = Body(...),
+    db=Depends(get_db)
+):
+    """Update Prokerala cost configuration"""
+    try:
+        # First try to update existing configuration
+        result = await db.execute("""
+            UPDATE prokerala_cost_config 
+            SET max_cost_per_call = $1, 
+                margin_percentage = $2,
+                cache_discount_enabled = $3,
+                last_updated = NOW()
+            WHERE id = (SELECT id FROM prokerala_cost_config ORDER BY last_updated DESC LIMIT 1)
+        """, 
+        config.get('max_cost_per_call', 0.036),
+        config.get('margin_percentage', 500),
+        config.get('cache_discount_enabled', True))
+        
+        # If no rows were updated, insert a new configuration
+        if result == "UPDATE 0":
+            await db.execute("""
+                INSERT INTO prokerala_cost_config 
+                (max_cost_per_call, margin_percentage, cache_discount_enabled, last_updated)
+                VALUES ($1, $2, $3, NOW())
+            """, 
+            config.get('max_cost_per_call', 0.036),
+            config.get('margin_percentage', 500),
+            config.get('cache_discount_enabled', True))
+        
+        return {"success": True, "message": "Configuration updated"}
+    except Exception as e:
+        logger.error(f"Error updating Prokerala config: {e}")
+        return {"success": False, "error": str(e)}
+
+@router.get("/pricing/prokerala-config")
+async def get_prokerala_config(db=Depends(get_db)):
+    """Get current Prokerala cost configuration"""
+    try:
+        config = await db.fetchrow("""
+            SELECT max_cost_per_call, margin_percentage, cache_discount_enabled, last_updated
+            FROM prokerala_cost_config
+            ORDER BY last_updated DESC LIMIT 1
+        """)
+        
+        if not config:
+            return {"success": False, "error": "No configuration found"}
+        
+        return {
+            "success": True,
+            "data": dict(config)
+        }
+    except Exception as e:
+        logger.error(f"Error getting Prokerala config: {e}")
+        return {"success": False, "error": str(e)}
 
 # --- PRODUCT ENDPOINTS (must be below service-types endpoints) ---
 @router.post("/{product_id}")

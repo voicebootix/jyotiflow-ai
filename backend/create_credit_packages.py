@@ -1,9 +1,13 @@
 import asyncpg
 import asyncio
 import os
+import sys
 
 async def create_credit_packages():
-    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+    database_url = os.getenv('DATABASE_URL')
+    if not database_url:
+        print("❌ ERROR: DATABASE_URL environment variable is required but not set")
+        sys.exit(1)
     conn = await asyncpg.connect(database_url)
     
     try:

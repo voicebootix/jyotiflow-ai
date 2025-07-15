@@ -104,7 +104,7 @@ async def get_service_types(db=Depends(get_db)):
                 COALESCE(live_chat_enabled, false) as live_chat_enabled,
                 COALESCE(voice_enabled, false) as voice_enabled,
                 COALESCE(video_enabled, false) as video_enabled,
-                COALESCE(interactive_enabled, comprehensive_reading_enabled, false) as interactive_enabled,
+                COALESCE(interactive_enabled, false) as interactive_enabled,
                 created_at,
                 updated_at
             FROM service_types 

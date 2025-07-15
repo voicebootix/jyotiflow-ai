@@ -275,7 +275,7 @@ body {
 }
 
 .sacred-card {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.4);
   backdrop-filter: blur(10px);
   border: 1px solid rgba(218, 165, 32, 0.3);
   border-radius: 15px;
@@ -286,6 +286,7 @@ body {
 
 .sacred-card:hover {
   transform: translateY(-8px);
+  background: rgba(0, 0, 0, 0.6);
   box-shadow: 0 10px 30px rgba(218, 165, 32, 0.3);
   border-color: rgba(218, 165, 32, 0.6);
 }
