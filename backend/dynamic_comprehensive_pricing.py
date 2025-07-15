@@ -20,8 +20,8 @@ class DynamicComprehensivePricing:
     def __init__(self, database_url: str = None):
         self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
         self.connection_pool = None
-        # Initialize connection pool asynchronously
-        asyncio.create_task(self.initialize_pool())
+        self._pool_initialized = False
+        self._pool_lock = asyncio.Lock()
         self.base_cost_factors = {
             "openai_api_calls": 0.5,  # Credits per API call
             "knowledge_retrieval": 0.2,  # Credits per knowledge piece
@@ -36,16 +36,18 @@ class DynamicComprehensivePricing:
     
     async def initialize_pool(self):
         """Initialize connection pool"""
-        if not self.connection_pool:
-            self.connection_pool = await asyncpg.create_pool(
-                self.database_url,
-                min_size=2,
-                max_size=10
-            )
+        async with self._pool_lock:
+            if not self._pool_initialized:
+                self.connection_pool = await asyncpg.create_pool(
+                    self.database_url,
+                    min_size=2,
+                    max_size=10
+                )
+                self._pool_initialized = True
     
     async def get_connection(self):
         """Get connection from pool"""
-        if not self.connection_pool:
+        if not self._pool_initialized:
             await self.initialize_pool()
         return await self.connection_pool.acquire()
     
@@ -246,36 +248,34 @@ class DynamicComprehensivePricing:
     
     async def _get_ai_price_recommendation(self) -> Dict[str, Any]:
         """Get AI-based pricing recommendation"""
+        conn = None
         try:
-            # Integration with existing AI pricing system
-            conn = await asyncpg.connect(self.database_url)
-            try:
-                # Get latest AI recommendation for comprehensive service
-                result = await conn.fetchrow("""
-                    SELECT recommendation_data, confidence_score 
-                    FROM ai_pricing_recommendations 
-                    WHERE service_type = 'comprehensive_life_reading_30min'
-                    AND status = 'pending'
-                    ORDER BY created_at DESC 
-                    LIMIT 1
-                """)
-                
-                if result:
-                    recommendation_data = json.loads(result['recommendation_data'])
-                    return {
-                        "recommended_price": recommendation_data.get("suggested_price", 12),
-                        "confidence": result['confidence_score'],
-                        "reasoning": recommendation_data.get("reasoning", "AI analysis based on market data")
-                    }
-                else:
-                    return {
-                        "recommended_price": 12,
-                        "confidence": 0.7,
-                        "reasoning": "Default AI recommendation - no recent data available"
-                    }
-                    
-            finally:
-                await conn.close()
+            # Use connection pool instead of direct connection
+            conn = await self.get_connection()
+            
+            # Get latest AI recommendation for comprehensive service
+            result = await conn.fetchrow("""
+                SELECT recommendation_data, confidence_score 
+                FROM ai_pricing_recommendations 
+                WHERE service_type = 'comprehensive_life_reading_30min'
+                AND status = 'pending'
+                ORDER BY created_at DESC 
+                LIMIT 1
+            """)
+            
+            if result:
+                recommendation_data = json.loads(result['recommendation_data'])
+                return {
+                    "recommended_price": recommendation_data.get("suggested_price", 12),
+                    "confidence": result['confidence_score'],
+                    "reasoning": recommendation_data.get("reasoning", "AI analysis based on market data")
+                }
+            else:
+                return {
+                    "recommended_price": 12,
+                    "confidence": 0.7,
+                    "reasoning": "Default AI recommendation - no recent data available"
+                }
                 
         except Exception as e:
             logger.error(f"AI recommendation error: {e}")
@@ -284,6 +284,9 @@ class DynamicComprehensivePricing:
                 "confidence": 0.5,
                 "reasoning": "Fallback recommendation due to system error"
             }
+        finally:
+            if conn:
+                await self.release_connection(conn)
     
     def _calculate_base_price(self, costs: Dict[str, float]) -> float:
         """Calculate base price from costs"""
@@ -353,70 +356,72 @@ class DynamicComprehensivePricing:
     
     async def update_service_price(self, new_pricing: Dict[str, Any]) -> bool:
         """Update the service price in the database"""
+        conn = None
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
-                # Update service_types table
-                await conn.execute("""
-                    UPDATE service_types 
-                    SET credits_required = $1, 
-                        pricing_data = $2,
-                        last_price_update = NOW()
-                    WHERE name = 'comprehensive_life_reading_30min'
-                """, 
-                    new_pricing["current_price"],
-                    json.dumps(new_pricing)
-                )
-                
-                # Log the price change
-                await conn.execute("""
-                    INSERT INTO pricing_history 
-                    (service_name, old_price, new_price, reasoning, changed_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                """, 
-                    "comprehensive_life_reading_30min",
-                    0,  # We'll get old price in a real implementation
-                    new_pricing["current_price"],
-                    new_pricing["pricing_rationale"]
-                )
-                
-                logger.info(f"Updated comprehensive reading price to {new_pricing['current_price']} credits")
-                return True
-                
-            finally:
-                await conn.close()
-                
+            conn = await self.get_connection()
+            
+            # Update service_types table
+            await conn.execute("""
+                UPDATE service_types 
+                SET credits_required = $1, 
+                    pricing_data = $2,
+                    last_price_update = NOW()
+                WHERE name = 'comprehensive_life_reading_30min'
+            """, 
+                new_pricing["current_price"],
+                json.dumps(new_pricing)
+            )
+            
+            # Log the price change
+            await conn.execute("""
+                INSERT INTO pricing_history 
+                (service_name, old_price, new_price, reasoning, changed_at)
+                VALUES ($1, $2, $3, $4, NOW())
+            """, 
+                "comprehensive_life_reading_30min",
+                0,  # We'll get old price in a real implementation
+                new_pricing["current_price"],
+                new_pricing["pricing_rationale"]
+            )
+            
+            logger.info(f"Updated comprehensive reading price to {new_pricing['current_price']} credits")
+            return True
+            
         except Exception as e:
             logger.error(f"Price update error: {e}")
             return False
+        finally:
+            if conn:
+                await self.release_connection(conn)
     
     async def get_current_price_info(self) -> Dict[str, Any]:
         """Get current pricing information"""
+        conn = None
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
-                result = await conn.fetchrow("""
-                    SELECT credits_required, pricing_data, last_price_update
-                    FROM service_types 
-                    WHERE name = 'comprehensive_life_reading_30min'
-                """)
-                
-                if result:
-                    return {
-                        "current_price": result['credits_required'],
-                        "pricing_data": json.loads(result['pricing_data']) if result['pricing_data'] else {},
-                        "last_updated": result['last_price_update'].isoformat() if result['last_price_update'] else None
-                    }
-                else:
-                    # Return default if service not found
-                    return await self.calculate_comprehensive_reading_price()
-                    
-            finally:
-                await conn.close()
+            conn = await self.get_connection()
+            
+            result = await conn.fetchrow("""
+                SELECT credits_required, pricing_data, last_price_update
+                FROM service_types 
+                WHERE name = 'comprehensive_life_reading_30min'
+            """)
+            
+            if result:
+                return {
+                    "current_price": result['credits_required'],
+                    "pricing_data": json.loads(result['pricing_data']) if result['pricing_data'] else {},
+                    "last_updated": result['last_price_update'].isoformat() if result['last_price_update'] else None
+                }
+            else:
+                # Return default if service not found
+                return await self.calculate_comprehensive_reading_price()
                 
         except Exception as e:
             logger.error(f"Price retrieval error: {e}")
             return await self.calculate_comprehensive_reading_price()
+        finally:
+            if conn:
+                await self.release_connection(conn)
 
 # Pricing recommendation functions (NO AUTO-UPDATE)
 async def generate_pricing_recommendations():

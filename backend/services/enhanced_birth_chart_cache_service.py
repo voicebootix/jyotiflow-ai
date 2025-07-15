@@ -168,11 +168,11 @@ class EnhancedBirthChartCacheService:
     
     async def get_cached_complete_profile(self, user_email: str, birth_details: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Get complete cached profile including birth chart + PDF reports + AI reading"""
+        conn = None
+        result = None
         try:
             birth_hash = self.generate_birth_details_hash(birth_details)
-            
             conn = await asyncpg.connect(self.db_url)
-            
             result = await conn.fetchrow("""
                 SELECT birth_chart_data, birth_chart_cached_at, birth_chart_expires_at
                 FROM users 
@@ -181,29 +181,27 @@ class EnhancedBirthChartCacheService:
                 AND birth_chart_expires_at > NOW()
                 AND birth_chart_data IS NOT NULL
             """, user_email, birth_hash)
-            
-            await conn.close()
-            
-            if result:
-                logger.info(f"✅ Complete profile cache HIT for user {user_email}")
-                cached_data = result['birth_chart_data']
-                
-                return {
-                    'birth_chart': cached_data.get('birth_chart', {}),
-                    'pdf_reports': cached_data.get('pdf_reports', {}),
-                    'swamiji_reading': cached_data.get('swamiji_reading', {}),
-                    'cached_at': result['birth_chart_cached_at'],
-                    'expires_at': result['birth_chart_expires_at'],
-                    'cache_hit': True
-                }
-            else:
-                logger.info(f"❌ Complete profile cache MISS for user {user_email}")
-                return None
-                
         except Exception as e:
             logger.error(f"Error getting cached profile: {e}")
             return None
-    
+        finally:
+            if conn:
+                await conn.close()
+        if result:
+            logger.info(f"✅ Complete profile cache HIT for user {user_email}")
+            cached_data = result['birth_chart_data']
+            return {
+                'birth_chart': cached_data.get('birth_chart', {}),
+                'pdf_reports': cached_data.get('pdf_reports', {}),
+                'swamiji_reading': cached_data.get('swamiji_reading', {}),
+                'cached_at': result['birth_chart_cached_at'],
+                'expires_at': result['birth_chart_expires_at'],
+                'cache_hit': True
+            }
+        else:
+            logger.info(f"❌ Complete profile cache MISS for user {user_email}")
+            return None
+                
     async def generate_and_cache_complete_profile(self, user_email: str, birth_details: Dict[str, Any]) -> Dict[str, Any]:
         """Generate complete profile: birth chart + PDF reports + AI reading and cache it"""
         try:
@@ -359,9 +357,9 @@ class EnhancedBirthChartCacheService:
                 'generated_with': 'error_fallback'
             }
     
-    async def _build_swamiji_prompt(self, birth_chart_data: Dict[str, Any], 
-                                   pdf_reports: Dict[str, Any], 
-                                   birth_details: Dict[str, Any]) -> str:
+    def _build_swamiji_prompt(self, birth_chart_data: Dict[str, Any], 
+                              pdf_reports: Dict[str, Any], 
+                              birth_details: Dict[str, Any]) -> str:
         """Build comprehensive prompt for Swamiji's reading"""
         
         # Extract key astrological data
@@ -456,42 +454,45 @@ Make it personal and practical for daily life.
             cached_at = datetime.now()
             expires_at = cached_at + timedelta(days=self.cache_duration_days)
             
-            conn = await asyncpg.connect(self.db_url)
-            
-            # Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) instead of INSERT OR REPLACE
-            await conn.execute("""
-                INSERT INTO users 
-                (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
-                 birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
-                 birth_location, name, password_hash, role, credits)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-                ON CONFLICT (email) DO UPDATE SET
-                birth_chart_data = $2,
-                birth_chart_hash = $3,
-                birth_chart_cached_at = $4,
-                birth_chart_expires_at = $5,
-                has_free_birth_chart = $6,
-                birth_date = $7,
-                birth_time = $8,
-                birth_location = $9,
-                name = $10
-            """, 
-            user_email,
-            json.dumps(complete_profile),
-            birth_hash,
-            cached_at,
-            expires_at,
-            True,
-            birth_details.get('date'),
-            birth_details.get('time'),
-            birth_details.get('location'),
-            birth_details.get('name', 'User'),
-            'temp_hash',  # This would be set during actual registration
-            'user',
-            50  # Default credits for new users
-            )
-            
-            await conn.close()
+            conn = None
+            try:
+                conn = await asyncpg.connect(self.db_url)
+                
+                # Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) instead of INSERT OR REPLACE
+                await conn.execute("""
+                    INSERT INTO users 
+                    (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
+                     birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
+                     birth_location, name, password_hash, role, credits)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                    ON CONFLICT (email) DO UPDATE SET
+                    birth_chart_data = $2,
+                    birth_chart_hash = $3,
+                    birth_chart_cached_at = $4,
+                    birth_chart_expires_at = $5,
+                    has_free_birth_chart = $6,
+                    birth_date = $7,
+                    birth_time = $8,
+                    birth_location = $9,
+                    name = $10
+                """, 
+                user_email,
+                json.dumps(complete_profile),
+                birth_hash,
+                cached_at,
+                expires_at,
+                True,
+                birth_details.get('date'),
+                birth_details.get('time'),
+                birth_details.get('location'),
+                birth_details.get('name', 'User'),
+                'temp_hash',  # This would be set during actual registration
+                'user',
+                50  # Default credits for new users
+                )
+            finally:
+                if conn:
+                    await conn.close()
             
             logger.info(f"✅ Complete profile cached for {user_email}")
             return True
@@ -502,9 +503,10 @@ Make it personal and practical for daily life.
     
     async def get_user_profile_status(self, user_email: str) -> Dict[str, Any]:
         """Get user's complete profile status"""
+        conn = None
+        result = None
         try:
             conn = await asyncpg.connect(self.db_url)
-            
             result = await conn.fetchrow("""
                 SELECT birth_date, birth_time, birth_location, birth_chart_cached_at, 
                        birth_chart_expires_at, has_free_birth_chart,
@@ -513,28 +515,27 @@ Make it personal and practical for daily life.
                 FROM users 
                 WHERE email = $1
             """, user_email)
-            
-            await conn.close()
-            
-            if result:
-                return {
-                    'has_birth_details': bool(result['birth_date'] and result['birth_time'] and result['birth_location']),
-                    'has_cached_data': bool(result['has_cached_data']),
-                    'cache_valid': bool(result['cache_valid']),
-                    'cached_at': result['birth_chart_cached_at'],
-                    'expires_at': result['birth_chart_expires_at'],
-                    'has_free_birth_chart': bool(result['has_free_birth_chart'])
-                }
-            else:
-                return {
-                    'has_birth_details': False,
-                    'has_cached_data': False,
-                    'cache_valid': False,
-                    'cached_at': None,
-                    'expires_at': None,
-                    'has_free_birth_chart': False
-                }
-                
         except Exception as e:
             logger.error(f"Error getting user profile status: {e}")
             return {'error': str(e)}
+        finally:
+            if conn:
+                await conn.close()
+        if result:
+            return {
+                'has_birth_details': bool(result['birth_date'] and result['birth_time'] and result['birth_location']),
+                'has_cached_data': bool(result['has_cached_data']),
+                'cache_valid': bool(result['cache_valid']),
+                'cached_at': result['birth_chart_cached_at'],
+                'expires_at': result['birth_chart_expires_at'],
+                'has_free_birth_chart': bool(result['has_free_birth_chart'])
+            }
+        else:
+            return {
+                'has_birth_details': False,
+                'has_cached_data': False,
+                'cache_valid': False,
+                'cached_at': None,
+                'expires_at': None,
+                'has_free_birth_chart': False
+            }

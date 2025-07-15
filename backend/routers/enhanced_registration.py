@@ -118,39 +118,42 @@ class EnhancedRegistrationService:
             # Get dynamic welcome credits using shared utility
             welcome_credits = await get_dynamic_welcome_credits()
             
-            conn = await db.get_connection()
-            
-            # Check if user already exists
-            existing_user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)
-            if existing_user:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User already exists"
+            conn = None
+            try:
+                conn = await db.db_manager.get_connection()
+                
+                # Check if user already exists
+                existing_user = await conn.fetchrow("SELECT id FROM users WHERE email = $1", user_data.email)
+                if existing_user:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="User already exists"
+                    )
+                
+                # Insert new user
+                user_id = await conn.fetchval("""
+                    INSERT INTO users (
+                        name, email, password_hash, phone, birth_date, birth_time, 
+                        birth_location, spiritual_level, preferred_language, 
+                        role, credits, created_at
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+                    RETURNING id
+                """, 
+                    user_data.name,
+                    user_data.email,
+                    password_hash,
+                    user_data.phone,
+                    user_data.birth_details.date,
+                    user_data.birth_details.time,
+                    user_data.birth_details.location,
+                    user_data.spiritual_level,
+                    user_data.preferred_language,
+                    'user',
+                    welcome_credits  # Dynamic welcome credits
                 )
-            
-            # Insert new user
-            user_id = await conn.fetchval("""
-                INSERT INTO users (
-                    name, email, password_hash, phone, birth_date, birth_time, 
-                    birth_location, spiritual_level, preferred_language, 
-                    role, credits, created_at
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-                RETURNING id
-            """, 
-                user_data.name,
-                user_data.email,
-                password_hash,
-                user_data.phone,
-                user_data.birth_details.date,
-                user_data.birth_details.time,
-                user_data.birth_details.location,
-                user_data.spiritual_level,
-                user_data.preferred_language,
-                'user',
-                welcome_credits  # Dynamic welcome credits
-            )
-            
-            await conn.close()
+            finally:
+                if conn:
+                    await db.db_manager.release_connection(conn)
             
             if user_id is None:
                 raise ValueError("Failed to get user ID after insertion")

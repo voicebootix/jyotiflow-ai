@@ -918,12 +918,16 @@ async def get_complete_birth_chart_profile(request: Request):
     
     try:
         # Get user's birth details from profile
-        conn = await db_manager.get_connection()
-        user_data = await conn.fetchrow("""
-            SELECT birth_date, birth_time, birth_location, birth_chart_data
-            FROM users WHERE email = $1
-        """, user_email)
-        await conn.close()
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            user_data = await conn.fetchrow("""
+                SELECT birth_date, birth_time, birth_location, birth_chart_data
+                FROM users WHERE email = $1
+            """, user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
         
         if not user_data or not user_data['birth_date']:
             return {
@@ -960,13 +964,17 @@ async def get_complete_birth_chart_profile(request: Request):
         complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
         
         # Update user's birth chart data in database
-        conn = await db_manager.get_connection()
-        await conn.execute("""
-            UPDATE users 
-            SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
-            WHERE email = $2
-        """, json.dumps(complete_profile), user_email)
-        await conn.close()
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            await conn.execute("""
+                UPDATE users 
+                SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
+                WHERE email = $2
+            """, json.dumps(complete_profile), user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
         
         return {
             "success": True,
@@ -992,12 +1000,16 @@ async def generate_birth_chart_for_user(request: Request):
     
     try:
         # Get user's birth details from profile
-        conn = await db_manager.get_connection()
-        user_data = await conn.fetchrow("""
-            SELECT birth_date, birth_time, birth_location
-            FROM users WHERE email = $1
-        """, user_email)
-        await conn.close()
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            user_data = await conn.fetchrow("""
+                SELECT birth_date, birth_time, birth_location
+                FROM users WHERE email = $1
+            """, user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
         
         if not user_data or not user_data['birth_date']:
             return {
@@ -1018,13 +1030,17 @@ async def generate_birth_chart_for_user(request: Request):
         complete_profile = await enhanced_service.generate_and_cache_complete_profile(user_email, birth_details)
         
         # Update user's birth chart data in database
-        conn = await db_manager.get_connection()
-        await conn.execute("""
-            UPDATE users 
-            SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
-            WHERE email = $2
-        """, json.dumps(complete_profile), user_email)
-        await conn.close()
+        conn = None
+        try:
+            conn = await db_manager.get_connection()
+            await conn.execute("""
+                UPDATE users 
+                SET birth_chart_data = $1, birth_chart_cached_at = NOW(), birth_chart_expires_at = NOW() + INTERVAL '365 days'
+                WHERE email = $2
+            """, json.dumps(complete_profile), user_email)
+        finally:
+            if conn:
+                await db_manager.release_connection(conn)
         
         return {
             "success": True,
