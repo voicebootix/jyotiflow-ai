@@ -8,7 +8,7 @@ BEGIN
     -- Check if question column exists in sessions table
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'question'
+        WHERE table_name = 'sessions' AND column_name = 'question' AND table_schema = 'public'
     ) THEN
         ALTER TABLE sessions ADD COLUMN question TEXT;
         RAISE NOTICE '✅ Added question column to sessions table';
@@ -19,7 +19,7 @@ BEGIN
     -- Check if user_email column exists in sessions table  
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'user_email'
+        WHERE table_name = 'sessions' AND column_name = 'user_email' AND table_schema = 'public'
     ) THEN
         ALTER TABLE sessions ADD COLUMN user_email VARCHAR(255);
         RAISE NOTICE '✅ Added user_email column to sessions table';
@@ -30,7 +30,7 @@ BEGIN
     -- Check if service_type column exists (used by many queries)
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'service_type'
+        WHERE table_name = 'sessions' AND column_name = 'service_type' AND table_schema = 'public'
     ) THEN
         ALTER TABLE sessions ADD COLUMN service_type VARCHAR(100);
         RAISE NOTICE '✅ Added service_type column to sessions table';
@@ -41,7 +41,7 @@ BEGIN
     -- Check if user_id column exists (used in WHERE clauses)
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'sessions' AND column_name = 'user_id'
+        WHERE table_name = 'sessions' AND column_name = 'user_id' AND table_schema = 'public'
     ) THEN
         ALTER TABLE sessions ADD COLUMN user_id INTEGER;
         RAISE NOTICE '✅ Added user_id column to sessions table';
