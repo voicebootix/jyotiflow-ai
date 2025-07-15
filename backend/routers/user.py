@@ -17,14 +17,10 @@ from auth.auth_helpers import AuthenticationHelper
 router = APIRouter(prefix="/api/user", tags=["User"])
 logger = logging.getLogger(__name__)
 
-# Use centralized authentication helpers - no duplication
-get_user_id_from_token = AuthenticationHelper.get_user_id_optional
-convert_user_id_to_int = AuthenticationHelper.convert_user_id_to_int
-
 def get_user_id_as_int(request: Request) -> int | None:
     """Extract user ID from JWT token and convert to integer - OPTIONAL"""
     try:
-        user_id_str = get_user_id_from_token(request)
+        user_id_str = AuthenticationHelper.get_user_id_optional(request)
         return int(user_id_str) if user_id_str else None
     except (ValueError, TypeError):
         return None
@@ -45,20 +41,8 @@ async def get_profile(request: Request, db=Depends(get_db)):
             "created_at": datetime.now(timezone.utc)
         }
     
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        # Return guest user profile for invalid user IDs (maintain fallback behavior)
-        return {
-            "id": "guest",
-            "email": "guest@jyotiflow.ai",
-            "name": "Guest User",
-            "full_name": "Guest User",
-            "credits": 0,
-            "role": "guest",
-            "created_at": datetime.now(timezone.utc)
-        }
-    
-    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id_int)
+    # user_id is already an integer, no need for conversion
+    user = await db.fetchrow("SELECT id, email, name, full_name, credits, role, created_at FROM users WHERE id=$1", user_id)
     if not user:
         # Return guest user profile if user not found
         return {
@@ -87,11 +71,8 @@ async def get_credits(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": {"credits": 0}}
     
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        return {"success": False, "error": "Invalid user ID"}
-    
-    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id_int)
+    # user_id is already an integer, no need for conversion
+    user = await db.fetchrow("SELECT credits FROM users WHERE id=$1", user_id)
     if not user:
         return {"success": True, "data": {"credits": 0}}
     return {"success": True, "data": {"credits": user["credits"]}}
@@ -102,15 +83,13 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     if not user_id:
         return {"success": True, "data": []}
     
-    user_id_int = convert_user_id_to_int(user_id)
-    if user_id_int is None:
-        return {"success": False, "error": "Invalid user ID"}
-    
-    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id_int)
+    # user_id is already an integer, no need for conversion
+    user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id)
     if not user:
         return {"success": True, "data": []}
     
-    sessions = await db.fetch("SELECT id, service_type, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
+    # Fixed: Changed service_type to service_type_id to match database schema
+    sessions = await db.fetch("SELECT id, service_type_id, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
     return {"success": True, "data": [dict(row) for row in sessions]}
 
 @router.get("/cosmic-insights")
@@ -119,7 +98,7 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
     Free cosmic insights that show limited data
     Implements smart teasing to encourage credit usage
     """
-    user_id = get_user_id_from_token(request)
+    user_id = AuthenticationHelper.get_user_id_optional(request)
     
     if not user_id:
         return {
@@ -135,7 +114,7 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
             }
         }
     
-    user_id_int = convert_user_id_to_int(user_id)
+    user_id_int = AuthenticationHelper.convert_user_id_to_int(user_id)
     if user_id_int is None:
         return {"status": "error", "message": "Invalid user ID"}
     
