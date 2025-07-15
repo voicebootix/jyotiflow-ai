@@ -3,60 +3,24 @@
 -- Priority: 000 (runs first)
 
 -- ========================================
--- 1. FIX SESSIONS TABLE CONSTRAINTS
+-- 1. FIX SESSIONS TABLE
 -- ========================================
 
 -- Ensure sessions table exists with proper structure
-CREATE TABLE IF NOT EXISTS sessions (
+CREATE TABLE IF NOT EXISTS public.sessions (
     id SERIAL PRIMARY KEY,
-    session_id VARCHAR(100) UNIQUE NOT NULL,
-    user_email VARCHAR(255),
-    user_id TEXT,
-    service_type TEXT NOT NULL,
-    duration_minutes INTEGER DEFAULT 0,
-    credits_used INTEGER DEFAULT 0,
-    session_data TEXT,
+    session_id VARCHAR(255) UNIQUE NOT NULL,
+    user_email VARCHAR(255) NOT NULL,
+    service_type VARCHAR(100) NOT NULL,
     question TEXT,
-    birth_details JSONB,
-    status VARCHAR(50) DEFAULT 'active',
-    result_summary TEXT,
-    full_result TEXT,
-    guidance TEXT,
-    avatar_video_url VARCHAR(500),
-    avatar_duration_seconds INTEGER,
-    avatar_generation_cost DECIMAL(10,2),
-    voice_synthesis_used BOOLEAN DEFAULT false,
-    avatar_quality VARCHAR(20) DEFAULT 'high',
-    original_price DECIMAL(10,2),
-    user_rating INTEGER CHECK (user_rating >= 1 AND user_rating <= 5),
-    user_feedback TEXT,
-    session_quality_score DECIMAL(3,2),
+    answer TEXT,
+    credits_used INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    completed_at TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Add unique constraint on id for foreign key references
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'sessions_id_unique'
-    ) THEN
-        ALTER TABLE public.sessions ADD CONSTRAINT sessions_id_unique UNIQUE (id);
-    END IF;
-END $$;
-
--- Add unique constraint on session_id
-DO $$ 
-BEGIN
-    IF NOT EXISTS (
-        SELECT 1 FROM pg_constraint 
-        WHERE conname = 'sessions_session_id_unique'
-    ) THEN
-        ALTER TABLE public.sessions ADD CONSTRAINT sessions_session_id_unique UNIQUE (session_id);
-    END IF;
-END $$;
+-- Note: No need to add UNIQUE constraints on id (PRIMARY KEY) or session_id (already UNIQUE)
+-- Adding redundant constraints would create duplicate indexes and slow performance
 
 -- ========================================
 -- 2. FIX SERVICE_TYPES TABLE
@@ -221,15 +185,8 @@ BEGIN
         END IF;
     END IF;
     
-    -- Add base_credits column to users if missing
-    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'users') THEN
-        IF NOT EXISTS (
-            SELECT 1 FROM information_schema.columns 
-            WHERE table_name = 'users' AND column_name = 'base_credits'
-        ) THEN
-            ALTER TABLE public.users ADD COLUMN base_credits INTEGER DEFAULT 0;
-        END IF;
-    END IF;
+    -- Note: base_credits column is already defined in the users table creation above
+    -- No need to add it again here to avoid duplicate_column errors
     
     -- Add unique constraints only if tables exist
     IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'api_usage_metrics') THEN
@@ -270,7 +227,7 @@ END $$;
 -- ========================================
 
 -- Platform settings table for social media integrations
-CREATE TABLE IF NOT EXISTS platform_settings (
+CREATE TABLE IF NOT EXISTS public.platform_settings (
     id SERIAL PRIMARY KEY,
     platform_name VARCHAR(100) NOT NULL,
     api_key TEXT,
@@ -311,12 +268,12 @@ ON CONFLICT (name) DO UPDATE SET
 -- ========================================
 
 -- Create indexes that were failing due to missing columns
-CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON sessions(service_type);
-CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON sessions(created_at);
-CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON sessions(user_email);
-CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_service_types_name ON service_types(name);
-CREATE INDEX IF NOT EXISTS idx_platform_settings_platform ON platform_settings(platform_name);
+CREATE INDEX IF NOT EXISTS idx_sessions_service_type ON public.sessions(service_type);
+CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON public.sessions(created_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON public.sessions(user_email);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
+CREATE INDEX IF NOT EXISTS idx_service_types_name ON public.service_types(name);
+CREATE INDEX IF NOT EXISTS idx_platform_settings_platform ON public.platform_settings(platform_name);
 
 -- ========================================
 -- 9. CREATE UPDATE TRIGGERS
@@ -332,27 +289,27 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers for updated_at timestamps
-DROP TRIGGER IF EXISTS update_sessions_timestamp ON sessions;
+DROP TRIGGER IF EXISTS update_sessions_timestamp ON public.sessions;
 CREATE TRIGGER update_sessions_timestamp 
-    BEFORE UPDATE ON sessions 
+    BEFORE UPDATE ON public.sessions 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_service_types_timestamp ON service_types;
+DROP TRIGGER IF EXISTS update_service_types_timestamp ON public.service_types;
 CREATE TRIGGER update_service_types_timestamp 
-    BEFORE UPDATE ON service_types 
+    BEFORE UPDATE ON public.service_types 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_users_timestamp ON users;
+DROP TRIGGER IF EXISTS update_users_timestamp ON public.users;
 CREATE TRIGGER update_users_timestamp 
-    BEFORE UPDATE ON users 
+    BEFORE UPDATE ON public.users 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 
-DROP TRIGGER IF EXISTS update_platform_settings_timestamp ON platform_settings;
+DROP TRIGGER IF EXISTS update_platform_settings_timestamp ON public.platform_settings;
 CREATE TRIGGER update_platform_settings_timestamp 
-    BEFORE UPDATE ON platform_settings 
+    BEFORE UPDATE ON public.platform_settings 
     FOR EACH ROW 
     EXECUTE FUNCTION update_updated_at_column();
 

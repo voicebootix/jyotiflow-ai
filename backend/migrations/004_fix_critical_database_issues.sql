@@ -16,7 +16,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'follow_up_templates') THEN
         RAISE NOTICE '📋 Creating follow_up_templates table...';
         
-        CREATE TABLE follow_up_templates (
+        CREATE TABLE public.follow_up_templates (
             id SERIAL PRIMARY KEY,
             template_name VARCHAR(255) NOT NULL,
             template_type VARCHAR(100) NOT NULL,
@@ -51,23 +51,23 @@ END $$;
 
 DO $$ 
 BEGIN
-    -- Add birth_chart_cached_at column
+    -- Add birth_chart_cached_at column if missing
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'users' AND column_name = 'birth_chart_cached_at'
     ) THEN
-        ALTER TABLE users ADD COLUMN birth_chart_cached_at TIMESTAMP;
+        ALTER TABLE public.users ADD COLUMN birth_chart_cached_at TIMESTAMP;
         RAISE NOTICE '✅ Added birth_chart_cached_at column to users table';
     ELSE
         RAISE NOTICE '✅ birth_chart_cached_at column already exists in users table';
     END IF;
-    
+
     -- Add birth_chart_cache_status column
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'users' AND column_name = 'birth_chart_cache_status'
     ) THEN
-        ALTER TABLE users ADD COLUMN birth_chart_cache_status VARCHAR(50) DEFAULT 'not_cached';
+        ALTER TABLE public.users ADD COLUMN birth_chart_cache_status VARCHAR(50) DEFAULT 'not_cached';
         RAISE NOTICE '✅ Added birth_chart_cache_status column to users table';
     ELSE
         RAISE NOTICE '✅ birth_chart_cache_status column already exists in users table';
@@ -171,7 +171,7 @@ BEGIN
                     -- This prevents data loss and allows proper setup later
                     RAISE NOTICE '⚠️  No subscription_plans table found - keeping plan_id as UUID type';
                     RAISE NOTICE '📋 Create subscription_plans table first, then run this migration again';
-                    RETURN;
+                    -- Cannot RETURN inside DO block; control simply falls through
                 END IF;
                 
                 -- Log the conversion results for audit purposes
@@ -183,7 +183,7 @@ BEGIN
             EXCEPTION WHEN OTHERS THEN
                 RAISE NOTICE '❌ Failed to process plan_id column: %', SQLERRM;
                 RAISE NOTICE '⚠️  Keeping plan_id as UUID type - manual intervention required';
-                RETURN;
+                -- Cannot RETURN inside DO block; control simply falls through
             END;
             
             -- Note: Foreign key constraint will be added after manual UUID to INTEGER mapping
