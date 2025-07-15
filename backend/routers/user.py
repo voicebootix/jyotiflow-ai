@@ -18,6 +18,32 @@ from auth.auth_helpers import AuthenticationHelper
 router = APIRouter(prefix="/api/user", tags=["User"])
 logger = logging.getLogger(__name__)
 
+# Schema cache to avoid repeated database queries
+_sessions_schema_cache = None
+
+async def _get_sessions_schema(db):
+    """Get sessions table schema with caching for performance optimization"""
+    global _sessions_schema_cache
+    if _sessions_schema_cache is None:
+        try:
+            columns_result = await db.fetch("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'sessions' AND table_schema = 'public'
+            """)
+            _sessions_schema_cache = {row['column_name'] for row in columns_result}
+            logger.info(f"Cached sessions table schema: {_sessions_schema_cache}")
+        except Exception as e:
+            logger.exception("Failed to cache sessions table schema", exc_info=e)
+            raise
+    return _sessions_schema_cache
+
+def _clear_sessions_schema_cache():
+    """Clear the sessions schema cache (useful for testing or after schema changes)"""
+    global _sessions_schema_cache
+    _sessions_schema_cache = None
+    logger.info("Sessions schema cache cleared")
+
 def get_user_id_from_token(request: Request) -> str | None:
     """Extract user ID from JWT token - OPTIONAL"""
     try:
@@ -121,16 +147,10 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     
     # SECURE: Check column existence first, ensure user privacy always protected
     
-    # Step 1: Determine which columns actually exist in sessions table
-    available_columns = set()
+    # Step 1: Get cached schema information (performance optimized)
     try:
-        columns_result = await db.fetch("""
-            SELECT column_name 
-            FROM information_schema.columns 
-            WHERE table_name = 'sessions' AND table_schema = 'public'
-        """)
-        available_columns = {row['column_name'] for row in columns_result}
-        logger.info(f"Available sessions columns: {available_columns}")
+        available_columns = await _get_sessions_schema(db)
+        logger.debug(f"Available sessions columns: {available_columns}")
     except Exception as e:
         logger.exception("Failed to check sessions table columns", exc_info=e)
         raise HTTPException(
@@ -280,13 +300,7 @@ async def get_user_recommendations(request: Request, db=Depends(get_db)):
         return {"success": True, "data": recommendations[:5]}  # Return top 5 recommendations
     except Exception as e:
         print(f"Error generating recommendations: {e}")
-        return {"success": True, "data": []} 
-=======
-=======
-    sessions = await db.fetch("SELECT id, service_type, question, created_at FROM sessions WHERE user_email=$1 ORDER BY created_at DESC", user["email"])
-    return {"success": True, "data": [dict(row) for row in sessions]}
-
->>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
+        return {"success": True, "data": []}
 @router.get("/cosmic-insights")
 async def get_cosmic_insights(request: Request, db=Depends(get_db)):
     """
@@ -304,18 +318,6 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
                 "general": "🌟 The universe holds infinite possibilities for those who seek",
                 "daily": "✨ Today brings opportunities for spiritual growth",
                 "love": "💕 Love energy is flowing in your direction",
-<<<<<<< HEAD
-                "career": "💼 Professional success awaits the prepared mind"
-            }
-        }
-    
-    try:
-        # Check for existing birth profile
-        user_data = await db.fetchrow("""
-            SELECT email, name, birth_chart_data, created_at
-            FROM users WHERE id = $1
-        """, user_id)
-=======
                 "career": "💼 Success awaits those who align with their purpose",
                 "spiritual": "🧘 Your spiritual journey is beginning to unfold"
             }
@@ -333,47 +335,10 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
             FROM users 
             WHERE id = $1
         """, user_id_int)
->>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
         
         if not user_data:
             return {"status": "error", "message": "User not found"}
         
-<<<<<<< HEAD
-        # Check if user has birth chart data
-        if not user_data['birth_chart_data']:
-            return {
-                "status": "incomplete",
-                "message": "Complete your birth profile for free personalized insights",
-                "action_required": "add_birth_details",
-                "teaser_insights": {
-                    "moon_sign": "🌙 Your lunar energy awaits discovery...",
-                    "lucky_period": "✨ Auspicious times are hidden in your birth chart",
-                    "compatibility": "💕 Cosmic compatibility secrets lie within your stars",
-                    "career": "💼 Your professional destiny is written in the planets"
-                }
-            }
-        
-        # Get basic insights with smart pricing teaser
-        insights = await _generate_cosmic_insights(user_id, user_data, db)
-        
-        # Get personalized service recommendations with cache-based pricing
-        services = await _get_personalized_services(user_id, db)
-        
-        return {
-            "status": "active",
-            "user_name": user_data['name'],
-            "insights": insights,
-            "services": services,
-            "call_to_action": "Unlock your complete cosmic blueprint"
-        }
-        
-    except Exception as e:
-        logger.error(f"Error in cosmic insights: {e}")
-        return {
-            "status": "error",
-            "message": "Unable to load cosmic insights",
-            "error": str(e)
-=======
         # Generate personalized cosmic insights
         insights = await _generate_cosmic_insights(user_id, dict(user_data), db)
         
@@ -393,7 +358,6 @@ async def get_cosmic_insights(request: Request, db=Depends(get_db)):
         return {
             "status": "error",
             "message": "Unable to generate cosmic insights at this time"
->>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
         }
 
 async def _generate_cosmic_insights(user_id: str, user_data: dict, db) -> dict:
@@ -533,9 +497,4 @@ async def _get_personalized_services(user_id: str, db) -> list:
         
     except Exception as e:
         logger.error(f"Error getting personalized services: {e}")
-<<<<<<< HEAD
-        return [] 
->>>>>>> ebb270206b7cb1ec381dc99947af617c6f103580
-=======
-        return [] 
->>>>>>> b6cf023a81d2ea433ed88e2e83deaec274010f50
+        return []
