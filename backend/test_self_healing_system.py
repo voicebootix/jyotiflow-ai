@@ -7,7 +7,7 @@ import os
 import asyncpg
 import pytest
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.database_self_healing_system import (
     DatabaseIssue,
     PostgreSQLSchemaAnalyzer,
@@ -301,9 +301,9 @@ class TestPerformance:
         """Test performance with many tables"""
         analyzer = PostgreSQLSchemaAnalyzer(TEST_DATABASE_URL)
         
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         schema = await analyzer.analyze_schema()
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         # Should complete within reasonable time
         assert duration < 10.0  # 10 seconds max
@@ -316,9 +316,9 @@ class TestPerformance:
         """Test code analysis performance"""
         analyzer = CodePatternAnalyzer()
         
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
         issues = analyzer.analyze_codebase()
-        duration = (datetime.utcnow() - start_time).total_seconds()
+        duration = (datetime.now(timezone.utc) - start_time).total_seconds()
         
         # Should complete within reasonable time
         assert duration < 30.0  # 30 seconds max for entire codebase

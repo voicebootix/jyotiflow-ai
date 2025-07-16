@@ -264,3 +264,24 @@ The system now provides defense in depth with multiple layers of security valida
 6. **Clear Feedback**: Comprehensive status reporting and error messages
 
 The database self-healing system is now fully production-ready with enterprise-grade security, proper error handling, and efficient resource management.
+
+## Timezone Fix Applied (Fifth Review)
+
+## 22. Timezone Fixes (`backend/test_self_healing_system.py` and `backend/validate_self_healing.py`)
+
+### Fixed deprecated datetime usage in test_self_healing_system.py:
+- Replaced all 4 occurrences of `datetime.utcnow()` with `datetime.now(timezone.utc)`
+- Added timezone import from datetime module
+- Ensures consistent timezone-aware datetime objects
+
+### Fixed deprecated datetime usage in validate_self_healing.py:
+- Replaced all 6 occurrences of `datetime.utcnow()` with `datetime.now(timezone.utc)`
+- Added timezone import from datetime module
+- Ensures consistent timezone handling in validation script
+
+### Note on remaining files:
+There are other files in the backend that still use `datetime.utcnow()`:
+- `backend/enhanced_production_deployment.py` (2 occurrences)
+- `backend/test_jwt_simple.py` (4 occurrences)
+
+These files are outside the self-healing system scope but should also be updated for full consistency.

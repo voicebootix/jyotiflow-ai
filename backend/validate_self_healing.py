@@ -7,7 +7,7 @@ import os
 import asyncio
 import asyncpg
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from backend.database_self_healing_system import (
     PostgreSQLSchemaAnalyzer,
     CodePatternAnalyzer,
@@ -117,9 +117,9 @@ class SystemValidator:
         try:
             analyzer = PostgreSQLSchemaAnalyzer(DATABASE_URL)
             
-            start = datetime.utcnow()
+            start = datetime.now(timezone.utc)
             schema = await analyzer.analyze_schema()
-            duration = (datetime.utcnow() - start).total_seconds()
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
             
             print(f"   ✅ Analyzed schema in {duration:.2f} seconds")
             print(f"   📊 Found {len(schema['tables'])} tables")
@@ -209,9 +209,9 @@ class SystemValidator:
         try:
             analyzer = CodePatternAnalyzer()
             
-            start = datetime.utcnow()
+            start = datetime.now(timezone.utc)
             issues = analyzer.analyze_codebase()
-            duration = (datetime.utcnow() - start).total_seconds()
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
             
             print(f"   ✅ Code analysis completed in {duration:.2f} seconds")
             print(f"   📊 Found {len(issues)} code issues")
@@ -328,9 +328,9 @@ class SystemValidator:
             monitor = DatabaseHealthMonitor(DATABASE_URL)
             
             # Measure full health check time
-            start = datetime.utcnow()
+            start = datetime.now(timezone.utc)
             results = await monitor.run_health_check()
-            duration = (datetime.utcnow() - start).total_seconds()
+            duration = (datetime.now(timezone.utc) - start).total_seconds()
             
             print(f"   ✅ Full health check completed in {duration:.2f} seconds")
             print(f"   📊 Issues found: {results['issues_found']}")
