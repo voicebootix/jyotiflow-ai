@@ -61,7 +61,7 @@ def _parse_affected_rows(command_tag: str) -> int:
 
 async def init_agora_tables():
     """Initialize all Agora-related tables in PostgreSQL"""
-    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+    database_url = os.getenv("DATABASE_URL")
     
     try:
         conn = await asyncpg.connect(database_url)
@@ -133,7 +133,7 @@ async def init_agora_tables():
 
 async def populate_sample_data():
     """Populate sample data for testing"""
-    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+    database_url = os.getenv("DATABASE_URL")
     
     try:
         conn = await asyncpg.connect(database_url)
@@ -162,7 +162,7 @@ async def populate_sample_data():
 
 async def cleanup_expired_sessions():
     """Clean up expired video chat sessions"""
-    database_url = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+    database_url = os.getenv("DATABASE_URL")
     
     try:
         conn = await asyncpg.connect(database_url)

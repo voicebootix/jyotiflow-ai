@@ -19,7 +19,7 @@ class ExpandedKnowledgeSeeder:
     """Expanded knowledge seeding with 50+ pieces"""
     
     def __init__(self, database_url: str = None):
-        self.database_url = database_url or os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+        self.database_url = database_url or os.getenv("DATABASE_URL")
         
     async def seed_expanded_knowledge_base(self):
         """Seed comprehensive knowledge base with 50+ pieces"""

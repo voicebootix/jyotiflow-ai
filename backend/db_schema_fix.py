@@ -18,7 +18,7 @@ class DatabaseSchemaFixer:
     """Handles database schema fixes and migrations"""
     
     def __init__(self):
-        self.database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = os.getenv("DATABASE_URL")
     
     async def fix_all_database_issues(self):
         """Fix all known database issues"""

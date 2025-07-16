@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Set environment variables for testing
-os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "")
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "test-key")
 
 async def test_monitoring_system():

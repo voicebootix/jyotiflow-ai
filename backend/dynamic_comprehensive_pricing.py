@@ -18,7 +18,7 @@ class DynamicComprehensivePricing:
     """Dynamic pricing engine for comprehensive readings"""
     
     def __init__(self, database_url: str = None):
-        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = database_url or os.getenv("DATABASE_URL")
         self.connection_pool = None
         self._pool_initialized = False
         self._pool_lock = asyncio.Lock()

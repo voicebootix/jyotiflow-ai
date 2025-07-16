@@ -15,7 +15,7 @@ from typing import Dict, List, Tuple
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Set required environment variables for testing
-os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "")
 os.environ["JWT_SECRET"] = os.getenv("JWT_SECRET", "test-secret-for-verification-must-be-32-characters-long")
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "test-key")
 

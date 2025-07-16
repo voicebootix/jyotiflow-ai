@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 class PostgreSQLAuthDiagnosis:
     def __init__(self):
-        self.database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = os.getenv("DATABASE_URL")
     
     async def connect(self):
         """Connect to PostgreSQL database"""

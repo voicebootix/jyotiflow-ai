@@ -110,7 +110,7 @@ enhanced_router = APIRouter(prefix="/api/spiritual/enhanced", tags=["Enhanced Sp
 # Database dependency
 async def get_db():
     """Get database connection dependency"""
-    database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+    database_url = os.getenv("DATABASE_URL")
     conn = await asyncpg.connect(database_url)
     try:
         yield conn

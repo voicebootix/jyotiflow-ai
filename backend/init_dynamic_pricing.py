@@ -10,7 +10,7 @@ import os
 from datetime import datetime
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def init_dynamic_pricing():
     """Initialize dynamic pricing system with sample data"""

@@ -7,7 +7,7 @@ import asyncpg
 import bcrypt
 import os
 
-DATABASE_URL = os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 async def test_password_verification():
     """Test that password verification works correctly"""
