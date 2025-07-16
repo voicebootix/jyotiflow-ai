@@ -19,6 +19,14 @@ class DatabaseSchemaFixer:
     
     def __init__(self):
         self.database_url = os.getenv("DATABASE_URL")
+        
+        # Validate DATABASE_URL is set
+        if not self.database_url:
+            raise ValueError(
+                "DATABASE_URL environment variable is missing or empty. "
+                "Please set the DATABASE_URL environment variable before running this script. "
+                "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+            )
     
     async def fix_all_database_issues(self):
         """Fix all known database issues"""

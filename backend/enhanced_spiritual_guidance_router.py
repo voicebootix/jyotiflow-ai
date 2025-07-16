@@ -111,6 +111,15 @@ enhanced_router = APIRouter(prefix="/api/spiritual/enhanced", tags=["Enhanced Sp
 async def get_db():
     """Get database connection dependency"""
     database_url = os.getenv("DATABASE_URL")
+    
+    # Validate DATABASE_URL is set
+    if not database_url:
+        raise ValueError(
+            "DATABASE_URL environment variable is missing or empty. "
+            "Please set the DATABASE_URL environment variable in your environment. "
+            "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+        )
+    
     conn = await asyncpg.connect(database_url)
     try:
         yield conn

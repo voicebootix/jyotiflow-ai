@@ -22,7 +22,21 @@ if not DATABASE_URL:
     print("   Database tests will be skipped")
     print("   To run database tests, set: export DATABASE_URL='your-database-url'")
     
-os.environ["JWT_SECRET"] = os.getenv("JWT_SECRET", "test-secret-for-verification-must-be-32-characters-long")
+# JWT Secret configuration
+jwt_secret = os.getenv("JWT_SECRET", "test-secret-for-verification-must-be-32-characters-long")
+if jwt_secret == "test-secret-for-verification-must-be-32-characters-long":
+    print("⚠️ WARNING: Using default test JWT secret!")
+    print("   This is only acceptable for testing purposes.")
+    print("   For production, set a secure JWT_SECRET environment variable.")
+    
+    # Additional check for production environment
+    if os.getenv("APP_ENV", "").lower() == "production":
+        raise ValueError(
+            "SECURITY ERROR: Default test JWT secret detected in production environment! "
+            "Please set a secure JWT_SECRET environment variable."
+        )
+
+os.environ["JWT_SECRET"] = jwt_secret
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "test-key")
 
 class MonitoringSystemTester:

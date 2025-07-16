@@ -110,13 +110,24 @@ class MonitoringHooks:
                     if session_id in integration_monitor.active_sessions:
                         output_data = result if isinstance(result, dict) else {"result": str(result)}
                         
-                        await integration_monitor.validate_integration_point(
-                            session_id=session_id,
-                            integration_point=integration_point,
-                            input_data=input_data,
-                            output_data=output_data,
-                            duration_ms=duration_ms
-                        )
+                        try:
+                            validation_result = await integration_monitor.validate_integration_point(
+                                session_id=session_id,
+                                integration_point=integration_point,
+                                input_data=input_data,
+                                output_data=output_data,
+                                duration_ms=duration_ms
+                            )
+                            
+                            # Check if validation failed
+                            if validation_result and not validation_result.get("passed", True):
+                                logger.warning(
+                                    f"Integration validation failed for {integration_point}: "
+                                    f"{validation_result.get('errors', [])}"
+                                )
+                        except Exception as validation_error:
+                            logger.error(f"Error during integration validation: {validation_error}")
+                            # Continue execution even if monitoring fails
                     
                     return result
                     
@@ -125,13 +136,16 @@ class MonitoringHooks:
                     duration_ms = int((time.time() - start_time) * 1000)
                     
                     if session_id in integration_monitor.active_sessions:
-                        await integration_monitor.validate_integration_point(
-                            session_id=session_id,
-                            integration_point=integration_point,
-                            input_data=input_data,
-                            output_data={"error": str(e)},
-                            duration_ms=duration_ms
-                        )
+                        try:
+                            await integration_monitor.validate_integration_point(
+                                session_id=session_id,
+                                integration_point=integration_point,
+                                input_data=input_data,
+                                output_data={"error": str(e)},
+                                duration_ms=duration_ms
+                            )
+                        except Exception as validation_error:
+                            logger.error(f"Error during integration validation: {validation_error}")
                     raise
                     
             return wrapper
