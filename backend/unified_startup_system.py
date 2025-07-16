@@ -66,14 +66,20 @@ class UnifiedJyotiFlowStartup:
             await self._fix_database_schema()
             logger.info(f"✅ Database schema fixes completed in {time.time() - step_start:.2f}s")
             
-            # Step 4: Initialize enhanced features
-            logger.info("⚡ Step 4/5: Initializing enhanced features...")
+            # Step 4: Initialize enhanced features (includes knowledge base seeding)
+            logger.info("⚡ Step 4/6: Initializing enhanced features...")
             step_start = time.time()
             await self._initialize_enhanced_features()
             logger.info(f"✅ Enhanced features initialization completed in {time.time() - step_start:.2f}s")
             
-            # Step 5: Final system validation
-            logger.info("🔍 Step 5/5: Performing final system validation...")
+            # Step 5: Initialize health monitoring
+            logger.info("🏥 Step 5/6: Initializing health monitoring...")
+            step_start = time.time()
+            await self._initialize_health_monitoring()
+            logger.info(f"✅ Health monitoring initialization completed in {time.time() - step_start:.2f}s")
+            
+            # Step 6: Final system validation
+            logger.info("🔍 Step 6/6: Performing final system validation...")
             step_start = time.time()
             await self._validate_system_health()
             logger.info(f"✅ System validation completed in {time.time() - step_start:.2f}s")
@@ -827,8 +833,53 @@ class UnifiedJyotiFlowStartup:
             logger.warning(f"⚠️ System health check warning: {e}")
             # Don't raise - system can still function
     
+    async def _initialize_health_monitoring(self):
+        """Initialize database health monitoring system"""
+        logger.info("🏥 Setting up database health monitoring...")
+        
+        try:
+            # Try to import and initialize the health monitoring system
+            try:
+                from database_self_healing_system import startup_event as health_startup, orchestrator
+                logger.info("🔍 Database self-healing system found - initializing...")
+                
+                # Initialize the health monitoring orchestrator
+                await health_startup()
+                logger.info("✅ Database health monitoring orchestrator started")
+                logger.info("📊 Background health monitoring is now active")
+                
+                # Store reference for cleanup
+                self.health_orchestrator = orchestrator
+                
+            except ImportError:
+                logger.warning("⚠️ Database self-healing system not available")
+                logger.info("💡 Health monitoring will be skipped - system will run normally")
+                self.health_orchestrator = None
+                
+            except Exception as health_error:
+                logger.error(f"❌ Health monitoring initialization error: {health_error}")
+                logger.info("💡 System will continue without health monitoring")
+                self.health_orchestrator = None
+                
+        except Exception as e:
+            logger.error(f"❌ Health monitoring setup failed: {e}")
+            logger.info("💡 System will continue without health monitoring")
+            self.health_orchestrator = None
+    
     async def cleanup(self):
         """Clean up resources"""
+        # Stop health monitoring first
+        if hasattr(self, 'health_orchestrator') and self.health_orchestrator:
+            logger.info("🔄 Stopping health monitoring orchestrator...")
+            try:
+                await self.health_orchestrator.stop()
+                logger.info("✅ Health monitoring stopped cleanly")
+            except Exception as e:
+                logger.warning(f"⚠️ Error stopping health monitoring: {e}")
+            finally:
+                self.health_orchestrator = None
+        
+        # Then close database pool
         if self.db_pool:
             logger.info("🔄 Gracefully closing database connection pool...")
             try:
