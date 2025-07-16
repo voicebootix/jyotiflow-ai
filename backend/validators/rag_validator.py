@@ -3,11 +3,8 @@
 USER SPECIFICALLY REQUESTED THIS - Comprehensive relevance validation.
 """
 
-import logging
-from typing import Dict, List, Optional, Any, Tuple
-import json
+from typing import Dict, List, Tuple
 import re
-from datetime import datetime
 
 # Try to import numpy, but handle gracefully if not installed
 try:
