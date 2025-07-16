@@ -15,16 +15,28 @@ if sentry_dsn:
     # Initialize integrations list as empty, then add integrations individually
     integrations = []
     
-    # Add base integrations with error handling
+    # Add base integrations with error handling (compatible with all Sentry SDK versions)
     try:
         from sentry_sdk.integrations.fastapi import FastApiIntegration
-        integrations.append(FastApiIntegration(auto_error=True))
+        # Try with auto_error parameter first, fallback to no parameters
+        try:
+            integrations.append(FastApiIntegration(auto_error=True))
+        except TypeError:
+            # Fallback for newer Sentry SDK versions
+            integrations.append(FastApiIntegration())
+        print("✅ FastAPI integration loaded")
     except ImportError:
         print("⚠️ FastAPI integration not available")
     
     try:
         from sentry_sdk.integrations.starlette import StarletteIntegration
-        integrations.append(StarletteIntegration(auto_error=True))
+        # Try with auto_error parameter first, fallback to no parameters
+        try:
+            integrations.append(StarletteIntegration(auto_error=True))
+        except TypeError:
+            # Fallback for newer Sentry SDK versions
+            integrations.append(StarletteIntegration())
+        print("✅ Starlette integration loaded")
     except ImportError:
         print("⚠️ Starlette integration not available")
     
@@ -57,10 +69,14 @@ if sentry_dsn:
             traces_sample_rate=traces_sample_rate,
             send_default_pii=True,
         )
-        print(f"✅ Sentry initialized successfully with {len(integrations)} integrations, traces_sample_rate={traces_sample_rate}")
+        print(f"✅ Sentry initialized successfully with {len(integrations)} integrations")
+        print(f"📊 Environment: {os.getenv('APP_ENV', 'development')}")
+        print(f"📈 Traces sample rate: {traces_sample_rate}")
+        print("🎯 Error monitoring active")
     except Exception as e:
         print(f"❌ Failed to initialize Sentry: {e}")
         print("⚠️ Continuing without Sentry - application will run normally")
+        print("💡 App will work fine, just no error monitoring")
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
