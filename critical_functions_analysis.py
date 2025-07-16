@@ -5,8 +5,7 @@ Identifies and analyzes the essential functions that must be integrated
 """
 
 import os
-import re
-from typing import Dict, List, Any
+from typing import Dict, Any
 
 class CriticalFunctionsAnalyzer:
     """Analyzes critical functions that must be preserved in unification"""

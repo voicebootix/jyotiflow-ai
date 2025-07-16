@@ -10,7 +10,7 @@ import time
 import asyncio
 import asyncpg
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any
 import traceback
 
 # Add backend to path for imports

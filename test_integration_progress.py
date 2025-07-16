@@ -234,7 +234,7 @@ def run_integration_tests() -> Dict[str, Any]:
     }
     
     print("=" * 50)
-    print(f"📊 INTEGRATION TEST SUMMARY:")
+    print("📊 INTEGRATION TEST SUMMARY:")
     print(f"   Total Tests: {summary['total_tests']}")
     print(f"   ✅ Passed: {summary['passed']}")
     print(f"   ❌ Failed: {summary['failed']}")
@@ -251,4 +251,4 @@ if __name__ == "__main__":
     with open('integration_test_results.json', 'w') as f:
         json.dump(results, f, indent=2)
     
-    print(f"\n📄 Integration test results saved to: integration_test_results.json")
+    print("\n📄 Integration test results saved to: integration_test_results.json")

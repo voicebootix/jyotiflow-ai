@@ -53,9 +53,24 @@ class FunctionInventory:
         if isinstance(decorator, ast.Name):
             return decorator.id
         elif isinstance(decorator, ast.Attribute):
-            return f"{decorator.value.id}.{decorator.attr}"
+            # Safely extract the full decorator name by recursively traversing the attribute chain
+            return self._get_full_attribute_name(decorator)
         else:
             return str(decorator)
+    
+    def _get_full_attribute_name(self, node):
+        """Recursively extract full attribute name from AST node"""
+        try:
+            if isinstance(node, ast.Name):
+                return node.id
+            elif isinstance(node, ast.Attribute):
+                base = self._get_full_attribute_name(node.value)
+                return f"{base}.{node.attr}"
+            else:
+                return str(node)
+        except (AttributeError, Exception):
+            # Fallback for complex or unsupported decorator patterns
+            return "complex_decorator"
     
     def generate_inventory(self) -> Dict[str, Any]:
         """Generate complete function inventory for all startup systems"""
