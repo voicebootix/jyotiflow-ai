@@ -8,7 +8,6 @@ import json
 import asyncio
 import asyncpg
 import logging
-from typing import Dict, Any, Optional, List
 import traceback
 from datetime import datetime
 
@@ -420,7 +419,18 @@ class UnifiedJyotiFlowStartup:
                     DELETE FROM service_configuration_cache 
                     WHERE expires_at < NOW()
                 """)
-                deleted_count = int(result.split()[-1]) if result and result.startswith("DELETE") else 0
+                
+                # Safely parse DELETE result with defensive handling
+                deleted_count = 0
+                try:
+                    if result and isinstance(result, str) and result.startswith("DELETE"):
+                        parts = result.split()
+                        if len(parts) >= 2 and parts[-1].isdigit():
+                            deleted_count = int(parts[-1])
+                except (ValueError, AttributeError, IndexError) as e:
+                    logger.debug(f"Could not parse DELETE result '{result}': {e}")
+                    deleted_count = 0
+                
                 if deleted_count > 0:
                     logger.info(f"🧹 Cleaned up {deleted_count} expired cache entries")
                 
@@ -582,7 +592,7 @@ class UnifiedJyotiFlowStartup:
                     except Exception as e:
                         logger.warning(f"⚠️ Could not create service config {service['service_name']}: {e}")
                 
-                logger.info(f"✅ Service configurations initialized")
+                logger.info("✅ Service configurations initialized")
                 self.service_configs_ready = True
             else:
                 logger.info(f"✅ Service configurations already exist ({count} entries)")
@@ -709,7 +719,7 @@ class UnifiedJyotiFlowStartup:
                 """)
                 table_names = [row['table_name'] for row in tables]
             
-            logger.info(f"✅ System health check passed")
+            logger.info("✅ System health check passed")
             logger.info(f"📊 Available tables: {', '.join(table_names)}")
             logger.info(f"🔧 Schema fixed: {self.schema_fixed}")
             logger.info(f"🧠 Knowledge seeded: {self.knowledge_seeded}")
