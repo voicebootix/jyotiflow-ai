@@ -9,6 +9,7 @@ import asyncio
 import asyncpg
 import logging
 import traceback
+import time
 from datetime import datetime
 from typing import Optional
 
@@ -29,40 +30,57 @@ class UnifiedJyotiFlowStartup:
         self.rag_initialized = False
         self.service_configs_ready = False
         
-        # Optimized connection settings for production
+        # Optimized connection settings for production - Compatible with Supabase
         self.pool_config = {
             'min_size': 2,  # Start with minimal connections
             'max_size': 12, # Scale up to reasonable limit
             'command_timeout': 60,
+            'connect_timeout': 15,  # Prevent hanging on individual connections
             'server_settings': {
-                'application_name': 'jyotiflow_unified_system',
-                'tcp_keepalives_idle': '600',
-                'tcp_keepalives_interval': '60',
-                'tcp_keepalives_count': '3'
+                'application_name': 'jyotiflow_unified_system'
+                # Removed TCP keepalive settings - these cause hangs with Supabase connection pooler
             }
         }
     
     async def initialize_complete_system(self):
         """Main entry point - initialize everything in proper sequence"""
+        init_start = time.time()
         logger.info("🚀 Starting Unified JyotiFlow.ai Initialization...")
         
         try:
             # Step 1: Validate environment
+            logger.info("📋 Step 1/5: Validating environment configuration...")
+            step_start = time.time()
             await self._validate_environment()
+            logger.info(f"✅ Environment validation completed in {time.time() - step_start:.2f}s")
             
-            # Step 2: Create main database pool (with retries)
+            # Step 2: Create main database pool (with retries) - CRITICAL STEP
+            logger.info("🗄️ Step 2/5: Creating main database connection pool...")
+            step_start = time.time()
             await self._create_main_pool()
+            logger.info(f"✅ Database pool creation completed in {time.time() - step_start:.2f}s")
             
             # Step 3: Fix database schema issues
+            logger.info("🔧 Step 3/5: Fixing database schema issues...")
+            step_start = time.time()
             await self._fix_database_schema()
+            logger.info(f"✅ Database schema fixes completed in {time.time() - step_start:.2f}s")
             
             # Step 4: Initialize enhanced features
+            logger.info("⚡ Step 4/5: Initializing enhanced features...")
+            step_start = time.time()
             await self._initialize_enhanced_features()
+            logger.info(f"✅ Enhanced features initialization completed in {time.time() - step_start:.2f}s")
             
             # Step 5: Final system validation
+            logger.info("🔍 Step 5/5: Performing final system validation...")
+            step_start = time.time()
             await self._validate_system_health()
+            logger.info(f"✅ System validation completed in {time.time() - step_start:.2f}s")
             
-            logger.info("✅ Unified JyotiFlow.ai system initialized successfully!")
+            total_time = time.time() - init_start
+            logger.info(f"🎉 Unified JyotiFlow.ai system initialized successfully in {total_time:.2f} seconds!")
+            logger.info("🎯 All systems operational - ready for production traffic")
             return self.db_pool
             
         except Exception as e:
@@ -111,12 +129,13 @@ class UnifiedJyotiFlowStartup:
         logger.info("✅ Environment validation completed")
     
     async def _create_main_pool(self):
-        """Create the main database connection pool with robust retry logic"""
+        """Create the main database connection pool with robust retry logic and comprehensive logging"""
         logger.info("🔗 Creating main database connection pool...")
+        logger.info(f"📍 Database target: {self.database_url.split('@')[1].split('/')[0] if '@' in self.database_url else 'hidden'}")
         
         max_retries = 5
-        base_delay = 6  # Increased from 3 to 6 seconds for cold starts
-        max_delay = 60  # Increased from 30 to 60 seconds for Supabase cold starts
+        base_delay = 3  # Start with shorter delays
+        max_delay = 30  # Reasonable maximum delay
         
         for attempt in range(max_retries):
             current_pool = None
@@ -124,87 +143,139 @@ class UnifiedJyotiFlowStartup:
                 # Calculate exponential backoff delay
                 if attempt > 0:
                     delay = min(base_delay * (2 ** (attempt - 1)), max_delay)
-                    logger.info(f"⏸️ Waiting {delay} seconds before retry...")
+                    logger.info(f"⏸️ Waiting {delay} seconds before retry (backoff strategy)...")
                     await asyncio.sleep(delay)
                 
                 logger.info(f"🔄 Database connection attempt {attempt + 1}/{max_retries}")
                 
-                # Progressive timeout: optimized for Supabase cold starts (60-90s needed)
-                timeout = 90 if attempt == 0 else 120 + (attempt * 20)
-                logger.info(f"⏱️ Using timeout: {timeout} seconds (accounting for Supabase cold start)")
+                # Reasonable timeout: fast failure instead of hanging
+                timeout = 30 if attempt == 0 else 45  # Much more reasonable timeouts
+                logger.info(f"⏱️ Using {timeout}s outer timeout with {self.pool_config['connect_timeout']}s connection timeout")
                 
+                # Log connection attempt details
+                logger.info(f"🔧 Pool config - min: {self.pool_config['min_size']}, max: {self.pool_config['max_size']}")
+                logger.info("📡 Attempting database connection...")
+                
+                connection_start = time.time()
                 current_pool = await asyncio.wait_for(
                     asyncpg.create_pool(
                         self.database_url,
                         min_size=self.pool_config['min_size'],
                         max_size=self.pool_config['max_size'],
                         command_timeout=self.pool_config['command_timeout'],
+                        connect_timeout=self.pool_config['connect_timeout'],
                         server_settings=self.pool_config['server_settings']
                     ),
                     timeout=timeout
                 )
                 
-                # Test the connection
-                logger.info("🧪 Testing database connection...")
+                connection_time = time.time() - connection_start
+                logger.info(f"✅ Database pool created successfully in {connection_time:.2f} seconds")
+                
+                # Test the connection with comprehensive validation
+                logger.info("🧪 Testing database connection and health...")
+                test_start = time.time()
+                
                 async with current_pool.acquire() as conn:
+                    # Basic connectivity test
                     result = await conn.fetchval("SELECT 1 as test")
                     if result != 1:
                         raise Exception("Database test query returned unexpected result")
-                
-                # Test database version
-                try:
-                    async with current_pool.acquire() as conn:
+                    logger.info("✅ Basic connectivity test passed")
+                    
+                    # Database version and info
+                    try:
                         version = await conn.fetchval("SELECT version()")
                         logger.info(f"🗄️ Connected to: {version.split(',')[0] if version else 'PostgreSQL'}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Database version check failed: {e}")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Database version check failed: {e}")
+                    
+                    # Check if we have basic tables (validates schema exists)
+                    try:
+                        table_count = await conn.fetchval("""
+                            SELECT COUNT(*) FROM information_schema.tables 
+                            WHERE table_schema = 'public'
+                        """)
+                        logger.info(f"📊 Database schema contains {table_count} tables")
+                        if table_count < 3:
+                            logger.warning("⚠️ Low table count - database schema may be incomplete")
+                    except Exception as e:
+                        logger.warning(f"⚠️ Schema validation failed: {e}")
+                
+                test_time = time.time() - test_start
+                logger.info(f"✅ Database health check completed in {test_time:.2f} seconds")
                 
                 # Success! Assign the working pool
                 self.db_pool = current_pool
                 self.main_pool_ready = True
                 current_pool = None  # Prevent cleanup
-                logger.info("✅ Main database pool created successfully")
+                logger.info("🎯 Main database pool ready for production use")
                 return
                 
             except asyncio.TimeoutError:
-                logger.warning(f"⏱️ Database connection timeout on attempt {attempt + 1} (waited {timeout} seconds)")
+                elapsed_total = sum(min(base_delay * (2 ** i), max_delay) for i in range(attempt)) + timeout
+                logger.warning(f"⏱️ Connection timeout on attempt {attempt + 1}/{max_retries} ({timeout}s)")
+                logger.warning(f"⏰ Total elapsed time: {elapsed_total:.1f} seconds")
+                
                 if attempt < max_retries - 1:
-                    logger.info("🔥 This might be a Supabase cold start - database is spinning up...")
-                    logger.info("💡 Supabase databases can take 60-90 seconds to wake from cold state")
-                    logger.info("🌡️ Cold starts are normal after periods of inactivity")
-                    logger.info(f"⏳ Next attempt will wait up to {120 + ((attempt + 1) * 20)} seconds")
+                    next_timeout = 45  # Next attempt timeout
+                    logger.info(f"🔄 Will retry with {next_timeout}s timeout (database may be cold starting)")
                 else:
-                    logger.error("❌ All database connection attempts failed due to timeout")
-                    logger.error("🚨 This suggests a persistent database connectivity issue")
+                    logger.error("❌ All connection attempts exhausted - deployment will fail")
+                    logger.error("🚨 Database is not responding within reasonable timeframes")
                     self._log_troubleshooting_info()
                     raise
                     
             except asyncpg.InvalidAuthorizationSpecificationError as e:
-                logger.error(f"🔐 Database authentication failed on attempt {attempt + 1}: {str(e)}")
+                logger.error(f"🔐 Authentication failed on attempt {attempt + 1}/{max_retries}")
+                logger.error(f"🔍 Auth error: {str(e)}")
                 if attempt < max_retries - 1:
-                    logger.info("🔄 Retrying in case of temporary auth issues...")
+                    logger.info("🔄 Retrying authentication (may be temporary Supabase issue)...")
                 else:
-                    logger.error("❌ Database authentication failed after all retries")
-                    logger.error("💡 Check your DATABASE_URL credentials in Render dashboard")
+                    logger.error("❌ Database authentication permanently failed")
+                    logger.error("💡 Verify DATABASE_URL credentials in Render environment variables")
+                    logger.error("🔍 Check if Supabase project is active and not paused")
+                    raise
+                    
+            except (asyncpg.InvalidCatalogNameError, asyncpg.CannotConnectNowError) as e:
+                logger.error(f"🗄️ Database availability issue on attempt {attempt + 1}/{max_retries}")
+                logger.error(f"🔍 Database error: {str(e)}")
+                if attempt < max_retries - 1:
+                    logger.info("🔄 Database may be starting up - retrying...")
+                else:
+                    logger.error("❌ Database is not available after all attempts")
+                    self._log_troubleshooting_info()
                     raise
                     
             except Exception as e:
-                logger.error(f"❌ Database connection error on attempt {attempt + 1}: {str(e)}")
+                logger.error(f"❌ Unexpected connection error on attempt {attempt + 1}/{max_retries}")
                 logger.error(f"🔍 Error type: {type(e).__name__}")
+                logger.error(f"🔍 Error details: {str(e)}")
+                if "SSL" in str(e).upper():
+                    logger.error("🔐 SSL connection issue detected")
+                if "timeout" in str(e).lower():
+                    logger.error("⏱️ Connection timeout at network level")
+                    
                 if attempt < max_retries - 1:
                     logger.info("🔄 Retrying with exponential backoff...")
                 else:
-                    logger.error("❌ All database connection attempts failed")
+                    logger.error("❌ All connection attempts failed due to errors")
                     self._log_troubleshooting_info()
                     raise
             finally:
-                # Clean up failed pool
+                # Clean up failed pool on errors
                 if current_pool is not None:
                     try:
                         await current_pool.close()
-                        logger.info("🧹 Cleaned up failed connection pool")
-                    except Exception:
+                        logger.debug("🧹 Cleaned up failed connection pool")
+                    except Exception as cleanup_error:
+                        logger.debug(f"⚠️ Pool cleanup error (non-critical): {cleanup_error}")
                         pass
+        
+        # If we reach here, all attempts failed
+        logger.error("🚨 DATABASE CONNECTION FAILED - DEPLOYMENT WILL FAIL")
+        logger.error("💀 Unable to establish database connection after all retry attempts")
+        raise Exception("Database connection failed after all retry attempts")
     
     def _log_troubleshooting_info(self):
         """Log comprehensive troubleshooting information"""
@@ -787,15 +858,30 @@ _unified_startup_instance = None
 
 async def initialize_unified_jyotiflow():
     """Main entry point for unified system initialization"""
+    logger.info("🚀 Starting Unified JyotiFlow.ai Initialization...")
+    start_time = time.time()
+    
     global _unified_startup_instance
     _unified_startup_instance = UnifiedJyotiFlowStartup()
+    logger.info("✅ Unified startup system instance created")
     
     try:
+        logger.info("🔄 Beginning complete system initialization...")
         db_pool = await _unified_startup_instance.initialize_complete_system()
+        
+        elapsed_time = time.time() - start_time
+        logger.info(f"🎉 Unified JyotiFlow.ai system fully initialized in {elapsed_time:.2f} seconds")
+        logger.info("🎯 System ready to handle API requests")
         return db_pool
+        
     except Exception as e:
-        logger.error(f"❌ Unified system initialization failed: {e}")
+        elapsed_time = time.time() - start_time
+        logger.error(f"❌ Unified system initialization failed after {elapsed_time:.2f} seconds")
+        logger.error(f"🔍 Failure reason: {str(e)}")
+        logger.error(f"🔍 Failure type: {type(e).__name__}")
+        
         if _unified_startup_instance:
+            logger.info("🧹 Cleaning up failed initialization...")
             await _unified_startup_instance.cleanup()
         raise
 
