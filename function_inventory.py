@@ -24,7 +24,7 @@ class FunctionInventory:
             functions = []
             
             for node in ast.walk(tree):
-                if isinstance(node, ast.FunctionDef):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     func_info = {
                         'name': node.name,
                         'line_number': node.lineno,
