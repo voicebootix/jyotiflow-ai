@@ -143,12 +143,12 @@ class MonitoringSystemTester:
             ]
             
             for table in tables:
-                exists = await conn.fetchval(f"""
+                exists = await conn.fetchval("""
                     SELECT EXISTS (
                         SELECT FROM information_schema.tables 
-                        WHERE table_name = '{table}'
+                        WHERE table_name = $1
                     )
-                """)
+                """, table)
                 self.results["database"][f"table_{table}"] = exists
                 if exists:
                     print(f"✅ Table '{table}' exists")
