@@ -4,7 +4,7 @@ This file should be imported in main.py to enable monitoring
 """
 
 from fastapi import FastAPI
-from monitoring.dashboard import router as monitoring_router
+from .dashboard import router as monitoring_router
 
 def register_monitoring_system(app: FastAPI):
     """Register the monitoring system with the FastAPI app"""

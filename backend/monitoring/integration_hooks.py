@@ -11,7 +11,7 @@ import asyncio
 import json
 from datetime import datetime, timezone
 
-from monitoring.integration_monitor import integration_monitor, IntegrationPoint
+from .integration_monitor import integration_monitor, IntegrationPoint
 
 logger = logging.getLogger(__name__)
 
