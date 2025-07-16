@@ -1,6 +1,9 @@
 # Database Analysis Report
 Generated: 2024-12-29
 
+> **Purpose**: Executive summary of database health and critical action items.  
+> **Related**: See `DATABASE_FEATURE_ANALYSIS.md` for detailed table-by-table usage analysis.
+
 ## 🔍 COMPREHENSIVE Code Analysis Results
 
 ### Total Tables Found: **67 defined (but only ~35 actively used!)**
@@ -75,8 +78,8 @@ Generated: 2024-12-29
 ### 1. **Table Name Inconsistency**
 | Conflict | Used in Code | Created in Migration | Impact |
 |----------|--------------|---------------------|---------|
-| follow_up_* | `follow_up_templates` | `followup_templates` | Queries fail |
-| satsang reference | `satsangs` | `satsang_events` | Wrong table name |
+| follow_up_* | `follow_up_templates` | `follow_up_templates` | ✓ Consistent |
+| satsang reference | `satsang_events` | `satsang_events` | ✓ Consistent |
 
 ### 2. **Not Actually Tables**
 - `user_sessions` - This is a method `get_user_sessions()`, not a table
@@ -111,7 +114,23 @@ Generated: 2024-12-29
 
 ### 1. **Remove Dead Tables** (Clean up 20 unused tables)
 ```sql
--- These serve no purpose
+-- SAFETY FIRST: Always backup before dropping tables
+-- pg_dump $DATABASE_URL > backup_$(date +%Y%m%d_%H%M%S).sql
+
+-- Check for dependencies before dropping
+SELECT 
+    tc.table_name, 
+    tc.constraint_name, 
+    tc.constraint_type,
+    kcu.column_name,
+    ccu.table_name AS foreign_table_name
+FROM information_schema.table_constraints tc
+JOIN information_schema.key_column_usage kcu ON tc.constraint_name = kcu.constraint_name
+JOIN information_schema.constraint_column_usage ccu ON ccu.constraint_name = tc.constraint_name
+WHERE tc.constraint_type = 'FOREIGN KEY' 
+AND (ccu.table_name = 'admin_analytics' OR tc.table_name = 'admin_analytics');
+
+-- Then drop with CASCADE if no important dependencies
 DROP TABLE IF EXISTS admin_analytics CASCADE;
 DROP TABLE IF EXISTS admin_notifications CASCADE;
 DROP TABLE IF EXISTS performance_analytics CASCADE;
@@ -120,17 +139,33 @@ DROP TABLE IF EXISTS performance_analytics CASCADE;
 
 ### 2. **Fix Naming Conflicts**
 ```sql
--- Standardize naming
-ALTER TABLE followup_templates RENAME TO follow_up_templates;
--- Update code references from 'satsangs' to 'satsang_events'
+-- Tables are already correctly named as follow_up_templates and satsang_events
+-- Just need to update any code references that use incorrect names:
+-- - Change 'satsangs' to 'satsang_events' in code
+-- - Ensure all code uses 'follow_up_templates' with underscores
 ```
 
 ### 3. **Fix Type Mismatches**
 ```sql
--- Critical: Fix user_id type
+-- Critical: Fix user_id type (with safety checks)
+-- First, check for invalid data
+SELECT user_id, COUNT(*) 
+FROM sessions 
+WHERE user_id IS NOT NULL 
+AND user_id != '' 
+AND user_id !~ '^[0-9]+$' 
+GROUP BY user_id;
+
+-- Then convert with proper error handling
+BEGIN;
 ALTER TABLE sessions 
 ALTER COLUMN user_id TYPE INTEGER 
-USING NULLIF(user_id, '')::INTEGER;
+USING CASE 
+    WHEN user_id = '' OR user_id IS NULL THEN NULL
+    WHEN user_id ~ '^[0-9]+$' THEN user_id::INTEGER
+    ELSE NULL
+END;
+COMMIT;
 ```
 
 ### 4. **Complete or Remove Partial Features**

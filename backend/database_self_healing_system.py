@@ -31,6 +31,14 @@ SCAN_INTERVAL_SECONDS = 300  # 5 minutes
 MAX_FIX_ATTEMPTS = 3
 CRITICAL_TABLES = {'users', 'sessions', 'service_types', 'credit_transactions', 'payments'}
 
+# Allowed PostgreSQL data types for validation
+ALLOWED_DATA_TYPES = {
+    'INTEGER', 'BIGINT', 'SMALLINT', 'NUMERIC', 'DECIMAL', 'REAL', 'DOUBLE PRECISION',
+    'TEXT', 'VARCHAR', 'CHAR', 'BOOLEAN', 'DATE', 'TIME', 'TIMESTAMP', 'TIMESTAMPTZ',
+    'UUID', 'JSON', 'JSONB', 'ARRAY', 'BYTEA', 'INTERVAL', 'MONEY', 'INET', 'CIDR',
+    'VARCHAR(255)', 'VARCHAR(50)', 'VARCHAR(100)', 'CHAR(1)', 'NUMERIC(10,2)'
+}
+
 
 def quote_ident(identifier: str) -> str:
     """Safely quote a PostgreSQL identifier"""
@@ -494,6 +502,14 @@ class DatabaseIssueFixer:
         column = issue.column
         new_type = issue.expected_state
         
+        # Validate data type
+        if new_type:
+            # Extract base type (e.g., VARCHAR from VARCHAR(255))
+            base_type = new_type.split('(')[0].upper()
+            if base_type not in ALLOWED_DATA_TYPES and new_type.upper() not in ALLOWED_DATA_TYPES:
+                result['errors'].append(f"Invalid data type: {new_type}")
+                return
+        
         logger.info(f"Fixing type mismatch: {table}.{column} -> {new_type}")
         
         # PostgreSQL supports ALTER COLUMN TYPE
@@ -702,15 +718,18 @@ class DatabaseHealthMonitor:
                                 break
                     
                     if users_id_type and col['data_type'] != users_id_type:
-                        issues.append(DatabaseIssue(
-                            issue_type='TYPE_MISMATCH',
-                            severity='CRITICAL',
-                            table=table,
-                            column='user_id',
-                            current_state=col['data_type'],
-                            expected_state=f"{users_id_type} REFERENCES users(id)",
-                            fix_sql=f"ALTER TABLE {quote_ident(table)} ALTER COLUMN user_id TYPE {users_id_type} USING user_id::{users_id_type}"
-                        ))
+                        # Validate the users_id_type before using it
+                        base_type = users_id_type.split('(')[0].upper()
+                        if base_type in ALLOWED_DATA_TYPES or users_id_type.upper() in ALLOWED_DATA_TYPES:
+                            issues.append(DatabaseIssue(
+                                issue_type='TYPE_MISMATCH',
+                                severity='CRITICAL',
+                                table=table,
+                                column='user_id',
+                                current_state=col['data_type'],
+                                expected_state=f"{users_id_type} REFERENCES users(id)",
+                                fix_sql=f"ALTER TABLE {quote_ident(table)} ALTER COLUMN user_id TYPE {users_id_type} USING user_id::{users_id_type}"
+                            ))
         
         # Check for missing indexes on foreign keys
         for table, constraints in schema['constraints'].items():

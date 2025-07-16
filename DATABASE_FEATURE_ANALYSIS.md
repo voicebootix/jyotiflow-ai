@@ -1,5 +1,8 @@
 # Database Feature Analysis - Active vs Dead Code
 
+> **Purpose**: This document provides detailed analysis of which database tables are actively used in the codebase vs dead code.  
+> **Related**: See `database-analysis-report.md` for a high-level summary and action plan.
+
 ## Summary
 After thorough analysis of 67+ tables, here's what I found:
 

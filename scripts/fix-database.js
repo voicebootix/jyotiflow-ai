@@ -442,34 +442,45 @@ async function fixColumnType(table, column, conversion) {
       return;
     }
     
-    // Create backup column
-    if (conversion.backup_first) {
-      const backupColumn = `${column}_backup`;
-      if (!await columnExists(table, backupColumn)) {
-        await client.query(`ALTER TABLE ${quoteIdentifier(table)} ADD COLUMN ${quoteIdentifier(backupColumn)} ${conversion.from}`);
-        await client.query(`UPDATE ${quoteIdentifier(table)} SET ${quoteIdentifier(backupColumn)} = ${quoteIdentifier(column)}`);
-        console.log(`  📦 Created backup column: ${backupColumn}`);
+    // Start transaction
+    await client.query('BEGIN');
+    
+    try {
+      // Create backup column
+      if (conversion.backup_first) {
+        const backupColumn = `${column}_backup`;
+        if (!await columnExists(table, backupColumn)) {
+          await client.query(`ALTER TABLE ${quoteIdentifier(table)} ADD COLUMN ${quoteIdentifier(backupColumn)} ${conversion.from}`);
+          await client.query(`UPDATE ${quoteIdentifier(table)} SET ${quoteIdentifier(backupColumn)} = ${quoteIdentifier(column)}`);
+          console.log(`  📦 Created backup column: ${backupColumn}`);
+        }
       }
-    }
-    
-    // Convert type
-    if (conversion.validation) {
-      // Only convert valid data
+      
+      // Convert type
+      if (conversion.validation) {
+        // Only convert valid data
+        await client.query(`
+          UPDATE ${quoteIdentifier(table)} 
+          SET ${quoteIdentifier(column)} = NULL 
+          WHERE ${quoteIdentifier(column)} IS NOT NULL 
+          AND NOT (${quoteIdentifier(column)} ~ '^[0-9]+$')
+        `);
+      }
+      
       await client.query(`
-        UPDATE ${quoteIdentifier(table)} 
-        SET ${quoteIdentifier(column)} = NULL 
-        WHERE ${quoteIdentifier(column)} IS NOT NULL 
-        AND NOT (${quoteIdentifier(column)} ~ '^[0-9]+$')
+        ALTER TABLE ${quoteIdentifier(table)} 
+        ALTER COLUMN ${quoteIdentifier(column)} TYPE ${conversion.to} 
+        ${conversion.conversion}
       `);
+      
+      // Commit transaction
+      await client.query('COMMIT');
+      console.log(`  ✅ Converted successfully`);
+    } catch (innerError) {
+      // Rollback on error
+      await client.query('ROLLBACK');
+      throw innerError;
     }
-    
-    await client.query(`
-      ALTER TABLE ${quoteIdentifier(table)} 
-      ALTER COLUMN ${quoteIdentifier(column)} TYPE ${conversion.to} 
-      ${conversion.conversion}
-    `);
-    
-    console.log(`  ✅ Converted successfully`);
   } catch (error) {
     console.log(`  ⚠️  Failed to convert: ${error.message}`);
   }
@@ -543,6 +554,16 @@ async function addForeignKeyConstraints() {
   
   for (const { table, constraint, definition } of constraints) {
     if (await tableExists(table)) {
+      // Extract referenced table from definition
+      const refTableMatch = definition.match(/REFERENCES\s+(\w+)/);
+      if (refTableMatch) {
+        const referencedTable = refTableMatch[1];
+        if (!await tableExists(referencedTable)) {
+          console.log(`  ⚠️  Referenced table ${referencedTable} does not exist, skipping ${constraint}`);
+          continue;
+        }
+      }
+      
       try {
         // Check if constraint already exists
         const constraintExists = await client.query(
