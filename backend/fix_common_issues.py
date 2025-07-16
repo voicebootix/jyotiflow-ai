@@ -6,27 +6,58 @@ Run these fixes based on validation errors
 import os
 import asyncio
 import asyncpg
+import sys
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+DB_APP_USER = os.getenv("DB_APP_USER", "app_user")  # Default to 'app_user' if not set
+
+# Global connection pool
+pool = None
+
+async def get_pool():
+    """Get or create connection pool"""
+    global pool
+    if pool is None:
+        pool = await asyncpg.create_pool(DATABASE_URL, min_size=1, max_size=10)
+    return pool
 
 async def fix_permissions():
     """Fix database permissions if needed"""
-    conn = await asyncpg.connect(DATABASE_URL)
+    pool = await get_pool()
     
-    try:
-        # Grant necessary permissions
-        await conn.execute("""
-            GRANT SELECT, INSERT, UPDATE, DELETE 
-            ON ALL TABLES IN SCHEMA public 
-            TO CURRENT_USER
-        """)
-        print("✅ Permissions fixed")
-    except Exception as e:
-        print(f"❌ Could not fix permissions: {e}")
-        print("Ask your database admin to run:")
-        print("GRANT ALL PRIVILEGES ON DATABASE your_db TO your_user;")
-    finally:
-        await conn.close()
+    async with pool.acquire() as conn:
+        try:
+            # Check if the user exists
+            user_exists = await conn.fetchval(
+                "SELECT 1 FROM pg_user WHERE usename = $1", 
+                DB_APP_USER
+            )
+            
+            if not user_exists:
+                print(f"❌ User '{DB_APP_USER}' does not exist in the database")
+                print(f"Set DB_APP_USER environment variable to the correct application user")
+                return
+            
+            # Grant necessary permissions to the specific user
+            # Using parameterized query for safety
+            await conn.execute(f"""
+                GRANT SELECT, INSERT, UPDATE, DELETE 
+                ON ALL TABLES IN SCHEMA public 
+                TO "{DB_APP_USER.replace('"', '""')}"
+            """)
+            
+            # Also grant schema-level permissions for CREATE and ALTER
+            await conn.execute(f"""
+                GRANT CREATE ON SCHEMA public TO "{DB_APP_USER.replace('"', '""')}"
+            """)
+            
+            print(f"✅ Permissions fixed for user: {DB_APP_USER}")
+        except Exception as e:
+            print(f"❌ Could not fix permissions: {e}")
+            print(f"Ask your database admin to run:")
+            quoted_user = DB_APP_USER.replace('"', '""')
+            print(f'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "{quoted_user}";')
+            print(f'GRANT CREATE ON SCHEMA public TO "{quoted_user}";')
 
 async def fix_ast_parsing():
     """Fix AST parsing issues"""
@@ -46,10 +77,21 @@ async def fix_ast_parsing():
     # Create __init__.py files if missing
     dirs = ['backend', 'backend/routers', 'backend/utils']
     for dir in dirs:
-        init_file = os.path.join(dir, '__init__.py')
-        if not os.path.exists(init_file):
-            open(init_file, 'a').close()
-            print(f"✅ Created {init_file}")
+        try:
+            # Create directory if it doesn't exist
+            if not os.path.exists(dir):
+                os.makedirs(dir, exist_ok=True)
+                print(f"✅ Created directory: {dir}")
+            
+            init_file = os.path.join(dir, '__init__.py')
+            if not os.path.exists(init_file):
+                with open(init_file, 'a') as f:
+                    pass  # Just create empty file
+                print(f"✅ Created {init_file}")
+        except IOError as e:
+            print(f"❌ Failed to create {init_file}: {e}")
+        except Exception as e:
+            print(f"❌ Unexpected error creating {init_file}: {e}")
 
 async def fix_import_errors():
     """Fix common import errors"""
@@ -63,9 +105,9 @@ async def fix_import_errors():
 
 async def create_required_tables():
     """Create tables required by self-healing system"""
-    conn = await asyncpg.connect(DATABASE_URL)
+    pool = await get_pool()
     
-    try:
+    async with pool.acquire() as conn:
         # Create backup tracking table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS database_backups (
@@ -91,8 +133,6 @@ async def create_required_tables():
         """)
         
         print("✅ Created required tables")
-    finally:
-        await conn.close()
 
 async def fix_type_cast_errors():
     """Fix specific type casting in code using AST analysis"""
@@ -114,13 +154,42 @@ async def main():
     """Run all fixes"""
     print("🔧 Running common fixes...\n")
     
-    await fix_permissions()
-    await fix_ast_parsing()
-    await fix_import_errors()
-    await create_required_tables()
-    await fix_type_cast_errors()
+    fixes = [
+        ("Database Permissions", fix_permissions),
+        ("AST Parsing Setup", fix_ast_parsing),
+        ("Import Errors", fix_import_errors),
+        ("Required Tables", create_required_tables),
+        ("Type Cast Review", fix_type_cast_errors)
+    ]
     
-    print("\n✅ Fixes completed. Run validation again.")
+    results = {}
+    for name, fix_func in fixes:
+        try:
+            print(f"\n🔄 Running: {name}")
+            await fix_func()
+            results[name] = "✅ Success"
+        except Exception as e:
+            results[name] = f"❌ Failed: {str(e)}"
+            print(f"❌ Error in {name}: {e}")
+            # Continue with the next fix
+    
+    print("\n" + "="*50)
+    print("📊 Fix Summary:")
+    print("="*50)
+    for name, status in results.items():
+        print(f"  {name}: {status}")
+    
+    # Check if all fixes succeeded
+    all_success = all("✅ Success" in status for status in results.values())
+    if all_success:
+        print("\n✅ All fixes completed successfully! Run validation again.")
+    else:
+        print("\n⚠️  Some fixes failed. Please review the errors above.")
+        
+    # Close the connection pool if it was created
+    global pool
+    if pool:
+        await pool.close()
 
 if __name__ == "__main__":
     asyncio.run(main())

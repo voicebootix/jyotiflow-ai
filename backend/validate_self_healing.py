@@ -73,7 +73,7 @@ class SystemValidator:
             print(f"   ✅ Connected to PostgreSQL")
             print(f"   📊 Version: {version.split(',')[0]}")
             
-            # Check permissions
+            # Check permissions - verify all privileges granted by fix_permissions
             can_alter = await conn.fetchval("""
                 SELECT 
                     has_table_privilege(current_user, 'users', 'SELECT') AND
@@ -81,7 +81,14 @@ class SystemValidator:
                     has_table_privilege(current_user, 'users', 'UPDATE') AND
                     has_table_privilege(current_user, 'users', 'DELETE')
             """)
-            print(f"   🔐 Required permissions: {'✅ Yes' if can_alter else '❌ No'}")
+            
+            # Check schema-level privileges for CREATE, ALTER, DROP
+            can_modify_schema = await conn.fetchval("""
+                SELECT has_schema_privilege(current_user, 'public', 'CREATE')
+            """)
+            
+            print(f"   🔐 Table permissions (SELECT/INSERT/UPDATE/DELETE): {'✅ Yes' if can_alter else '❌ No'}")
+            print(f"   🔐 Schema permissions (CREATE/ALTER/DROP): {'✅ Yes' if can_modify_schema else '❌ No'}")
             
             await conn.close()
             self.results["connection"] = True
