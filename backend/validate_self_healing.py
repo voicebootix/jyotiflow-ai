@@ -8,12 +8,22 @@ import asyncio
 import asyncpg
 import logging
 from datetime import datetime, timezone
-from backend.database_self_healing_system import (
-    PostgreSQLSchemaAnalyzer,
-    CodePatternAnalyzer,
-    DatabaseIssueFixer,
-    DatabaseHealthMonitor
-)
+try:
+    # Try package import first (when installed via pip install -e .)
+    from backend.database_self_healing_system import (
+        PostgreSQLSchemaAnalyzer,
+        CodePatternAnalyzer,
+        DatabaseIssueFixer,
+        DatabaseHealthMonitor
+    )
+except ImportError:
+    # Fallback to direct import (when run from backend/ directory)
+    from database_self_healing_system import (
+        PostgreSQLSchemaAnalyzer,
+        CodePatternAnalyzer,
+        DatabaseIssueFixer,
+        DatabaseHealthMonitor
+    )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -273,7 +283,10 @@ class SystemValidator:
             
             # Test backup creation
             fixer = DatabaseIssueFixer(DATABASE_URL)
-            from backend.database_self_healing_system import DatabaseIssue
+            try:
+                from backend.database_self_healing_system import DatabaseIssue
+            except ImportError:
+                from database_self_healing_system import DatabaseIssue
             
             test_issue = DatabaseIssue(
                 issue_type='TYPE_MISMATCH',
