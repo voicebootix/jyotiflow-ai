@@ -113,7 +113,7 @@ Please provide detailed marketing analysis and recommendations for this spiritua
 
             # Call OpenAI API with supported model
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}

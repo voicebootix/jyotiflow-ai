@@ -553,7 +553,7 @@ Remember that every challenge is an opportunity for spiritual growth, and every 
             """
             
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": analysis_prompt}],
                 max_tokens=500,
                 temperature=0.3
@@ -602,7 +602,7 @@ Remember that every challenge is an opportunity for spiritual growth, and every 
             """
             
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": spiritual_prompt}],
                 max_tokens=700,
                 temperature=0.7
@@ -1186,7 +1186,7 @@ class MonetizationOptimizer:
             """
             
             response = await self.openai_client.chat.completions.create(
-                model="gpt-4.1-mini",
+                model="gpt-4o-mini",
                 messages=[{"role": "user", "content": recommendation_prompt}],
                 max_tokens=1200,
                 temperature=0.3
