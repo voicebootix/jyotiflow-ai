@@ -9,6 +9,15 @@ import json
 import re
 from datetime import datetime
 
+# Try to import numpy, but handle gracefully if not installed
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("numpy not installed - semantic similarity will use fallback calculation")
+
 from core_foundation_enhanced import logger, settings
 import openai
 
@@ -389,12 +398,19 @@ class RAGValidator:
             embedding2 = embedding2_response.data[0].embedding
             
             # Calculate cosine similarity
-            import numpy as np
-            dot_product = np.dot(embedding1, embedding2)
-            norm1 = np.linalg.norm(embedding1)
-            norm2 = np.linalg.norm(embedding2)
-            
-            similarity = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0.0
+            if NUMPY_AVAILABLE:
+                dot_product = np.dot(embedding1, embedding2)
+                norm1 = np.linalg.norm(embedding1)
+                norm2 = np.linalg.norm(embedding2)
+                
+                similarity = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0.0
+            else:
+                # Fallback: manual cosine similarity calculation without numpy
+                dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+                norm1 = sum(a * a for a in embedding1) ** 0.5
+                norm2 = sum(b * b for b in embedding2) ** 0.5
+                
+                similarity = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0.0
             
             return float(similarity)
             
