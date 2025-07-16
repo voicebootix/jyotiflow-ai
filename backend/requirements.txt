@@ -118,3 +118,4 @@ email-validator==2.2.0  # Updated email validation
 
 # 🙏🏼 All dependencies for Swami Jyotirananthan's REAL AI digital ashram
 limits==3.7.0
+aiohttp>=3.8.0

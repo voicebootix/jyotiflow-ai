@@ -67,7 +67,7 @@ Provide compassionate spiritual guidance that includes:
 Write in English with Tamil spiritual concepts. Be warm, wise, and specific."""
 
         response = openai.chat.completions.create(
-            model="gpt-4.1-mini",
+                            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": "You are Swami Jyotirananthan, a compassionate Tamil spiritual guide with deep knowledge of Vedic astrology."},
                 {"role": "user", "content": prompt}

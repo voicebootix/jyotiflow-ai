@@ -34,21 +34,9 @@ try:
 except ImportError:
     avatar_engine = None
 
-# RESTORE: Use the real AI Marketing Director with OpenAI integration
-try:
-    from real_ai_marketing_director import real_ai_marketing_director as ai_marketing_director
-    print("✅ Using REAL AI Marketing Director with OpenAI integration")
-except ImportError:
-    try:
-        from ai_marketing_director_agent_fixed import ai_marketing_director
-        print("✅ Using sophisticated AI Marketing Director with real AI capabilities")
-    except ImportError:
-        try:
-            from ai_marketing_director_agent import ai_marketing_director
-            print("✅ Using fallback sophisticated AI Marketing Director")
-        except ImportError:
-            ai_marketing_director = None
-            print("❌ No AI Marketing Director available")
+# REAL AI Marketing Director with OpenAI integration - FIXED MODEL NAME
+from real_ai_marketing_director import real_ai_marketing_director as ai_marketing_director
+print("✅ REAL AI Marketing Director loaded with OpenAI GPT-4o-mini integration")
 
 logger = logging.getLogger(__name__)
 
