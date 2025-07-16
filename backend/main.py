@@ -589,6 +589,16 @@ if LIVECHAT_AVAILABLE:
     app.include_router(livechat_router)
     print("✅ Live chat router registered")
 
+# Import self-healing integration
+try:
+    from integrate_self_healing import integrate_self_healing
+    integrate_self_healing(app)
+    SELF_HEALING_AVAILABLE = True
+    print("✅ Database Self-Healing System integrated")
+except ImportError:
+    SELF_HEALING_AVAILABLE = False
+    print("⚠️ Self-healing system not available")
+
 # Debug router for testing AI Marketing Director
 if DEBUG_ROUTER_AVAILABLE:
     app.include_router(debug_router)
