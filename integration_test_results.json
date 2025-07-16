@@ -1,0 +1,65 @@
+{
+  "total_tests": 5,
+  "passed": 3,
+  "failed": 1,
+  "partial": 0,
+  "info": 1,
+  "total_time_seconds": 0.03,
+  "detailed_results": [
+    {
+      "test": "unified_system_functions",
+      "status": "FAIL",
+      "error": "No module named 'asyncpg'",
+      "details": "Failed to test unified system functions"
+    },
+    {
+      "test": "enhanced_tables_functionality",
+      "status": "PASS",
+      "rag_features": {
+        "rag_knowledge_base_table": true,
+        "service_configuration_cache": true,
+        "knowledge_seeding": true,
+        "embedding_vector_support": true,
+        "knowledge_seeder_import": true
+      },
+      "details": "5/5 RAG features implemented"
+    },
+    {
+      "test": "database_validation_integration",
+      "status": "PASS",
+      "validation_features": {
+        "structure_validation": true,
+        "table_validation": true,
+        "column_fixing": true,
+        "missing_column_detection": true,
+        "required_data_check": true,
+        "validation_in_sequence": true
+      },
+      "details": "6/6 validation features integrated"
+    },
+    {
+      "test": "startup_sequence_updated",
+      "status": "PASS",
+      "sequence_features": {
+        "knowledge_seeding_step": true,
+        "validation_step": true,
+        "six_step_sequence": true,
+        "knowledge_seeding_function_called": true,
+        "validation_function_called": true
+      },
+      "details": "5/5 sequence updates implemented"
+    },
+    {
+      "test": "original_systems_still_exist",
+      "status": "INFO",
+      "existing_systems": {
+        "integrate_self_healing": true,
+        "enhanced_startup_integration": true,
+        "fix_startup_issues": true,
+        "startup_database_validator": true
+      },
+      "details": "4/4 original systems still exist for reference"
+    }
+  ],
+  "timestamp": "2025-07-16 14:04:09"
+}
