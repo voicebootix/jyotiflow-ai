@@ -10,6 +10,7 @@ import asyncpg
 import logging
 import traceback
 from datetime import datetime
+from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
