@@ -15,13 +15,11 @@ try:
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
-    logger = logging.getLogger(__name__)
-    logger.warning("numpy not installed - semantic similarity will use fallback calculation")
+    # Log warning after logger is properly imported
+    pass
 
 from core_foundation_enhanced import logger, settings
 import openai
-
-logger = logging.getLogger(__name__)
 
 class RAGValidator:
     """
@@ -30,6 +28,10 @@ class RAGValidator:
     """
     
     def __init__(self):
+        # Log numpy availability warning if needed
+        if not NUMPY_AVAILABLE:
+            logger.warning("numpy not installed - semantic similarity will use fallback calculation")
+            
         self.openai_client = openai.AsyncClient(api_key=settings.openai_api_key)
         self.spiritual_keywords = self._load_spiritual_keywords()
         self.domain_keywords = self._load_domain_keywords()
