@@ -155,6 +155,15 @@ except ImportError:
     ENV_DEBUG_ROUTER_AVAILABLE = False
     print("⚠️ Environment debug router not available")
 
+# Health monitoring router
+try:
+    from database_self_healing_system import router as health_router
+    HEALTH_ROUTER_AVAILABLE = True
+    print("✅ Health monitoring router available")
+except ImportError:
+    HEALTH_ROUTER_AVAILABLE = False
+    print("⚠️ Health monitoring router not available")
+
 # Import database initialization
 from init_database import initialize_jyotiflow_database
 
@@ -463,15 +472,10 @@ if LIVECHAT_AVAILABLE:
     app.include_router(livechat_router)
     print("✅ Live chat router registered")
 
-# Import self-healing integration
-try:
-    from integrate_self_healing import integrate_self_healing
-    integrate_self_healing(app)
-    SELF_HEALING_AVAILABLE = True
-    print("✅ Database Self-Healing System integrated")
-except ImportError:
-    SELF_HEALING_AVAILABLE = False
-    print("⚠️ Self-healing system not available")
+# Health monitoring router integration (health monitoring initialization now handled by unified startup)
+if HEALTH_ROUTER_AVAILABLE:
+    app.include_router(health_router)
+    print("✅ Health monitoring router registered - monitoring endpoints available")
 
 # Debug router for testing AI Marketing Director
 if DEBUG_ROUTER_AVAILABLE:

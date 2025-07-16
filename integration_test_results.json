@@ -18,11 +18,11 @@
       "rag_features": {
         "rag_knowledge_base_table": true,
         "service_configuration_cache": true,
-        "knowledge_seeding": true,
+        "knowledge_seeding": false,
         "embedding_vector_support": true,
         "knowledge_seeder_import": true
       },
-      "details": "5/5 RAG features implemented"
+      "details": "4/5 RAG features implemented"
     },
     {
       "test": "database_validation_integration",
@@ -41,10 +41,10 @@
       "test": "startup_sequence_updated",
       "status": "PASS",
       "sequence_features": {
-        "knowledge_seeding_step": true,
+        "health_monitoring_step": true,
         "validation_step": true,
         "six_step_sequence": true,
-        "knowledge_seeding_function_called": true,
+        "health_monitoring_function_called": true,
         "validation_function_called": true
       },
       "details": "5/5 sequence updates implemented"
@@ -61,5 +61,5 @@
       "details": "4/4 original systems still exist for reference"
     }
   ],
-  "timestamp": "2025-07-16 14:04:09"
+  "timestamp": "2025-07-16 14:30:17"
 }
