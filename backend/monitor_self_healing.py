@@ -7,10 +7,12 @@ import os
 import asyncio
 import asyncpg
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is required")
 
 class ProductionMonitor:
     """Monitor self-healing system in production"""
@@ -25,11 +27,11 @@ class ProductionMonitor:
         print(f"🔍 Starting {duration_hours}-hour production monitoring...")
         print("Press Ctrl+C to stop early\n")
         
-        self.start_time = datetime.utcnow()
+        self.start_time = datetime.now(timezone.utc)
         end_time = self.start_time + timedelta(hours=duration_hours)
         
         try:
-            while datetime.utcnow() < end_time:
+            while datetime.now(timezone.utc) < end_time:
                 await self.check_health()
                 await self.check_fixes()
                 await self.check_errors()
@@ -208,7 +210,7 @@ class ProductionMonitor:
         # Save report
         report = {
             'monitoring_period': {
-                'start': self.start_time.isoformat() if self.start_time else datetime.utcnow().isoformat(),
+                'start': self.start_time.isoformat() if self.start_time else datetime.now(timezone.utc).isoformat(),
                 'duration_hours': 24
             },
             'metrics': dict(self.metrics),
@@ -261,9 +263,14 @@ async def verify_production_ready():
             ORDER BY timestamp DESC
             LIMIT 1
         """)
-        if latest and (datetime.utcnow() - latest['timestamp']).total_seconds() < 600:
-            print("   ✅ Monitoring is active")
-            checks_passed += 1
+        if latest:
+            now_utc = datetime.now(timezone.utc)
+            timestamp = latest['timestamp']
+            if timestamp.tzinfo is None:
+                timestamp = timestamp.replace(tzinfo=timezone.utc)
+            if (now_utc - timestamp).total_seconds() < 600:
+                print("   ✅ Monitoring is active")
+                checks_passed += 1
         else:
             print("   ❌ Monitoring not active")
         

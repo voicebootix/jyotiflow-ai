@@ -3,7 +3,14 @@ const fs = require('fs').promises;
 const path = require('path');
 
 // Load environment variables
+require('dotenv').config();
 const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://user:password@localhost:5432/yourdb';
+
+// Helper function to safely quote PostgreSQL identifiers
+function quoteIdentifier(identifier) {
+  // PostgreSQL identifier quoting
+  return '"' + identifier.replace(/"/g, '""') + '"';
+}
 
 const client = new Client({
   connectionString: DATABASE_URL,
@@ -400,11 +407,11 @@ async function columnExists(tableName, columnName) {
 
 async function createTable(tableName, schema) {
   const columns = Object.entries(schema.columns)
-    .map(([name, def]) => `${name} ${def.type}`)
+    .map(([name, def]) => `${quoteIdentifier(name)} ${def.type}`)
     .join(', ');
   
   try {
-    await client.query(`CREATE TABLE ${tableName} (${columns})`);
+    await client.query(`CREATE TABLE ${quoteIdentifier(tableName)} (${columns})`);
     console.log(`  ✅ Created table: ${tableName}`);
   } catch (error) {
     console.log(`  ⚠️  Failed to create table ${tableName}: ${error.message}`);
@@ -416,7 +423,7 @@ async function addMissingColumns(tableName, requiredColumns) {
     const exists = await columnExists(tableName, columnName);
     if (!exists) {
       try {
-        await client.query(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${def.type}`);
+        await client.query(`ALTER TABLE ${quoteIdentifier(tableName)} ADD COLUMN ${quoteIdentifier(columnName)} ${def.type}`);
         console.log(`  ✅ Added column: ${tableName}.${columnName}`);
       } catch (error) {
         console.log(`  ⚠️  Failed to add column ${tableName}.${columnName}: ${error.message}`);
@@ -439,8 +446,8 @@ async function fixColumnType(table, column, conversion) {
     if (conversion.backup_first) {
       const backupColumn = `${column}_backup`;
       if (!await columnExists(table, backupColumn)) {
-        await client.query(`ALTER TABLE ${table} ADD COLUMN ${backupColumn} ${conversion.from}`);
-        await client.query(`UPDATE ${table} SET ${backupColumn} = ${column}`);
+        await client.query(`ALTER TABLE ${quoteIdentifier(table)} ADD COLUMN ${quoteIdentifier(backupColumn)} ${conversion.from}`);
+        await client.query(`UPDATE ${quoteIdentifier(table)} SET ${quoteIdentifier(backupColumn)} = ${quoteIdentifier(column)}`);
         console.log(`  📦 Created backup column: ${backupColumn}`);
       }
     }
@@ -449,16 +456,16 @@ async function fixColumnType(table, column, conversion) {
     if (conversion.validation) {
       // Only convert valid data
       await client.query(`
-        UPDATE ${table} 
-        SET ${column} = NULL 
-        WHERE ${column} IS NOT NULL 
-        AND NOT (${column} ~ '^[0-9]+$')
+        UPDATE ${quoteIdentifier(table)} 
+        SET ${quoteIdentifier(column)} = NULL 
+        WHERE ${quoteIdentifier(column)} IS NOT NULL 
+        AND NOT (${quoteIdentifier(column)} ~ '^[0-9]+$')
       `);
     }
     
     await client.query(`
-      ALTER TABLE ${table} 
-      ALTER COLUMN ${column} TYPE ${conversion.to} 
+      ALTER TABLE ${quoteIdentifier(table)} 
+      ALTER COLUMN ${quoteIdentifier(column)} TYPE ${conversion.to} 
       ${conversion.conversion}
     `);
     
@@ -478,7 +485,7 @@ async function removeUnusedColumns(tableName, columns) {
     
     for (const column of columns) {
       if (await columnExists(tableName, column)) {
-        await client.query(`ALTER TABLE ${tableName} DROP COLUMN IF EXISTS ${column}`);
+        await client.query(`ALTER TABLE ${quoteIdentifier(tableName)} DROP COLUMN IF EXISTS ${quoteIdentifier(column)}`);
         console.log(`  ❌ Removed: ${tableName}.${column}`);
       }
     }
@@ -545,7 +552,7 @@ async function addForeignKeyConstraints() {
         );
         
         if (!constraintExists.rows.length) {
-          await client.query(`ALTER TABLE ${table} ADD CONSTRAINT ${constraint} ${definition}`);
+          await client.query(`ALTER TABLE ${quoteIdentifier(table)} ADD CONSTRAINT ${quoteIdentifier(constraint)} ${definition}`);
           console.log(`  ✅ Added constraint: ${constraint} on ${table}`);
         }
       } catch (error) {
@@ -563,4 +570,7 @@ async function fixIncorrectReferences() {
 }
 
 // Run the fix
-fixDatabase();
+fixDatabase().catch(error => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});

@@ -14,7 +14,7 @@ import asyncio
 import asyncpg
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict
@@ -60,7 +60,7 @@ class DatabaseIssue:
     
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.utcnow()
+            self.created_at = datetime.now(timezone.utc)
         if self.affected_files is None:
             self.affected_files = []
         if self.affected_queries is None:
@@ -447,7 +447,7 @@ class DatabaseIssueFixer:
             
             # Record fix in history
             self.fix_history.append({
-                'timestamp': datetime.utcnow(),
+                'timestamp': datetime.now(timezone.utc),
                 'issue': asdict(issue),
                 'result': result,
                 'backup_id': backup_id
@@ -466,7 +466,7 @@ class DatabaseIssueFixer:
     
     async def _create_backup_point(self, conn: asyncpg.Connection, issue: DatabaseIssue) -> str:
         """Create backup point for rollback"""
-        backup_id = f"fix_{issue.issue_id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+        backup_id = f"fix_{issue.issue_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
         
         # Create backup table for affected data
         if issue.table and issue.column:
@@ -484,7 +484,7 @@ class DatabaseIssueFixer:
             await conn.execute("""
                 INSERT INTO database_backups (backup_id, table_name, column_name, issue_type, created_at)
                 VALUES ($1, $2, $3, $4, $5)
-            """, backup_id, issue.table, issue.column, issue.issue_type, datetime.utcnow())
+            """, backup_id, issue.table, issue.column, issue.issue_type, datetime.now(timezone.utc))
         
         return backup_id
     
@@ -582,7 +582,7 @@ class DatabaseIssueFixer:
                 file_path = fix['file']
                 
                 # Backup original file
-                backup_path = f"{file_path}.backup.{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+                backup_path = f"{file_path}.backup.{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
                 with open(file_path, 'r') as f:
                     original_content = f.read()
                 with open(backup_path, 'w') as f:
@@ -594,6 +594,17 @@ class DatabaseIssueFixer:
                 
             except Exception as e:
                 result['errors'].append(f"Code fix failed: {str(e)}")
+    
+    async def _table_exists(self, conn: asyncpg.Connection, table_name: str) -> bool:
+        """Check if a table exists in the database"""
+        result = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_schema = 'public' 
+                AND table_name = $1
+            )
+        """, table_name)
+        return result
 
 
 class DatabaseHealthMonitor:
@@ -612,7 +623,7 @@ class DatabaseHealthMonitor:
         logger.info("Starting database health check...")
         
         results = {
-            'timestamp': datetime.utcnow(),
+            'timestamp': datetime.now(timezone.utc),
             'issues_found': 0,
             'issues_fixed': 0,
             'critical_issues': [],
@@ -812,10 +823,10 @@ class DatabaseHealthMonitor:
             issue_key = f"{issue.issue_type}:{issue.table}:{issue.column}"
             if issue_key in self.known_issues:
                 last_attempt = self.known_issues[issue_key]
-                if datetime.utcnow() - last_attempt < timedelta(hours=1):
+                if datetime.now(timezone.utc) - last_attempt < timedelta(hours=1):
                     return False  # Don't retry within an hour
             
-            self.known_issues[issue_key] = datetime.utcnow()
+            self.known_issues[issue_key] = datetime.now(timezone.utc)
             return True
         
         return False
@@ -943,7 +954,7 @@ class SelfHealingOrchestrator:
                 'last_check': latest['timestamp'] if latest else None,
                 'total_fixes': fix_count or 0,
                 'active_critical_issues': active_issues,
-                'next_check': datetime.utcnow() + timedelta(seconds=SCAN_INTERVAL_SECONDS) if self.running else None
+                'next_check': datetime.now(timezone.utc) + timedelta(seconds=SCAN_INTERVAL_SECONDS) if self.running else None
             }
             
         finally:

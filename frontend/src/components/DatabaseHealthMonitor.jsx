@@ -8,26 +8,37 @@ export default function DatabaseHealthMonitor() {
     const [status, setStatus] = useState({ status: 'stopped', last_check: null });
     const [issues, setIssues] = useState({ critical_issues: [], warnings: [] });
     const [checkInProgress, setCheckInProgress] = useState(false);
+    const [error, setError] = useState(null);
 
     const fetchStatus = async () => {
         try {
+            setError(null);
             const response = await fetch('/api/database-health/status');
+            if (!response.ok) {
+                throw new Error(`API Error: ${response.status}`);
+            }
             const data = await response.json();
             setStatus(data);
             setIssues(data.issues || { critical_issues: [], warnings: [] });
         } catch (error) {
             console.error('Failed to fetch status:', error);
+            setError('Failed to fetch database health status');
         }
     };
 
     const runCheckNow = async () => {
         setCheckInProgress(true);
         try {
+            setError(null);
             const response = await fetch('/api/database-health/check', { method: 'POST' });
-            await response.json();
+            if (!response.ok) {
+                throw new Error(`Health check failed: ${response.status}`);
+            }
+            const result = await response.json();
             await fetchStatus();
         } catch (error) {
             console.error('Failed to run check:', error);
+            setError('Failed to run health check');
         } finally {
             setCheckInProgress(false);
         }
@@ -44,16 +55,29 @@ export default function DatabaseHealthMonitor() {
     };
 
     const fixIssue = async (issue) => {
+        if (!confirm(`Apply fix for ${issue.issue_type} on ${issue.table}?`)) {
+            return;
+        }
         try {
+            setError(null);
             const response = await fetch('/api/database-health/fix', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ issue })
             });
-            await response.json();
+            if (!response.ok) {
+                throw new Error(`Fix failed: ${response.status}`);
+            }
+            const result = await response.json();
+            if (result.success) {
+                alert('Fix applied successfully');
+            } else {
+                throw new Error(result.error || 'Fix failed');
+            }
             await fetchStatus();
         } catch (error) {
             console.error('Failed to fix issue:', error);
+            setError(`Failed to apply fix: ${error.message}`);
         }
     };
 
@@ -65,6 +89,13 @@ export default function DatabaseHealthMonitor() {
 
     return (
         <div className="space-y-4">
+            {/* Error Display */}
+            {error && (
+                <Alert variant="destructive">
+                    <AlertDescription>{error}</AlertDescription>
+                </Alert>
+            )}
+            
             {/* Status Card */}
             <Card>
                 <CardHeader>

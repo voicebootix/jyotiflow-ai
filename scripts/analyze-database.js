@@ -57,8 +57,10 @@ async function analyzeDatabase() {
       
       // Check if table is used in code
       try {
+        // Escape shell metacharacters in table name
+        const escapedTable = table.replace(/[|&;()<>'"\s\\$`]/g, '\\$&');
         const codeSearch = execSync(
-          `grep -r "FROM ${table}\\|INTO ${table}\\|TABLE ${table}" --include="*.py" backend/ 2>/dev/null | head -5`,
+          `grep -r "FROM ${escapedTable}\\|INTO ${escapedTable}\\|TABLE ${escapedTable}" --include="*.py" backend/ 2>/dev/null | head -5`,
           { encoding: 'utf8' }
         );
         

@@ -3,6 +3,10 @@ Mapping of your actual errors to self-healing fixes
 This shows EXACTLY how the system would fix your current issues
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 ERROR_TO_FIX_MAPPING = {
     # Error 1: Missing recommendation_data column
     'column "recommendation_data" does not exist': {
@@ -108,6 +112,9 @@ def simulate_self_healing_on_your_errors():
 class SelfHealingDatabaseWrapper:
     """This wraps your database to catch and fix errors"""
     
+    def __init__(self, conn):
+        self.conn = conn
+    
     async def execute(self, query, *args):
         try:
             return await self.conn.execute(query, *args)
@@ -131,17 +138,38 @@ class SelfHealingDatabaseWrapper:
             # Log other errors for analysis
             logger.error(f"Unhandled database error: {error_msg}")
             raise
+    
+    async def _fix_recommendation_data(self):
+        """Fix missing recommendation_data column"""
+        fix_sql = ERROR_TO_FIX_MAPPING['column "recommendation_data" does not exist']['fix_sql']
+        await self.conn.execute(fix_sql)
+        logger.info("Fixed missing recommendation_data column")
+    
+    async def _fix_service_type_id(self):
+        """Fix missing service_type_id column"""
+        fix_sql = ERROR_TO_FIX_MAPPING['column "service_type_id" does not exist']['fix_sql']
+        await self.conn.execute(fix_sql)
+        logger.info("Fixed missing service_type_id column")
+    
+    async def _fix_package_name(self):
+        """Fix missing package_name column"""
+        fix_sql = ERROR_TO_FIX_MAPPING['column "package_name" does not exist']['fix_sql']
+        await self.conn.execute(fix_sql)
+        logger.info("Fixed missing package_name column")
 
 # What happens to your specific pricing module
 class FixedDynamicComprehensivePricing:
     """Your pricing module after self-healing fixes it"""
+    
+    def __init__(self, db):
+        self.db = db
     
     async def calculate_cost(self, service_type, user_id):
         # Before: Crashes with "column does not exist"
         # After: Works perfectly
         
         # Self-healing added the missing columns
-        result = await db.fetch("""
+        result = await self.db.fetch("""
             SELECT 
                 s.service_type,  -- Fixed: was service_type_id
                 s.recommendation_data,  -- Fixed: column now exists
@@ -153,6 +181,43 @@ class FixedDynamicComprehensivePricing:
         
         # No more errors!
         return self._calculate_from_data(result)
+    
+    def _calculate_from_data(self, result):
+        """Calculate pricing based on the data"""
+        # Simple implementation - customize based on your business logic
+        if not result:
+            return 0.0
+        
+        # Extract data from result
+        row = result[0] if result else {}
+        service_type = row.get('service_type', 'basic')
+        recommendation_data = row.get('recommendation_data', {})
+        package_name = row.get('package_name', 'standard')
+        
+        # Calculate base price based on service type
+        base_prices = {
+            'basic': 10.0,
+            'premium': 25.0,
+            'enterprise': 50.0
+        }
+        base_price = base_prices.get(service_type, 10.0)
+        
+        # Apply package multiplier
+        package_multipliers = {
+            'standard': 1.0,
+            'professional': 1.5,
+            'enterprise': 2.0
+        }
+        multiplier = package_multipliers.get(package_name, 1.0)
+        
+        # Apply recommendation adjustments
+        if isinstance(recommendation_data, dict):
+            if recommendation_data.get('discount'):
+                multiplier *= 0.9  # 10% discount
+            if recommendation_data.get('premium_features'):
+                multiplier *= 1.2  # 20% premium
+        
+        return base_price * multiplier
 
 if __name__ == "__main__":
     simulate_self_healing_on_your_errors()
