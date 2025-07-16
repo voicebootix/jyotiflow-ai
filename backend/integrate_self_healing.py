@@ -28,11 +28,8 @@ def integrate_self_healing(app: FastAPI):
         validation_results = await run_startup_database_validation()
         
         if validation_results['validation_passed']:
-            # Initialize self-healing system
+            # Initialize self-healing system (includes orchestrator startup)
             await health_startup()
-            
-            # Start continuous monitoring
-            await orchestrator.start()
         else:
             print("⚠️ Skipping self-healing initialization due to validation failures")
     
