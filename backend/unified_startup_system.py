@@ -318,19 +318,28 @@ class UnifiedJyotiFlowStartup:
         logger.info("🔧 Fixing database schema and data issues...")
         
         try:
-            # Ensure required extensions
+            # Step 1: Validate critical database structure and fix issues
+            logger.info("🔍 Step 3.1: Validating and fixing critical database structure...")
+            await self._validate_and_fix_database_structure()
+            
+            # Step 2: Ensure required extensions
+            logger.info("🧩 Step 3.2: Ensuring PostgreSQL extensions...")
             await self._ensure_postgresql_extensions()
             
-            # Fix service configuration cache
+            # Step 3: Fix service configuration cache
+            logger.info("💾 Step 3.3: Fixing service configuration cache...")
             await self._fix_service_configuration_cache()
             
-            # Ensure enhanced tables exist
+            # Step 4: Ensure enhanced tables exist
+            logger.info("📊 Step 3.4: Ensuring enhanced tables...")
             await self._ensure_enhanced_tables()
             
-            # Clean up malformed data
+            # Step 5: Clean up malformed data
+            logger.info("🧹 Step 3.5: Cleaning up malformed data...")
             await self._cleanup_malformed_data()
             
-            # Add performance indexes
+            # Step 6: Add performance indexes
+            logger.info("⚡ Step 3.6: Ensuring performance indexes...")
             await self._ensure_performance_indexes()
             
             self.schema_fixed = True
@@ -340,6 +349,154 @@ class UnifiedJyotiFlowStartup:
             logger.error(f"❌ Schema fix error: {e}")
             # Don't raise - system can work with basic schema
             self.schema_fixed = False
+    
+    async def _validate_and_fix_database_structure(self):
+        """Validate and fix critical database structure"""
+        logger.info("🔍 Validating critical database structure...")
+        
+        validation_results = {
+            "fixes_applied": [],
+            "warnings": [],
+            "errors": []
+        }
+        
+        try:
+            async with self.db_pool.acquire() as conn:
+                # Validate required tables exist
+                await self._validate_required_tables(conn, validation_results)
+                
+                # Fix missing columns in critical tables
+                await self._fix_missing_columns(conn, validation_results)
+                
+                # Ensure required reference data exists
+                await self._ensure_required_reference_data(conn, validation_results)
+                
+                # Log results
+                if validation_results["fixes_applied"]:
+                    logger.info(f"✅ Applied {len(validation_results['fixes_applied'])} database fixes:")
+                    for fix in validation_results["fixes_applied"][:5]:  # Show first 5 fixes
+                        logger.info(f"   • {fix}")
+                    if len(validation_results["fixes_applied"]) > 5:
+                        logger.info(f"   • ... and {len(validation_results['fixes_applied']) - 5} more")
+                        
+                if validation_results["warnings"]:
+                    logger.warning(f"⚠️ {len(validation_results['warnings'])} database warnings:")
+                    for warning in validation_results["warnings"][:3]:  # Show first 3 warnings
+                        logger.warning(f"   • {warning}")
+                    if len(validation_results["warnings"]) > 3:
+                        logger.warning(f"   • ... and {len(validation_results['warnings']) - 3} more")
+                        
+                if validation_results["errors"]:
+                    logger.error(f"❌ {len(validation_results['errors'])} database errors:")
+                    for error in validation_results["errors"]:
+                        logger.error(f"   • {error}")
+                else:
+                    logger.info("✅ Database structure validation completed successfully")
+                    
+        except Exception as e:
+            logger.error(f"❌ Database validation failed: {e}")
+            # Don't raise - system should try to continue
+    
+    async def _validate_required_tables(self, conn, results):
+        """Validate that required tables exist"""
+        required_tables = [
+            'users', 'sessions', 'service_types', 'credit_packages',
+            'pricing_config', 'followup_templates'
+        ]
+        
+        for table in required_tables:
+            try:
+                exists = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT FROM information_schema.tables 
+                        WHERE table_name = $1
+                    )
+                """, table)
+                
+                if exists:
+                    logger.debug(f"✅ Table '{table}' exists")
+                else:
+                    results["warnings"].append(f"Required table '{table}' does not exist")
+                    
+            except Exception as e:
+                results["errors"].append(f"Could not validate table '{table}': {e}")
+    
+    async def _fix_missing_columns(self, conn, results):
+        """Fix missing columns in critical tables"""
+        try:
+            # Fix sessions table columns
+            missing_cols = await self._get_missing_columns(conn, 'sessions', 
+                ['duration_minutes', 'session_data', 'user_id'])
+            
+            for col in missing_cols:
+                try:
+                    if col == 'duration_minutes':
+                        await conn.execute("ALTER TABLE sessions ADD COLUMN duration_minutes INTEGER DEFAULT 0")
+                        results["fixes_applied"].append("Added duration_minutes to sessions table")
+                    elif col == 'session_data':
+                        await conn.execute("ALTER TABLE sessions ADD COLUMN session_data TEXT")
+                        results["fixes_applied"].append("Added session_data to sessions table")
+                    elif col == 'user_id':
+                        await conn.execute("ALTER TABLE sessions ADD COLUMN user_id INTEGER")
+                        results["fixes_applied"].append("Added user_id to sessions table")
+                except Exception as e:
+                    results["errors"].append(f"Failed to add column {col} to sessions: {e}")
+            
+            # Fix service_types table columns
+            missing_cols = await self._get_missing_columns(conn, 'service_types',
+                ['base_credits', 'duration_minutes', 'video_enabled', 'credits_required'])
+            
+            for col in missing_cols:
+                try:
+                    if col == 'base_credits':
+                        await conn.execute("ALTER TABLE service_types ADD COLUMN base_credits INTEGER DEFAULT 5")
+                        results["fixes_applied"].append("Added base_credits to service_types table")
+                    elif col == 'duration_minutes':
+                        await conn.execute("ALTER TABLE service_types ADD COLUMN duration_minutes INTEGER DEFAULT 15")
+                        results["fixes_applied"].append("Added duration_minutes to service_types table")
+                    elif col == 'video_enabled':
+                        await conn.execute("ALTER TABLE service_types ADD COLUMN video_enabled BOOLEAN DEFAULT TRUE")
+                        results["fixes_applied"].append("Added video_enabled to service_types table")
+                    elif col == 'credits_required':
+                        await conn.execute("ALTER TABLE service_types ADD COLUMN credits_required INTEGER DEFAULT 5")
+                        results["fixes_applied"].append("Added credits_required to service_types table")
+                except Exception as e:
+                    results["errors"].append(f"Failed to add column {col} to service_types: {e}")
+                    
+        except Exception as e:
+            results["errors"].append(f"Column validation failed: {e}")
+    
+    async def _get_missing_columns(self, conn, table_name, required_columns):
+        """Get list of missing columns in a table"""
+        try:
+            existing_columns = await conn.fetch("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = $1
+            """, table_name)
+            
+            existing_column_names = {row['column_name'] for row in existing_columns}
+            missing_columns = [col for col in required_columns if col not in existing_column_names]
+            
+            return missing_columns
+        except Exception:
+            return required_columns  # Assume all are missing if check fails
+    
+    async def _ensure_required_reference_data(self, conn, results):
+        """Ensure required reference data exists"""
+        try:
+            # Check if we have any service types
+            service_count = await conn.fetchval("SELECT COUNT(*) FROM service_types")
+            if service_count == 0:
+                results["warnings"].append("No service types found - application may not function properly")
+                
+            # Check if we have any pricing configurations
+            pricing_count = await conn.fetchval("SELECT COUNT(*) FROM pricing_config")
+            if pricing_count == 0:
+                results["warnings"].append("No pricing configurations found")
+                
+        except Exception as e:
+            results["errors"].append(f"Required data validation failed: {e}")
     
     async def _ensure_postgresql_extensions(self):
         """Ensure required PostgreSQL extensions are enabled"""

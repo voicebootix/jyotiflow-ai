@@ -20,12 +20,12 @@ def test_unified_system_functions() -> Dict[str, Any]:
         
         # Check for newly integrated functions
         new_functions = [
-            '_ensure_knowledge_base_seeded',
-            '_validate_database_structure',
+            '_initialize_health_monitoring',
+            '_validate_and_fix_database_structure',
             '_validate_required_tables',
             '_fix_missing_columns',
             '_get_missing_columns',
-            '_ensure_required_data'
+            '_ensure_required_reference_data'
         ]
         
         found_functions = []
@@ -91,12 +91,12 @@ def test_database_validation_integration() -> Dict[str, Any]:
             content = f.read()
         
         validation_features = {
-            "structure_validation": "_validate_database_structure" in content,
+            "structure_validation": "_validate_and_fix_database_structure" in content,
             "table_validation": "_validate_required_tables" in content,
             "column_fixing": "_fix_missing_columns" in content,
             "missing_column_detection": "_get_missing_columns" in content,
-            "required_data_check": "_ensure_required_data" in content,
-            "validation_in_sequence": "Step 3.1: Validating critical database structure" in content
+            "required_data_check": "_ensure_required_reference_data" in content,
+            "validation_in_sequence": "Step 3.1: Validating and fixing critical database structure" in content
         }
         
         implemented_count = sum(validation_features.values())
@@ -123,11 +123,11 @@ def test_startup_sequence_updated() -> Dict[str, Any]:
             content = f.read()
         
         sequence_features = {
-            "knowledge_seeding_step": "Step 5/6: Ensuring knowledge base is seeded" in content,
-            "validation_step": "Step 3.1: Validating critical database structure" in content,
+            "health_monitoring_step": "Step 5/6: Initializing health monitoring" in content,
+            "validation_step": "Step 3.1: Validating and fixing critical database structure" in content,
             "six_step_sequence": "Step 6/6:" in content,
-            "knowledge_seeding_function_called": "await self._ensure_knowledge_base_seeded()" in content,
-            "validation_function_called": "await self._validate_database_structure()" in content
+            "health_monitoring_function_called": "await self._initialize_health_monitoring()" in content,
+            "validation_function_called": "await self._validate_and_fix_database_structure()" in content
         }
         
         implemented_count = sum(sequence_features.values())
