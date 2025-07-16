@@ -30,17 +30,42 @@
 │   └── ... (all modules)
 ```
 
-### **🔧 Step 2: Consistent Absolute Imports**
+### **🔧 Step 2: Consistent Import Strategy**
 
-**All imports now use absolute imports consistently:**
+**Clear import rules by file type:**
+
+#### **Module-to-Module Imports (absolute):**
 ```python
-# EVERYWHERE (consistent approach):
+# In all .py files (consistent approach):
 from backend.deps import get_db
 from backend.core_foundation_enhanced import EnhancedSecurityManager
 from backend.database_self_healing_system import orchestrator
 ```
 
-**No more complex relative/absolute mixing!**
+#### **Package Definition Files (relative):**
+```python
+# In __init__.py files only (standard Python practice):
+from . import deps
+from . import core_foundation_enhanced  
+from . import database_self_healing_system
+```
+
+#### **Standalone Scripts (absolute + fallback):**
+```python
+# For scripts that can be run directly or as modules:
+try:
+    # Try package import first (when installed via pip install -e .)
+    from backend.database_self_healing_system import orchestrator
+except ImportError:
+    # Fallback to direct import (when run from backend/ directory)
+    from database_self_healing_system import orchestrator
+```
+
+**Why this approach:**
+- ✅ **Standard Python convention** - `__init__.py` uses relative imports for package structure
+- ✅ **Clear separation** - Module code uses absolute imports, package definition uses relative
+- ✅ **Flexible execution** - Scripts work both as modules and standalone
+- ✅ **IDE support** - Follows Python packaging best practices
 
 ### **📦 Step 3: Editable Package Installation**
 
@@ -57,14 +82,14 @@ pytest backend/                            # ✅ Testing
 
 ## 🎯 **Files Modified**
 
-| File | Change | Reason |
-|------|--------|---------|
-| `backend/__init__.py` | ✅ **Created** | Makes backend/ a proper package |
-| `setup.py` | ✅ **Created** | Enables `pip install -e .` |
-| `backend/missing_endpoints.py` | ✅ **Fixed imports** | Consistent absolute imports |
-| `backend/integrate_self_healing.py` | ✅ **Fixed imports + orchestrator** | Proper startup confirmation |
-| `backend/test_self_healing_system.py` | ✅ **Fixed imports** | Absolute imports for module execution |
-| `backend/validate_self_healing.py` | ✅ **Fixed imports** | Absolute imports for module execution |
+| File | Import Type | Change | Reason |
+|------|-------------|--------|---------|
+| `backend/__init__.py` | **Relative** | ✅ **Created** | Package structure (standard Python) |
+| `setup.py` | **N/A** | ✅ **Created** | Enables `pip install -e .` |
+| `backend/missing_endpoints.py` | **Absolute** | ✅ **Fixed imports** | Consistent absolute imports |
+| `backend/integrate_self_healing.py` | **Absolute + Fallback** | ✅ **Fixed imports + orchestrator** | Standalone execution support |
+| `backend/test_self_healing_system.py` | **Absolute + Fallback** | ✅ **Fixed imports** | Standalone execution support |
+| `backend/validate_self_healing.py` | **Absolute + Fallback** | ✅ **Fixed imports** | Standalone execution support |
 
 ## 🚀 **Installation & Usage**
 

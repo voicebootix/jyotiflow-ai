@@ -5,12 +5,22 @@ This integrates the self-healing system into the existing application
 
 import asyncio
 from fastapi import FastAPI
-from backend.database_self_healing_system import (
-    router as health_router,
-    startup_event as health_startup,
-    orchestrator
-)
-from backend.startup_database_validator import run_startup_database_validation
+try:
+    # Try package import first (when installed via pip install -e .)
+    from backend.database_self_healing_system import (
+        router as health_router,
+        startup_event as health_startup,
+        orchestrator
+    )
+    from backend.startup_database_validator import run_startup_database_validation
+except ImportError:
+    # Fallback to direct import (when run from backend/ directory)
+    from database_self_healing_system import (
+        router as health_router,
+        startup_event as health_startup,
+        orchestrator
+    )
+    from startup_database_validator import run_startup_database_validation
 
 # Add to your existing FastAPI app
 def integrate_self_healing(app: FastAPI):
@@ -28,9 +38,10 @@ def integrate_self_healing(app: FastAPI):
         validation_results = await run_startup_database_validation()
         
         if validation_results['validation_passed']:
-            # Initialize self-healing system
+            # Initialize self-healing system (includes orchestrator startup)
             await health_startup()
             print("✅ Database self-healing system started successfully")
+            print("✅ Orchestrator monitoring is now active")
         else:
             print("⚠️ Skipping self-healing initialization due to validation failures")
     
@@ -38,10 +49,17 @@ def integrate_self_healing(app: FastAPI):
     @app.on_event("shutdown")
     async def shutdown_self_healing():
         """Stop self-healing on shutdown"""
-        await orchestrator.stop()
+        try:
+            await orchestrator.stop()
+            print("✅ Database self-healing system stopped cleanly")
+        except Exception as e:
+            print(f"⚠️ Warning during self-healing shutdown: {e}")
     
     # Add admin panel integration
-    from backend.routers.admin import admin_router
+    try:
+        from backend.routers.admin import admin_router
+    except ImportError:
+        from routers.admin import admin_router
     
     @admin_router.get("/database-health")
     async def database_health_page():
@@ -86,7 +104,10 @@ To integrate into your existing application:
 
 1. Add to your main.py or app.py:
    ```python
+   # Option 1: If package is installed
    from backend.integrate_self_healing import integrate_self_healing
+   # Option 2: If running from backend/ directory  
+   # from integrate_self_healing import integrate_self_healing
    integrate_self_healing(app)
    ```
 
