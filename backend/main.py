@@ -117,7 +117,7 @@ print("⚠️ Surgical auth router disabled - using main auth system only")
 
 # Monitoring system
 try:
-    from monitoring.register_monitoring import register_monitoring_system
+    from monitoring.register_monitoring import register_monitoring_system, init_monitoring
     MONITORING_AVAILABLE = True
 except ImportError:
     MONITORING_AVAILABLE = False
@@ -352,6 +352,16 @@ async def lifespan(app: FastAPI):
         
         print("✅ Database connection pool initialized successfully!")
         print("📊 Pool configuration: connections ready for use")
+        
+        # Initialize monitoring system if available
+        if MONITORING_AVAILABLE:
+            try:
+                await init_monitoring()
+                print("✅ Monitoring system initialized")
+            except Exception as monitor_error:
+                print(f"⚠️ Failed to initialize monitoring: {monitor_error}")
+                # Continue running even if monitoring fails
+        
         print("🎯 Ready to serve JyotiFlow.ai API requests")
         
     except Exception as e:

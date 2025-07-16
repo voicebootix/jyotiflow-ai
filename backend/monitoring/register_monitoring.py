@@ -11,18 +11,17 @@ def register_monitoring_system(app: FastAPI):
     try:
         # Include monitoring router
         app.include_router(monitoring_router)
-        print("✅ Monitoring system registered successfully")
-        
-        # Add startup event to initialize monitoring
-        @app.on_event("startup")
-        async def init_monitoring():
-            print("🚀 Initializing JyotiFlow monitoring system...")
-            # Any initialization logic here
-            
+        print("✅ Monitoring system router registered")
         return True
     except Exception as e:
         print(f"❌ Failed to register monitoring system: {e}")
         return False
 
+async def init_monitoring():
+    """Initialize monitoring system - to be called from lifespan"""
+    print("🚀 Initializing JyotiFlow monitoring system...")
+    # Any initialization logic here
+    # This function can be imported and called from main.py's lifespan
+
 # Export for easy import
-__all__ = ['register_monitoring_system', 'monitoring_router']
+__all__ = ['register_monitoring_system', 'init_monitoring', 'monitoring_router']
