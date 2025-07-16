@@ -3,14 +3,10 @@
 Ensures responses use Swami persona and incorporate all context.
 """
 
-import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict
 import re
-import json
 
 from core_foundation_enhanced import logger
-
-logger = logging.getLogger(__name__)
 
 class OpenAIValidator:
     """
