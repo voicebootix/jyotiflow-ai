@@ -115,6 +115,14 @@ except ImportError:
 SURGICAL_AUTH_AVAILABLE = False
 print("⚠️ Surgical auth router disabled - using main auth system only")
 
+# Monitoring system
+try:
+    from monitoring.register_monitoring import register_monitoring_system
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    print("⚠️ Monitoring system not available")
+
 # Debug router for testing
 try:
     from debug_auth_endpoint import debug_router
@@ -608,6 +616,14 @@ if MISSING_ENDPOINTS_AVAILABLE:
     print("✅ Missing endpoints router registered")
 
 print("🚀 All routers registered successfully!")
+
+# Register monitoring system
+if MONITORING_AVAILABLE:
+    try:
+        register_monitoring_system(app)
+        print("✅ Monitoring system registered successfully")
+    except Exception as e:
+        print(f"❌ Failed to register monitoring system: {e}")
 
 # Surgical auth router - REMOVED (conflicting authentication system)
 # Using main auth system only (routers/auth.py)
