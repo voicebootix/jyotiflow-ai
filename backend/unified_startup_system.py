@@ -9,8 +9,10 @@ import asyncio
 import asyncpg
 import logging
 import traceback
+import socket
 from datetime import datetime
 from typing import Optional
+from urllib.parse import urlparse
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -174,8 +176,23 @@ class UnifiedJyotiFlowStartup:
                     logger.info("🌡️ Cold starts are normal after periods of inactivity")
                     logger.info(f"⏳ Next attempt will wait up to {120 + ((attempt + 1) * 20)} seconds")
                 else:
-                    logger.error("❌ All database connection attempts failed due to timeout")
-                    logger.error("🚨 This suggests a persistent database connectivity issue")
+                    logger.error("❌ All database connection attempts failed after 5 retries and 200 seconds.")
+                    logger.error("🚨 This is NOT a cold start issue. It indicates a persistent problem with DATABASE_URL or Supabase availability.")
+
+                    # New DNS diagnostic
+                    try:
+                        parsed_url = urlparse(self.database_url)
+                        db_host = parsed_url.hostname
+                        if db_host:
+                            ip_addresses = socket.gethostbyname_ex(db_host)[2]
+                            logger.error(f"🌐 DNS lookup for {db_host} successful. Resolved to: {', '.join(ip_addresses)}")
+                        else:
+                            logger.error("🌐 Could not parse database hostname for DNS lookup.")
+                    except socket.gaierror:
+                        logger.error(f"🌐 DNS lookup for {db_host} FAILED. Hostname might be incorrect or unresolvable.")
+                    except Exception as dns_e:
+                        logger.error(f"🌐 An unexpected error occurred during DNS lookup: {dns_e}")
+
                     self._log_troubleshooting_info()
                     raise
                     
