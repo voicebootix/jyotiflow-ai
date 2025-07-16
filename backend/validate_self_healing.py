@@ -8,7 +8,7 @@ import asyncio
 import asyncpg
 import logging
 from datetime import datetime, timezone
-from .database_self_healing_system import (
+from database_self_healing_system import (
     PostgreSQLSchemaAnalyzer,
     CodePatternAnalyzer,
     DatabaseIssueFixer,
@@ -273,7 +273,7 @@ class SystemValidator:
             
             # Test backup creation
             fixer = DatabaseIssueFixer(DATABASE_URL)
-            from .database_self_healing_system import DatabaseIssue
+            from database_self_healing_system import DatabaseIssue
             
             test_issue = DatabaseIssue(
                 issue_type='TYPE_MISMATCH',

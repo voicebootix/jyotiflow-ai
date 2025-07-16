@@ -8,7 +8,7 @@ import asyncpg
 import pytest
 import tempfile
 from datetime import datetime, timezone
-from .database_self_healing_system import (
+from database_self_healing_system import (
     DatabaseIssue,
     PostgreSQLSchemaAnalyzer,
     CodePatternAnalyzer,
@@ -333,7 +333,7 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_startup_validator_integration(self):
         """Test integration with existing startup validator"""
-        from .startup_database_validator import run_startup_database_validation
+        from startup_database_validator import run_startup_database_validation
         
         # Run existing validator
         validation_results = await run_startup_database_validation()
@@ -346,7 +346,7 @@ class TestIntegration:
         """Test FastAPI endpoints"""
         from fastapi.testclient import TestClient
         from fastapi import FastAPI
-        from .database_self_healing_system import router
+        from database_self_healing_system import router
         
         app = FastAPI()
         app.include_router(router)
