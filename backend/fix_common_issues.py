@@ -46,7 +46,8 @@ async def fix_permissions():
                 TO "{DB_APP_USER.replace('"', '""')}"
             """)
             
-            # Also grant schema-level permissions for CREATE and ALTER
+            # Also grant schema-level permissions for CREATE
+            # Note: ALTER and DROP require ownership or superuser privileges
             await conn.execute(f"""
                 GRANT CREATE ON SCHEMA public TO "{DB_APP_USER.replace('"', '""')}"
             """)

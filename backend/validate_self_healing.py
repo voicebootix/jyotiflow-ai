@@ -82,13 +82,27 @@ class SystemValidator:
                     has_table_privilege(current_user, 'users', 'DELETE')
             """)
             
-            # Check schema-level privileges for CREATE, ALTER, DROP
-            can_modify_schema = await conn.fetchval("""
+            # Check schema-level privileges for CREATE
+            can_create_in_schema = await conn.fetchval("""
                 SELECT has_schema_privilege(current_user, 'public', 'CREATE')
             """)
             
+            # Check if user owns the 'users' table (required for ALTER/DROP)
+            is_owner = await conn.fetchval("""
+                SELECT pg_catalog.pg_get_userbyid(c.relowner) = current_user
+                FROM pg_catalog.pg_class c
+                WHERE c.relname = 'users' 
+                AND c.relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+            """)
+            
             print(f"   🔐 Table permissions (SELECT/INSERT/UPDATE/DELETE): {'✅ Yes' if can_alter else '❌ No'}")
-            print(f"   🔐 Schema permissions (CREATE/ALTER/DROP): {'✅ Yes' if can_modify_schema else '❌ No'}")
+            print(f"   🔐 Schema CREATE permission: {'✅ Yes' if can_create_in_schema else '❌ No'}")
+            print(f"   🔐 Table ownership (required for ALTER/DROP): {'✅ Yes' if is_owner else '❌ No'}")
+            
+            if not is_owner:
+                print("   ℹ️  Note: ALTER/DROP operations require table ownership.")
+                print("      To grant these capabilities, the table owner must run:")
+                print(f"      ALTER TABLE users OWNER TO {os.getenv('DB_APP_USER', 'app_user')}")
             
             await conn.close()
             self.results["connection"] = True
