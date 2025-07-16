@@ -198,8 +198,8 @@ class MonitoringSystemTester:
             }
             
             result = await validator.validate(test_data, {}, {"session_id": "test-123"})
-            self.results["validators"]["prokerala"] = result.is_valid
-            print(f"✅ ProkeralaValidator works: {result.is_valid}")
+            self.results["validators"]["prokerala"] = result.get("passed", False)
+            print(f"✅ ProkeralaValidator works: {result.get('passed', False)}")
             
         except Exception as e:
             self.results["validators"]["prokerala"] = False
@@ -220,8 +220,8 @@ class MonitoringSystemTester:
                 "response": test_response
             }, {}, {"session_id": "test-123", "user_query": test_query})
             
-            self.results["validators"]["rag"] = True
-            print(f"✅ RAGValidator works - Relevance: {result.metadata.get('relevance_score', 0):.1f}%")
+            self.results["validators"]["rag"] = result.get("passed", False)
+            print(f"✅ RAGValidator works - Relevance: {result.get('overall_relevance', 0):.1f}%")
             
         except Exception as e:
             self.results["validators"]["rag"] = False
