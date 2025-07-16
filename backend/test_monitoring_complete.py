@@ -236,14 +236,28 @@ class MonitoringSystemTester:
             test_query = "What is the significance of Saturn in 7th house?"
             test_response = "Saturn in 7th house indicates delays in marriage and serious partnerships."
             
-            result = await validator.validate({
-                "query": test_query,
-                "retrieved_content": test_response,
-                "response": test_response
-            }, {}, {"session_id": "test-123", "user_query": test_query})
-            
-            self.results["validators"]["rag"] = result.get("passed", False)
-            print(f"✅ RAGValidator works - Relevance: {result.get('overall_relevance', 0):.1f}%")
+            try:
+                result = await validator.validate({
+                    "query": test_query,
+                    "retrieved_content": test_response,
+                    "response": test_response
+                }, {}, {"session_id": "test-123", "user_query": test_query})
+                
+                if result is None:
+                    raise ValueError("Validator returned None result")
+                
+                self.results["validators"]["rag"] = result.get("passed", False)
+                relevance_score = result.get('overall_relevance', 0)
+                
+                if isinstance(relevance_score, (int, float)):
+                    print(f"✅ RAGValidator works - Relevance: {relevance_score:.1f}%")
+                else:
+                    print(f"✅ RAGValidator works - Relevance: {relevance_score}")
+                    
+            except Exception as inner_e:
+                self.results["validators"]["rag"] = False
+                print(f"❌ RAGValidator validation failed: {inner_e}")
+                raise  # Re-raise to be caught by outer try-except
             
         except Exception as e:
             self.results["validators"]["rag"] = False
