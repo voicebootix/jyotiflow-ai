@@ -1,0 +1,28 @@
+{
+  "name": "jyotiflow-database-tools",
+  "version": "1.0.0",
+  "description": "Database analysis and cleanup tools for JyotiFlow",
+  "main": "index.js",
+  "scripts": {
+    "db:analyze": "node scripts/analyze-database.js",
+    "db:fix": "node scripts/fix-database.js",
+    "db:check-type": "node scripts/check-column-type.js",
+    "db:clean-migrations": "node scripts/migration-analyzer.js",
+    "db:cleanup-dead": "node scripts/cleanup-dead-tables.js",
+    "db:cleanup-dead-confirm": "node scripts/cleanup-dead-tables.js --confirm",
+    "db:full-cleanup": "npm run db:analyze && npm run db:fix && npm run db:clean-migrations",
+    "db:backup": "mkdir -p backups && pg_dump \"$DATABASE_URL\" > \"backups/backup_$(date +%Y%m%d_%H%M%S).sql\" && find backups -name 'backup_*.sql' -mtime +7 -delete",
+    "db:test-connection": "node -e \"require('pg').Client({connectionString: process.env.DATABASE_URL}).connect().then(() => console.log('✅ Database connected')).catch(e => console.error('❌', e.message))\""
+  },
+  "keywords": ["database", "postgresql", "migration", "cleanup"],
+  "author": "JyotiFlow Team",
+  "license": "ISC",
+  "dependencies": {
+    "pg": "^8.11.3",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
