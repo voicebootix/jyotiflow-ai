@@ -11,6 +11,14 @@ import json
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Validate DATABASE_URL is set
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is missing or empty. "
+        "Please set the DATABASE_URL environment variable before running this test. "
+        "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+    )
+
 async def test_dynamic_service_creation():
     """Test complete dynamic service creation and RAG integration"""
     
