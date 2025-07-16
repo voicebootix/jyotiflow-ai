@@ -115,8 +115,8 @@ class UnifiedJyotiFlowStartup:
         logger.info("🔗 Creating main database connection pool...")
         
         max_retries = 5
-        base_delay = 3
-        max_delay = 30
+        base_delay = 6  # Increased from 3 to 6 seconds for cold starts
+        max_delay = 60  # Increased from 30 to 60 seconds for Supabase cold starts
         
         for attempt in range(max_retries):
             current_pool = None
@@ -129,8 +129,9 @@ class UnifiedJyotiFlowStartup:
                 
                 logger.info(f"🔄 Database connection attempt {attempt + 1}/{max_retries}")
                 
-                # Progressive timeout: more lenient on later attempts
-                timeout = 45 if attempt == 0 else 60 + (attempt * 10)
+                # Progressive timeout: optimized for Supabase cold starts (60-90s needed)
+                timeout = 90 if attempt == 0 else 120 + (attempt * 20)
+                logger.info(f"⏱️ Using timeout: {timeout} seconds (accounting for Supabase cold start)")
                 
                 current_pool = await asyncio.wait_for(
                     asyncpg.create_pool(
@@ -166,12 +167,15 @@ class UnifiedJyotiFlowStartup:
                 return
                 
             except asyncio.TimeoutError:
-                logger.warning(f"⏱️ Database connection timeout on attempt {attempt + 1}")
+                logger.warning(f"⏱️ Database connection timeout on attempt {attempt + 1} (waited {timeout} seconds)")
                 if attempt < max_retries - 1:
-                    logger.info("🔥 This might be a cold start - database is spinning up...")
-                    logger.info("💡 Supabase databases can take up to 60 seconds to start from cold state")
+                    logger.info("🔥 This might be a Supabase cold start - database is spinning up...")
+                    logger.info("💡 Supabase databases can take 60-90 seconds to wake from cold state")
+                    logger.info("🌡️ Cold starts are normal after periods of inactivity")
+                    logger.info(f"⏳ Next attempt will wait up to {120 + ((attempt + 1) * 20)} seconds")
                 else:
                     logger.error("❌ All database connection attempts failed due to timeout")
+                    logger.error("🚨 This suggests a persistent database connectivity issue")
                     self._log_troubleshooting_info()
                     raise
                     
@@ -204,12 +208,33 @@ class UnifiedJyotiFlowStartup:
     
     def _log_troubleshooting_info(self):
         """Log comprehensive troubleshooting information"""
+        # Detect deployment environment for targeted advice
+        is_render = os.getenv("RENDER") == "true" or "render.com" in os.getenv("RENDER_EXTERNAL_URL", "")
+        is_supabase = "supabase.com" in self.database_url
+        
         logger.error("💡 Troubleshooting steps:")
-        logger.error("   1. Check Render dashboard - is your database service running?")
-        logger.error("   2. Verify DATABASE_URL is correct in environment variables")
-        logger.error("   3. Try manual redeploy - database might be in error state")
-        logger.error("   4. Check Render status page for database outages")
-        logger.error("   5. Verify Supabase dashboard shows database is active")
+        
+        if is_render and is_supabase:
+            logger.error("   🔍 RENDER + SUPABASE DEPLOYMENT DETECTED")
+            logger.error("   1. Check Supabase dashboard - database should show 'Active' status")
+            logger.error("   2. Verify DATABASE_URL in Render environment variables")
+            logger.error("   3. Try manual redeploy - Supabase may need time to wake up")
+            logger.error("   4. Check Render logs for network connectivity issues")
+            logger.error("   5. Verify Supabase billing - paused databases can't connect")
+            logger.error("   6. Check Supabase status page: https://status.supabase.com/")
+        elif is_supabase:
+            logger.error("   🔍 SUPABASE DATABASE DETECTED")
+            logger.error("   1. Check Supabase dashboard shows database is active")
+            logger.error("   2. Verify DATABASE_URL is correct in environment variables")
+            logger.error("   3. Check Supabase billing status - paused projects can't connect")
+            logger.error("   4. Try manual database restart in Supabase dashboard")
+            logger.error("   5. Check Supabase status page for outages")
+        else:
+            logger.error("   1. Check your database service is running")
+            logger.error("   2. Verify DATABASE_URL is correct in environment variables")
+            logger.error("   3. Test database connectivity from deployment environment")
+            logger.error("   4. Check firewall and network settings")
+            logger.error("   5. Verify database server logs for errors")
     
     async def _fix_database_schema(self):
         """Fix all database schema issues in sequence"""
