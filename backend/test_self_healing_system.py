@@ -8,14 +8,26 @@ import asyncpg
 import pytest
 import tempfile
 from datetime import datetime, timezone
-from backend.database_self_healing_system import (
-    DatabaseIssue,
-    PostgreSQLSchemaAnalyzer,
-    CodePatternAnalyzer,
-    DatabaseIssueFixer,
-    DatabaseHealthMonitor,
-    SelfHealingOrchestrator
-)
+try:
+    # Try package import first (when installed via pip install -e .)
+    from backend.database_self_healing_system import (
+        DatabaseIssue,
+        PostgreSQLSchemaAnalyzer,
+        CodePatternAnalyzer,
+        DatabaseIssueFixer,
+        DatabaseHealthMonitor,
+        SelfHealingOrchestrator
+    )
+except ImportError:
+    # Fallback to direct import (when run from backend/ directory)
+    from database_self_healing_system import (
+        DatabaseIssue,
+        PostgreSQLSchemaAnalyzer,
+        CodePatternAnalyzer,
+        DatabaseIssueFixer,
+        DatabaseHealthMonitor,
+        SelfHealingOrchestrator
+    )
 
 # Test database URL (use test database)
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", os.getenv("DATABASE_URL"))
@@ -333,7 +345,10 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_startup_validator_integration(self):
         """Test integration with existing startup validator"""
-        from backend.startup_database_validator import run_startup_database_validation
+        try:
+            from backend.startup_database_validator import run_startup_database_validation
+        except ImportError:
+            from startup_database_validator import run_startup_database_validation
         
         # Run existing validator
         validation_results = await run_startup_database_validation()
@@ -344,9 +359,12 @@ class TestIntegration:
     @pytest.mark.asyncio
     async def test_api_endpoints(self):
         """Test FastAPI endpoints"""
-        from fastapi.testclient import TestClient
-        from fastapi import FastAPI
-        from backend.database_self_healing_system import router
+                  from fastapi.testclient import TestClient
+          from fastapi import FastAPI
+          try:
+              from backend.database_self_healing_system import router
+          except ImportError:
+              from database_self_healing_system import router
         
         app = FastAPI()
         app.include_router(router)
