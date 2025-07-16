@@ -38,17 +38,22 @@ except ImportError:
 try:
     from real_ai_marketing_director import real_ai_marketing_director as ai_marketing_director
     print("✅ Using REAL AI Marketing Director with OpenAI integration")
-except ImportError:
+    AI_DIRECTOR_TYPE = "real"
+except ImportError as e:
+    print(f"⚠️ Real AI Marketing Director not available: {e}")
     try:
         from ai_marketing_director_agent_fixed import ai_marketing_director
-        print("✅ Using sophisticated AI Marketing Director with real AI capabilities")
-    except ImportError:
-        try:
-            from ai_marketing_director_agent import ai_marketing_director
-            print("✅ Using fallback sophisticated AI Marketing Director")
-        except ImportError:
-            ai_marketing_director = None
-            print("❌ No AI Marketing Director available")
+        print("✅ Using Fixed AI Marketing Director (fallback)")
+        AI_DIRECTOR_TYPE = "fixed"
+    except ImportError as e2:
+        print(f"⚠️ Fixed AI Marketing Director not available: {e2}")
+        ai_marketing_director = None
+        AI_DIRECTOR_TYPE = "none"
+        print("❌ No AI Marketing Director available")
+
+# Log which director is actually being used
+if ai_marketing_director:
+    print(f"🎯 Active AI Marketing Director: {AI_DIRECTOR_TYPE} ({type(ai_marketing_director).__name__})")
 
 logger = logging.getLogger(__name__)
 
