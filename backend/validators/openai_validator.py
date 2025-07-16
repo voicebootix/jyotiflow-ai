@@ -348,6 +348,10 @@ class OpenAIValidator:
         for category, patterns in harmful_patterns.items():
             for pattern in patterns:
                 if pattern in response_lower:
+                    logger.warning(
+                        f"Harmful content detected - Category: {category}, Pattern: '{pattern}', "
+                        f"Response snippet: '{response_lower[max(0, response_lower.find(pattern)-20):response_lower.find(pattern)+len(pattern)+20]}'"
+                    )
                     return {
                         "harmful": True,
                         "category": category,
