@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import spiritualAPI from '../../lib/api';
 import Loader from '../ui/Loader';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import MonitoringWidget from './MonitoringWidget';
 
 // தமில - Metrics card component
 function MetricCard({ label, value, icon, color }) {
@@ -109,7 +110,8 @@ export default function Overview() {
         )}
       </div>
       {/* தமில - System Health */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <MonitoringWidget />
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-bold mb-2">System Health</h3>
           <div className="flex items-center mb-2">
