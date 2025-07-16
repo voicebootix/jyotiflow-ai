@@ -12,7 +12,10 @@ from datetime import datetime, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 # Set environment variables for testing
-os.environ["DATABASE_URL"] = os.getenv("DATABASE_URL", "")
+# Only set DATABASE_URL if it exists in environment
+if not os.getenv("DATABASE_URL"):
+    print("⚠️ DATABASE_URL not set - database tests will be skipped")
+    os.environ["DATABASE_URL"] = "skip"  # Placeholder to prevent empty string errors
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY", "test-key")
 
 async def test_monitoring_system():
