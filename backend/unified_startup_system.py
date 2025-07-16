@@ -49,19 +49,19 @@ class UnifiedJyotiFlowStartup:
         
         try:
             # Step 1: Validate environment
-            logger.info("📋 Step 1/5: Validating environment configuration...")
+            logger.info("📋 Step 1/6: Validating environment configuration...")
             step_start = time.time()
             await self._validate_environment()
             logger.info(f"✅ Environment validation completed in {time.time() - step_start:.2f}s")
             
             # Step 2: Create main database pool (with retries) - CRITICAL STEP
-            logger.info("🗄️ Step 2/5: Creating main database connection pool...")
+            logger.info("🗄️ Step 2/6: Creating main database connection pool...")
             step_start = time.time()
             await self._create_main_pool()
             logger.info(f"✅ Database pool creation completed in {time.time() - step_start:.2f}s")
             
             # Step 3: Fix database schema issues
-            logger.info("🔧 Step 3/5: Fixing database schema issues...")
+            logger.info("🔧 Step 3/6: Fixing database schema issues...")
             step_start = time.time()
             await self._fix_database_schema()
             logger.info(f"✅ Database schema fixes completed in {time.time() - step_start:.2f}s")
