@@ -5,12 +5,12 @@ This integrates the self-healing system into the existing application
 
 import asyncio
 from fastapi import FastAPI
-from database_self_healing_system import (
+from backend.database_self_healing_system import (
     router as health_router,
     startup_event as health_startup,
     orchestrator
 )
-from startup_database_validator import run_startup_database_validation
+from backend.startup_database_validator import run_startup_database_validation
 
 # Add to your existing FastAPI app
 def integrate_self_healing(app: FastAPI):
@@ -28,8 +28,9 @@ def integrate_self_healing(app: FastAPI):
         validation_results = await run_startup_database_validation()
         
         if validation_results['validation_passed']:
-            # Initialize self-healing system (includes orchestrator startup)
+            # Initialize self-healing system
             await health_startup()
+            print("✅ Database self-healing system started successfully")
         else:
             print("⚠️ Skipping self-healing initialization due to validation failures")
     
@@ -40,7 +41,7 @@ def integrate_self_healing(app: FastAPI):
         await orchestrator.stop()
     
     # Add admin panel integration
-    from routers.admin import admin_router
+    from backend.routers.admin import admin_router
     
     @admin_router.get("/database-health")
     async def database_health_page():
@@ -85,7 +86,7 @@ To integrate into your existing application:
 
 1. Add to your main.py or app.py:
    ```python
-   from integrate_self_healing import integrate_self_healing
+   from backend.integrate_self_healing import integrate_self_healing
    integrate_self_healing(app)
    ```
 
