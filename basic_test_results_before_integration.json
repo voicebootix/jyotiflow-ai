@@ -4,7 +4,7 @@
   "failed": 1,
   "partial": 0,
   "info": 1,
-  "total_time_seconds": 0.04,
+  "total_time_seconds": 0.03,
   "detailed_results": [
     {
       "test": "unified_startup_import",
@@ -67,5 +67,5 @@
       "details": "8/8 critical files exist"
     }
   ],
-  "timestamp": "2025-07-16 14:00:30"
+  "timestamp": "2025-07-16 14:20:26"
 }

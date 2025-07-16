@@ -1,8 +1,8 @@
 {
   "total_tests": 5,
-  "passed": 3,
+  "passed": 1,
   "failed": 1,
-  "partial": 0,
+  "partial": 2,
   "info": 1,
   "total_time_seconds": 0.03,
   "detailed_results": [
@@ -18,36 +18,36 @@
       "rag_features": {
         "rag_knowledge_base_table": true,
         "service_configuration_cache": true,
-        "knowledge_seeding": true,
+        "knowledge_seeding": false,
         "embedding_vector_support": true,
         "knowledge_seeder_import": true
       },
-      "details": "5/5 RAG features implemented"
+      "details": "4/5 RAG features implemented"
     },
     {
       "test": "database_validation_integration",
-      "status": "PASS",
+      "status": "PARTIAL",
       "validation_features": {
-        "structure_validation": true,
-        "table_validation": true,
-        "column_fixing": true,
-        "missing_column_detection": true,
-        "required_data_check": true,
-        "validation_in_sequence": true
+        "structure_validation": false,
+        "table_validation": false,
+        "column_fixing": false,
+        "missing_column_detection": false,
+        "required_data_check": false,
+        "validation_in_sequence": false
       },
-      "details": "6/6 validation features integrated"
+      "details": "0/6 validation features integrated"
     },
     {
       "test": "startup_sequence_updated",
-      "status": "PASS",
+      "status": "PARTIAL",
       "sequence_features": {
-        "knowledge_seeding_step": true,
-        "validation_step": true,
+        "knowledge_seeding_step": false,
+        "validation_step": false,
         "six_step_sequence": true,
-        "knowledge_seeding_function_called": true,
-        "validation_function_called": true
+        "knowledge_seeding_function_called": false,
+        "validation_function_called": false
       },
-      "details": "5/5 sequence updates implemented"
+      "details": "1/5 sequence updates implemented"
     },
     {
       "test": "original_systems_still_exist",
@@ -61,5 +61,5 @@
       "details": "4/4 original systems still exist for reference"
     }
   ],
-  "timestamp": "2025-07-16 14:04:09"
+  "timestamp": "2025-07-16 14:19:58"
 }
