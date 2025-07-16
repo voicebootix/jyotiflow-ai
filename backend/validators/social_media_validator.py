@@ -223,6 +223,7 @@ class SocialMediaValidator:
             platform_checks = {
                 "length_valid": self._check_content_length(content_text, platform),
                 "hashtags_valid": self._check_hashtags(hashtags, platform),
+                "media_valid": self._check_media_requirements(media_url, platform),
                 "spiritual_authentic": self._check_spiritual_authenticity(content_text),
                 "engagement_worthy": self._check_engagement_potential(content_text),
                 "brand_consistent": self._check_brand_consistency(content_text)
@@ -247,6 +248,18 @@ class SocialMediaValidator:
                 validation_result["warnings"].append(
                     f"Content length ({len(content_text)}) exceeds {platform} limit ({char_limit})"
                 )
+            
+            if not platform_checks["media_valid"]:
+                media_required = self.content_requirements[platform].get("media_required", False)
+                if media_required:
+                    validation_result["errors"].append(
+                        f"{platform.capitalize()} requires media content (image/video) but none provided"
+                    )
+                    validation_result["passed"] = False
+                else:
+                    validation_result["warnings"].append(
+                        f"Invalid media URL format or unsupported media type for {platform}"
+                    )
                 
             if not platform_checks["hashtags_valid"]:
                 validation_result["warnings"].append("Hashtags missing or not optimized")
@@ -527,6 +540,34 @@ class SocialMediaValidator:
         
         max_hashtags = self.content_requirements[platform]["max_hashtags"]
         return len(hashtags) <= max_hashtags
+    
+    def _check_media_requirements(self, media_url: str, platform: str) -> bool:
+        """Check if media requirements are met for the platform"""
+        media_required = self.content_requirements[platform].get("media_required", False)
+        
+        if media_required and not media_url:
+            return False
+        
+        if media_url:
+            # Validate media URL format
+            if not media_url.startswith(("http://", "https://", "data:")):
+                return False
+            
+            # Platform-specific media validation
+            if platform == "instagram":
+                # Instagram supports images and videos
+                valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mov')
+                return any(media_url.lower().endswith(ext) for ext in valid_extensions) or "data:image" in media_url
+            elif platform == "youtube":
+                # YouTube requires video files
+                valid_extensions = ('.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm')
+                return any(media_url.lower().endswith(ext) for ext in valid_extensions)
+            elif platform in ["facebook", "twitter", "linkedin"]:
+                # These platforms support various media types but don't require them
+                valid_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.mp4', '.mov')
+                return any(media_url.lower().endswith(ext) for ext in valid_extensions) or "data:image" in media_url
+        
+        return True  # If media not required and not provided, it's valid
     
     def _check_spiritual_authenticity(self, content: str) -> bool:
         """Check spiritual authenticity of content"""
