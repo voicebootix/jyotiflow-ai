@@ -148,9 +148,9 @@ async def create_monitoring_tables():
             SELECT table_name 
             FROM information_schema.tables 
             WHERE table_schema = 'public' 
-            AND table_name LIKE '%validation%' 
-            OR table_name LIKE '%monitoring%'
-            OR table_name LIKE '%social_media_validation%'
+            AND (table_name LIKE '%validation%' 
+                 OR table_name LIKE '%monitoring%'
+                 OR table_name LIKE '%social_media_validation%')
             ORDER BY table_name;
         """)
         
