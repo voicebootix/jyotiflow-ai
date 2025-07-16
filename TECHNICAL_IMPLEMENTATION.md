@@ -175,8 +175,9 @@ function applyCodeFix(filePath, newCode) {
     // Write fixed code
     fs.writeFileSync(filePath, newCode, 'utf8');
     
-    // Verify syntax (basic check)
-    require(filePath);
+    // Verify syntax without execution
+    const { execSync } = require('child_process');
+    execSync(`node --check "${filePath}"`);
     
     console.log(`✅ Fixed: ${filePath}`);
   } catch (error) {

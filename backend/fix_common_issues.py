@@ -16,7 +16,7 @@ async def fix_permissions():
     try:
         # Grant necessary permissions
         await conn.execute("""
-            GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, DROP 
+            GRANT SELECT, INSERT, UPDATE, DELETE 
             ON ALL TABLES IN SCHEMA public 
             TO CURRENT_USER
         """)
@@ -33,7 +33,15 @@ async def fix_ast_parsing():
     print("Fixing common AST parsing issues...")
     
     # Install required packages
-    os.system("pip install astunparse")
+    import subprocess
+    import sys
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "install", "astunparse"], 
+                      check=True, capture_output=True, text=True)
+        print("✅ Installed astunparse")
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Failed to install astunparse: {e.stderr}")
+        return
     
     # Create __init__.py files if missing
     dirs = ['backend', 'backend/routers', 'backend/utils']
@@ -87,33 +95,20 @@ async def create_required_tables():
         await conn.close()
 
 async def fix_type_cast_errors():
-    """Fix specific type casting in code"""
+    """Fix specific type casting in code using AST analysis"""
     # This would fix actual code files
     files_to_check = [
         'backend/routers/sessions.py',
         'backend/utils/database.py',
         'backend/services/user_service.py'
     ]
-    
+
     for file in files_to_check:
         if os.path.exists(file):
-            with open(file, 'r') as f:
-                content = f.read()
-            
-            # Fix common patterns
-            fixed = content.replace('parseInt(', 'int(')
-            fixed = fixed.replace('::integer', '')
-            
-            if fixed != content:
-                # Backup original
-                with open(f"{file}.backup", 'w') as f:
-                    f.write(content)
-                
-                # Write fixed version
-                with open(file, 'w') as f:
-                    f.write(fixed)
-                
-                print(f"✅ Fixed type casts in {file}")
+            print(f"⚠️  Manual review needed for {file}")
+            print("   - Check for JavaScript-style parseInt() in Python code")
+            print("   - Check for PostgreSQL ::integer casts in SQL strings")
+            print("   - Use proper parameterized queries instead")
 
 async def main():
     """Run all fixes"""

@@ -15,11 +15,10 @@ import asyncpg
 import hashlib
 import logging
 from datetime import datetime, timedelta
-from typing import Dict, List, Any, Optional, Tuple, Set
+from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict
 import re
-from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +30,17 @@ BACKUP_RETENTION_DAYS = 30
 SCAN_INTERVAL_SECONDS = 300  # 5 minutes
 MAX_FIX_ATTEMPTS = 3
 CRITICAL_TABLES = {'users', 'sessions', 'service_types', 'credit_transactions', 'payments'}
+
+
+def quote_ident(identifier: str) -> str:
+    """Safely quote a PostgreSQL identifier"""
+    if not identifier:
+        raise ValueError("Identifier cannot be empty")
+    # Check for SQL injection attempts
+    if any(char in identifier for char in [';', '--', '/*', '*/', '\x00']):
+        raise ValueError(f"Invalid identifier: {identifier}")
+    # Quote the identifier
+    return '"' + identifier.replace('"', '""') + '"'
 
 
 @dataclass
@@ -460,10 +470,14 @@ class DatabaseIssueFixer:
         
         # Create backup table for affected data
         if issue.table and issue.column:
+            # Validate table name
+            if issue.table not in CRITICAL_TABLES and not await self._table_exists(conn, issue.table):
+                raise ValueError(f"Invalid table name: {issue.table}")
+            
             backup_table = f"backup_{issue.table}_{backup_id}"
             await conn.execute(f"""
-                CREATE TABLE {backup_table} AS 
-                SELECT * FROM {issue.table}
+                CREATE TABLE {quote_ident(backup_table)} AS 
+                SELECT * FROM {quote_ident(issue.table)}
             """)
             
             # Record backup metadata
@@ -487,9 +501,9 @@ class DatabaseIssueFixer:
             # First, check if data can be converted
             check_query = f"""
                 SELECT COUNT(*) as invalid_count
-                FROM {table}
-                WHERE {column} IS NOT NULL
-                AND {column}::text !~ '^[0-9]+$'
+                FROM {quote_ident(table)}
+                WHERE {quote_ident(column)} IS NOT NULL
+                AND {quote_ident(column)}::text !~ '^[0-9]+$'
             """
             
             if new_type.upper() == 'INTEGER':
@@ -500,10 +514,10 @@ class DatabaseIssueFixer:
             
             # Perform the conversion
             alter_query = f"""
-                ALTER TABLE {table} 
-                ALTER COLUMN {column} 
+                ALTER TABLE {quote_ident(table)} 
+                ALTER COLUMN {quote_ident(column)} 
                 TYPE {new_type} 
-                USING {column}::{new_type}
+                USING {quote_ident(column)}::{new_type}
             """
             
             await conn.execute(alter_query)
@@ -518,9 +532,9 @@ class DatabaseIssueFixer:
                     constraint_name = f"fk_{table}_{column}_{ref_table}"
                     
                     await conn.execute(f"""
-                        ALTER TABLE {table}
-                        ADD CONSTRAINT {constraint_name}
-                        FOREIGN KEY ({column}) REFERENCES {ref_table}({ref_column})
+                        ALTER TABLE {quote_ident(table)}
+                        ADD CONSTRAINT {quote_ident(constraint_name)}
+                        FOREIGN KEY ({quote_ident(column)}) REFERENCES {quote_ident(ref_table)}({quote_ident(ref_column)})
                         ON DELETE CASCADE
                     """)
                     result['actions_taken'].append(f"Added foreign key constraint {constraint_name}")
@@ -543,7 +557,7 @@ class DatabaseIssueFixer:
         column = issue.column
         column_def = issue.expected_state or 'TEXT'
         
-        await conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_def}")
+        await conn.execute(f"ALTER TABLE {quote_ident(table)} ADD COLUMN {quote_ident(column)} {column_def}")
         result['actions_taken'].append(f"Added column {table}.{column}")
     
     async def _fix_missing_index(self, conn: asyncpg.Connection, issue: DatabaseIssue, result: Dict):
@@ -552,7 +566,7 @@ class DatabaseIssueFixer:
         column = issue.column
         index_name = f"idx_{table}_{column}"
         
-        await conn.execute(f"CREATE INDEX {index_name} ON {table}({column})")
+        await conn.execute(f"CREATE INDEX {quote_ident(index_name)} ON {quote_ident(table)}({quote_ident(column)})")
         result['actions_taken'].append(f"Created index {index_name}")
     
     async def _fix_orphaned_data(self, conn: asyncpg.Connection, issue: DatabaseIssue, result: Dict):
@@ -684,7 +698,7 @@ class DatabaseHealthMonitor:
                             column='user_id',
                             current_state=col['data_type'],
                             expected_state=f"{users_id_type} REFERENCES users(id)",
-                            fix_sql=f"ALTER TABLE {table} ALTER COLUMN user_id TYPE {users_id_type} USING user_id::{users_id_type}"
+                            fix_sql=f"ALTER TABLE {quote_ident(table)} ALTER COLUMN user_id TYPE {users_id_type} USING user_id::{users_id_type}"
                         ))
         
         # Check for missing indexes on foreign keys
@@ -709,7 +723,7 @@ class DatabaseHealthMonitor:
                             column=column,
                             current_state='No index',
                             expected_state='Index on foreign key',
-                            fix_sql=f"CREATE INDEX idx_{table}_{column} ON {table}({column})"
+                            fix_sql=f"CREATE INDEX {quote_ident(f'idx_{table}_{column}')} ON {quote_ident(table)}({quote_ident(column)})"
                         ))
         
         # Check for tables without primary keys
@@ -766,7 +780,7 @@ class DatabaseHealthMonitor:
                     LIMIT 5
                 """
                 metrics['slow_queries'] = [dict(row) for row in await conn.fetch(slow_query)]
-            except:
+            except asyncpg.UndefinedTableError:
                 metrics['slow_queries'] = []
             
             # Index usage
@@ -937,7 +951,7 @@ class SelfHealingOrchestrator:
 
 
 # FastAPI Integration
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/database-health", tags=["database-health"])

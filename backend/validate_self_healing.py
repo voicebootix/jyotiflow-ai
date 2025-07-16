@@ -75,9 +75,13 @@ class SystemValidator:
             
             # Check permissions
             can_alter = await conn.fetchval("""
-                SELECT has_table_privilege(current_user, 'users', 'UPDATE')
+                SELECT 
+                    has_table_privilege(current_user, 'users', 'SELECT') AND
+                    has_table_privilege(current_user, 'users', 'INSERT') AND
+                    has_table_privilege(current_user, 'users', 'UPDATE') AND
+                    has_table_privilege(current_user, 'users', 'DELETE')
             """)
-            print(f"   🔐 ALTER permissions: {'✅ Yes' if can_alter else '❌ No'}")
+            print(f"   🔐 Required permissions: {'✅ Yes' if can_alter else '❌ No'}")
             
             await conn.close()
             self.results["connection"] = True
@@ -277,9 +281,16 @@ class SystemValidator:
             
             # Cleanup
             await conn.execute("DROP TABLE IF EXISTS self_healing_test CASCADE")
-            await conn.execute("""
-                DROP TABLE IF EXISTS backup_self_healing_test_% CASCADE
+            
+            # Find and drop all backup tables
+            backup_tables = await conn.fetch("""
+                SELECT tablename FROM pg_tables 
+                WHERE tablename LIKE 'backup_self_healing_test_%'
             """)
+            for table in backup_tables:
+                # Use quote_ident for safety
+                quoted_table = '"' + table['tablename'].replace('"', '""') + '"'
+                await conn.execute(f"DROP TABLE IF EXISTS {quoted_table} CASCADE")
             
             await conn.close()
             self.results["fix_capability"] = True

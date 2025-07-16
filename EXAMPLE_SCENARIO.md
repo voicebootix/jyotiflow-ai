@@ -21,7 +21,8 @@ CREATE TABLE sessions (
 async function getSession(userId) {
   // Helper function used to convert number to string
   const session = await db.query(
-    `SELECT * FROM sessions WHERE user_id = ${parseInt(userId)}`
+    'SELECT * FROM sessions WHERE user_id = $1',
+    [parseInt(userId, 10)]
   );
   return session;
 }
@@ -102,7 +103,8 @@ fs.writeFileSync('routes/auth.js', fixedCode);
 async function getSession(userId) {
   // parseInt() removed automatically!
   const session = await db.query(
-    `SELECT * FROM sessions WHERE user_id = ${userId}`
+    'SELECT * FROM sessions WHERE user_id = $1',
+    [userId]
   );
   return session;
 }

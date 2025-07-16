@@ -18,14 +18,15 @@ class ProductionMonitor:
     def __init__(self):
         self.database_url = DATABASE_URL
         self.metrics = defaultdict(int)
+        self.start_time = None
         
     async def monitor_continuous(self, duration_hours=24):
         """Monitor system for specified duration"""
         print(f"🔍 Starting {duration_hours}-hour production monitoring...")
         print("Press Ctrl+C to stop early\n")
         
-        start_time = datetime.utcnow()
-        end_time = start_time + timedelta(hours=duration_hours)
+        self.start_time = datetime.utcnow()
+        end_time = self.start_time + timedelta(hours=duration_hours)
         
         try:
             while datetime.utcnow() < end_time:
@@ -66,7 +67,13 @@ class ProductionMonitor:
                     self.metrics['checks_with_critical'] += 1
                 
                 # Check if health checks are running regularly
-                age = datetime.utcnow() - result['timestamp']
+                from datetime import timezone
+                now_utc = datetime.now(timezone.utc)
+                timestamp = result['timestamp']
+                if timestamp.tzinfo is None:
+                    # If timestamp is naive, assume UTC
+                    timestamp = timestamp.replace(tzinfo=timezone.utc)
+                age = now_utc - timestamp
                 if age > timedelta(minutes=10):
                     print(f"⚠️  Last health check was {age.total_seconds()/60:.0f} minutes ago")
                     self.metrics['missed_checks'] += 1
@@ -201,7 +208,7 @@ class ProductionMonitor:
         # Save report
         report = {
             'monitoring_period': {
-                'start': datetime.utcnow().isoformat(),
+                'start': self.start_time.isoformat() if self.start_time else datetime.utcnow().isoformat(),
                 'duration_hours': 24
             },
             'metrics': dict(self.metrics),

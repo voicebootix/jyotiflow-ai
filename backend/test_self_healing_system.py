@@ -4,7 +4,6 @@ Tests all edge cases to ensure production reliability
 """
 
 import os
-import asyncio
 import asyncpg
 import pytest
 import tempfile
@@ -258,7 +257,7 @@ async def get_user_session(user_id: str):
         
         # Test should_auto_fix prevents duplicate fixes
         should_fix_1 = monitor._should_auto_fix(issue)
-        should_fix_2 = monitor._should_auto_fix(issue)
+        monitor._should_auto_fix(issue)  # Second call should be rejected
         
         # Second attempt should be rejected
         assert should_fix_1 is False  # Not in CRITICAL_TABLES
