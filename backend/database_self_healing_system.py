@@ -39,6 +39,12 @@ ALLOWED_DATA_TYPES = {
     'VARCHAR(255)', 'VARCHAR(50)', 'VARCHAR(100)', 'CHAR(1)', 'NUMERIC(10,2)'
 }
 
+def serialize_datetime(obj):
+    """JSON serializer for datetime objects"""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
 
 def quote_ident(identifier: str) -> str:
     """Safely quote a PostgreSQL identifier"""
@@ -935,7 +941,7 @@ class SelfHealingOrchestrator:
                 VALUES ($1, $2, $3, $4, $5)
             """, 
                 results['timestamp'],
-                json.dumps(results),
+                json.dumps(results, default=serialize_datetime),
                 results['issues_found'],
                 results['issues_fixed'],
                 len(results.get('critical_issues', []))

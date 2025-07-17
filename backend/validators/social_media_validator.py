@@ -79,9 +79,11 @@ class SocialMediaValidator:
         }
         
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Get all platform credentials
-                platforms_data = await db.fetch("""
+                platforms_data = await conn.fetch("""
                     SELECT key, value 
                     FROM platform_settings 
                     WHERE key LIKE '%_credentials'
@@ -101,14 +103,16 @@ class SocialMediaValidator:
                             "error": test_result.get("error", "Invalid credentials")
                         })
             
-            # Determine overall health
-            failed_count = sum(1 for p in results["platforms"].values() if not p.get("valid", False))
-            if failed_count >= 3:
-                results["overall_health"] = "critical"
-            elif failed_count >= 1:
-                results["overall_health"] = "degraded"
-            
-            return results
+                # Determine overall health
+                failed_count = sum(1 for p in results["platforms"].values() if not p.get("valid", False))
+                if failed_count >= 3:
+                    results["overall_health"] = "critical"
+                elif failed_count >= 1:
+                    results["overall_health"] = "degraded"
+                
+                return results
+            finally:
+                await db.release_connection(conn)
             
         except Exception as e:
             logger.error(f"Platform testing error: {e}")
@@ -434,16 +438,18 @@ class SocialMediaValidator:
                 "content_generation_working": False
             }
             
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Check configured credentials
-                credential_count = await db.fetchval("""
+                credential_count = await conn.fetchval("""
                     SELECT COUNT(*) FROM platform_settings 
                     WHERE key LIKE '%_credentials'
                 """)
                 health_metrics["credentials_configured"] = credential_count
                 
                 # Check recent posts
-                recent_posts = await db.fetch("""
+                recent_posts = await conn.fetch("""
                     SELECT status, COUNT(*) as count
                     FROM social_posts
                     WHERE created_at > NOW() - INTERVAL '24 hours'
@@ -457,32 +463,34 @@ class SocialMediaValidator:
                         health_metrics["recent_posts_failed"] = post["count"]
                 
                 # Check content generation
-                recent_content = await db.fetchval("""
+                recent_content = await conn.fetchval("""
                     SELECT COUNT(*) FROM social_content
                     WHERE created_at > NOW() - INTERVAL '24 hours'
                     AND ai_generated = true
                 """)
                 health_metrics["content_generation_working"] = recent_content > 0
             
-            # Calculate health score
-            health_score = 0
-            if health_metrics["credentials_configured"] >= 3:
-                health_score += 0.3
-            if health_metrics["recent_posts_success"] > health_metrics["recent_posts_failed"]:
-                health_score += 0.4
-            if health_metrics["content_generation_working"]:
-                health_score += 0.3
-            
-            validation_result["health_metrics"] = health_metrics
-            validation_result["health_score"] = health_score
-            
-            if health_score < 0.5:
-                validation_result["passed"] = False
-                validation_result["errors"].append("Social media system health is poor")
-                validation_result["severity"] = "critical"
-                validation_result["user_impact"] = "Marketing automation not functioning properly"
-            
-            return validation_result
+                # Calculate health score
+                health_score = 0
+                if health_metrics["credentials_configured"] >= 3:
+                    health_score += 0.3
+                if health_metrics["recent_posts_success"] > health_metrics["recent_posts_failed"]:
+                    health_score += 0.4
+                if health_metrics["content_generation_working"]:
+                    health_score += 0.3
+                
+                validation_result["health_metrics"] = health_metrics
+                validation_result["health_score"] = health_score
+                
+                if health_score < 0.5:
+                    validation_result["passed"] = False
+                    validation_result["errors"].append("Social media system health is poor")
+                    validation_result["severity"] = "critical"
+                    validation_result["user_impact"] = "Marketing automation not functioning properly"
+                
+                return validation_result
+            finally:
+                await db.release_connection(conn)
             
         except Exception as e:
             logger.error(f"Social media health check error: {e}")
@@ -704,9 +712,11 @@ class SocialMediaValidator:
     async def _check_platform_readiness(self, platform: str) -> Dict:
         """Check if platform is ready for posting"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Check if credentials exist
-                creds = await db.fetchrow("""
+                creds = await conn.fetchrow("""
                     SELECT value FROM platform_settings
                     WHERE key = $1
                 """, f"{platform}_credentials")
@@ -715,7 +725,7 @@ class SocialMediaValidator:
                     return {"ready": False, "reason": "No credentials configured"}
                 
                 # Check rate limits
-                recent_posts = await db.fetchval("""
+                recent_posts = await conn.fetchval("""
                     SELECT COUNT(*) FROM social_posts
                     WHERE platform = $1
                     AND posted_time > NOW() - INTERVAL '1 hour'
@@ -726,6 +736,8 @@ class SocialMediaValidator:
                     return {"ready": False, "reason": "Rate limit reached"}
                 
                 return {"ready": True}
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             return {"ready": False, "reason": str(e)}
@@ -733,9 +745,11 @@ class SocialMediaValidator:
     async def _attempt_token_refresh(self, platform: str) -> Dict:
         """Attempt to refresh expired tokens using OAuth refresh flow"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Get refresh token from database
-                token_data = await db.fetchrow("""
+                token_data = await conn.fetchrow("""
                     SELECT value FROM platform_settings 
                     WHERE platform = $1 AND setting_key = 'refresh_token'
                 """, platform)
@@ -755,6 +769,8 @@ class SocialMediaValidator:
                     return await self._refresh_linkedin_token(refresh_token)
                 else:
                     return {"success": False, "reason": f"Token refresh not supported for {platform}"}
+            finally:
+                await db.release_connection(conn)
                     
         except Exception as e:
             logger.error(f"Token refresh error for {platform}: {e}")
@@ -854,12 +870,16 @@ class SocialMediaValidator:
     async def _save_refreshed_token(self, platform: str, new_token: str):
         """Save refreshed token to database"""
         try:
-            async with get_db() as db:
-                await db.execute("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                await conn.execute("""
                     UPDATE platform_settings 
                     SET value = $1, updated_at = NOW()
                     WHERE platform = $2 AND setting_key = 'access_token'
                 """, json.dumps(new_token), platform)
+            finally:
+                await db.release_connection(conn)
         except Exception as e:
             logger.error(f"Failed to save refreshed token for {platform}: {e}")
     

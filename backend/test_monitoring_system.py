@@ -34,9 +34,11 @@ async def test_monitoring_system():
     try:
         from core_foundation_enhanced import get_db
         
-        async with get_db() as db:
+        db = await get_db()
+        conn = await db.get_connection()
+        try:
             # Check validation_sessions table
-            table_exists = await db.fetchval("""
+            table_exists = await conn.fetchval("""
                 SELECT EXISTS (
                     SELECT FROM information_schema.tables 
                     WHERE table_name = 'validation_sessions'
@@ -48,6 +50,8 @@ async def test_monitoring_system():
                 results["database_migration"] = True
             else:
                 print("❌ Database tables not found - run migration first")
+        finally:
+            await db.release_connection(conn)
                 
     except Exception as e:
         print(f"❌ Database connection error: {e}")

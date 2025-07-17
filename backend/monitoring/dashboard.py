@@ -2,7 +2,6 @@
 📊 MONITORING DASHBOARD - Real-time integration monitoring for JyotiFlow admin
 Integrates seamlessly with existing admin dashboard UI.
 """
-
 import json
 import asyncio
 from datetime import datetime, timezone
@@ -110,9 +109,11 @@ class MonitoringDashboard:
     async def get_session_details(self, session_id: str) -> Dict:
         """Get detailed validation report for a specific session"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Get session data
-                session_data = await db.fetchrow("""
+                session_data = await conn.fetchrow("""
                     SELECT * FROM validation_sessions
                     WHERE session_id = $1
                 """, session_id)
@@ -121,14 +122,14 @@ class MonitoringDashboard:
                     return {"error": "Session not found"}
                 
                 # Get integration validations
-                validations = await db.fetch("""
+                validations = await conn.fetch("""
                     SELECT * FROM integration_validations
                     WHERE session_id = $1
                     ORDER BY validation_time
                 """, session_id)
                 
                 # Get business logic issues
-                issues = await db.fetch("""
+                issues = await conn.fetch("""
                     SELECT * FROM business_logic_issues
                     WHERE session_id = $1
                     ORDER BY created_at
@@ -146,6 +147,8 @@ class MonitoringDashboard:
                     "context_flow": context_flow,
                     "recommendations": await self._generate_session_recommendations(session_id)
                 }
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"❌ Failed to get session details: {e}")
@@ -154,9 +157,11 @@ class MonitoringDashboard:
     async def get_integration_health_details(self, integration_point: str) -> Dict:
         """Get detailed health information for a specific integration"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Get recent performance metrics
-                performance = await db.fetch("""
+                performance = await conn.fetch("""
                     SELECT 
                         DATE_TRUNC('hour', validation_time) as hour,
                         AVG(CAST(actual_value->>'duration_ms' AS INTEGER)) as avg_duration,
@@ -170,7 +175,7 @@ class MonitoringDashboard:
                 """, integration_point)
                 
                 # Get recent errors
-                recent_errors = await db.fetch("""
+                recent_errors = await conn.fetch("""
                     SELECT error_message, COUNT(*) as count, MAX(validation_time) as last_occurred
                     FROM integration_validations
                     WHERE integration_name = $1
@@ -183,7 +188,7 @@ class MonitoringDashboard:
                 """, integration_point)
                 
                 # Get auto-fix statistics
-                auto_fix_stats = await db.fetchrow("""
+                auto_fix_stats = await conn.fetchrow("""
                     SELECT 
                         COUNT(*) as total_issues,
                         SUM(CASE WHEN auto_fixed = true THEN 1 ELSE 0 END) as auto_fixed_count
@@ -210,6 +215,8 @@ class MonitoringDashboard:
                         )
                     }
                 }
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"❌ Failed to get integration health details: {e}")
@@ -270,8 +277,10 @@ class MonitoringDashboard:
     async def _get_recent_sessions(self) -> List[Dict]:
         """Get recent session summaries"""
         try:
-            async with get_db() as db:
-                sessions = await db.fetch("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                sessions = await conn.fetch("""
                     SELECT 
                         vs.session_id,
                         vs.user_id,
@@ -293,6 +302,8 @@ class MonitoringDashboard:
                 """)
                 
                 return [dict(s) for s in sessions]
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get recent sessions: {e}")
@@ -301,8 +312,10 @@ class MonitoringDashboard:
     async def _get_integration_statistics(self) -> Dict:
         """Get integration performance statistics"""
         try:
-            async with get_db() as db:
-                stats = await db.fetchrow("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                stats = await conn.fetchrow("""
                     SELECT
                         COUNT(DISTINCT session_id) as total_sessions,
                         COUNT(*) as total_validations,
@@ -313,7 +326,7 @@ class MonitoringDashboard:
                 """)
                 
                 # Get per-integration stats
-                by_integration = await db.fetch("""
+                by_integration = await conn.fetch("""
                     SELECT 
                         integration_name,
                         COUNT(*) as total_calls,
@@ -328,6 +341,8 @@ class MonitoringDashboard:
                     "overall": dict(stats) if stats else {},
                     "by_integration": [dict(i) for i in by_integration]
                 }
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get integration statistics: {e}")
@@ -336,8 +351,10 @@ class MonitoringDashboard:
     async def _get_critical_issues(self) -> List[Dict]:
         """Get current critical issues requiring attention"""
         try:
-            async with get_db() as db:
-                issues = await db.fetch("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                issues = await conn.fetch("""
                     SELECT 
                         bli.*,
                         vs.user_id,
@@ -353,6 +370,8 @@ class MonitoringDashboard:
                 """)
                 
                 return [dict(i) for i in issues]
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get critical issues: {e}")
@@ -361,9 +380,11 @@ class MonitoringDashboard:
     async def _get_social_media_health(self) -> Dict:
         """Get social media integration health status"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Get platform credentials status
-                platforms = await db.fetch("""
+                platforms = await conn.fetch("""
                     SELECT 
                         key,
                         value->>'platform' as platform,
@@ -374,7 +395,7 @@ class MonitoringDashboard:
                 """)
                 
                 # Get recent social media posts
-                recent_posts = await db.fetch("""
+                recent_posts = await conn.fetch("""
                     SELECT 
                         platform,
                         status,
@@ -385,7 +406,7 @@ class MonitoringDashboard:
                 """)
                 
                 # Get social media errors
-                social_errors = await db.fetch("""
+                social_errors = await conn.fetch("""
                     SELECT 
                         platform,
                         COUNT(*) as error_count,
@@ -401,6 +422,8 @@ class MonitoringDashboard:
                     "recent_activity": [dict(r) for r in recent_posts],
                     "errors": [dict(e) for e in social_errors]
                 }
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get social media health: {e}")
@@ -413,9 +436,11 @@ class MonitoringDashboard:
     async def _calculate_overall_metrics(self) -> Dict:
         """Calculate overall system metrics"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Get success rate
-                success_rate = await db.fetchrow("""
+                success_rate = await conn.fetchrow("""
                     SELECT 
                         COUNT(CASE WHEN overall_status = 'success' THEN 1 END)::float / 
                         NULLIF(COUNT(*), 0) * 100 as success_rate
@@ -424,7 +449,7 @@ class MonitoringDashboard:
                 """)
                 
                 # Get average session duration
-                avg_duration = await db.fetchrow("""
+                avg_duration = await conn.fetchrow("""
                     SELECT AVG(
                         EXTRACT(EPOCH FROM (completed_at - started_at))
                     ) as avg_duration_seconds
@@ -434,7 +459,7 @@ class MonitoringDashboard:
                 """)
                 
                 # Get quality scores
-                quality_scores = await db.fetchrow("""
+                quality_scores = await conn.fetchrow("""
                     SELECT 
                         AVG((validation_results->>'quality_scores'->>'rag_relevance_score')::float) as avg_rag_score,
                         AVG((validation_results->>'quality_scores'->>'openai_quality_score')::float) as avg_openai_score
@@ -451,6 +476,8 @@ class MonitoringDashboard:
                         "openai_quality": quality_scores["avg_openai_score"] if quality_scores else 0
                     }
                 }
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to calculate overall metrics: {e}")
@@ -476,8 +503,10 @@ class MonitoringDashboard:
                 })
             
             # Check for high error rates
-            async with get_db() as db:
-                error_rate = await db.fetchrow("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                error_rate = await conn.fetchrow("""
                     SELECT 
                         COUNT(CASE WHEN status = 'failed' THEN 1 END)::float / 
                         NULLIF(COUNT(*), 0) * 100 as error_rate
@@ -491,6 +520,8 @@ class MonitoringDashboard:
                         "message": f"High error rate detected: {error_rate['error_rate']:.1f}%",
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     })
+            finally:
+                await db.release_connection(conn)
             
             return alerts
             
@@ -501,9 +532,11 @@ class MonitoringDashboard:
     async def _generate_session_recommendations(self, session_id: str) -> List[str]:
         """Generate specific recommendations for a session"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 # Get validation results
-                validation_data = await db.fetchrow("""
+                validation_data = await conn.fetchrow("""
                     SELECT validation_results
                     FROM validation_sessions
                     WHERE session_id = $1
@@ -520,6 +553,8 @@ class MonitoringDashboard:
                 
                 # Use business validator to generate recommendations
                 return validation_results.get("recommendations", [])
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to generate session recommendations: {e}")
