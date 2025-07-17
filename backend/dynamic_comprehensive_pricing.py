@@ -18,7 +18,16 @@ class DynamicComprehensivePricing:
     """Dynamic pricing engine for comprehensive readings"""
     
     def __init__(self, database_url: str = None):
-        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = database_url or os.getenv("DATABASE_URL")
+        
+        # Validate DATABASE_URL is set
+        if not self.database_url:
+            raise ValueError(
+                "DATABASE_URL environment variable is missing or empty. "
+                "Please set the DATABASE_URL environment variable or provide it as a parameter. "
+                "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+            )
+        
         self.connection_pool = None
         self._pool_initialized = False
         self._pool_lock = asyncio.Lock()
@@ -38,12 +47,20 @@ class DynamicComprehensivePricing:
         """Initialize connection pool"""
         async with self._pool_lock:
             if not self._pool_initialized:
-                self.connection_pool = await asyncpg.create_pool(
-                    self.database_url,
-                    min_size=2,
-                    max_size=10
-                )
-                self._pool_initialized = True
+                try:
+                    self.connection_pool = await asyncpg.create_pool(
+                        self.database_url,
+                        min_size=2,
+                        max_size=10
+                    )
+                    self._pool_initialized = True
+                    logger.info("Database connection pool initialized successfully")
+                except Exception as e:
+                    logger.error(f"Failed to initialize database connection pool: {e}")
+                    raise ConnectionError(
+                        f"Unable to connect to database: {str(e)}. "
+                        "Please check your DATABASE_URL configuration."
+                    )
     
     async def get_connection(self):
         """Get connection from pool"""

@@ -77,7 +77,8 @@ class EnhancedSettings(BaseSettings):
     cors_origins: str = "*"
 
     # Database Configuration (Preserved)
-    database_url: str = "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db"
+    # DATABASE_URL must be provided via environment variable
+    database_url: Optional[str] = os.getenv("DATABASE_URL")
     database_pool_size: int = 20
     database_max_overflow: int = 30
     database_pool_timeout: int = 30
@@ -232,6 +233,10 @@ class EnhancedJyotiFlowDatabase:
 
     async def initialize(self):
         """Initialize database connection pool"""
+        if not settings.database_url:
+            logger.warning("DATABASE_URL not set - database functionality will be unavailable")
+            return
+            
         try:
             self.pool = await asyncpg.create_pool(
                 settings.database_url,

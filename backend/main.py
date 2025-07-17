@@ -131,6 +131,14 @@ except ImportError:
 SURGICAL_AUTH_AVAILABLE = False
 print("⚠️ Surgical auth router disabled - using main auth system only")
 
+# Monitoring system
+try:
+    from monitoring.register_monitoring import register_monitoring_system, init_monitoring
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    print("⚠️ Monitoring system not available")
+
 # Debug router for testing
 try:
     from debug_auth_endpoint import debug_router
@@ -225,6 +233,18 @@ async def lifespan(app: FastAPI):
         
         # Set the pool in the db module for all routers to use
         db.set_db_pool(db_pool)
+        
+        print("✅ Database connection pool initialized successfully!")
+        print("📊 Pool configuration: connections ready for use")
+        
+        # Initialize monitoring system if available
+        if MONITORING_AVAILABLE:
+            try:
+                await init_monitoring()
+                print("✅ Monitoring system initialized")
+            except Exception as monitor_error:
+                print(f"⚠️ Failed to initialize monitoring: {monitor_error}")
+                # Continue running even if monitoring fails
         
         print("✅ Unified JyotiFlow.ai system ready!")
         print("🎯 Ready to serve API requests with all features enabled")
@@ -496,6 +516,14 @@ if MISSING_ENDPOINTS_AVAILABLE:
     print("✅ Missing endpoints router registered")
 
 print("🚀 All routers registered successfully!")
+
+# Register monitoring system
+if MONITORING_AVAILABLE:
+    try:
+        register_monitoring_system(app)
+        print("✅ Monitoring system registered successfully")
+    except Exception as e:
+        print(f"❌ Failed to register monitoring system: {e}")
 
 # Surgical auth router - REMOVED (conflicting authentication system)
 # Using main auth system only (routers/auth.py)

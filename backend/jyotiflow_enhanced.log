@@ -151,3 +151,105 @@
 2025-07-11 08:54:06,515 - real_ai_marketing_director - INFO - 🤖 Real AI Marketing Director initialized
 2025-07-11 08:54:06,537 - simple_ai_marketing_director - INFO - 🤖 Simple AI Marketing Director initialized
 2025-07-11 08:54:06,612 - run_migrations - ERROR - 💥 Migration runner failed: Multiple exceptions: [Errno 111] Connect call failed ('::1', 5432, 0, 0), [Errno 111] Connect call failed ('127.0.0.1', 5432)
+2025-07-16 06:20:48,352 - auth.jwt_config - CRITICAL - JWT_SECRET environment variable is required for security. Please set it before starting the application.
+2025-07-16 06:20:48,355 - auth.jwt_config - CRITICAL - JWT_SECRET environment variable is required for security. Please set it before starting the application.
+2025-07-16 06:20:48,358 - auth.jwt_config - CRITICAL - JWT_SECRET environment variable is required for security. Please set it before starting the application.
+2025-07-16 06:20:48,362 - auth.jwt_config - CRITICAL - JWT_SECRET environment variable is required for security. Please set it before starting the application.
+2025-07-16 06:20:55,124 - auth.jwt_config - CRITICAL - JWT_SECRET must be at least 32 characters long for security. Current length: 28
+2025-07-16 06:20:55,128 - auth.jwt_config - CRITICAL - JWT_SECRET must be at least 32 characters long for security. Current length: 28
+2025-07-16 06:20:55,131 - auth.jwt_config - CRITICAL - JWT_SECRET must be at least 32 characters long for security. Current length: 28
+2025-07-16 06:20:55,134 - auth.jwt_config - CRITICAL - JWT_SECRET must be at least 32 characters long for security. Current length: 28
+2025-07-16 06:21:01,789 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 06:21:14,298 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 06:21:14,309 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:21:14,309 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:21:14,309 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:21:14,309 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:21:14,309 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 06:21:14,357 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:21:14,357 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:21:14,357 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:21:14,357 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:21:14,357 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 06:21:14,384 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:21:14,385 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:21:14,385 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:21:14,385 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:21:14,385 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 06:21:14,413 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:21:14,413 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:21:14,413 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:21:14,413 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:21:14,413 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 06:21:23,373 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 06:21:23,384 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:21:23,384 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:21:23,384 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:21:23,384 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:21:23,384 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 06:22:07,572 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 06:22:07,583 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:22:07,583 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:22:07,583 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:22:07,583 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:22:07,583 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 06:22:58,309 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 06:22:58,321 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:22:58,321 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:22:58,321 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:22:58,321 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:22:58,321 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 06:23:20,251 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 06:23:20,261 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 06:23:20,262 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 06:23:20,262 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 06:23:20,262 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 06:23:20,262 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 14:32:27,936 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 14:32:27,964 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 14:32:27,964 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 14:32:27,964 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 14:32:27,964 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 14:32:27,964 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 14:34:00,957 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 14:34:00,984 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 14:34:00,984 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 14:34:00,984 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 14:34:00,984 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 14:34:00,984 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 15:33:40,735 - auth.jwt_config - INFO - JWT_SECRET security validation passed
+2025-07-16 15:33:40,765 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 15:33:40,765 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 15:33:40,765 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 15:33:40,765 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 15:33:40,765 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 15:33:40,823 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 15:33:40,823 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 15:33:40,823 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 15:33:40,823 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 15:33:40,823 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 15:33:40,856 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 15:33:40,857 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 15:33:40,857 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 15:33:40,857 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 15:33:40,857 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 15:33:40,898 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 15:33:40,899 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 15:33:40,899 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 15:33:40,899 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 15:33:40,899 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 15:33:40,932 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 15:33:40,932 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 15:33:40,932 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 15:33:40,932 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 15:33:40,933 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 15:33:40,968 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 15:33:40,968 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 15:33:40,968 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 15:33:40,968 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 15:33:40,968 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - ✅ Enhanced JyotiFlow.ai Core Foundation loaded successfully
+2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - 🎭 Avatar services configured and ready
+2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
+2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
+2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring

@@ -8,7 +8,7 @@ import os
 
 def get_database_info():
     """Get database connection information"""
-    database_url = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+    database_url = os.getenv("DATABASE_URL")
     
     print("🔍 JyotiFlow PostgreSQL Authentication Check")
     print("=" * 60)

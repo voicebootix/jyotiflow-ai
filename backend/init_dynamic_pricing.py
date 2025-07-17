@@ -10,7 +10,15 @@ import os
 from datetime import datetime
 
 # Database configuration
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+# Validate DATABASE_URL is set
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is missing or empty. "
+        "Please set the DATABASE_URL environment variable before running this script. "
+        "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+    )
 
 async def init_dynamic_pricing():
     """Initialize dynamic pricing system with sample data"""

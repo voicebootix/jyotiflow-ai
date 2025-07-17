@@ -19,7 +19,15 @@ class ExpandedKnowledgeSeeder:
     """Expanded knowledge seeding with 50+ pieces"""
     
     def __init__(self, database_url: str = None):
-        self.database_url = database_url or os.getenv('DATABASE_URL', 'postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db')
+        self.database_url = database_url or os.getenv("DATABASE_URL")
+        
+        # Validate DATABASE_URL is set
+        if not self.database_url:
+            raise ValueError(
+                "DATABASE_URL environment variable is missing or not configured. "
+                "Please set the DATABASE_URL environment variable before running the knowledge seeder. "
+                "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+            )
         
     async def seed_expanded_knowledge_base(self):
         """Seed comprehensive knowledge base with 50+ pieces"""

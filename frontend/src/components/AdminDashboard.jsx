@@ -15,6 +15,7 @@ import CreditPackages from './admin/CreditPackages';
 import AdminPricingDashboard from './AdminPricingDashboard';
 import SocialMediaMarketing from './admin/SocialMediaMarketing';
 import FollowUpManagement from './admin/FollowUpManagement';
+import SystemMonitoring from './admin/SystemMonitoring';
 import DatabaseHealthMonitor from './DatabaseHealthMonitor';
 
 const AdminDashboard = () => {
@@ -99,6 +100,7 @@ const AdminDashboard = () => {
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
     { key: 'followup', label: 'Follow-ups' },
+    { key: 'monitoring', label: '🔍 System Monitor' },
     { key: 'databaseHealth', label: '🏥 Database Health' },
   ];
 
@@ -247,6 +249,7 @@ const AdminDashboard = () => {
         {activeTab === 'creditPackages' && <CreditPackages />}
         {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
         {activeTab === 'followup' && <FollowUpManagement />}
+        {activeTab === 'monitoring' && <SystemMonitoring />}
         {activeTab === 'databaseHealth' && <DatabaseHealthMonitor />}
       </div>
     </div>

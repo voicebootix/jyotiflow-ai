@@ -47,7 +47,15 @@ class AdminPricingDashboard:
     """Admin dashboard for managing dynamic pricing"""
     
     def __init__(self, database_url: str = None):
-        self.database_url = database_url or os.getenv("DATABASE_URL", "postgresql://jyotiflow_db_user:em0MmaZmvPzASryvzLHpR5g5rRZTQqpw@dpg-d12ohqemcj7s73fjbqtg-a/jyotiflow_db")
+        self.database_url = database_url or os.getenv("DATABASE_URL")
+        
+        # Validate DATABASE_URL is set
+        if not self.database_url:
+            raise ValueError(
+                "DATABASE_URL environment variable is missing or empty. "
+                "Please set the DATABASE_URL environment variable or provide it as a parameter. "
+                "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+            )
         
     async def get_pricing_overview(self) -> Dict[str, Any]:
         """Get comprehensive pricing overview for admin dashboard"""
