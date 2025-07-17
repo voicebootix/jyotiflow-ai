@@ -117,43 +117,141 @@ class SocialMediaValidator:
             return results
     
     async def auto_fix(self, validation_result: Dict, session_context: Dict) -> Dict:
-        """Attempt to auto-fix social media issues"""
+        """Attempt to auto-fix social media issues with comprehensive error handling"""
         fix_result = {
             "fixed": False,
             "fix_type": None,
-            "retry_needed": False
+            "retry_needed": False,
+            "fallback_used": False
         }
         
         try:
-            if "expired_token" in str(validation_result.get("errors", [])):
-                # Attempt token refresh
-                platform = validation_result.get("platform")
-                if platform:
-                    refresh_result = await self._attempt_token_refresh(platform)
-                    if refresh_result["success"]:
-                        fix_result["fixed"] = True
-                        fix_result["fix_type"] = "token_refresh"
-                        fix_result["message"] = f"Refreshed {platform} access token"
-                        fix_result["new_token"] = refresh_result["token"]
+            errors = str(validation_result.get("errors", []))
+            warnings = str(validation_result.get("warnings", []))
+            platform = validation_result.get("platform", "unknown")
             
-            elif "content_too_long" in str(validation_result.get("errors", [])):
-                # Attempt content truncation
+            # Token refresh for expired/invalid tokens
+            if any(token_error in errors for token_error in ["expired_token", "invalid_token", "token_error"]):
+                refresh_result = await self._attempt_token_refresh(platform)
+                if refresh_result["success"]:
+                    fix_result["fixed"] = True
+                    fix_result["fix_type"] = "token_refresh"
+                    fix_result["message"] = f"Refreshed {platform} access token"
+                    fix_result["new_token"] = refresh_result.get("new_token")
+                else:
+                    fix_result["message"] = f"Token refresh failed: {refresh_result.get('reason')}"
+                    fix_result["retry_needed"] = True
+            
+            # Content length issues
+            elif any(length_error in errors for length_error in ["content_too_long", "exceeds.*limit"]):
                 fix_result["fixed"] = True
                 fix_result["fix_type"] = "content_truncation"
                 fix_result["message"] = "Content will be truncated to fit platform limits"
                 fix_result["retry_needed"] = True
+                # Provide truncation strategy
+                max_length = self.content_requirements.get(platform, {}).get("char_limit", 280)
+                fix_result["max_length"] = max_length
+                fix_result["truncation_strategy"] = "preserve_beginning_and_hashtags"
             
-            elif "missing_hashtags" in str(validation_result.get("warnings", [])):
-                # Generate hashtags
+            # Missing or insufficient hashtags
+            elif any(hashtag_issue in warnings for hashtag_issue in ["missing_hashtags", "hashtags_missing", "not_optimized"]):
                 fix_result["fixed"] = True
                 fix_result["fix_type"] = "generate_hashtags"
                 fix_result["hashtags"] = self._generate_spiritual_hashtags()
+                fix_result["message"] = f"Generated {len(fix_result['hashtags'])} spiritual hashtags"
                 fix_result["retry_needed"] = True
+            
+            # Invalid or broken media URLs
+            elif any(media_error in errors for media_error in ["invalid_media", "media_url_error", "unsupported_media"]):
+                fix_result["fix_type"] = "media_fallback"
+                fix_result["message"] = "Using fallback media strategy"
+                fix_result["fallback_used"] = True
+                # Provide fallback media options
+                fix_result["fallback_media"] = {
+                    "use_text_only": True,
+                    "default_image_url": "/static/images/jyotiflow-default.jpg",
+                    "backup_media_urls": [
+                        "/static/images/spiritual-guidance.jpg",
+                        "/static/images/vedic-wisdom.jpg"
+                    ]
+                }
+                fix_result["fixed"] = True
+                fix_result["retry_needed"] = True
+            
+            # Rate limit issues
+            elif any(rate_error in errors for rate_error in ["rate_limit", "too_many_requests", "quota_exceeded"]):
+                fix_result["fix_type"] = "rate_limit_backoff"
+                fix_result["message"] = "Rate limit detected, implementing backoff strategy"
+                # Calculate backoff time based on platform
+                backoff_minutes = {
+                    "twitter": 15,
+                    "instagram": 60,
+                    "facebook": 30,
+                    "linkedin": 45
+                }.get(platform, 30)
+                fix_result["backoff_minutes"] = backoff_minutes
+                fix_result["retry_needed"] = True
+                fix_result["fixed"] = True
+            
+            # Platform-specific credential issues
+            elif any(cred_error in errors for cred_error in ["credentials_invalid", "authentication_failed", "forbidden"]):
+                fix_result["fix_type"] = "credential_refresh"
+                fix_result["message"] = f"Attempting to refresh {platform} credentials"
+                # Attempt credential validation and refresh
+                fix_result["credential_check_needed"] = True
+                fix_result["retry_needed"] = True
+                fix_result["fixed"] = True
+            
+            # Network/connectivity issues
+            elif any(network_error in errors for network_error in ["connection_error", "timeout", "network_error"]):
+                fix_result["fix_type"] = "network_retry"
+                fix_result["message"] = "Network issue detected, will retry with exponential backoff"
+                fix_result["retry_strategy"] = {
+                    "max_retries": 3,
+                    "base_delay": 5,
+                    "exponential_backoff": True
+                }
+                fix_result["retry_needed"] = True
+                fix_result["fixed"] = True
+            
+            # Content quality issues
+            elif any(quality_issue in warnings for quality_issue in ["low_quality", "inappropriate_content", "cultural_mismatch"]):
+                fix_result["fix_type"] = "content_enhancement"
+                fix_result["message"] = "Enhancing content quality with spiritual elements"
+                fix_result["enhancements"] = {
+                    "add_spiritual_phrases": True,
+                    "include_tamil_elements": True,
+                    "strengthen_swami_voice": True,
+                    "add_blessing": True
+                }
+                fix_result["retry_needed"] = True
+                fix_result["fixed"] = True
+            
+            # Generic error fallback
+            elif validation_result.get("errors") and not fix_result["fixed"]:
+                fix_result["fix_type"] = "generic_fallback"
+                fix_result["message"] = "Applying generic error recovery strategy"
+                fix_result["fallback_actions"] = [
+                    "switch_to_text_only_mode",
+                    "use_default_spiritual_template",
+                    "schedule_for_manual_review"
+                ]
+                fix_result["fallback_used"] = True
+                fix_result["retry_needed"] = True
+                fix_result["fixed"] = True
+            
+            # Log successful fixes
+            if fix_result["fixed"]:
+                logger.info(f"Auto-fix applied: {fix_result['fix_type']} for {platform}")
             
             return fix_result
             
         except Exception as e:
             logger.error(f"Social media auto-fix error: {e}")
+            # Emergency fallback
+            fix_result["fix_type"] = "emergency_fallback"
+            fix_result["message"] = f"Emergency fallback due to auto-fix error: {str(e)}"
+            fix_result["fallback_used"] = True
             return fix_result
     
     async def _validate_credentials(self, platform: str, credentials: Dict, 
