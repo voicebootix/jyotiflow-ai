@@ -510,8 +510,6 @@ class IntegrationMonitor:
                 
                 total = sum(row['count'] for row in recent_validations)
                 success = sum(row['count'] for row in recent_validations if row['status'] == 'success')
-            finally:
-                await db.release_connection(conn)
                 
                 if total == 0:
                     return {"status": "unknown", "message": "No recent validations"}
@@ -519,7 +517,7 @@ class IntegrationMonitor:
                 success_rate = (success / total) * 100
                 
                 # Get average duration
-                avg_duration = await db.fetchval("""
+                avg_duration = await conn.fetchval("""
                     SELECT AVG(CAST(actual_value->>'duration_ms' AS INTEGER))
                     FROM integration_validations
                     WHERE integration_name = $1
@@ -541,6 +539,8 @@ class IntegrationMonitor:
                     "avg_duration_ms": int(avg_duration),
                     "total_validations": total
                 }
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to check integration health: {e}")
