@@ -9,10 +9,23 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 import re
 
+# Try to import numpy, but handle gracefully if not installed
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ImportError:
+    NUMPY_AVAILABLE = False
+    # Log warning after logger is properly imported
+    pass
+
 from core_foundation_enhanced import get_database as get_db, logger, settings
 import openai
 
 logger = logging.getLogger(__name__)
+
+# Log numpy availability warning if needed
+if not NUMPY_AVAILABLE:
+    logger.warning("numpy not installed - semantic similarity will use fallback calculation")
 
 class BusinessLogicValidator:
     """
