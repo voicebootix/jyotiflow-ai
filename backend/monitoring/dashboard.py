@@ -270,8 +270,10 @@ class MonitoringDashboard:
     async def _get_recent_sessions(self) -> List[Dict]:
         """Get recent session summaries"""
         try:
-            async with get_db() as db:
-                sessions = await db.fetch("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                sessions = await conn.fetch("""
                     SELECT 
                         vs.session_id,
                         vs.user_id,
@@ -293,6 +295,8 @@ class MonitoringDashboard:
                 """)
                 
                 return [dict(s) for s in sessions]
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get recent sessions: {e}")
@@ -301,8 +305,10 @@ class MonitoringDashboard:
     async def _get_integration_statistics(self) -> Dict:
         """Get integration performance statistics"""
         try:
-            async with get_db() as db:
-                stats = await db.fetchrow("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                stats = await conn.fetchrow("""
                     SELECT
                         COUNT(DISTINCT session_id) as total_sessions,
                         COUNT(*) as total_validations,
@@ -313,7 +319,7 @@ class MonitoringDashboard:
                 """)
                 
                 # Get per-integration stats
-                by_integration = await db.fetch("""
+                by_integration = await conn.fetch("""
                     SELECT 
                         integration_name,
                         COUNT(*) as total_calls,
@@ -328,6 +334,8 @@ class MonitoringDashboard:
                     "overall": dict(stats) if stats else {},
                     "by_integration": [dict(i) for i in by_integration]
                 }
+            finally:
+                await db.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get integration statistics: {e}")

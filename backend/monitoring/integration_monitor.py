@@ -296,8 +296,10 @@ class IntegrationMonitor:
                 health_status["integration_points"][point.value] = point_health
             
             # Get recent issues from database
-            async with get_db() as db:
-                recent_issues = await db.fetch("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                recent_issues = await conn.fetch("""
                     SELECT issue_type, severity, description, created_at
                     FROM business_logic_issues
                     WHERE created_at > NOW() - INTERVAL '1 hour'
@@ -308,6 +310,8 @@ class IntegrationMonitor:
                 health_status["recent_issues"] = [
                     dict(issue) for issue in recent_issues
                 ]
+            finally:
+                await db.release_connection(conn)
             
             # Determine overall system status
             critical_count = sum(
@@ -477,8 +481,10 @@ class IntegrationMonitor:
         """Check health of a specific integration point"""
         try:
             # Get recent validation results for this integration
-            async with get_db() as db:
-                recent_validations = await db.fetch("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                recent_validations = await conn.fetch("""
                     SELECT status, COUNT(*) as count
                     FROM integration_validations
                     WHERE integration_name = $1
@@ -488,6 +494,8 @@ class IntegrationMonitor:
                 
                 total = sum(row['count'] for row in recent_validations)
                 success = sum(row['count'] for row in recent_validations if row['status'] == 'success')
+            finally:
+                await db.release_connection(conn)
                 
                 if total == 0:
                     return {"status": "unknown", "message": "No recent validations"}
