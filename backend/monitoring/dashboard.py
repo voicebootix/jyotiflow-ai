@@ -44,8 +44,14 @@ class ConnectionManager:
         for connection in self.active_connections[:]:  # Create a copy to iterate safely
             try:
                 await connection.send_json(message)
+            except WebSocketDisconnect:
+                logger.info("WebSocket client disconnected during broadcast")
+                dead_connections.append(connection)
+            except (ConnectionResetError, ConnectionAbortedError, OSError) as conn_error:
+                logger.warning(f"Connection closed during broadcast: {conn_error}")
+                dead_connections.append(connection)
             except Exception as e:
-                logger.error(f"Error broadcasting to client: {e}")
+                logger.error(f"Unexpected error broadcasting to client: {e}")
                 dead_connections.append(connection)
         
         # Remove dead connections
@@ -200,8 +206,11 @@ class MonitoringDashboard:
                         "auto_fixed": auto_fix_stats["auto_fixed_count"] if auto_fix_stats else 0,
                         "success_rate": (
                             auto_fix_stats["auto_fixed_count"] / auto_fix_stats["total_issues"] * 100
-                            if auto_fix_stats and auto_fix_stats["total_issues"] is not None and auto_fix_stats["total_issues"] > 0 
-                            and auto_fix_stats["auto_fixed_count"] is not None else 0
+                            if (auto_fix_stats and 
+                                auto_fix_stats.get("total_issues") is not None and 
+                                auto_fix_stats.get("total_issues") > 0 and
+                                auto_fix_stats.get("auto_fixed_count") is not None)
+                            else 0
                         )
                     }
                 }
