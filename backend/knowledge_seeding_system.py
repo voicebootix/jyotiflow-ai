@@ -30,6 +30,9 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
     """
     Convert embedding to appropriate format for database storage.
     
+    SPIRITUAL CONTENT CRITICAL: Ensures authentic spiritual wisdom embeddings
+    are stored correctly for RAG-based spiritual guidance responses.
+    
     Args:
         embedding: The embedding data (str, list, or other)
         vector_support: True if pgvector is available, False for JSON storage
@@ -38,18 +41,26 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
         Properly formatted embedding for the target storage type
     """
     if vector_support:
-        # For pgvector, we need list format
+        # For pgvector, we need list format for spiritual knowledge vectors
         if isinstance(embedding, str):
             try:
                 # If it's a JSON string, parse it to get the list
                 parsed_embedding = json.loads(embedding)
+                if not isinstance(parsed_embedding, list):
+                    logger.warning("🕉️ Spiritual knowledge embedding not in list format, creating default")
+                    return [0.0] * 1536
                 return parsed_embedding  # Use the list directly
             except json.JSONDecodeError:
-                # If it's not valid JSON, create a default vector
+                # If it's not valid JSON, create a default vector for spiritual content
+                logger.warning("🕉️ Invalid spiritual knowledge embedding JSON, using default vector")
                 return [0.0] * 1536
         else:
-            # If it's already a list, use it directly
-            return embedding
+            # If it's already a list, validate it for spiritual content
+            if isinstance(embedding, list) and len(embedding) > 0:
+                return embedding
+            else:
+                logger.warning("🕉️ Empty or invalid spiritual knowledge embedding, using default")
+                return [0.0] * 1536
     else:
         # For non-pgvector, use JSON string format
         if isinstance(embedding, str):
@@ -58,7 +69,8 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
                 parsed_embedding = json.loads(embedding)
                 return json.dumps(parsed_embedding)
             except json.JSONDecodeError:
-                # If it's not valid JSON, keep as is
+                # If it's not valid JSON, keep as is but log for spiritual content
+                logger.warning("🕉️ Spiritual knowledge embedding not valid JSON, storing as-is")
                 return embedding
         else:
             # If it's a list, serialize to JSON string

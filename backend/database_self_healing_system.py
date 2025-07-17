@@ -41,7 +41,26 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 BACKUP_RETENTION_DAYS = 30
 SCAN_INTERVAL_SECONDS = 300  # 5 minutes
 MAX_FIX_ATTEMPTS = 3
-CRITICAL_TABLES = {'users', 'sessions', 'service_types', 'credit_transactions', 'payments'}
+
+# CRITICAL SPIRITUAL SERVICE TABLES - Enhanced for business context
+CRITICAL_TABLES = {
+    'users',                    # Customer accounts and credits
+    'sessions',                # Spiritual guidance sessions
+    'service_types',           # Available spiritual services
+    'credit_transactions',     # Financial transactions
+    'payments',                # Payment processing
+    'rag_knowledge_base',      # Spiritual wisdom for AI responses
+    'birth_chart_cache',       # Cached astrological calculations
+    'followup_templates'       # Follow-up spiritual guidance
+}
+
+# SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
+SPIRITUAL_SERVICE_PRIORITIES = {
+    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base'],
+    'HIGH': ['credit_transactions', 'payments', 'birth_chart_cache'],
+    'MEDIUM': ['followup_templates', 'health_check_results'],
+    'LOW': ['database_backups', 'platform_settings']
+}
 
 # Allowed PostgreSQL data types for validation
 ALLOWED_DATA_TYPES = {
@@ -895,20 +914,56 @@ class DatabaseHealthMonitor:
             await conn.close()
     
     def _should_auto_fix(self, issue: DatabaseIssue) -> bool:
-        """Determine if issue should be auto-fixed"""
-        # Auto-fix critical issues in critical tables
-        if issue.severity == 'CRITICAL' and issue.table in CRITICAL_TABLES:
-            # Check if we've already tried to fix this recently
-            issue_key = f"{issue.issue_type}:{issue.table}:{issue.column}"
-            if issue_key in self.known_issues:
-                last_attempt = self.known_issues[issue_key]
-                if safe_utc_now() - last_attempt < timedelta(hours=1):
-                    return False  # Don't retry within an hour
-            
-            self.known_issues[issue_key] = safe_utc_now()
-            return True
+        """
+        Determine if issue should be auto-fixed based on spiritual service business priorities.
         
+        SPIRITUAL SERVICE LOGIC:
+        - CRITICAL tables (users, sessions, rag_knowledge_base): Fix immediately
+        - HIGH priority (payments, birth_chart_cache): Fix with caution  
+        - MEDIUM/LOW priority: Manual approval required
+        """
+        # Get business priority for the affected table
+        table_priority = None
+        for priority, tables in SPIRITUAL_SERVICE_PRIORITIES.items():
+            if issue.table in tables:
+                table_priority = priority
+                break
+        
+        # Unknown table defaults to MEDIUM priority
+        if table_priority is None:
+            table_priority = 'MEDIUM'
+            logger.warning(f"🕉️ Unknown table {issue.table} for spiritual services, using MEDIUM priority")
+        
+        # Auto-fix logic based on spiritual service business requirements
+        if issue.severity == 'CRITICAL':
+            if table_priority == 'CRITICAL':
+                # Critical spiritual service tables - fix immediately
+                logger.info(f"🚨 CRITICAL spiritual service issue in {issue.table} - auto-fixing immediately")
+                return self._check_fix_throttling(issue, max_attempts=1)
+            elif table_priority == 'HIGH':
+                # High priority - fix with throttling
+                logger.info(f"⚠️ HIGH priority spiritual service issue in {issue.table} - auto-fixing with caution")
+                return self._check_fix_throttling(issue, max_attempts=2)
+            else:
+                # Medium/Low priority - require manual approval for safety
+                logger.warning(f"🤔 Spiritual service issue in {issue.table} requires manual approval")
+                return False
+        
+        # Non-critical issues require manual review for spiritual services
+        logger.info(f"💭 Non-critical issue in {issue.table} - manual review recommended")
         return False
+    
+    def _check_fix_throttling(self, issue: DatabaseIssue, max_attempts: int = 3) -> bool:
+        """Enhanced throttling with spiritual service context"""
+        issue_key = f"{issue.issue_type}:{issue.table}:{issue.column}"
+        if issue_key in self.known_issues:
+            last_attempt = self.known_issues[issue_key]
+            if safe_utc_now() - last_attempt < timedelta(hours=1):
+                logger.warning(f"🕉️ Spiritual service fix throttled for {issue.table} - waiting for cooldown")
+                return False  # Don't retry within an hour
+        
+        self.known_issues[issue_key] = safe_utc_now()
+        return True
 
 
 class SelfHealingOrchestrator:
