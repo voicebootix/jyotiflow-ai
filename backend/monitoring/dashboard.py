@@ -3,16 +3,6 @@
 Integrates seamlessly with existing admin dashboard UI.
 """
 import json
-from datetime import datetime
-
-def serialize_datetime(obj):
-    """JSON serializer for datetime objects"""
-    if isinstance(obj, datetime):
-        return obj.isoformat()
-    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
-
-
-import json
 import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List
