@@ -304,8 +304,10 @@ class ContextTracker:
             snapshot = self._create_snapshot(context)
             context_hash = hashlib.md5(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
             
-            async with get_db() as db:
-                await db.execute("""
+            db = await get_db()
+conn = await db.get_connection()
+try:
+                await conn.execute("""
                     INSERT INTO context_snapshots 
                     (session_id, integration_point, context_data, context_hash, created_at)
                     VALUES ($1, $2, $3, $4, $5)

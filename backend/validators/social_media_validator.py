@@ -79,9 +79,11 @@ class SocialMediaValidator:
         }
         
         try:
-            async with get_db() as db:
+            db = await get_db()
+conn = await db.get_connection()
+try:
                 # Get all platform credentials
-                platforms_data = await db.fetch("""
+                platforms_data = await conn.fetch("""
                     SELECT key, value 
                     FROM platform_settings 
                     WHERE key LIKE '%_credentials'
@@ -434,7 +436,9 @@ class SocialMediaValidator:
                 "content_generation_working": False
             }
             
-            async with get_db() as db:
+            db = await get_db()
+conn = await db.get_connection()
+try:
                 # Check configured credentials
                 credential_count = await db.fetchval("""
                     SELECT COUNT(*) FROM platform_settings 
@@ -443,7 +447,7 @@ class SocialMediaValidator:
                 health_metrics["credentials_configured"] = credential_count
                 
                 # Check recent posts
-                recent_posts = await db.fetch("""
+                recent_posts = await conn.fetch("""
                     SELECT status, COUNT(*) as count
                     FROM social_posts
                     WHERE created_at > NOW() - INTERVAL '24 hours'
@@ -704,9 +708,11 @@ class SocialMediaValidator:
     async def _check_platform_readiness(self, platform: str) -> Dict:
         """Check if platform is ready for posting"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+conn = await db.get_connection()
+try:
                 # Check if credentials exist
-                creds = await db.fetchrow("""
+                creds = await conn.fetchrow("""
                     SELECT value FROM platform_settings
                     WHERE key = $1
                 """, f"{platform}_credentials")
@@ -733,9 +739,11 @@ class SocialMediaValidator:
     async def _attempt_token_refresh(self, platform: str) -> Dict:
         """Attempt to refresh expired tokens using OAuth refresh flow"""
         try:
-            async with get_db() as db:
+            db = await get_db()
+conn = await db.get_connection()
+try:
                 # Get refresh token from database
-                token_data = await db.fetchrow("""
+                token_data = await conn.fetchrow("""
                     SELECT value FROM platform_settings 
                     WHERE platform = $1 AND setting_key = 'refresh_token'
                 """, platform)
@@ -854,8 +862,10 @@ class SocialMediaValidator:
     async def _save_refreshed_token(self, platform: str, new_token: str):
         """Save refreshed token to database"""
         try:
-            async with get_db() as db:
-                await db.execute("""
+            db = await get_db()
+conn = await db.get_connection()
+try:
+                await conn.execute("""
                     UPDATE platform_settings 
                     SET value = $1, updated_at = NOW()
                     WHERE platform = $2 AND setting_key = 'access_token'

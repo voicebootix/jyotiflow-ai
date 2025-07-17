@@ -93,8 +93,10 @@ class IntegrationMonitor:
             await self.context_tracker.initialize_session(session_id, session_context)
             
             # Store in database
-            async with get_db() as db:
-                await db.execute("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                await conn.execute("""
                     INSERT INTO validation_sessions 
                     (session_id, user_id, started_at, user_context, overall_status)
                     VALUES ($1, $2, $3, $4, $5)
@@ -102,6 +104,8 @@ class IntegrationMonitor:
                     SET started_at = $3, user_context = $4
                 """, session_id, user_id, session_context["started_at"], 
                     json.dumps(session_context), IntegrationStatus.SUCCESS.value)
+            finally:
+                await db.release_connection(conn)
             
             logger.info(f"✅ Started monitoring session {session_id}")
             return {"success": True, "session_id": session_id}
@@ -239,8 +243,10 @@ class IntegrationMonitor:
             session_context["metrics"] = session_metrics
             
             # Store final results in database
-            async with get_db() as db:
-                await db.execute("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                await conn.execute("""
                     UPDATE validation_sessions
                     SET completed_at = $1, overall_status = $2, 
                         validation_results = $3, user_context = $4
@@ -250,6 +256,8 @@ class IntegrationMonitor:
                     json.dumps(session_context["validation_results"]),
                     json.dumps(session_context),
                     session_id)
+            finally:
+                await db.release_connection(conn)
             
             # Generate session report
             session_report = {
@@ -361,8 +369,10 @@ class IntegrationMonitor:
                                      validation_result: Dict):
         """Store validation result in database"""
         try:
-            async with get_db() as db:
-                await db.execute("""
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
+                await conn.execute("""
                     INSERT INTO integration_validations
                     (session_id, integration_name, validation_type, status,
                      expected_value, actual_value, error_message, auto_fixed)
@@ -374,6 +384,8 @@ class IntegrationMonitor:
                     json.dumps(validation_result.get("actual", {})),
                     validation_result.get("error", ""),
                     validation_result.get("auto_fixed", False))
+            finally:
+                await db.release_connection(conn)
         except Exception as e:
             logger.error(f"Failed to store validation result: {e}")
     
@@ -406,9 +418,11 @@ class IntegrationMonitor:
             logger.critical(f"🚨 CRITICAL ISSUE in session {session_id}: {validation_result}")
             
             # Store in database for admin dashboard
-            async with get_db() as db:
+            db = await get_db()
+            conn = await db.get_connection()
+            try:
                 for issue in validation_result.get("critical_issues", []):
-                    await db.execute("""
+                    await conn.execute("""
                         INSERT INTO business_logic_issues
                         (session_id, issue_type, severity, description, 
                          auto_fixable, user_impact)
@@ -416,6 +430,8 @@ class IntegrationMonitor:
                     """, session_id, issue.get("type"), "critical",
                         issue.get("description"), False, 
                         issue.get("user_impact", "User may receive incorrect guidance"))
+            finally:
+                await db.release_connection(conn)
                         
         except Exception as e:
             logger.error(f"Failed to alert admin: {e}")

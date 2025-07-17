@@ -34,7 +34,9 @@ async def test_monitoring_system():
     try:
         from core_foundation_enhanced import get_db
         
-        async with get_db() as db:
+        db = await get_db()
+conn = await db.get_connection()
+try:
             # Check validation_sessions table
             table_exists = await db.fetchval("""
                 SELECT EXISTS (
