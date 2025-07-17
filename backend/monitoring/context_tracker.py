@@ -305,14 +305,16 @@ class ContextTracker:
             context_hash = hashlib.md5(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
             
             db = await get_db()
-conn = await db.get_connection()
-try:
+            conn = await db.get_connection()
+            try:
                 await conn.execute("""
                     INSERT INTO context_snapshots 
                     (session_id, integration_point, context_data, context_hash, created_at)
                     VALUES ($1, $2, $3, $4, $5)
                 """, session_id, integration_point, json.dumps(snapshot), 
                     context_hash, datetime.now(timezone.utc))
+            finally:
+                await db.release_connection(conn)
                     
         except Exception as e:
             logger.error(f"Failed to store context snapshot: {e}")
