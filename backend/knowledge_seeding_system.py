@@ -26,6 +26,57 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
+    """
+    Convert embedding to appropriate format for database storage.
+    
+    SPIRITUAL CONTENT CRITICAL: Ensures authentic spiritual wisdom embeddings
+    are stored correctly for RAG-based spiritual guidance responses.
+    
+    Args:
+        embedding: The embedding data (str, list, or other)
+        vector_support: True if pgvector is available, False for JSON storage
+        
+    Returns:
+        Properly formatted embedding for the target storage type
+    """
+    if vector_support:
+        # For pgvector, we need list format for spiritual knowledge vectors
+        if isinstance(embedding, str):
+            try:
+                # If it's a JSON string, parse it to get the list
+                parsed_embedding = json.loads(embedding)
+                if not isinstance(parsed_embedding, list):
+                    logger.warning("🕉️ Spiritual knowledge embedding not in list format, creating default")
+                    return [0.0] * 1536
+                return parsed_embedding  # Use the list directly
+            except json.JSONDecodeError:
+                # If it's not valid JSON, create a default vector for spiritual content
+                logger.warning("🕉️ Invalid spiritual knowledge embedding JSON, using default vector")
+                return [0.0] * 1536
+        else:
+            # If it's already a list, validate it for spiritual content
+            if isinstance(embedding, list) and len(embedding) > 0:
+                return embedding
+            else:
+                logger.warning("🕉️ Empty or invalid spiritual knowledge embedding, using default")
+                return [0.0] * 1536
+    else:
+        # For non-pgvector, use JSON string format
+        if isinstance(embedding, str):
+            try:
+                # If it's already a JSON string, parse and re-serialize to ensure consistency
+                parsed_embedding = json.loads(embedding)
+                return json.dumps(parsed_embedding)
+            except json.JSONDecodeError:
+                # If it's not valid JSON, keep as is but log for spiritual content
+                logger.warning("🕉️ Spiritual knowledge embedding not valid JSON, storing as-is")
+                return embedding
+        else:
+            # If it's a list, serialize to JSON string
+            return json.dumps(embedding)
+
+
 class KnowledgeSeeder:
     """
     Comprehensive knowledge seeding system
@@ -531,21 +582,7 @@ class KnowledgeSeeder:
                     vector_support = column_type == 'USER-DEFINED'  # VECTOR type shows as USER-DEFINED
             
             # Convert embedding to appropriate format
-            if vector_support:
-                embedding_data = embedding
-            else:
-                # When pgvector is not supported, serialize list to JSON string for TEXT/JSONB columns
-                if isinstance(embedding, str):
-                    try:
-                        # If it's already a JSON string, parse and re-serialize to ensure consistency
-                        parsed_embedding = json.loads(embedding)
-                        embedding_data = json.dumps(parsed_embedding)
-                    except json.JSONDecodeError:
-                        # If it's not valid JSON, keep as is
-                        embedding_data = embedding
-                else:
-                    # If it's a list, serialize to JSON string
-                    embedding_data = json.dumps(embedding)
+            embedding_data = format_embedding_for_storage(embedding, vector_support)
             
             # Add to database - handle both pool and direct connection
             if self.db_pool:
@@ -658,21 +695,7 @@ class KnowledgeSeeder:
                         vector_support = column_type == 'USER-DEFINED'
                         
                         # Convert embedding to appropriate format
-                        if vector_support:
-                            embedding_data = embedding
-                        else:
-                            # When pgvector is not supported, serialize list to JSON string for TEXT/JSONB columns
-                            if isinstance(embedding, str):
-                                try:
-                                    # If it's already a JSON string, parse and re-serialize to ensure consistency
-                                    parsed_embedding = json.loads(embedding)
-                                    embedding_data = json.dumps(parsed_embedding)
-                                except json.JSONDecodeError:
-                                    # If it's not valid JSON, keep as is
-                                    embedding_data = embedding
-                            else:
-                                # If it's a list, serialize to JSON string
-                                embedding_data = json.dumps(embedding)
+                        embedding_data = format_embedding_for_storage(embedding, vector_support)
                         
                         # Check if content_type column exists
                         content_type_exists = await conn.fetchval("""

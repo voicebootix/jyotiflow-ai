@@ -3,13 +3,16 @@
 Ensures no data loss between integration points and tracks context transformations.
 """
 
+import asyncio
 import json
 import logging
-from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
 import hashlib
+from datetime import datetime, timezone
+from typing import Dict, List, Any, Optional
+from enum import Enum
 
 from core_foundation_enhanced import get_database as get_db, logger
+from database_timezone_fixer import safe_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -312,7 +315,7 @@ class ContextTracker:
                     (session_id, integration_point, context_data, context_hash, created_at)
                     VALUES ($1, $2, $3, $4, $5)
                 """, session_id, integration_point, json.dumps(snapshot), 
-                    context_hash, datetime.now(timezone.utc))
+                    context_hash, safe_utc_now())
             finally:
                 await db.release_connection(conn)
                     

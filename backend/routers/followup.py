@@ -12,6 +12,7 @@ from schemas.followup import (
 from utils.followup_service import FollowUpService
 from deps import get_current_user, get_admin_user
 from core_foundation_enhanced import get_database
+from database_timezone_fixer import safe_utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -187,7 +188,7 @@ async def update_followup_template(
                     template_data.template_type.value, template_data.channel.value,
                     template_data.subject, template_data.content, template_data.tamil_content,
                     json.dumps(template_data.variables), template_data.credits_cost,
-                    template_data.is_active, datetime.now(timezone.utc), template_id
+                    template_data.is_active, safe_utc_now(), template_id
                 ))
             else:
                 result = await conn.execute("""
@@ -438,13 +439,13 @@ async def update_followup_settings(
                         UPDATE follow_up_settings 
                         SET setting_value = ?, updated_at = ?
                         WHERE setting_key = ?
-                    """, (str(value), datetime.now(timezone.utc), key))
+                    """, (str(value), safe_utc_now(), key))
                 else:
                     await conn.execute("""
                         UPDATE follow_up_settings 
                         SET setting_value = $1, updated_at = NOW()
                         WHERE setting_key = $2
-                    """, (str(value), key))
+                    """, str(value), key)
             
             return {"success": True, "message": "Settings updated successfully"}
         finally:

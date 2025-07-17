@@ -20,6 +20,18 @@ from dataclasses import dataclass, asdict
 from collections import defaultdict
 import re
 
+# Import timezone fixer to handle database datetime issues
+try:
+    from database_timezone_fixer import safe_utc_now, normalize_datetime_for_db
+except ImportError:
+    # Fallback definitions if file doesn't exist yet
+    def safe_utc_now():
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+    def normalize_datetime_for_db(dt):
+        if isinstance(dt, datetime) and dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        return dt
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,7 +41,26 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 BACKUP_RETENTION_DAYS = 30
 SCAN_INTERVAL_SECONDS = 300  # 5 minutes
 MAX_FIX_ATTEMPTS = 3
-CRITICAL_TABLES = {'users', 'sessions', 'service_types', 'credit_transactions', 'payments'}
+
+# CRITICAL SPIRITUAL SERVICE TABLES - Enhanced for business context
+CRITICAL_TABLES = {
+    'users',                    # Customer accounts and credits
+    'sessions',                # Spiritual guidance sessions
+    'service_types',           # Available spiritual services
+    'credit_transactions',     # Financial transactions
+    'payments',                # Payment processing
+    'rag_knowledge_base',      # Spiritual wisdom for AI responses
+    'birth_chart_cache',       # Cached astrological calculations
+    'followup_templates'       # Follow-up spiritual guidance
+}
+
+# SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
+SPIRITUAL_SERVICE_PRIORITIES = {
+    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base'],
+    'HIGH': ['credit_transactions', 'payments', 'birth_chart_cache'],
+    'MEDIUM': ['followup_templates', 'health_check_results'],
+    'LOW': ['database_backups', 'platform_settings']
+}
 
 # Allowed PostgreSQL data types for validation
 ALLOWED_DATA_TYPES = {
@@ -74,7 +105,7 @@ class DatabaseIssue:
     
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.now(timezone.utc)
+            self.created_at = safe_utc_now()
         if self.affected_files is None:
             self.affected_files = []
         if self.affected_queries is None:
@@ -461,7 +492,7 @@ class DatabaseIssueFixer:
             
             # Record fix in history
             self.fix_history.append({
-                'timestamp': datetime.now(timezone.utc),
+                'timestamp': safe_utc_now(),
                 'issue': asdict(issue),
                 'result': result,
                 'backup_id': backup_id
@@ -480,7 +511,7 @@ class DatabaseIssueFixer:
     
     async def _create_backup_point(self, conn: asyncpg.Connection, issue: DatabaseIssue) -> str:
         """Create backup point for rollback"""
-        backup_id = f"fix_{issue.issue_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        backup_id = f"fix_{issue.issue_id}_{safe_utc_now().strftime('%Y%m%d_%H%M%S')}"
         
         # Create backup table for affected data
         if issue.table and issue.column:
@@ -498,7 +529,7 @@ class DatabaseIssueFixer:
             await conn.execute("""
                 INSERT INTO database_backups (backup_id, table_name, column_name, issue_type, created_at)
                 VALUES ($1, $2, $3, $4, $5)
-            """, backup_id, issue.table, issue.column, issue.issue_type, datetime.now(timezone.utc))
+            """, backup_id, issue.table, issue.column, issue.issue_type, safe_utc_now())
         
         return backup_id
     
@@ -604,7 +635,7 @@ class DatabaseIssueFixer:
                 file_path = fix['file']
                 
                 # Backup original file
-                backup_path = f"{file_path}.backup.{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+                backup_path = f"{file_path}.backup.{safe_utc_now().strftime('%Y%m%d_%H%M%S')}"
                 with open(file_path, 'r') as f:
                     original_content = f.read()
                 with open(backup_path, 'w') as f:
@@ -645,7 +676,7 @@ class DatabaseHealthMonitor:
         logger.info("Starting database health check...")
         
         results = {
-            'timestamp': datetime.now(timezone.utc),
+            'timestamp': safe_utc_now(),
             'issues_found': 0,
             'issues_fixed': 0,
             'critical_issues': [],
@@ -658,12 +689,21 @@ class DatabaseHealthMonitor:
         try:
             # 1. Analyze database schema
             logger.info("Analyzing database schema...")
-            schema = await self.schema_analyzer.analyze_schema()
-            results['schema_analysis'] = {
-                'tables_count': len(schema['tables']),
-                'total_size': sum(t['size_bytes'] for t in schema['tables'] if t['size_bytes']),
-                'tables': schema['tables']
-            }
+            try:
+                schema = await self.schema_analyzer.analyze_schema()
+                results['schema_analysis'] = {
+                    'tables_count': len(schema['tables']),
+                    'total_size': sum(t['size_bytes'] for t in schema['tables'] if t['size_bytes']),
+                    'tables': schema['tables']
+                }
+            except Exception as e:
+                logger.error(f"Schema analysis failed: {e}")
+                results['schema_analysis'] = {
+                    'tables_count': 0,
+                    'total_size': 0,
+                    'tables': [],
+                    'error': str(e)
+                }
             
             # 2. Analyze code patterns
             logger.info("Analyzing code patterns...")
@@ -699,7 +739,11 @@ class DatabaseHealthMonitor:
                             results['issues_fixed'] += 1
             
             # 7. Check performance
-            results['performance_metrics'] = await self._check_performance()
+            try:
+                results['performance_metrics'] = await self._check_performance()
+            except Exception as e:
+                logger.error(f"Performance check failed: {e}")
+                results['performance_metrics'] = {'error': str(e)}
             
         except Exception as e:
             logger.error(f"Health check failed: {e}")
@@ -791,49 +835,78 @@ class DatabaseHealthMonitor:
             metrics = {}
             
             # Table sizes
-            size_query = """
-                SELECT 
-                    relname AS table_name,
-                    pg_size_pretty(pg_relation_size(relid)) AS size
-                FROM pg_stat_user_tables
-                ORDER BY pg_relation_size(relid) DESC
-                LIMIT 10
-            """
-            metrics['largest_tables'] = [dict(row) for row in await conn.fetch(size_query)]
+            try:
+                size_query = """
+                    SELECT 
+                        relname AS table_name,
+                        pg_size_pretty(pg_relation_size(relid)) AS size
+                    FROM pg_stat_user_tables
+                    ORDER BY pg_relation_size(relid) DESC
+                    LIMIT 10
+                """
+                metrics['largest_tables'] = [dict(row) for row in await conn.fetch(size_query)]
+            except Exception as e:
+                logger.warning(f"Failed to get table sizes: {e}")
+                metrics['largest_tables'] = []
             
             # Slow queries (if pg_stat_statements is available)
             try:
-                slow_query = """
-                    SELECT 
-                        query,
-                        calls,
-                        total_time,
-                        mean_time,
-                        stddev_time
-                    FROM pg_stat_statements
-                    WHERE query NOT LIKE '%pg_stat_statements%'
-                    ORDER BY mean_time DESC
-                    LIMIT 5
-                """
+                # Check PostgreSQL version and adjust column names accordingly
+                pg_version = await conn.fetchval("SELECT version()")
+                
+                # PostgreSQL 13+ uses different column names in pg_stat_statements
+                if "PostgreSQL 13" in pg_version or "PostgreSQL 14" in pg_version or "PostgreSQL 15" in pg_version:
+                    slow_query = """
+                        SELECT 
+                            query,
+                            calls,
+                            total_exec_time as total_time,
+                            mean_exec_time as mean_time
+                        FROM pg_stat_statements
+                        WHERE query NOT LIKE '%pg_stat_statements%'
+                        AND calls > 0
+                        ORDER BY mean_exec_time DESC
+                        LIMIT 5
+                    """
+                else:
+                    # Older PostgreSQL versions
+                    slow_query = """
+                        SELECT 
+                            query,
+                            calls,
+                            total_time,
+                            mean_time
+                        FROM pg_stat_statements
+                        WHERE query NOT LIKE '%pg_stat_statements%'
+                        AND calls > 0
+                        ORDER BY mean_time DESC
+                        LIMIT 5
+                    """
+                
                 metrics['slow_queries'] = [dict(row) for row in await conn.fetch(slow_query)]
-            except asyncpg.UndefinedTableError:
+            except (asyncpg.UndefinedTableError, asyncpg.UndefinedColumnError, Exception) as e:
+                logger.warning(f"pg_stat_statements not available or incompatible: {e}")
                 metrics['slow_queries'] = []
             
             # Index usage
-            index_query = """
-                SELECT 
-                    schemaname,
-                    tablename,
-                    indexname,
-                    idx_scan,
-                    idx_tup_read,
-                    idx_tup_fetch
-                FROM pg_stat_user_indexes
-                WHERE idx_scan = 0
-                AND schemaname = 'public'
-            """
-            unused_indexes = await conn.fetch(index_query)
-            metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
+            try:
+                index_query = """
+                    SELECT 
+                        schemaname,
+                        tablename,
+                        indexname,
+                        idx_scan,
+                        idx_tup_read,
+                        idx_tup_fetch
+                    FROM pg_stat_user_indexes
+                    WHERE idx_scan = 0
+                    AND schemaname = 'public'
+                """
+                unused_indexes = await conn.fetch(index_query)
+                metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
+            except Exception as e:
+                logger.warning(f"Failed to get index usage: {e}")
+                metrics['unused_indexes'] = []
             
             return metrics
             
@@ -841,20 +914,56 @@ class DatabaseHealthMonitor:
             await conn.close()
     
     def _should_auto_fix(self, issue: DatabaseIssue) -> bool:
-        """Determine if issue should be auto-fixed"""
-        # Auto-fix critical issues in critical tables
-        if issue.severity == 'CRITICAL' and issue.table in CRITICAL_TABLES:
-            # Check if we've already tried to fix this recently
-            issue_key = f"{issue.issue_type}:{issue.table}:{issue.column}"
-            if issue_key in self.known_issues:
-                last_attempt = self.known_issues[issue_key]
-                if datetime.now(timezone.utc) - last_attempt < timedelta(hours=1):
-                    return False  # Don't retry within an hour
-            
-            self.known_issues[issue_key] = datetime.now(timezone.utc)
-            return True
+        """
+        Determine if issue should be auto-fixed based on spiritual service business priorities.
         
+        SPIRITUAL SERVICE LOGIC:
+        - CRITICAL tables (users, sessions, rag_knowledge_base): Fix immediately
+        - HIGH priority (payments, birth_chart_cache): Fix with caution  
+        - MEDIUM/LOW priority: Manual approval required
+        """
+        # Get business priority for the affected table
+        table_priority = None
+        for priority, tables in SPIRITUAL_SERVICE_PRIORITIES.items():
+            if issue.table in tables:
+                table_priority = priority
+                break
+        
+        # Unknown table defaults to MEDIUM priority
+        if table_priority is None:
+            table_priority = 'MEDIUM'
+            logger.warning(f"🕉️ Unknown table {issue.table} for spiritual services, using MEDIUM priority")
+        
+        # Auto-fix logic based on spiritual service business requirements
+        if issue.severity == 'CRITICAL':
+            if table_priority == 'CRITICAL':
+                # Critical spiritual service tables - fix immediately
+                logger.info(f"🚨 CRITICAL spiritual service issue in {issue.table} - auto-fixing immediately")
+                return self._check_fix_throttling(issue, max_attempts=1)
+            elif table_priority == 'HIGH':
+                # High priority - fix with throttling
+                logger.info(f"⚠️ HIGH priority spiritual service issue in {issue.table} - auto-fixing with caution")
+                return self._check_fix_throttling(issue, max_attempts=2)
+            else:
+                # Medium/Low priority - require manual approval for safety
+                logger.warning(f"🤔 Spiritual service issue in {issue.table} requires manual approval")
+                return False
+        
+        # Non-critical issues require manual review for spiritual services
+        logger.info(f"💭 Non-critical issue in {issue.table} - manual review recommended")
         return False
+    
+    def _check_fix_throttling(self, issue: DatabaseIssue, max_attempts: int = 3) -> bool:
+        """Enhanced throttling with spiritual service context"""
+        issue_key = f"{issue.issue_type}:{issue.table}:{issue.column}"
+        if issue_key in self.known_issues:
+            last_attempt = self.known_issues[issue_key]
+            if safe_utc_now() - last_attempt < timedelta(hours=1):
+                logger.warning(f"🕉️ Spiritual service fix throttled for {issue.table} - waiting for cooldown")
+                return False  # Don't retry within an hour
+        
+        self.known_issues[issue_key] = safe_utc_now()
+        return True
 
 
 class SelfHealingOrchestrator:
@@ -979,7 +1088,7 @@ class SelfHealingOrchestrator:
                 'last_check': latest['timestamp'] if latest else None,
                 'total_fixes': fix_count or 0,
                 'active_critical_issues': active_issues,
-                'next_check': datetime.now(timezone.utc) + timedelta(seconds=SCAN_INTERVAL_SECONDS) if self.running else None
+                'next_check': safe_utc_now() + timedelta(seconds=SCAN_INTERVAL_SECONDS) if self.running else None
             }
             
         finally:
