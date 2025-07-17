@@ -336,7 +336,7 @@ def get_cors_headers():
 # Add CORS middleware with simplified configuration for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=get_cors_origins(),  # Use proper domain-specific origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
