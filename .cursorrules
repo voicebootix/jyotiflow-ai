@@ -1,0 +1,167 @@
+# 🗄️ DATABASE SCHEMA RULES (Auto-Generated from Code Analysis)
+Last Updated: 2024-12-29
+
+## 🚨 TYPE DEFINITIONS - CRITICAL
+When creating columns, use these EXACT types (found in your codebase):
+
+### Common Type Mappings:
+| Code Type | Database Type | Notes |
+|-----------|---------------|--------|
+| string | VARCHAR(255) | Default for strings |
+| number/int | INTEGER | For whole numbers |
+| decimal/float | DECIMAL(10,2) | For money/decimals |
+| boolean | BOOLEAN | true/false |
+| Date/datetime | TIMESTAMP | For dates with time |
+| date only | DATE | For dates only |
+| time only | TIME | For time only |
+| uuid | UUID | For unique IDs |
+| json/object | JSONB | For objects/arrays |
+| text | TEXT | For long text |
+
+### ⚠️ KNOWN TYPE ISSUES IN THIS PROJECT:
+- `users.id`: SERIAL (auto-incrementing INTEGER), not UUID or string
+- `sessions.user_id`: Should be INTEGER to match users.id, not TEXT
+- `sessions.session_id`: VARCHAR(255) for UUID strings
+- `service_types.credits_required`: INTEGER (often missing, needs migration)
+
+## 📋 ACTUAL SCHEMA FROM CODE ANALYSIS:
+[This section is auto-updated - do not edit manually]
+
+### Table: users (Found in: auth.py, ai.py, core_foundation.py, auth_helpers.py)
+Required columns:
+- id (SERIAL) - Primary key, auto-incrementing integer
+- email (VARCHAR(255)) - Unique, not null
+- password_hash (VARCHAR(255)) - Not null
+- name (VARCHAR(255)) - Not null (sometimes 'full_name')
+- role (VARCHAR(50)) - Default: 'user'
+- credits (INTEGER) - Default: 0
+- base_credits (INTEGER) - Default: 0
+- phone (VARCHAR(20))
+- birth_date (DATE)
+- birth_time (TIME)
+- birth_location (VARCHAR(255))
+- spiritual_level (VARCHAR(50)) - Default: 'beginner'
+- preferred_language (VARCHAR(10)) - Default: 'en'
+- avatar_sessions_count (INTEGER) - Default: 0
+- total_avatar_minutes (INTEGER) - Default: 0
+- created_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+- updated_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+- last_login_at (TIMESTAMP)
+
+### Table: sessions (Found in: sessions.py, followup.py, ai.py, spiritual.py)
+Required columns:
+- id (SERIAL) - Primary key
+- session_id (VARCHAR(255)) - Unique session identifier
+- user_email (VARCHAR(255)) - References users.email
+- user_id (INTEGER) - ⚠️ Type mismatch fixed - References users.id
+- service_type (TEXT) - Not null
+- duration_minutes (INTEGER) - Default: 0
+- credits_used (INTEGER) - Default: 0
+- session_data (TEXT)
+- question (TEXT)
+- birth_details (JSONB)
+- status (VARCHAR(50)) - Default: 'active'
+- result_summary (TEXT)
+- full_result (TEXT)
+- guidance (TEXT)
+- avatar_video_url (VARCHAR(500))
+- follow_up_email_sent (BOOLEAN) - Default: FALSE
+- follow_up_sms_sent (BOOLEAN) - Default: FALSE
+- follow_up_whatsapp_sent (BOOLEAN) - Default: FALSE
+- created_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+- updated_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+
+### Table: service_types (Found in: services.py, ai.py, startup_database_validator.py)
+Required columns:
+- id (SERIAL) - Primary key
+- name (VARCHAR(100)) - Unique, not null
+- display_name (VARCHAR(255))
+- description (TEXT)
+- base_credits (INTEGER) - Not null, default: 10
+- credits_required (INTEGER) - Default: 5 - ⚠️ Often missing!
+- price_usd (DECIMAL(10,2)) - Default: 0.0
+- duration_minutes (INTEGER) - Default: 15
+- video_enabled (BOOLEAN) - Default: true
+- service_category (VARCHAR(100)) - Default: 'guidance'
+- enabled (BOOLEAN) - Default: true
+- icon (VARCHAR(50)) - Default: '🔮'
+- created_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+- updated_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+
+### Table: credit_packages (Found in: admin_products.py, credits.py, safe_database_init.py)
+Required columns:
+- id (SERIAL) - Primary key
+- name (VARCHAR(100)) - Unique
+- credits_amount (INTEGER) - Not null
+- price_usd (DECIMAL(10,2)) - Not null
+- bonus_credits (INTEGER) - Default: 0
+- enabled (BOOLEAN) - Default: true
+- created_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+
+### Table: pricing_config (Found in: admin_products.py, welcome_credits_utils.py)
+Required columns:
+- id (SERIAL) - Primary key
+- key (VARCHAR(100)) - Unique
+- value (TEXT)
+- is_active (BOOLEAN) - Default: true
+- created_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+- updated_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+
+### Table: platform_settings (Found in: tiktok_service.py, social_media_marketing_router.py)
+Required columns:
+- id (SERIAL) - Primary key
+- key (VARCHAR(100)) - Unique
+- value (TEXT)
+- created_at (TIMESTAMP) - Added via migration
+- updated_at (TIMESTAMP) - Added via migration
+
+### Table: followup_templates (Found in: followup.py, database_schema_fixes.py)
+Required columns:
+- id (SERIAL) - Primary key
+- name (VARCHAR(100)) - Unique
+- type (VARCHAR(50)) - email/sms/whatsapp
+- subject (VARCHAR(255))
+- content (TEXT)
+- variables (JSONB) - Default: '{}'
+- enabled (BOOLEAN) - Default: true
+- created_at (TIMESTAMP) - Default: CURRENT_TIMESTAMP
+
+## 🛑 MIGRATION RULES:
+1. **ALWAYS check column types match code expectations**
+2. **Use SERIAL for auto-incrementing IDs, not UUID**
+3. **user_id in sessions table must be INTEGER, not TEXT**
+4. **Archive unused migrations to**: `backend/migrations/archived/`
+5. **Test type conversions on backup table first**
+6. **Run the fix script**: `npm run db:fix`
+
+## 🧹 DEPRECATED COLUMNS TRACKING:
+Columns marked for removal (still exist but not used):
+```json
+{
+  "sessions": ["aud", "role", "instance_id"],
+  "users": ["aud", "role_legacy", "instance_id"]
+}
+```
+
+## 📝 BEFORE CREATING ANY MIGRATION:
+1. Check if table/column already exists in database
+2. Verify type matches code usage (check this file!)
+3. Run: `npm run db:analyze` first
+4. Use exact types from mapping table above
+5. Consider if existing migration already handles it
+
+## ⚠️ COMMON MISTAKES TO AVOID:
+1. **DON'T use UUID for users.id** - It's SERIAL (auto-incrementing integer)
+2. **DON'T use TEXT for user_id** - It should be INTEGER to match users.id
+3. **DON'T forget credits_required** in service_types - It's often missing
+4. **DON'T create duplicate migrations** - Check existing ones first
+5. **DON'T mix camelCase and snake_case** - Use snake_case in database
+
+## 🔧 HELPER COMMANDS:
+- `npm run db:analyze` - Analyze current database state
+- `npm run db:fix` - Apply all fixes automatically
+- `npm run db:check-type <table> <column>` - Check type mismatch
+- `npm run db:clean-migrations` - Archive unused migrations
+- `npm run db:full-cleanup` - Complete database cleanup
+
+[Keep any other project-specific rules below this line]

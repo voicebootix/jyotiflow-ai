@@ -16,6 +16,7 @@ import AdminPricingDashboard from './AdminPricingDashboard';
 import SocialMediaMarketing from './admin/SocialMediaMarketing';
 import FollowUpManagement from './admin/FollowUpManagement';
 import SystemMonitoring from './admin/SystemMonitoring';
+import DatabaseHealthMonitor from './DatabaseHealthMonitor';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -100,6 +101,7 @@ const AdminDashboard = () => {
     { key: 'creditPackages', label: 'Credit Packages' },
     { key: 'followup', label: 'Follow-ups' },
     { key: 'monitoring', label: '🔍 System Monitor' },
+    { key: 'databaseHealth', label: '🏥 Database Health' },
   ];
 
   return (
@@ -248,6 +250,7 @@ const AdminDashboard = () => {
         {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
         {activeTab === 'followup' && <FollowUpManagement />}
         {activeTab === 'monitoring' && <SystemMonitoring />}
+        {activeTab === 'databaseHealth' && <DatabaseHealthMonitor />}
       </div>
     </div>
   );

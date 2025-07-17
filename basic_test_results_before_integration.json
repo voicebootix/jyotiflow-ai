@@ -1,0 +1,71 @@
+{
+  "total_tests": 4,
+  "passed": 1,
+  "failed": 1,
+  "partial": 0,
+  "info": 1,
+  "total_time_seconds": 0.03,
+  "detailed_results": [
+    {
+      "test": "unified_startup_import",
+      "status": "FAIL",
+      "error": "No module named 'asyncpg'",
+      "details": "Failed to import unified startup system"
+    },
+    {
+      "test": "separate_systems_import",
+      "results": {
+        "integrate_self_healing": {
+          "status": "FAIL",
+          "error": "No module named 'fastapi'",
+          "details": "Failed to import integrate_self_healing"
+        },
+        "enhanced_startup_integration": {
+          "status": "PASS",
+          "details": "Import successful"
+        },
+        "fix_startup_issues": {
+          "status": "FAIL",
+          "error": "No module named 'asyncpg'",
+          "details": "Failed to import fix_startup_issues"
+        },
+        "startup_database_validator": {
+          "status": "FAIL",
+          "error": "No module named 'asyncpg'",
+          "details": "Failed to import startup_database_validator"
+        }
+      },
+      "summary": "1/4 systems importable"
+    },
+    {
+      "test": "main_py_integration",
+      "status": "INFO",
+      "integrations": {
+        "unified_startup_system": true,
+        "self_healing": true,
+        "enhanced_startup": false,
+        "startup_fixer": false,
+        "database_validator": false,
+        "health_router": false
+      },
+      "details": "2/6 systems integrated in main.py"
+    },
+    {
+      "test": "critical_files_exist",
+      "status": "PASS",
+      "existing_files": [
+        "backend/unified_startup_system.py",
+        "backend/integrate_self_healing.py",
+        "backend/enhanced_startup_integration.py",
+        "backend/fix_startup_issues.py",
+        "backend/startup_database_validator.py",
+        "backend/database_self_healing_system.py",
+        "backend/knowledge_seeding_system.py",
+        "backend/main.py"
+      ],
+      "missing_files": [],
+      "details": "8/8 critical files exist"
+    }
+  ],
+  "timestamp": "2025-07-16 14:20:26"
+}
