@@ -155,7 +155,7 @@ class UnifiedJyotiFlowStartup:
                 
                 # Reasonable timeout: fast failure instead of hanging
                 timeout = 30 if attempt == 0 else 45  # Much more reasonable timeouts
-                logger.info(f"⏱️ Using {timeout}s outer timeout with {self.pool_config['connect_timeout']}s connection timeout")
+                logger.info(f"⏱️ Using {timeout}s outer timeout for connection attempt")
                 
                 # Log connection attempt details
                 logger.info(f"🔧 Pool config - min: {self.pool_config['min_size']}, max: {self.pool_config['max_size']}")
