@@ -5,6 +5,9 @@ Ensures the integration chain produces high-quality, authentic spiritual guidanc
 
 import json
 import logging
+import time
+import hashlib
+import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 import re
@@ -34,9 +37,24 @@ class BusinessLogicValidator:
     """
     
     def __init__(self):
-        self.openai_client = openai.AsyncClient(api_key=settings.openai_api_key)
+        # Validate OpenAI API key is present
+        if not settings.openai_api_key:
+            raise ValueError(
+                "OpenAI API key is missing. Please set the OPENAI_API_KEY environment variable."
+            )
+        
+        try:
+            self.openai_client = openai.AsyncClient(api_key=settings.openai_api_key)
+        except Exception as e:
+            raise ValueError(f"Failed to initialize OpenAI client: {e}")
+            
         self.spiritual_keywords = self._load_spiritual_keywords()
         self.tamil_vedic_terms = self._load_tamil_vedic_terms()
+        
+        # Rate limiting and caching for OpenAI API
+        self._embedding_cache = {}
+        self._api_call_times = []
+        self._max_calls_per_minute = 30  # Conservative rate limit
         
     async def validate_session(self, session_context: Dict) -> Dict:
         """Run comprehensive business logic validation for the entire session"""
@@ -403,6 +421,24 @@ class BusinessLogicValidator:
                 validation["valid"] = False
                 validation["severity"] = "error"
                 validation["error"] = f"Low quality response (score: {validation['quality_score']:.2f})"
+                
+                # Add detailed feedback on specific quality issues
+                quality_feedback = []
+                if not validation["uses_swami_persona"]:
+                    quality_feedback.append("Missing authentic Swami persona and speech patterns")
+                if not validation["includes_birth_context"]:
+                    quality_feedback.append("Birth chart context not properly incorporated")
+                if not validation["incorporates_rag_knowledge"]:
+                    quality_feedback.append("RAG knowledge not effectively utilized")
+                if not validation["appropriate_length"]:
+                    quality_feedback.append("Response length inappropriate for spiritual guidance")
+                if not validation["spiritual_tone"]:
+                    quality_feedback.append("Lacks proper spiritual tone and reverence")
+                if not validation["cultural_authenticity"]:
+                    quality_feedback.append("Missing Tamil/Vedic cultural authenticity")
+                
+                validation["quality_feedback"] = quality_feedback
+                validation["improvement_suggestions"] = self._generate_quality_improvement_suggestions(quality_feedback)
                 validation["user_impact"] = "User receives low quality spiritual guidance"
             
             return validation
@@ -413,6 +449,51 @@ class BusinessLogicValidator:
             validation["error"] = str(e)
             return validation
     
+    def _generate_quality_improvement_suggestions(self, quality_feedback: List[str]) -> List[str]:
+        """Generate specific improvement suggestions based on quality feedback"""
+        suggestions = []
+        
+        if "Missing authentic Swami persona and speech patterns" in quality_feedback:
+            suggestions.append("Include phrases like 'my child', 'divine wisdom shows', 'let me guide you'")
+        
+        if "Birth chart context not properly incorporated" in quality_feedback:
+            suggestions.append("Reference specific planetary positions, houses, or nakshatra from birth chart")
+        
+        if "RAG knowledge not effectively utilized" in quality_feedback:
+            suggestions.append("Integrate relevant Vedic principles and classical astrology concepts")
+        
+        if "Response length inappropriate for spiritual guidance" in quality_feedback:
+            suggestions.append("Provide more comprehensive guidance (aim for 150-300 words)")
+        
+        if "Lacks proper spiritual tone and reverence" in quality_feedback:
+            suggestions.append("Use respectful, compassionate language befitting spiritual guidance")
+        
+        if "Missing Tamil/Vedic cultural authenticity" in quality_feedback:
+            suggestions.append("Include Sanskrit terms, Tamil cultural references, or Vedic concepts")
+        
+                return suggestions
+    
+    def _get_embedding_cache_key(self, text: str) -> str:
+        """Generate cache key for embedding"""
+        return hashlib.md5(text.encode()).hexdigest()
+    
+    async def _rate_limited_api_call(self):
+        """Implement rate limiting for OpenAI API calls"""
+        current_time = time.time()
+        
+        # Remove calls older than 1 minute
+        self._api_call_times = [t for t in self._api_call_times if current_time - t < 60]
+        
+        # Check if we're at the rate limit
+        if len(self._api_call_times) >= self._max_calls_per_minute:
+            sleep_time = 60 - (current_time - self._api_call_times[0])
+            if sleep_time > 0:
+                logger.warning(f"Rate limit reached, sleeping for {sleep_time:.2f} seconds")
+                await asyncio.sleep(sleep_time)
+        
+        # Record this API call
+        self._api_call_times.append(current_time)
+     
     async def _validate_spiritual_authenticity(self, session_context: Dict) -> Dict:
         """Validate overall spiritual authenticity of the guidance"""
         validation = {
@@ -738,20 +819,34 @@ class BusinessLogicValidator:
         return score
     
     async def _calculate_semantic_similarity(self, text1: str, text2: str) -> float:
-        """Calculate semantic similarity using OpenAI embeddings"""
+        """Calculate semantic similarity using OpenAI embeddings with caching and rate limiting"""
         try:
-            # Get embeddings
-            embedding1_response = await self.openai_client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text1
-            )
-            embedding2_response = await self.openai_client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text2
-            )
+            # Check cache first
+            cache_key1 = self._get_embedding_cache_key(text1)
+            cache_key2 = self._get_embedding_cache_key(text2)
             
-            embedding1 = embedding1_response.data[0].embedding
-            embedding2 = embedding2_response.data[0].embedding
+            # Get embeddings (with caching)
+            if cache_key1 in self._embedding_cache:
+                embedding1 = self._embedding_cache[cache_key1]
+            else:
+                await self._rate_limited_api_call()
+                embedding1_response = await self.openai_client.embeddings.create(
+                    model="text-embedding-ada-002",
+                    input=text1[:8000]  # Limit input length
+                )
+                embedding1 = embedding1_response.data[0].embedding
+                self._embedding_cache[cache_key1] = embedding1
+            
+            if cache_key2 in self._embedding_cache:
+                embedding2 = self._embedding_cache[cache_key2]
+            else:
+                await self._rate_limited_api_call()
+                embedding2_response = await self.openai_client.embeddings.create(
+                    model="text-embedding-ada-002",
+                    input=text2[:8000]  # Limit input length
+                )
+                embedding2 = embedding2_response.data[0].embedding
+                self._embedding_cache[cache_key2] = embedding2
             
             # Calculate cosine similarity
             if NUMPY_AVAILABLE:

@@ -79,6 +79,14 @@ class AgoraChannelManager:
     def __init__(self, database_url: str = None):
         self.database_url = database_url or os.getenv("DATABASE_URL")
         
+        # Validate DATABASE_URL is set
+        if not self.database_url:
+            raise ValueError(
+                "DATABASE_URL environment variable is missing or empty. "
+                "Please set the DATABASE_URL environment variable or provide it as a parameter. "
+                "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+            )
+        
     async def create_session_channel(self, user_id: int, session_type: str = "spiritual_guidance") -> Dict:
         """Create new Agora channel for live session
         

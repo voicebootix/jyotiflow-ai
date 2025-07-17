@@ -20,6 +20,14 @@ class JyotiFlowDatabaseInitializer:
     def __init__(self):
         self.database_url = os.getenv("DATABASE_URL")
         
+        # Validate DATABASE_URL is set
+        if not self.database_url:
+            raise ValueError(
+                "DATABASE_URL environment variable is missing or empty. "
+                "Please set the DATABASE_URL environment variable before running database initialization. "
+                "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+            )
+        
     async def initialize_database(self):
         """Initialize complete JyotiFlow database"""
         logger.info("🚀 Initializing JyotiFlow Database...")

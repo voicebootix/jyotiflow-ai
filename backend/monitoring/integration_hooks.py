@@ -5,10 +5,8 @@ Integrates monitoring without modifying core files.
 
 import time
 import logging
-from typing import Dict, Optional, Any, Callable
+from typing import Dict
 from functools import wraps
-import asyncio
-import json
 from datetime import datetime, timezone
 
 from .integration_monitor import integration_monitor, IntegrationPoint

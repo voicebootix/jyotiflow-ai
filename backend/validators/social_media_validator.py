@@ -632,13 +632,137 @@ class SocialMediaValidator:
             return {"ready": False, "reason": str(e)}
     
     async def _attempt_token_refresh(self, platform: str) -> Dict:
-        """Attempt to refresh expired tokens"""
-        # This would implement actual OAuth refresh flow
-        # For now, return mock result
-        return {
-            "success": False,
-            "reason": "Token refresh not implemented"
-        }
+        """Attempt to refresh expired tokens using OAuth refresh flow"""
+        try:
+            async with get_db() as db:
+                # Get refresh token from database
+                token_data = await db.fetchrow("""
+                    SELECT value FROM platform_settings 
+                    WHERE platform = $1 AND setting_key = 'refresh_token'
+                """, platform)
+                
+                if not token_data:
+                    return {"success": False, "reason": "No refresh token found"}
+                
+                refresh_token = json.loads(token_data["value"])
+                
+                if platform == "facebook":
+                    return await self._refresh_facebook_token(refresh_token)
+                elif platform == "instagram":
+                    return await self._refresh_instagram_token(refresh_token)
+                elif platform == "twitter":
+                    return await self._refresh_twitter_token(refresh_token)
+                elif platform == "linkedin":
+                    return await self._refresh_linkedin_token(refresh_token)
+                else:
+                    return {"success": False, "reason": f"Token refresh not supported for {platform}"}
+                    
+        except Exception as e:
+            logger.error(f"Token refresh error for {platform}: {e}")
+            return {"success": False, "reason": str(e)}
+    
+    async def _refresh_facebook_token(self, refresh_token: str) -> Dict:
+        """Refresh Facebook access token"""
+        try:
+            url = "https://graph.facebook.com/v18.0/oauth/access_token"
+            params = {
+                "grant_type": "fb_exchange_token",
+                "client_id": os.getenv("FACEBOOK_APP_ID"),
+                "client_secret": os.getenv("FACEBOOK_APP_SECRET"),
+                "fb_exchange_token": refresh_token
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        # Save new token to database
+                        await self._save_refreshed_token("facebook", data["access_token"])
+                        
+                        return {"success": True, "new_token": data["access_token"]}
+                    else:
+                        error_data = await response.json()
+                        return {"success": False, "reason": error_data.get("error", {}).get("message", "Refresh failed")}
+                        
+        except Exception as e:
+            return {"success": False, "reason": str(e)}
+    
+    async def _refresh_instagram_token(self, refresh_token: str) -> Dict:
+        """Refresh Instagram access token (same as Facebook)"""
+        return await self._refresh_facebook_token(refresh_token)
+    
+    async def _refresh_twitter_token(self, refresh_token: str) -> Dict:
+        """Refresh Twitter access token using OAuth 2.0"""
+        try:
+            url = "https://api.twitter.com/2/oauth2/token"
+            data = {
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": os.getenv("TWITTER_CLIENT_ID")
+            }
+            
+            headers = {
+                "Content-Type": "application/x-www-form-urlencoded",
+                "Authorization": f"Basic {os.getenv('TWITTER_CLIENT_SECRET')}"
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=data, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        # Save new token to database
+                        await self._save_refreshed_token("twitter", data["access_token"])
+                        
+                        return {"success": True, "new_token": data["access_token"]}
+                    else:
+                        error_data = await response.json()
+                        return {"success": False, "reason": error_data.get("error_description", "Refresh failed")}
+                        
+        except Exception as e:
+            return {"success": False, "reason": str(e)}
+    
+    async def _refresh_linkedin_token(self, refresh_token: str) -> Dict:
+        """Refresh LinkedIn access token"""
+        try:
+            url = "https://www.linkedin.com/oauth/v2/accessToken"
+            data = {
+                "grant_type": "refresh_token",
+                "refresh_token": refresh_token,
+                "client_id": os.getenv("LINKEDIN_CLIENT_ID"),
+                "client_secret": os.getenv("LINKEDIN_CLIENT_SECRET")
+            }
+            
+            headers = {"Content-Type": "application/x-www-form-urlencoded"}
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(url, data=data, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        
+                        # Save new token to database
+                        await self._save_refreshed_token("linkedin", data["access_token"])
+                        
+                        return {"success": True, "new_token": data["access_token"]}
+                    else:
+                        error_data = await response.json()
+                        return {"success": False, "reason": error_data.get("error_description", "Refresh failed")}
+                        
+        except Exception as e:
+            return {"success": False, "reason": str(e)}
+    
+    async def _save_refreshed_token(self, platform: str, new_token: str):
+        """Save refreshed token to database"""
+        try:
+            async with get_db() as db:
+                await db.execute("""
+                    UPDATE platform_settings 
+                    SET value = $1, updated_at = NOW()
+                    WHERE platform = $2 AND setting_key = 'access_token'
+                """, json.dumps(new_token), platform)
+        except Exception as e:
+            logger.error(f"Failed to save refreshed token for {platform}: {e}")
     
     def _generate_spiritual_hashtags(self) -> List[str]:
         """Generate relevant spiritual hashtags"""

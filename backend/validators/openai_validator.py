@@ -3,7 +3,7 @@
 Ensures responses use Swami persona and incorporate all context.
 """
 
-from typing import Dict
+from typing import Dict, List
 import re
 
 from core_foundation_enhanced import logger

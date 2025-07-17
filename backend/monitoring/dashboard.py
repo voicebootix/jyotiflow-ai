@@ -32,15 +32,25 @@ class ConnectionManager:
         self.active_connections.append(websocket)
         
     def disconnect(self, websocket: WebSocket):
-        self.active_connections.remove(websocket)
+        try:
+            self.active_connections.remove(websocket)
+        except ValueError:
+            # WebSocket was not in the list, ignore
+            pass
         
     async def broadcast(self, message: dict):
         """Broadcast message to all connected admin clients"""
-        for connection in self.active_connections:
+        dead_connections = []
+        for connection in self.active_connections[:]:  # Create a copy to iterate safely
             try:
                 await connection.send_json(message)
             except Exception as e:
                 logger.error(f"Error broadcasting to client: {e}")
+                dead_connections.append(connection)
+        
+        # Remove dead connections
+        for dead_conn in dead_connections:
+            self.disconnect(dead_conn)
 
 connection_manager = ConnectionManager()
 
@@ -190,7 +200,8 @@ class MonitoringDashboard:
                         "auto_fixed": auto_fix_stats["auto_fixed_count"] if auto_fix_stats else 0,
                         "success_rate": (
                             auto_fix_stats["auto_fixed_count"] / auto_fix_stats["total_issues"] * 100
-                            if auto_fix_stats and auto_fix_stats["total_issues"] > 0 else 0
+                            if auto_fix_stats and auto_fix_stats["total_issues"] is not None and auto_fix_stats["total_issues"] > 0 
+                            and auto_fix_stats["auto_fixed_count"] is not None else 0
                         )
                     }
                 }
@@ -496,7 +507,11 @@ class MonitoringDashboard:
                 if not validation_data or not validation_data["validation_results"]:
                     return []
                 
-                validation_results = json.loads(validation_data["validation_results"])
+                try:
+                    validation_results = json.loads(validation_data["validation_results"])
+                except json.JSONDecodeError as json_error:
+                    logger.error(f"Failed to parse validation results JSON: {json_error}")
+                    validation_results = {}
                 
                 # Use business validator to generate recommendations
                 return validation_results.get("recommendations", [])
@@ -561,18 +576,34 @@ async def websocket_endpoint(websocket: WebSocket):
     await connection_manager.connect(websocket)
     try:
         while True:
-            # Send heartbeat and system status every 5 seconds
-            system_health = await integration_monitor.get_system_health()
-            await websocket.send_json({
-                "type": "system_health",
-                "data": system_health,
-                "timestamp": datetime.now(timezone.utc).isoformat()
-            })
+            # Check if connection is still active
+            if websocket.client_state.name != "CONNECTED":
+                break
+                
+            try:
+                # Send heartbeat and system status every 5 seconds
+                system_health = await integration_monitor.get_system_health()
+                await websocket.send_json({
+                    "type": "system_health",
+                    "data": system_health,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+            except Exception as send_error:
+                logger.error(f"Error sending WebSocket message: {send_error}")
+                break
             
             # Wait for 5 seconds
-            await asyncio.sleep(5)
+            try:
+                await asyncio.sleep(5)
+            except Exception as sleep_error:
+                logger.error(f"Error during WebSocket sleep: {sleep_error}")
+                break
             
     except WebSocketDisconnect:
+        logger.info("WebSocket client disconnected")
+    except Exception as e:
+        logger.error(f"Unexpected WebSocket error: {e}")
+    finally:
         connection_manager.disconnect(websocket)
 
 # Export for use in other modules
