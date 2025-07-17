@@ -498,7 +498,7 @@ class DatabaseIssueFixer:
             await conn.execute("""
                 INSERT INTO database_backups (backup_id, table_name, column_name, issue_type, created_at)
                 VALUES ($1, $2, $3, $4, $5)
-            """, backup_id, issue.table, issue.column, issue.issue_type, datetime.now(timezone.utc))
+            """, backup_id, issue.table, issue.column, issue.issue_type, datetime.now(timezone.utc).replace(tzinfo=None))
         
         return backup_id
     
@@ -658,12 +658,21 @@ class DatabaseHealthMonitor:
         try:
             # 1. Analyze database schema
             logger.info("Analyzing database schema...")
-            schema = await self.schema_analyzer.analyze_schema()
-            results['schema_analysis'] = {
-                'tables_count': len(schema['tables']),
-                'total_size': sum(t['size_bytes'] for t in schema['tables'] if t['size_bytes']),
-                'tables': schema['tables']
-            }
+            try:
+                schema = await self.schema_analyzer.analyze_schema()
+                results['schema_analysis'] = {
+                    'tables_count': len(schema['tables']),
+                    'total_size': sum(t['size_bytes'] for t in schema['tables'] if t['size_bytes']),
+                    'tables': schema['tables']
+                }
+            except Exception as e:
+                logger.error(f"Schema analysis failed: {e}")
+                results['schema_analysis'] = {
+                    'tables_count': 0,
+                    'total_size': 0,
+                    'tables': [],
+                    'error': str(e)
+                }
             
             # 2. Analyze code patterns
             logger.info("Analyzing code patterns...")
@@ -699,7 +708,11 @@ class DatabaseHealthMonitor:
                             results['issues_fixed'] += 1
             
             # 7. Check performance
-            results['performance_metrics'] = await self._check_performance()
+            try:
+                results['performance_metrics'] = await self._check_performance()
+            except Exception as e:
+                logger.error(f"Performance check failed: {e}")
+                results['performance_metrics'] = {'error': str(e)}
             
         except Exception as e:
             logger.error(f"Health check failed: {e}")
@@ -791,15 +804,19 @@ class DatabaseHealthMonitor:
             metrics = {}
             
             # Table sizes
-            size_query = """
-                SELECT 
-                    relname AS table_name,
-                    pg_size_pretty(pg_relation_size(relid)) AS size
-                FROM pg_stat_user_tables
-                ORDER BY pg_relation_size(relid) DESC
-                LIMIT 10
-            """
-            metrics['largest_tables'] = [dict(row) for row in await conn.fetch(size_query)]
+            try:
+                size_query = """
+                    SELECT 
+                        relname AS table_name,
+                        pg_size_pretty(pg_relation_size(relid)) AS size
+                    FROM pg_stat_user_tables
+                    ORDER BY pg_relation_size(relid) DESC
+                    LIMIT 10
+                """
+                metrics['largest_tables'] = [dict(row) for row in await conn.fetch(size_query)]
+            except Exception as e:
+                logger.warning(f"Failed to get table sizes: {e}")
+                metrics['largest_tables'] = []
             
             # Slow queries (if pg_stat_statements is available)
             try:
@@ -820,20 +837,24 @@ class DatabaseHealthMonitor:
                 metrics['slow_queries'] = []
             
             # Index usage
-            index_query = """
-                SELECT 
-                    schemaname,
-                    tablename,
-                    indexname,
-                    idx_scan,
-                    idx_tup_read,
-                    idx_tup_fetch
-                FROM pg_stat_user_indexes
-                WHERE idx_scan = 0
-                AND schemaname = 'public'
-            """
-            unused_indexes = await conn.fetch(index_query)
-            metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
+            try:
+                index_query = """
+                    SELECT 
+                        schemaname,
+                        tablename,
+                        indexname,
+                        idx_scan,
+                        idx_tup_read,
+                        idx_tup_fetch
+                    FROM pg_stat_user_indexes
+                    WHERE idx_scan = 0
+                    AND schemaname = 'public'
+                """
+                unused_indexes = await conn.fetch(index_query)
+                metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
+            except Exception as e:
+                logger.warning(f"Failed to get index usage: {e}")
+                metrics['unused_indexes'] = []
             
             return metrics
             

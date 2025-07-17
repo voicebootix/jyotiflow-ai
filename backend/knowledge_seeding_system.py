@@ -532,7 +532,18 @@ class KnowledgeSeeder:
             
             # Convert embedding to appropriate format
             if vector_support:
-                embedding_data = embedding
+                # For pgvector, we need to ensure the embedding is properly formatted
+                if isinstance(embedding, str):
+                    try:
+                        # If it's a JSON string, parse it to get the list
+                        parsed_embedding = json.loads(embedding)
+                        embedding_data = parsed_embedding  # Use the list directly
+                    except json.JSONDecodeError:
+                        # If it's not valid JSON, create a default vector
+                        embedding_data = [0.0] * 1536
+                else:
+                    # If it's already a list, use it directly
+                    embedding_data = embedding
             else:
                 # When pgvector is not supported, serialize list to JSON string for TEXT/JSONB columns
                 if isinstance(embedding, str):
@@ -659,7 +670,18 @@ class KnowledgeSeeder:
                         
                         # Convert embedding to appropriate format
                         if vector_support:
-                            embedding_data = embedding
+                            # For pgvector, we need to ensure the embedding is properly formatted
+                            if isinstance(embedding, str):
+                                try:
+                                    # If it's a JSON string, parse it to get the list
+                                    parsed_embedding = json.loads(embedding)
+                                    embedding_data = parsed_embedding  # Use the list directly
+                                except json.JSONDecodeError:
+                                    # If it's not valid JSON, create a default vector
+                                    embedding_data = [0.0] * 1536
+                            else:
+                                # If it's already a list, use it directly
+                                embedding_data = embedding
                         else:
                             # When pgvector is not supported, serialize list to JSON string for TEXT/JSONB columns
                             if isinstance(embedding, str):

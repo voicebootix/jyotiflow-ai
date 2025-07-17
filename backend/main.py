@@ -451,7 +451,7 @@ app.include_router(session_analytics.router)
 
 # Register missing endpoints (avoid duplicates)
 try:
-    from missing_endpoints import ai_router, user_router as missing_user_router, sessions_router as missing_sessions_router
+    from .missing_endpoints import ai_router, user_router as missing_user_router, sessions_router as missing_sessions_router
     app.include_router(ai_router)
     app.include_router(missing_user_router)
     app.include_router(missing_sessions_router)
