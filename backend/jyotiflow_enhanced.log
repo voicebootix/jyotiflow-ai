@@ -253,3 +253,4 @@
 2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - 🔐 Enhanced security and authentication ready
 2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - 🗄️ Enhanced database schema with avatar tables ready
 2025-07-16 15:33:41,005 - core_foundation_enhanced - INFO - 🙏🏼 Enhanced Core Foundation provides: Database, Auth, Avatar Config, Security, Monitoring
+2025-07-17 08:00:46,982 - auth.jwt_config - CRITICAL - JWT_SECRET environment variable is required for security. Please set it before starting the application.
