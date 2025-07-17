@@ -1008,50 +1008,126 @@ class ManualFixRequest(BaseModel):
 @router.get("/status", response_model=HealthCheckResponse)
 async def get_health_status():
     """Get current database health status"""
-    return await orchestrator.get_status()
+    try:
+        # Ensure orchestrator is initialized and tables exist
+        await _ensure_health_tables_exist()
+        return await orchestrator.get_status()
+    except Exception as e:
+        logger.error(f"Health status endpoint error: {e}")
+        # Return a default status when there's an error
+        return {
+            'status': 'error',
+            'last_check': None,
+            'total_fixes': 0,
+            'active_critical_issues': 0,
+            'next_check': None
+        }
 
 
 @router.post("/check")
 async def trigger_health_check():
     """Manually trigger a health check"""
-    results = await orchestrator.run_check()
-    return results
+    try:
+        # Ensure orchestrator is initialized and tables exist
+        await _ensure_health_tables_exist()
+        results = await orchestrator.run_check()
+        return results
+    except Exception as e:
+        logger.error(f"Health check endpoint error: {e}")
+        return {'error': str(e), 'issues_found': 0, 'issues_fixed': 0}
 
 
 @router.post("/start")
 async def start_monitoring():
     """Start automatic monitoring"""
-    await orchestrator.start()
-    return {"message": "Monitoring started"}
+    try:
+        # Ensure orchestrator is initialized and tables exist
+        await _ensure_health_tables_exist()
+        await orchestrator.start()
+        return {"message": "Monitoring started"}
+    except Exception as e:
+        logger.error(f"Start monitoring endpoint error: {e}")
+        return {"error": str(e)}
 
 
 @router.post("/stop")
 async def stop_monitoring():
     """Stop automatic monitoring"""
-    await orchestrator.stop()
-    return {"message": "Monitoring stopped"}
+    try:
+        await orchestrator.stop()
+        return {"message": "Monitoring stopped"}
+    except Exception as e:
+        logger.error(f"Stop monitoring endpoint error: {e}")
+        return {"error": str(e)}
 
 
 @router.get("/issues")
 async def get_current_issues():
     """Get list of current issues"""
+    try:
+        # Ensure tables exist
+        await _ensure_health_tables_exist()
+        
+        conn = await asyncpg.connect(DATABASE_URL)
+        try:
+            latest = await conn.fetchrow("""
+                SELECT results FROM health_check_results
+                ORDER BY timestamp DESC
+                LIMIT 1
+            """)
+            
+            if latest and latest['results']:
+                results = json.loads(latest['results'])
+                return {
+                    'critical_issues': results.get('critical_issues', []),
+                    'warnings': results.get('warnings', [])
+                }
+            
+            return {'critical_issues': [], 'warnings': []}
+            
+        finally:
+            await conn.close()
+    except Exception as e:
+        logger.error(f"Get issues endpoint error: {e}")
+        return {'critical_issues': [], 'warnings': [], 'error': str(e)}
+
+
+async def _ensure_health_tables_exist():
+    """Ensure all required health monitoring tables exist"""
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable not set")
+    
     conn = await asyncpg.connect(DATABASE_URL)
     try:
-        latest = await conn.fetchrow("""
-            SELECT results FROM health_check_results
-            ORDER BY timestamp DESC
-            LIMIT 1
+        # Create health_check_results table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS health_check_results (
+                id SERIAL PRIMARY KEY,
+                timestamp TIMESTAMP DEFAULT NOW(),
+                results JSONB,
+                issues_found INTEGER DEFAULT 0,
+                issues_fixed INTEGER DEFAULT 0,
+                critical_count INTEGER DEFAULT 0
+            )
         """)
         
-        if latest and latest['results']:
-            results = json.loads(latest['results'])
-            return {
-                'critical_issues': results.get('critical_issues', []),
-                'warnings': results.get('warnings', [])
-            }
+        # Create database_backups table (if not exists)
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS database_backups (
+                id SERIAL PRIMARY KEY,
+                backup_id VARCHAR(255) UNIQUE,
+                table_name VARCHAR(255),
+                column_name VARCHAR(255),
+                issue_type VARCHAR(100),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
         
-        return {'critical_issues': [], 'warnings': []}
+        logger.info("✅ Health monitoring tables ensured")
         
+    except Exception as e:
+        logger.error(f"Failed to create health monitoring tables: {e}")
+        raise
     finally:
         await conn.close()
 

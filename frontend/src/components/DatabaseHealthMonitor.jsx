@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+
 export default function DatabaseHealthMonitor() {
     const [status, setStatus] = useState({ status: 'stopped', last_check: null });
     const [issues, setIssues] = useState({ critical_issues: [], warnings: [] });
@@ -13,7 +15,7 @@ export default function DatabaseHealthMonitor() {
     const fetchStatus = async () => {
         try {
             setError(null);
-            const response = await fetch('/api/database-health/status');
+            const response = await fetch(`${API_BASE_URL}/api/database-health/status`);
             if (!response.ok) {
                 throw new Error(`API Error: ${response.status}`);
             }
@@ -30,7 +32,7 @@ export default function DatabaseHealthMonitor() {
         setCheckInProgress(true);
         try {
             setError(null);
-            const response = await fetch('/api/database-health/check', { method: 'POST' });
+            const response = await fetch(`${API_BASE_URL}/api/database-health/check`, { method: 'POST' });
             if (!response.ok) {
                 throw new Error(`Health check failed: ${response.status}`);
             }
@@ -45,7 +47,7 @@ export default function DatabaseHealthMonitor() {
     };
 
     const toggleMonitoring = async () => {
-        const endpoint = status.status === 'running' ? '/api/database-health/stop' : '/api/database-health/start';
+        const endpoint = status.status === 'running' ? `${API_BASE_URL}/api/database-health/stop` : `${API_BASE_URL}/api/database-health/start`;
         try {
             await fetch(endpoint, { method: 'POST' });
             await fetchStatus();
@@ -60,7 +62,7 @@ export default function DatabaseHealthMonitor() {
         }
         try {
             setError(null);
-            const response = await fetch('/api/database-health/fix', {
+            const response = await fetch(`${API_BASE_URL}/api/database-health/fix`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ issue })
