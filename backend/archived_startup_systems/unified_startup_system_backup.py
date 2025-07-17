@@ -10,7 +10,6 @@ import asyncpg
 import logging
 import traceback
 import time
-from datetime import datetime
 from typing import Optional
 
 logging.basicConfig(level=logging.INFO)
@@ -49,37 +48,31 @@ class UnifiedJyotiFlowStartup:
         
         try:
             # Step 1: Validate environment
-            logger.info("📋 Step 1/6: Validating environment configuration...")
+            logger.info("📋 Step 1/5: Validating environment configuration...")
             step_start = time.time()
             await self._validate_environment()
             logger.info(f"✅ Environment validation completed in {time.time() - step_start:.2f}s")
             
             # Step 2: Create main database pool (with retries) - CRITICAL STEP
-            logger.info("🗄️ Step 2/6: Creating main database connection pool...")
+            logger.info("🗄️ Step 2/5: Creating main database connection pool...")
             step_start = time.time()
             await self._create_main_pool()
             logger.info(f"✅ Database pool creation completed in {time.time() - step_start:.2f}s")
             
             # Step 3: Fix database schema issues
-            logger.info("🔧 Step 3/6: Fixing database schema issues...")
+            logger.info("🔧 Step 3/5: Fixing database schema issues...")
             step_start = time.time()
             await self._fix_database_schema()
             logger.info(f"✅ Database schema fixes completed in {time.time() - step_start:.2f}s")
             
-            # Step 4: Initialize enhanced features (includes knowledge base seeding)
-            logger.info("⚡ Step 4/6: Initializing enhanced features...")
+            # Step 4: Initialize enhanced features
+            logger.info("⚡ Step 4/5: Initializing enhanced features...")
             step_start = time.time()
             await self._initialize_enhanced_features()
             logger.info(f"✅ Enhanced features initialization completed in {time.time() - step_start:.2f}s")
             
-            # Step 5: Initialize health monitoring
-            logger.info("🏥 Step 5/6: Initializing health monitoring...")
-            step_start = time.time()
-            await self._initialize_health_monitoring()
-            logger.info(f"✅ Health monitoring initialization completed in {time.time() - step_start:.2f}s")
-            
-            # Step 6: Final system validation
-            logger.info("🔍 Step 6/6: Performing final system validation...")
+            # Step 5: Final system validation
+            logger.info("🔍 Step 5/5: Performing final system validation...")
             step_start = time.time()
             await self._validate_system_health()
             logger.info(f"✅ System validation completed in {time.time() - step_start:.2f}s")
@@ -318,28 +311,19 @@ class UnifiedJyotiFlowStartup:
         logger.info("🔧 Fixing database schema and data issues...")
         
         try:
-            # Step 1: Validate critical database structure and fix issues
-            logger.info("🔍 Step 3.1: Validating and fixing critical database structure...")
-            await self._validate_and_fix_database_structure()
-            
-            # Step 2: Ensure required extensions
-            logger.info("🧩 Step 3.2: Ensuring PostgreSQL extensions...")
+            # Ensure required extensions
             await self._ensure_postgresql_extensions()
             
-            # Step 3: Fix service configuration cache
-            logger.info("💾 Step 3.3: Fixing service configuration cache...")
+            # Fix service configuration cache
             await self._fix_service_configuration_cache()
             
-            # Step 4: Ensure enhanced tables exist
-            logger.info("📊 Step 3.4: Ensuring enhanced tables...")
+            # Ensure enhanced tables exist
             await self._ensure_enhanced_tables()
             
-            # Step 5: Clean up malformed data
-            logger.info("🧹 Step 3.5: Cleaning up malformed data...")
+            # Clean up malformed data
             await self._cleanup_malformed_data()
             
-            # Step 6: Add performance indexes
-            logger.info("⚡ Step 3.6: Ensuring performance indexes...")
+            # Add performance indexes
             await self._ensure_performance_indexes()
             
             self.schema_fixed = True
@@ -349,154 +333,6 @@ class UnifiedJyotiFlowStartup:
             logger.error(f"❌ Schema fix error: {e}")
             # Don't raise - system can work with basic schema
             self.schema_fixed = False
-    
-    async def _validate_and_fix_database_structure(self):
-        """Validate and fix critical database structure"""
-        logger.info("🔍 Validating critical database structure...")
-        
-        validation_results = {
-            "fixes_applied": [],
-            "warnings": [],
-            "errors": []
-        }
-        
-        try:
-            async with self.db_pool.acquire() as conn:
-                # Validate required tables exist
-                await self._validate_required_tables(conn, validation_results)
-                
-                # Fix missing columns in critical tables
-                await self._fix_missing_columns(conn, validation_results)
-                
-                # Ensure required reference data exists
-                await self._ensure_required_reference_data(conn, validation_results)
-                
-                # Log results
-                if validation_results["fixes_applied"]:
-                    logger.info(f"✅ Applied {len(validation_results['fixes_applied'])} database fixes:")
-                    for fix in validation_results["fixes_applied"][:5]:  # Show first 5 fixes
-                        logger.info(f"   • {fix}")
-                    if len(validation_results["fixes_applied"]) > 5:
-                        logger.info(f"   • ... and {len(validation_results['fixes_applied']) - 5} more")
-                        
-                if validation_results["warnings"]:
-                    logger.warning(f"⚠️ {len(validation_results['warnings'])} database warnings:")
-                    for warning in validation_results["warnings"][:3]:  # Show first 3 warnings
-                        logger.warning(f"   • {warning}")
-                    if len(validation_results["warnings"]) > 3:
-                        logger.warning(f"   • ... and {len(validation_results['warnings']) - 3} more")
-                        
-                if validation_results["errors"]:
-                    logger.error(f"❌ {len(validation_results['errors'])} database errors:")
-                    for error in validation_results["errors"]:
-                        logger.error(f"   • {error}")
-                else:
-                    logger.info("✅ Database structure validation completed successfully")
-                    
-        except Exception as e:
-            logger.error(f"❌ Database validation failed: {e}")
-            # Don't raise - system should try to continue
-    
-    async def _validate_required_tables(self, conn, results):
-        """Validate that required tables exist"""
-        required_tables = [
-            'users', 'sessions', 'service_types', 'credit_packages',
-            'pricing_config', 'followup_templates'
-        ]
-        
-        for table in required_tables:
-            try:
-                exists = await conn.fetchval("""
-                    SELECT EXISTS (
-                        SELECT FROM information_schema.tables 
-                        WHERE table_name = $1
-                    )
-                """, table)
-                
-                if exists:
-                    logger.debug(f"✅ Table '{table}' exists")
-                else:
-                    results["warnings"].append(f"Required table '{table}' does not exist")
-                    
-            except Exception as e:
-                results["errors"].append(f"Could not validate table '{table}': {e}")
-    
-    async def _fix_missing_columns(self, conn, results):
-        """Fix missing columns in critical tables"""
-        try:
-            # Fix sessions table columns
-            missing_cols = await self._get_missing_columns(conn, 'sessions', 
-                ['duration_minutes', 'session_data', 'user_id'])
-            
-            for col in missing_cols:
-                try:
-                    if col == 'duration_minutes':
-                        await conn.execute("ALTER TABLE sessions ADD COLUMN duration_minutes INTEGER DEFAULT 0")
-                        results["fixes_applied"].append("Added duration_minutes to sessions table")
-                    elif col == 'session_data':
-                        await conn.execute("ALTER TABLE sessions ADD COLUMN session_data TEXT")
-                        results["fixes_applied"].append("Added session_data to sessions table")
-                    elif col == 'user_id':
-                        await conn.execute("ALTER TABLE sessions ADD COLUMN user_id INTEGER")
-                        results["fixes_applied"].append("Added user_id to sessions table")
-                except Exception as e:
-                    results["errors"].append(f"Failed to add column {col} to sessions: {e}")
-            
-            # Fix service_types table columns
-            missing_cols = await self._get_missing_columns(conn, 'service_types',
-                ['base_credits', 'duration_minutes', 'video_enabled', 'credits_required'])
-            
-            for col in missing_cols:
-                try:
-                    if col == 'base_credits':
-                        await conn.execute("ALTER TABLE service_types ADD COLUMN base_credits INTEGER DEFAULT 5")
-                        results["fixes_applied"].append("Added base_credits to service_types table")
-                    elif col == 'duration_minutes':
-                        await conn.execute("ALTER TABLE service_types ADD COLUMN duration_minutes INTEGER DEFAULT 15")
-                        results["fixes_applied"].append("Added duration_minutes to service_types table")
-                    elif col == 'video_enabled':
-                        await conn.execute("ALTER TABLE service_types ADD COLUMN video_enabled BOOLEAN DEFAULT TRUE")
-                        results["fixes_applied"].append("Added video_enabled to service_types table")
-                    elif col == 'credits_required':
-                        await conn.execute("ALTER TABLE service_types ADD COLUMN credits_required INTEGER DEFAULT 5")
-                        results["fixes_applied"].append("Added credits_required to service_types table")
-                except Exception as e:
-                    results["errors"].append(f"Failed to add column {col} to service_types: {e}")
-                    
-        except Exception as e:
-            results["errors"].append(f"Column validation failed: {e}")
-    
-    async def _get_missing_columns(self, conn, table_name, required_columns):
-        """Get list of missing columns in a table"""
-        try:
-            existing_columns = await conn.fetch("""
-                SELECT column_name 
-                FROM information_schema.columns 
-                WHERE table_name = $1
-            """, table_name)
-            
-            existing_column_names = {row['column_name'] for row in existing_columns}
-            missing_columns = [col for col in required_columns if col not in existing_column_names]
-            
-            return missing_columns
-        except Exception:
-            return required_columns  # Assume all are missing if check fails
-    
-    async def _ensure_required_reference_data(self, conn, results):
-        """Ensure required reference data exists"""
-        try:
-            # Check if we have any service types
-            service_count = await conn.fetchval("SELECT COUNT(*) FROM service_types")
-            if service_count == 0:
-                results["warnings"].append("No service types found - application may not function properly")
-                
-            # Check if we have any pricing configurations
-            pricing_count = await conn.fetchval("SELECT COUNT(*) FROM pricing_config")
-            if pricing_count == 0:
-                results["warnings"].append("No pricing configurations found")
-                
-        except Exception as e:
-            results["errors"].append(f"Required data validation failed: {e}")
     
     async def _ensure_postgresql_extensions(self):
         """Ensure required PostgreSQL extensions are enabled"""
@@ -990,55 +826,8 @@ class UnifiedJyotiFlowStartup:
             logger.warning(f"⚠️ System health check warning: {e}")
             # Don't raise - system can still function
     
-    async def _initialize_health_monitoring(self):
-        """Initialize database health monitoring system"""
-        logger.info("🏥 Setting up database health monitoring...")
-        
-        try:
-            # Try to import and initialize the health monitoring system
-            try:
-                from database_self_healing_system import startup_event as health_startup
-                logger.info("🔍 Database self-healing system found - initializing...")
-                
-                # Initialize the health monitoring orchestrator and get the instance
-                self.health_orchestrator = await health_startup()
-                
-                if self.health_orchestrator:
-                    logger.info("✅ Database health monitoring orchestrator started")
-                    logger.info("📊 Background health monitoring is now active")
-                else:
-                    logger.warning("⚠️ Health monitoring initialization returned None")
-                    self.health_orchestrator = None
-                
-            except ImportError:
-                logger.warning("⚠️ Database self-healing system not available")
-                logger.info("💡 Health monitoring will be skipped - system will run normally")
-                self.health_orchestrator = None
-                
-            except Exception as health_error:
-                logger.error(f"❌ Health monitoring initialization error: {health_error}")
-                logger.info("💡 System will continue without health monitoring")
-                self.health_orchestrator = None
-                
-        except Exception as e:
-            logger.error(f"❌ Health monitoring setup failed: {e}")
-            logger.info("💡 System will continue without health monitoring")
-            self.health_orchestrator = None
-    
     async def cleanup(self):
         """Clean up resources"""
-        # Stop health monitoring first
-        if hasattr(self, 'health_orchestrator') and self.health_orchestrator:
-            logger.info("🔄 Stopping health monitoring orchestrator...")
-            try:
-                await self.health_orchestrator.stop()
-                logger.info("✅ Health monitoring stopped cleanly")
-            except Exception as e:
-                logger.warning(f"⚠️ Error stopping health monitoring: {e}")
-            finally:
-                self.health_orchestrator = None
-        
-        # Then close database pool
         if self.db_pool:
             logger.info("🔄 Gracefully closing database connection pool...")
             try:
