@@ -754,12 +754,19 @@ class BusinessLogicValidator:
             embedding2 = embedding2_response.data[0].embedding
             
             # Calculate cosine similarity
-            import numpy as np
-            dot_product = np.dot(embedding1, embedding2)
-            norm1 = np.linalg.norm(embedding1)
-            norm2 = np.linalg.norm(embedding2)
-            
-            similarity = dot_product / (norm1 * norm2)
+            if NUMPY_AVAILABLE:
+                dot_product = np.dot(embedding1, embedding2)
+                norm1 = np.linalg.norm(embedding1)
+                norm2 = np.linalg.norm(embedding2)
+                
+                similarity = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0.0
+            else:
+                # Fallback: manual cosine similarity calculation without numpy
+                dot_product = sum(a * b for a, b in zip(embedding1, embedding2))
+                norm1 = sum(a * a for a in embedding1) ** 0.5
+                norm2 = sum(b * b for b in embedding2) ** 0.5
+                
+                similarity = dot_product / (norm1 * norm2) if norm1 > 0 and norm2 > 0 else 0.0
             
             return float(similarity)
             
