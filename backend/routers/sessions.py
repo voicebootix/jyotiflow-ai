@@ -4,7 +4,7 @@ import os
 import time
 from datetime import datetime, timezone
 import uuid
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 import logging
 
@@ -155,6 +155,13 @@ async def schedule_session_followup(session_id: str, user_email: str, service_ty
     except Exception as e:
         # Log error but don't fail the session
         logger.error(f"Failed to schedule follow-up for session {session_id}: {e}")
+
+from pydantic import BaseModel
+
+class SessionData(BaseModel):
+    service_type: str
+    question: Optional[str]
+    birth_details: Optional[Dict[str, str]]
 
 @router.post("/start")
 async def start_session(request: Request, session_data: Dict[str, Any], db=Depends(get_db)):

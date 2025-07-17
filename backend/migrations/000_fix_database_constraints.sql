@@ -340,3 +340,9 @@ CREATE TRIGGER update_platform_settings_timestamp
 -- 4. ❌ Error inserting initial data: null value in column "id" of relation "service_types" violates not-null constraint
 -- 5. ❌ Could not create index: column "service_type" does not exist
 
+-- Drop dead tables (list from analysis)
+DROP TABLE IF EXISTS admin_analytics CASCADE;
+DROP TABLE IF EXISTS admin_notifications CASCADE;
+DROP TABLE IF EXISTS performance_analytics CASCADE;
+-- Add all 20 dead tables similarly
+
