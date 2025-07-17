@@ -1096,9 +1096,11 @@ async def startup_event():
         # Start monitoring
         await orchestrator.start()
         logger.info("✅ Database Self-Healing System initialized")
+        return orchestrator
         
     except Exception as e:
         logger.error(f"❌ Failed to initialize self-healing system: {e}")
+        return None
 
 
 # Admin UI Integration

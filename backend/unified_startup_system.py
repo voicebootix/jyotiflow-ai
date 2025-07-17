@@ -997,16 +997,18 @@ class UnifiedJyotiFlowStartup:
         try:
             # Try to import and initialize the health monitoring system
             try:
-                from database_self_healing_system import startup_event as health_startup, orchestrator
+                from database_self_healing_system import startup_event as health_startup
                 logger.info("🔍 Database self-healing system found - initializing...")
                 
-                # Initialize the health monitoring orchestrator
-                await health_startup()
-                logger.info("✅ Database health monitoring orchestrator started")
-                logger.info("📊 Background health monitoring is now active")
+                # Initialize the health monitoring orchestrator and get the instance
+                self.health_orchestrator = await health_startup()
                 
-                # Store reference for cleanup
-                self.health_orchestrator = orchestrator
+                if self.health_orchestrator:
+                    logger.info("✅ Database health monitoring orchestrator started")
+                    logger.info("📊 Background health monitoring is now active")
+                else:
+                    logger.warning("⚠️ Health monitoring initialization returned None")
+                    self.health_orchestrator = None
                 
             except ImportError:
                 logger.warning("⚠️ Database self-healing system not available")
