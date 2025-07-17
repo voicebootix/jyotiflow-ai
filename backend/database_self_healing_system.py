@@ -20,6 +20,18 @@ from dataclasses import dataclass, asdict
 from collections import defaultdict
 import re
 
+# Import timezone fixer to handle database datetime issues
+try:
+    from database_timezone_fixer import safe_utc_now, normalize_datetime_for_db
+except ImportError:
+    # Fallback definitions if file doesn't exist yet
+    def safe_utc_now():
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+    def normalize_datetime_for_db(dt):
+        if isinstance(dt, datetime) and dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        return dt
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -74,7 +86,7 @@ class DatabaseIssue:
     
     def __post_init__(self):
         if self.created_at is None:
-            self.created_at = datetime.now(timezone.utc)
+            self.created_at = safe_utc_now()
         if self.affected_files is None:
             self.affected_files = []
         if self.affected_queries is None:
@@ -461,7 +473,7 @@ class DatabaseIssueFixer:
             
             # Record fix in history
             self.fix_history.append({
-                'timestamp': datetime.now(timezone.utc),
+                'timestamp': safe_utc_now(),
                 'issue': asdict(issue),
                 'result': result,
                 'backup_id': backup_id
@@ -480,7 +492,7 @@ class DatabaseIssueFixer:
     
     async def _create_backup_point(self, conn: asyncpg.Connection, issue: DatabaseIssue) -> str:
         """Create backup point for rollback"""
-        backup_id = f"fix_{issue.issue_id}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+        backup_id = f"fix_{issue.issue_id}_{safe_utc_now().strftime('%Y%m%d_%H%M%S')}"
         
         # Create backup table for affected data
         if issue.table and issue.column:
@@ -498,7 +510,7 @@ class DatabaseIssueFixer:
             await conn.execute("""
                 INSERT INTO database_backups (backup_id, table_name, column_name, issue_type, created_at)
                 VALUES ($1, $2, $3, $4, $5)
-            """, backup_id, issue.table, issue.column, issue.issue_type, datetime.now(timezone.utc).replace(tzinfo=None))
+            """, backup_id, issue.table, issue.column, issue.issue_type, safe_utc_now())
         
         return backup_id
     
@@ -604,7 +616,7 @@ class DatabaseIssueFixer:
                 file_path = fix['file']
                 
                 # Backup original file
-                backup_path = f"{file_path}.backup.{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
+                backup_path = f"{file_path}.backup.{safe_utc_now().strftime('%Y%m%d_%H%M%S')}"
                 with open(file_path, 'r') as f:
                     original_content = f.read()
                 with open(backup_path, 'w') as f:
@@ -645,7 +657,7 @@ class DatabaseHealthMonitor:
         logger.info("Starting database health check...")
         
         results = {
-            'timestamp': datetime.now(timezone.utc),
+            'timestamp': safe_utc_now(),
             'issues_found': 0,
             'issues_fixed': 0,
             'critical_issues': [],
@@ -820,20 +832,41 @@ class DatabaseHealthMonitor:
             
             # Slow queries (if pg_stat_statements is available)
             try:
-                slow_query = """
-                    SELECT 
-                        query,
-                        calls,
-                        total_time,
-                        mean_time,
-                        stddev_time
-                    FROM pg_stat_statements
-                    WHERE query NOT LIKE '%pg_stat_statements%'
-                    ORDER BY mean_time DESC
-                    LIMIT 5
-                """
+                # Check PostgreSQL version and adjust column names accordingly
+                pg_version = await conn.fetchval("SELECT version()")
+                
+                # PostgreSQL 13+ uses different column names in pg_stat_statements
+                if "PostgreSQL 13" in pg_version or "PostgreSQL 14" in pg_version or "PostgreSQL 15" in pg_version:
+                    slow_query = """
+                        SELECT 
+                            query,
+                            calls,
+                            total_exec_time as total_time,
+                            mean_exec_time as mean_time
+                        FROM pg_stat_statements
+                        WHERE query NOT LIKE '%pg_stat_statements%'
+                        AND calls > 0
+                        ORDER BY mean_exec_time DESC
+                        LIMIT 5
+                    """
+                else:
+                    # Older PostgreSQL versions
+                    slow_query = """
+                        SELECT 
+                            query,
+                            calls,
+                            total_time,
+                            mean_time
+                        FROM pg_stat_statements
+                        WHERE query NOT LIKE '%pg_stat_statements%'
+                        AND calls > 0
+                        ORDER BY mean_time DESC
+                        LIMIT 5
+                    """
+                
                 metrics['slow_queries'] = [dict(row) for row in await conn.fetch(slow_query)]
-            except asyncpg.UndefinedTableError:
+            except (asyncpg.UndefinedTableError, asyncpg.UndefinedColumnError, Exception) as e:
+                logger.warning(f"pg_stat_statements not available or incompatible: {e}")
                 metrics['slow_queries'] = []
             
             # Index usage
@@ -869,10 +902,10 @@ class DatabaseHealthMonitor:
             issue_key = f"{issue.issue_type}:{issue.table}:{issue.column}"
             if issue_key in self.known_issues:
                 last_attempt = self.known_issues[issue_key]
-                if datetime.now(timezone.utc) - last_attempt < timedelta(hours=1):
+                if safe_utc_now() - last_attempt < timedelta(hours=1):
                     return False  # Don't retry within an hour
             
-            self.known_issues[issue_key] = datetime.now(timezone.utc)
+            self.known_issues[issue_key] = safe_utc_now()
             return True
         
         return False
@@ -1000,7 +1033,7 @@ class SelfHealingOrchestrator:
                 'last_check': latest['timestamp'] if latest else None,
                 'total_fixes': fix_count or 0,
                 'active_critical_issues': active_issues,
-                'next_check': datetime.now(timezone.utc) + timedelta(seconds=SCAN_INTERVAL_SECONDS) if self.running else None
+                'next_check': safe_utc_now() + timedelta(seconds=SCAN_INTERVAL_SECONDS) if self.running else None
             }
             
         finally:
