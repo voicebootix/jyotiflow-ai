@@ -34,8 +34,7 @@ class UnifiedJyotiFlowStartup:
         self.pool_config = {
             'min_size': 2,  # Start with minimal connections
             'max_size': 12, # Scale up to reasonable limit
-            'command_timeout': 60,
-            'connect_timeout': 15,  # Prevent hanging on individual connections
+            'command_timeout': 60,  # Timeout for SQL commands
             'server_settings': {
                 'application_name': 'jyotiflow_unified_system'
                 # Removed TCP keepalive settings - these cause hangs with Supabase connection pooler
@@ -169,7 +168,6 @@ class UnifiedJyotiFlowStartup:
                         min_size=self.pool_config['min_size'],
                         max_size=self.pool_config['max_size'],
                         command_timeout=self.pool_config['command_timeout'],
-                        connect_timeout=self.pool_config['connect_timeout'],
                         server_settings=self.pool_config['server_settings']
                     ),
                     timeout=timeout
