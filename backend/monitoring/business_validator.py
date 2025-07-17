@@ -471,7 +471,7 @@ class BusinessLogicValidator:
         if "Missing Tamil/Vedic cultural authenticity" in quality_feedback:
             suggestions.append("Include Sanskrit terms, Tamil cultural references, or Vedic concepts")
         
-                return suggestions
+        return suggestions
     
     def _get_embedding_cache_key(self, text: str) -> str:
         """Generate cache key for embedding"""

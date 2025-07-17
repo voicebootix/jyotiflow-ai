@@ -4,6 +4,7 @@ CRITICAL FOR PRODUCTION - Ensures social media automation works correctly.
 """
 
 import logging
+import os
 from typing import Dict, List, Optional, Any
 import json
 import re

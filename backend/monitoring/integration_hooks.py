@@ -5,7 +5,7 @@ Integrates monitoring without modifying core files.
 
 import time
 import logging
-from typing import Dict
+from typing import Dict, Callable
 from functools import wraps
 from datetime import datetime, timezone
 

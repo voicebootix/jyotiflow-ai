@@ -4,11 +4,9 @@ Integrates seamlessly with existing admin dashboard UI.
 """
 
 import json
-import logging
 import asyncio
-from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Optional, Any
-from enum import Enum
+from datetime import datetime, timezone
+from typing import Dict, List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
 from core_foundation_enhanced import get_database as get_db, logger, StandardResponse
@@ -16,8 +14,6 @@ from deps import get_current_admin_dependency
 
 from .integration_monitor import integration_monitor, IntegrationStatus
 from .business_validator import BusinessLogicValidator
-
-logger = logging.getLogger(__name__)
 
 # Create router for monitoring endpoints
 router = APIRouter(prefix="/api/monitoring", tags=["monitoring"])
