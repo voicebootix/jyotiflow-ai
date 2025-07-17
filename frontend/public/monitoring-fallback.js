@@ -7,7 +7,12 @@ function createMonitoringWebSocket() {
     
     function connect() {
         try {
-            ws = new WebSocket('wss://jyotiflow-ai.onrender.com/api/monitoring/ws');
+            // Get WebSocket URL from configuration, with fallback
+            const wsUrl = (typeof window !== 'undefined' && window.MONITORING_WS_URL) ||
+                         (typeof process !== 'undefined' && process.env.MONITORING_WS_URL) ||
+                         'wss://jyotiflow-ai.onrender.com/api/monitoring/ws';
+            
+            ws = new WebSocket(wsUrl);
             
             ws.onopen = function() {
                 console.log('🔌 Monitoring WebSocket connected');
