@@ -139,7 +139,7 @@ class UnifiedJyotiFlowStartup:
         logger.info("🔗 Creating main database connection pool...")
         logger.info(f"📍 Database target: {self.database_url.split('@')[1].split('/')[0] if '@' in self.database_url else 'hidden'}")
         
-        max_retries = 5
+        max_retries = 7
         base_delay = 3  # Start with shorter delays
         max_delay = 30  # Reasonable maximum delay
         
@@ -155,7 +155,7 @@ class UnifiedJyotiFlowStartup:
                 logger.info(f"🔄 Database connection attempt {attempt + 1}/{max_retries}")
                 
                 # Reasonable timeout: fast failure instead of hanging
-                timeout = 30 if attempt == 0 else 45  # Much more reasonable timeouts
+                timeout = 60 if attempt == 0 else 90  # Increased timeouts for Supabase cold starts
                 logger.info(f"⏱️ Using {timeout}s outer timeout for connection attempt")
                 
                 # Log connection attempt details
