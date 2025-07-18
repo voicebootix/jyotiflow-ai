@@ -39,10 +39,22 @@ The `DynamicComprehensivePricing` class was creating its own database connection
 pricing = DynamicComprehensivePricing(db_connection=db)
 
 # Standalone usage (module functions)
+await generate_pricing_recommendations()  # Acquires own connection
+await apply_admin_approved_pricing(price, notes)  # Acquires own connection
+
+# Nested usage (reusing existing connection)
 db_pool = get_db_pool()
 async with db_pool.acquire() as conn:
     pricing = DynamicComprehensivePricing(db_connection=conn)
-    # ... use pricing
+    # Pass connection to avoid nested acquisition
+    recommendations = await generate_pricing_recommendations(conn=conn)
+    result = await apply_admin_approved_pricing(price, notes, conn=conn)
 ```
 
-**Complete fix that handles all usage scenarios without duplication or race conditions.**
+## Key Features
+- ✅ **Backward compatible** - existing calls work without changes
+- ✅ **Connection reuse** - functions accept optional connection parameter
+- ✅ **No nested connections** - avoids connection pool exhaustion
+- ✅ **Single database pool** - all connections from main app's pool
+
+**Complete fix that handles all usage scenarios without duplication, race conditions, or nested connections.**

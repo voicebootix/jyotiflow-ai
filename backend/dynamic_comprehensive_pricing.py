@@ -407,14 +407,10 @@ class DynamicComprehensivePricing:
 from db import get_db_pool
 
 # Pricing recommendation functions (NO AUTO-UPDATE)
-async def generate_pricing_recommendations():
+async def generate_pricing_recommendations(conn=None):
     """Generate pricing recommendations for admin review (NO AUTO-UPDATE)"""
-    # Use main app's database pool
-    db_pool = get_db_pool()
-    if not db_pool:
-        raise ValueError("Main database pool not available")
-    
-    async with db_pool.acquire() as conn:
+    if conn is not None:
+        # Use provided connection
         pricing_engine = DynamicComprehensivePricing(db_connection=conn)
         
         # Calculate recommended pricing
@@ -422,6 +418,20 @@ async def generate_pricing_recommendations():
         
         # Get current pricing
         current_pricing = await pricing_engine.get_current_price_info()
+    else:
+        # Acquire connection from pool
+        db_pool = get_db_pool()
+        if not db_pool:
+            raise ValueError("Main database pool not available")
+        
+        async with db_pool.acquire() as conn:
+            pricing_engine = DynamicComprehensivePricing(db_connection=conn)
+            
+            # Calculate recommended pricing
+            pricing_recommendation = await pricing_engine.calculate_comprehensive_reading_price()
+            
+            # Get current pricing
+            current_pricing = await pricing_engine.get_current_price_info()
     
     # Analyze the recommendation
     current_price = current_pricing.get("current_price", 12)
@@ -451,18 +461,11 @@ async def generate_pricing_recommendations():
     logger.info(f"Generated pricing recommendation: {current_price} -> {recommended_price} credits (Admin approval required)")
     return recommendation_report
 
-async def apply_admin_approved_pricing(approved_price: float, admin_notes: str = "") -> Dict[str, Any]:
+async def apply_admin_approved_pricing(approved_price: float, admin_notes: str = "", conn=None) -> Dict[str, Any]:
     """Apply admin-approved pricing change"""
-    # Use main app's database pool
-    db_pool = get_db_pool()
-    if not db_pool:
-        return {
-            "success": False,
-            "message": "Main database pool not available"
-        }
-    
-    try:
-        async with db_pool.acquire() as conn:
+    if conn is not None:
+        # Use provided connection
+        try:
             pricing_engine = DynamicComprehensivePricing(db_connection=conn)
             
             # Get current pricing for comparison
@@ -497,12 +500,63 @@ async def apply_admin_approved_pricing(approved_price: float, admin_notes: str =
                     "message": "Failed to update price in database"
                 }
             
-    except Exception as e:
-        logger.error(f"Admin pricing application error: {e}")
-        return {
-            "success": False,
-            "message": f"Error applying pricing: {str(e)}"
-        }
+        except Exception as e:
+            logger.error(f"Admin pricing application error: {e}")
+            return {
+                "success": False,
+                "message": f"Error applying pricing: {str(e)}"
+            }
+    else:
+        # Acquire connection from pool
+        db_pool = get_db_pool()
+        if not db_pool:
+            return {
+                "success": False,
+                "message": "Main database pool not available"
+            }
+        
+        try:
+            async with db_pool.acquire() as conn:
+                pricing_engine = DynamicComprehensivePricing(db_connection=conn)
+                
+                # Get current pricing for comparison
+                current_pricing = await pricing_engine.get_current_price_info()
+                current_price = current_pricing.get("current_price", 12)
+                
+                # Create pricing update data
+                approved_pricing = {
+                    "current_price": approved_price,
+                    "pricing_rationale": f"Admin approved: {admin_notes}",
+                    "last_updated": datetime.now().isoformat(),
+                    "approval_timestamp": datetime.now().isoformat(),
+                    "approved_by": "admin"
+                }
+                
+                # Update the price
+                success = await pricing_engine.update_service_price(approved_pricing)
+                
+                if success:
+                    logger.info(f"Admin approved price change: {current_price} -> {approved_price} credits")
+                    return {
+                        "success": True,
+                        "message": "Price updated successfully",
+                        "old_price": current_price,
+                        "new_price": approved_price,
+                        "updated_at": datetime.now().isoformat()
+                    }
+                else:
+                    logger.error("Failed to apply admin approved pricing")
+                    return {
+                        "success": False,
+                        "message": "Failed to update price in database"
+                    }
+                
+        except Exception as e:
+            logger.error(f"Admin pricing application error: {e}")
+            return {
+                "success": False,
+                "message": f"Error applying pricing: {str(e)}"
+            }
 
 async def get_pricing_dashboard_data() -> Dict[str, Any]:
     """Get comprehensive pricing data for admin dashboard"""
@@ -517,7 +571,8 @@ async def get_pricing_dashboard_data() -> Dict[str, Any]:
         pricing_engine = DynamicComprehensivePricing(db_connection=conn)
         
         current_pricing = await pricing_engine.get_current_price_info()
-        pricing_recommendation = await generate_pricing_recommendations()
+        # Pass the existing connection to avoid nested connection acquisition
+        pricing_recommendation = await generate_pricing_recommendations(conn=conn)
         
         return {
             "current_pricing": current_pricing,
