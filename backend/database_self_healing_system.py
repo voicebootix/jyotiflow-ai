@@ -470,47 +470,48 @@ class DatabaseIssueFixer:
         if not pool:
             raise Exception("Shared database pool not available")
             
-        async with pool.acquire() as conn:
-            # Start transaction
-            await conn.execute('BEGIN')
+                async with pool.acquire() as conn:
+            try:
+                # Start transaction
+                await conn.execute('BEGIN')
+                
+                # Create backup point
+                backup_id = await self._create_backup_point(conn, issue)
+                result['rollback_available'] = True
+                
+                # Fix based on issue type
+                if issue.issue_type == 'TYPE_MISMATCH':
+                    await self._fix_type_mismatch(conn, issue, result)
+                elif issue.issue_type == 'MISSING_TABLE':
+                    await self._fix_missing_table(conn, issue, result)
+                elif issue.issue_type == 'MISSING_COLUMN':
+                    await self._fix_missing_column(conn, issue, result)
+                elif issue.issue_type == 'MISSING_INDEX':
+                    await self._fix_missing_index(conn, issue, result)
+                elif issue.issue_type == 'ORPHANED_DATA':
+                    await self._fix_orphaned_data(conn, issue, result)
             
-            # Create backup point
-            backup_id = await self._create_backup_point(conn, issue)
-            result['rollback_available'] = True
-            
-            # Fix based on issue type
-            if issue.issue_type == 'TYPE_MISMATCH':
-                await self._fix_type_mismatch(conn, issue, result)
-            elif issue.issue_type == 'MISSING_TABLE':
-                await self._fix_missing_table(conn, issue, result)
-            elif issue.issue_type == 'MISSING_COLUMN':
-                await self._fix_missing_column(conn, issue, result)
-            elif issue.issue_type == 'MISSING_INDEX':
-                await self._fix_missing_index(conn, issue, result)
-            elif issue.issue_type == 'ORPHANED_DATA':
-                await self._fix_orphaned_data(conn, issue, result)
-            
-            # Apply code fixes if any
-            if issue.code_fixes:
+                # Apply code fixes if any
+                if issue.code_fixes:
                 await self._apply_code_fixes(issue.code_fixes, result)
             
-            # Commit transaction
-            await conn.execute('COMMIT')
-            result['success'] = True
+                # Commit transaction
+                await conn.execute('COMMIT')
+                result['success'] = True
             
-            # Record fix in history
-            self.fix_history.append({
+                # Record fix in history
+                self.fix_history.append({
                 'timestamp': safe_utc_now(),
                 'issue': asdict(issue),
                 'result': result,
                 'backup_id': backup_id
-            })
+                })
             
-        except Exception as e:
-            # Rollback on error
-            await conn.execute('ROLLBACK')
-            result['errors'].append(str(e))
-            logger.error(f"Error fixing issue {issue.issue_id}: {e}")
+            except Exception as e:
+                # Rollback on error
+                await conn.execute('ROLLBACK')
+                result['errors'].append(str(e))
+                logger.error(f"Error fixing issue {issue.issue_id}: {e}")
         
         return result
     
@@ -1224,6 +1225,7 @@ async def _ensure_health_tables_exist():
     
     import db
     pool = db.get_db_pool()
+
     if not pool:
         raise Exception("Shared database pool not available")
         

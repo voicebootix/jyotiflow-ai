@@ -113,31 +113,29 @@ class BirthChartCacheService:
             if not pool:
                 logger.warning("Database pool not available")
                 return None
-            conn = await pool.acquire()
             
-            # Update user record with cached birth chart data
-            await conn.execute("""
-                UPDATE users SET 
-                    birth_chart_data = $1,
-                    birth_chart_hash = $2,
-                    birth_chart_cached_at = $3,
-                    birth_chart_expires_at = $4,
-                    has_free_birth_chart = true,
-                    birth_date = $5,
-                    birth_time = $6,
-                    birth_location = $7
-                WHERE email = $8
-            """, 
-            json.dumps(chart_data), 
-            birth_hash, 
-            cached_at, 
-            expires_at,
-            birth_details.get('date'),
-            birth_details.get('time'),
-            birth_details.get('location'),
-            user_email)
-            
-            await pool.release(conn)
+            async with pool.acquire() as conn:
+                # Update user record with cached birth chart data
+                await conn.execute("""
+                    UPDATE users SET 
+                        birth_chart_data = $1,
+                        birth_chart_hash = $2,
+                        birth_chart_cached_at = $3,
+                        birth_chart_expires_at = $4,
+                        has_free_birth_chart = true,
+                        birth_date = $5,
+                        birth_time = $6,
+                        birth_location = $7
+                    WHERE email = $8
+                """, 
+                json.dumps(chart_data), 
+                birth_hash, 
+                cached_at, 
+                expires_at,
+                birth_details.get('date'),
+                birth_details.get('time'),
+                birth_details.get('location'),
+                user_email)
             
             logger.info(f"✅ Birth chart cached for user {user_email}, expires at {expires_at}")
             return True
@@ -164,18 +162,16 @@ class BirthChartCacheService:
             if not pool:
                 logger.warning("Database pool not available")
                 return None
-            conn = await pool.acquire()
             
-            await conn.execute("""
-                UPDATE users SET 
-                    birth_chart_data = NULL,
-                    birth_chart_hash = NULL,
-                    birth_chart_cached_at = NULL,
-                    birth_chart_expires_at = NULL
-                WHERE email = $1
-            """, user_email)
-            
-            await pool.release(conn)
+            async with pool.acquire() as conn:
+                await conn.execute("""
+                    UPDATE users SET 
+                        birth_chart_data = NULL,
+                        birth_chart_hash = NULL,
+                        birth_chart_cached_at = NULL,
+                        birth_chart_expires_at = NULL
+                    WHERE email = $1
+                """, user_email)
             
             logger.info(f"✅ Birth chart cache invalidated for user {user_email}")
             return True
@@ -209,20 +205,18 @@ class BirthChartCacheService:
             if not pool:
                 logger.warning("Database pool not available")
                 return None
-            conn = await pool.acquire()
             
-            user_data = await conn.fetchrow("""
-                SELECT 
-                    birth_date, birth_time, birth_location,
-                    birth_chart_cached_at, birth_chart_expires_at,
-                    has_free_birth_chart,
-                    (birth_chart_data IS NOT NULL) as has_cached_data,
-                    (birth_chart_expires_at > NOW()) as cache_valid
-                FROM users 
-                WHERE email = $1
-            """, user_email)
-            
-            await pool.release(conn)
+            async with pool.acquire() as conn:
+                user_data = await conn.fetchrow("""
+                    SELECT 
+                        birth_date, birth_time, birth_location,
+                        birth_chart_cached_at, birth_chart_expires_at,
+                        has_free_birth_chart,
+                        (birth_chart_data IS NOT NULL) as has_cached_data,
+                        (birth_chart_expires_at > NOW()) as cache_valid
+                    FROM users 
+                    WHERE email = $1
+                """, user_email)
             
             if user_data:
                 return {
@@ -278,19 +272,17 @@ class BirthChartCacheService:
             if not pool:
                 logger.warning("Database pool not available")
                 return None
-            conn = await pool.acquire()
             
-            result = await conn.execute("""
-                UPDATE users SET 
-                    birth_chart_data = NULL,
-                    birth_chart_hash = NULL,
-                    birth_chart_cached_at = NULL,
-                    birth_chart_expires_at = NULL
-                WHERE birth_chart_expires_at < NOW()
-                AND birth_chart_data IS NOT NULL
-            """)
-            
-            await pool.release(conn)
+            async with pool.acquire() as conn:
+                result = await conn.execute("""
+                    UPDATE users SET 
+                        birth_chart_data = NULL,
+                        birth_chart_hash = NULL,
+                        birth_chart_cached_at = NULL,
+                        birth_chart_expires_at = NULL
+                    WHERE birth_chart_expires_at < NOW()
+                    AND birth_chart_data IS NOT NULL
+                """)
             
             # Extract number of rows updated using robust parsing
             db_cleaned = self._parse_affected_rows(result)
@@ -370,19 +362,17 @@ class BirthChartCacheService:
             if not pool:
                 logger.warning("Database pool not available")
                 return None
-            conn = await pool.acquire()
             
-            stats = await conn.fetchrow("""
-                SELECT 
-                    COUNT(*) as total_users,
-                    COUNT(birth_chart_data) as users_with_cached_data,
-                    COUNT(CASE WHEN birth_chart_expires_at > NOW() THEN 1 END) as users_with_valid_cache,
-                    COUNT(CASE WHEN has_free_birth_chart = true THEN 1 END) as users_with_free_chart,
-                    AVG(EXTRACT(EPOCH FROM (NOW() - birth_chart_cached_at))/86400) as avg_cache_age_days
-                FROM users
-            """)
-            
-            await pool.release(conn)
+            async with pool.acquire() as conn:
+                stats = await conn.fetchrow("""
+                    SELECT 
+                        COUNT(*) as total_users,
+                        COUNT(birth_chart_data) as users_with_cached_data,
+                        COUNT(CASE WHEN birth_chart_expires_at > NOW() THEN 1 END) as users_with_valid_cache,
+                        COUNT(CASE WHEN has_free_birth_chart = true THEN 1 END) as users_with_free_chart,
+                        AVG(EXTRACT(EPOCH FROM (NOW() - birth_chart_cached_at))/86400) as avg_cache_age_days
+                    FROM users
+                """)
             
             return {
                 'total_users': stats['total_users'],

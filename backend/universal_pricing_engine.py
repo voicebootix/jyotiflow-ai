@@ -354,7 +354,6 @@ class UniversalPricingEngine:
             pool = db.get_db_pool()
             if not pool:
                 raise Exception("Shared database pool not available")
-                
             async with pool.acquire() as conn:
                 result = await conn.fetchrow("""
                     SELECT recommendation_data, confidence_score 
@@ -474,7 +473,6 @@ class UniversalPricingEngine:
             pool = db.get_db_pool()
             if not pool:
                 raise Exception("Shared database pool not available")
-                
             async with pool.acquire() as conn:
                 result = await conn.fetchrow("""
                     SELECT name, display_name, duration_minutes, credits_required, service_category,
@@ -589,9 +587,9 @@ async def get_smart_pricing_recommendations() -> Dict[str, Any]:
             print("❌ ERROR: Shared database pool not available")
             return {}
             
-        async with pool.acquire() as conn:
-            # Get pricing performance data
-            performance_data = await conn.fetchrow("""
+            async with pool.acquire() as conn:
+                # Get pricing performance data
+                performance_data = await conn.fetchrow("""
                 SELECT 
                     COUNT(*) as total_sessions,
                     AVG(credits_used) as avg_credits_used,

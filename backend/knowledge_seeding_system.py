@@ -684,7 +684,6 @@ class KnowledgeSeeder:
                 pool = db.get_db_pool()
                 if not pool:
                     raise Exception("Database pool not available")
-                    
                 async with pool.acquire() as conn:
                         
                         # Check column type for this connection

@@ -52,10 +52,10 @@ class ProductionMonitor:
     async def check_health(self):
         """Check system health status"""
         import db
-            pool = db.get_db_pool()
-            if not pool:
+        pool = db.get_db_pool()
+        if not pool:
                 return None
-            async with pool.acquire() as conn:
+        async with pool.acquire() as conn:
             # Get latest health check
             result = await conn.fetchrow("""
                 SELECT * FROM health_check_results
@@ -86,10 +86,10 @@ class ProductionMonitor:
     async def check_fixes(self):
         """Check what fixes have been applied"""
         import db
-            pool = db.get_db_pool()
-            if not pool:
-                return None
-            async with pool.acquire() as conn:
+        pool = db.get_db_pool()
+        if not pool:
+            return None
+        async with pool.acquire() as conn:
             # Get recent fixes
             fixes = await conn.fetch("""
                 SELECT * FROM database_backups
@@ -104,10 +104,10 @@ class ProductionMonitor:
     async def check_errors(self):
         """Check for any errors"""
         import db
-            pool = db.get_db_pool()
-            if not pool:
-                return None
-            async with pool.acquire() as conn:
+        pool = db.get_db_pool()
+        if not pool:
+            return None
+        async with pool.acquire() as conn:
             # Check for failed health checks
             failed = await conn.fetch("""
                 SELECT * FROM health_check_results
@@ -125,10 +125,10 @@ class ProductionMonitor:
     async def check_performance(self):
         """Check system performance"""
         import db
-            pool = db.get_db_pool()
-            if not pool:
+        pool = db.get_db_pool()
+        if not pool:
                 return None
-            async with pool.acquire() as conn:
+        async with pool.acquire() as conn:
             # Get average health check duration
             perf_data = await conn.fetch("""
                 SELECT 
@@ -294,18 +294,24 @@ async def verify_production_ready():
                 else:
                     print(f"   ⚠️  Slow performance ({duration:.1f}s)")
     
-    # Final verdict
-    print(f"\n🎯 Production Readiness: {checks_passed}/{total_checks}")
+        # Final verdict
+        print(f"\n🎯 Production Readiness: {checks_passed}/{total_checks}")
+        
+        if checks_passed == total_checks:
+            print("✅ System is ready for production!")
+            return True
+        elif checks_passed >= 3:
+            print("⚠️  System is mostly ready but needs some fixes")
+            return False
+        else:
+            print("❌ System is not ready for production")
+            return False
     
-    if checks_passed == total_checks:
-        print("✅ System is ready for production!")
-        return True
-    elif checks_passed >= 3:
-        print("⚠️  System is mostly ready but needs some fixes")
+    except Exception as e:
+        print(f"❌ Error during production readiness check: {e}")
         return False
-    else:
-        print("❌ System is not ready for production")
-        return False
+    finally:
+        await conn.close()
 
 
 async def main():
