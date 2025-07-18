@@ -406,13 +406,22 @@ class DynamicComprehensivePricing:
 # Pricing recommendation functions (NO AUTO-UPDATE)
 async def generate_pricing_recommendations():
     """Generate pricing recommendations for admin review (NO AUTO-UPDATE)"""
-    pricing_engine = DynamicComprehensivePricing()  # No database connection - will use defaults
+    # Create database connection for standalone usage
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is required")
     
-    # Calculate recommended pricing
-    pricing_recommendation = await pricing_engine.calculate_comprehensive_reading_price()
-    
-    # Get current pricing
-    current_pricing = await pricing_engine.get_current_price_info()
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        pricing_engine = DynamicComprehensivePricing(db_connection=conn)
+        
+        # Calculate recommended pricing
+        pricing_recommendation = await pricing_engine.calculate_comprehensive_reading_price()
+        
+        # Get current pricing
+        current_pricing = await pricing_engine.get_current_price_info()
+    finally:
+        await conn.close()
     
     # Analyze the recommendation
     current_price = current_pricing.get("current_price", 12)
@@ -444,9 +453,18 @@ async def generate_pricing_recommendations():
 
 async def apply_admin_approved_pricing(approved_price: float, admin_notes: str = "") -> Dict[str, Any]:
     """Apply admin-approved pricing change"""
-    pricing_engine = DynamicComprehensivePricing()
+    # Create database connection for standalone usage
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        return {
+            "success": False,
+            "message": "DATABASE_URL environment variable is required"
+        }
     
+    conn = await asyncpg.connect(DATABASE_URL)
     try:
+        pricing_engine = DynamicComprehensivePricing(db_connection=conn)
+        
         # Get current pricing for comparison
         current_pricing = await pricing_engine.get_current_price_info()
         current_price = current_pricing.get("current_price", 12)
@@ -485,25 +503,38 @@ async def apply_admin_approved_pricing(approved_price: float, admin_notes: str =
             "success": False,
             "message": f"Error applying pricing: {str(e)}"
         }
+    finally:
+        await conn.close()
 
 async def get_pricing_dashboard_data() -> Dict[str, Any]:
     """Get comprehensive pricing data for admin dashboard"""
-    pricing_engine = DynamicComprehensivePricing()
-    
-    current_pricing = await pricing_engine.get_current_price_info()
-    pricing_recommendation = await generate_pricing_recommendations()
-    
-    return {
-        "current_pricing": current_pricing,
-        "pricing_recommendation": pricing_recommendation,
-        "price_change_needed": pricing_recommendation["recommendation_urgency"] in ["high", "medium"],
-        "market_conditions": {
-            "demand_factor": pricing_recommendation["demand_analysis"]["demand_factor"],
-            "demand_trend": pricing_recommendation["demand_analysis"]["demand_trend"],
-            "cost_trends": pricing_recommendation["cost_breakdown"],
-            "ai_confidence": pricing_recommendation["ai_recommendation"]["confidence"]
+    # Create database connection for standalone usage
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        return {
+            "error": "DATABASE_URL environment variable is required"
         }
-    }
+    
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        pricing_engine = DynamicComprehensivePricing(db_connection=conn)
+        
+        current_pricing = await pricing_engine.get_current_price_info()
+        pricing_recommendation = await generate_pricing_recommendations()
+        
+        return {
+            "current_pricing": current_pricing,
+            "pricing_recommendation": pricing_recommendation,
+            "price_change_needed": pricing_recommendation["recommendation_urgency"] in ["high", "medium"],
+            "market_conditions": {
+                "demand_factor": pricing_recommendation["demand_analysis"]["demand_factor"],
+                "demand_trend": pricing_recommendation["demand_analysis"]["demand_trend"],
+                "cost_trends": pricing_recommendation["cost_breakdown"],
+                "ai_confidence": pricing_recommendation["ai_recommendation"]["confidence"]
+            }
+        }
+    finally:
+        await conn.close()
 
 # Integration with existing pricing system
 async def integrate_with_ai_pricing_recommendations():
@@ -527,20 +558,30 @@ if __name__ == "__main__":
         """Test the dynamic pricing system"""
         print("🧪 Testing Dynamic Comprehensive Pricing...")
         
-        pricing_engine = DynamicComprehensivePricing()
+        # Create database connection for testing
+        DATABASE_URL = os.getenv("DATABASE_URL")
+        if not DATABASE_URL:
+            print("❌ DATABASE_URL environment variable is required")
+            return
         
-        # Test price calculation
-        print("\n📊 Testing Price Calculation:")
-        pricing_result = await pricing_engine.calculate_comprehensive_reading_price()
-        print(f"   Recommended Price: {pricing_result['recommended_price']} credits")
-        print(f"   Confidence Level: {pricing_result['confidence_level']:.1%}")
-        print(f"   Demand Factor: {pricing_result['demand_factor']:.2f}x")
-        
-        # Test current price info
-        print("\n💰 Testing Current Price Info:")
-        current_info = await pricing_engine.get_current_price_info()
-        print(f"   Current Price: {current_info.get('current_price', 'N/A')} credits")
-        print(f"   Last Updated: {current_info.get('last_updated', 'N/A')}")
+        conn = await asyncpg.connect(DATABASE_URL)
+        try:
+            pricing_engine = DynamicComprehensivePricing(db_connection=conn)
+            
+            # Test price calculation
+            print("\n📊 Testing Price Calculation:")
+            pricing_result = await pricing_engine.calculate_comprehensive_reading_price()
+            print(f"   Recommended Price: {pricing_result['recommended_price']} credits")
+            print(f"   Confidence Level: {pricing_result['confidence_level']:.1%}")
+            print(f"   Demand Factor: {pricing_result['demand_factor']:.2f}x")
+            
+            # Test current price info
+            print("\n💰 Testing Current Price Info:")
+            current_info = await pricing_engine.get_current_price_info()
+            print(f"   Current Price: {current_info.get('current_price', 'N/A')} credits")
+            print(f"   Last Updated: {current_info.get('last_updated', 'N/A')}")
+        finally:
+            await conn.close()
         
         # Test pricing recommendations
         print("\n🤖 Testing Pricing Recommendations:")
