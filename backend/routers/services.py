@@ -22,7 +22,7 @@ async def get_dynamic_pricing(db, service_name: str = ""):
         # Try to get enhanced comprehensive pricing first
         if DYNAMIC_PRICING_AVAILABLE and service_name:
             try:
-                dynamic_pricing = DynamicComprehensivePricing()
+                dynamic_pricing = DynamicComprehensivePricing(db_connection=db)
                 comprehensive_pricing = await dynamic_pricing.calculate_comprehensive_reading_price(
                     service_config={"service_name": service_name}
                 )
@@ -35,6 +35,7 @@ async def get_dynamic_pricing(db, service_name: str = ""):
                 }
             except Exception as e:
                 logger.error(f"Enhanced pricing error: {e}")
+                # Fall through to basic pricing
         
         # Fallback to basic dynamic pricing
         result = await db.fetchrow("""
