@@ -470,7 +470,7 @@ class DatabaseIssueFixer:
         if not pool:
             raise Exception("Shared database pool not available")
             
-                async with pool.acquire() as conn:
+        async with pool.acquire() as conn:
             try:
                 # Start transaction
                 await conn.execute('BEGIN')
@@ -490,23 +490,23 @@ class DatabaseIssueFixer:
                     await self._fix_missing_index(conn, issue, result)
                 elif issue.issue_type == 'ORPHANED_DATA':
                     await self._fix_orphaned_data(conn, issue, result)
-            
+                
                 # Apply code fixes if any
                 if issue.code_fixes:
-                await self._apply_code_fixes(issue.code_fixes, result)
-            
+                    await self._apply_code_fixes(issue.code_fixes, result)
+                
                 # Commit transaction
                 await conn.execute('COMMIT')
                 result['success'] = True
-            
+                
                 # Record fix in history
                 self.fix_history.append({
-                'timestamp': safe_utc_now(),
-                'issue': asdict(issue),
-                'result': result,
-                'backup_id': backup_id
+                    'timestamp': safe_utc_now(),
+                    'issue': asdict(issue),
+                    'result': result,
+                    'backup_id': backup_id
                 })
-            
+                
             except Exception as e:
                 # Rollback on error
                 await conn.execute('ROLLBACK')
@@ -1230,35 +1230,36 @@ async def _ensure_health_tables_exist():
         raise Exception("Shared database pool not available")
         
     async with pool.acquire() as conn:
-        # Create health_check_results table
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS health_check_results (
-                id SERIAL PRIMARY KEY,
-                timestamp TIMESTAMP DEFAULT NOW(),
-                results JSONB,
-                issues_found INTEGER DEFAULT 0,
-                issues_fixed INTEGER DEFAULT 0,
-                critical_count INTEGER DEFAULT 0
-            )
-        """)
-        
-        # Create database_backups table (if not exists)
-        await conn.execute("""
-            CREATE TABLE IF NOT EXISTS database_backups (
-                id SERIAL PRIMARY KEY,
-                backup_id VARCHAR(255) UNIQUE,
-                table_name VARCHAR(255),
-                column_name VARCHAR(255),
-                issue_type VARCHAR(100),
-                created_at TIMESTAMP DEFAULT NOW()
-            )
-        """)
-        
-        logger.info("✅ Health monitoring tables ensured")
-        
-    except Exception as e:
-        logger.error(f"Failed to create health monitoring tables: {e}")
-        raise
+        try:
+            # Create health_check_results table
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS health_check_results (
+                    id SERIAL PRIMARY KEY,
+                    timestamp TIMESTAMP DEFAULT NOW(),
+                    results JSONB,
+                    issues_found INTEGER DEFAULT 0,
+                    issues_fixed INTEGER DEFAULT 0,
+                    critical_count INTEGER DEFAULT 0
+                )
+            """)
+            
+            # Create database_backups table (if not exists)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS database_backups (
+                    id SERIAL PRIMARY KEY,
+                    backup_id VARCHAR(255) UNIQUE,
+                    table_name VARCHAR(255),
+                    column_name VARCHAR(255),
+                    issue_type VARCHAR(100),
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            logger.info("✅ Health monitoring tables ensured")
+            
+        except Exception as e:
+            logger.error(f"Failed to create health monitoring tables: {e}")
+            raise
 
 
 @router.post("/fix")
