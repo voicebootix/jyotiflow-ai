@@ -310,8 +310,6 @@ async def verify_production_ready():
     except Exception as e:
         print(f"❌ Error during production readiness check: {e}")
         return False
-    finally:
-        await conn.close()
 
 
 async def main():

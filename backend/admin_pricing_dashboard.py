@@ -150,7 +150,16 @@ class AdminPricingDashboard:
             import db
             pool = db.get_db_pool()
             if not pool:
-                return None
+                logger.warning("Database pool not available for demand analytics")
+                return {
+                    "daily_demand": [],
+                    "hourly_demand": [],
+                    "total_sessions_30_days": 0,
+                    "avg_daily_sessions": 0,
+                    "recent_7_day_avg": 0,
+                    "trend": "unknown",
+                    "peak_hours": []
+                }
             async with pool.acquire() as conn:
                 # Get session counts by day for last 30 days
                 daily_rows = await conn.fetch("""
@@ -229,7 +238,15 @@ class AdminPricingDashboard:
             import db
             pool = db.get_db_pool()
             if not pool:
-                return None
+                logger.warning("Database pool not available for revenue impact calculation")
+                return {
+                    "current_revenue_30_days": 0,
+                    "current_sessions_30_days": 0,
+                    "current_avg_price": 12,
+                    "price_performance": [],
+                    "price_scenarios": [],
+                    "optimal_price_range": {"min": 11, "max": 13}
+                }
             async with pool.acquire() as conn:
                 # Get revenue for last 30 days
                 revenue_row = await conn.fetchrow("""
@@ -362,7 +379,11 @@ class AdminPricingDashboard:
             import db
             pool = db.get_db_pool()
             if not pool:
-                return None
+                logger.warning("Database pool not available for pricing override")
+                return {
+                    "success": False,
+                    "message": "Database pool not available - pricing override failed"
+                }
             async with pool.acquire() as conn:
                 # Store pricing override
                 await conn.execute("""
