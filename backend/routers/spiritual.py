@@ -12,6 +12,7 @@ import json
 import asyncpg
 from db import db_manager
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
+from httpx import Timeout
 
 # Import centralized JWT handler
 from auth.jwt_config import JWTHandler
@@ -141,7 +142,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
         token = await get_prokerala_token()
         logger.info(f"[BirthChart] Making comprehensive API calls for {user_email}")
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=Timeout(10.0)) as client:
             headers = {"Authorization": f"Bearer {token}"}
             
             # 1. Birth Details Endpoint
@@ -425,7 +426,7 @@ async def get_spiritual_guidance(request: Request):
             logger.info(f"Prokerala API attempt {attempt + 1}")
             token = await get_prokerala_token()
             try:
-                async with httpx.AsyncClient() as client:
+                async with httpx.AsyncClient(timeout=Timeout(10.0)) as client:
                     resp = await client.get(  # GET method instead of POST
                         "https://api.prokerala.com/v2/astrology/birth-details",
                         headers={"Authorization": f"Bearer {token}"},

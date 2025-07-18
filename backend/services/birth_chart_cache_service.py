@@ -108,6 +108,11 @@ class BirthChartCacheService:
             conn = await asyncpg.connect(self.db_url)
             
             # Update user record with cached birth chart data
+            try:
+                json.dumps(chart_data)
+            except (TypeError, ValueError):
+                raise ValueError("Invalid chart data for caching")
+
             await conn.execute("""
                 UPDATE users SET 
                     birth_chart_data = $1,

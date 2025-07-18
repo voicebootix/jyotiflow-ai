@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import Request, HTTPException
 import jwt
 import logging
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +75,10 @@ class JWTHandler:
         """Decode and validate JWT token"""
         try:
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+            if 'sub' not in payload or 'exp' not in payload:
+                raise HTTPException(status_code=401, detail="Invalid token structure")
+            if payload['exp'] < time.time():
+                raise HTTPException(status_code=401, detail="Token expired")
             return payload
         except jwt.ExpiredSignatureError:
             raise HTTPException(status_code=401, detail="Token has expired")

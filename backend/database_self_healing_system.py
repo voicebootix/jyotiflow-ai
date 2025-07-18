@@ -659,6 +659,29 @@ class DatabaseIssueFixer:
         """, table_name)
         return result
 
+    async def drop_dead_tables(self, dead_tables: List[str]):
+        conn = await self.get_connection()
+        try:
+            await conn.execute('BEGIN')
+            for table in dead_tables:
+                await conn.execute(f'DROP TABLE IF EXISTS {quote_ident(table)} CASCADE')
+            await conn.execute('COMMIT')
+        except:
+            await conn.execute('ROLLBACK')
+            raise
+        finally:
+            await conn.close()
+
+    async def prune_old_backups(self, retention_days: int = 30):
+        conn = await self.get_connection()
+        try:
+            backups = await conn.fetch("SELECT backup_id, table_name FROM database_backups WHERE created_at < NOW() - INTERVAL '%s days'", retention_days)
+            for backup in backups:
+                await conn.execute(f'DROP TABLE IF EXISTS backup_{backup['table_name']}_{backup['backup_id']}')
+                await conn.execute('DELETE FROM database_backups WHERE backup_id = $1', backup['backup_id'])
+        finally:
+            await conn.close()
+
 
 class DatabaseHealthMonitor:
     """Monitors database health and triggers fixes"""
@@ -748,6 +771,12 @@ class DatabaseHealthMonitor:
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             results['error'] = str(e)
+            results['issues_found'] += 1  # Count the error as an issue
+            results['critical_issues'].append({
+                'issue_type': 'HEALTH_CHECK_ERROR',
+                'severity': 'CRITICAL',
+                'description': str(e)
+            })
         
         return results
     
@@ -1038,18 +1067,19 @@ class SelfHealingOrchestrator:
                     id SERIAL PRIMARY KEY,
                     timestamp TIMESTAMP DEFAULT NOW(),
                     results JSONB,
-                    issues_found INTEGER,
-                    issues_fixed INTEGER,
-                    critical_count INTEGER
+                    issues_found INTEGER DEFAULT 0,
+                    issues_fixed INTEGER DEFAULT 0,
+                    critical_count INTEGER DEFAULT 0
                 )
             """)
             
             # Insert results
+            timestamp_naive = results['timestamp'].replace(tzinfo=None)
             await conn.execute("""
                 INSERT INTO health_check_results (timestamp, results, issues_found, issues_fixed, critical_count)
                 VALUES ($1, $2, $3, $4, $5)
             """, 
-                results['timestamp'],
+                timestamp_naive,  # Use naive timestamp
                 json.dumps(results, default=serialize_datetime),
                 results['issues_found'],
                 results['issues_fixed'],
