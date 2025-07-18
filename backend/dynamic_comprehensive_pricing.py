@@ -11,12 +11,7 @@ import json
 import asyncpg
 import os
 
-# Import the main app's database pool
-try:
-    from db import get_db_pool
-    MAIN_DB_POOL_AVAILABLE = True
-except ImportError:
-    MAIN_DB_POOL_AVAILABLE = False
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -24,31 +19,8 @@ logger = logging.getLogger(__name__)
 class DynamicComprehensivePricing:
     """Dynamic pricing engine for comprehensive readings"""
     
-    def __init__(self, database_url: str = None):
-        # Use main app's database pool if available
-        if MAIN_DB_POOL_AVAILABLE:
-            self.connection_pool = get_db_pool()
-            self._pool_initialized = self.connection_pool is not None
-            self._use_main_pool = True
-            logger.info("Using main app's database pool for pricing calculations")
-        else:
-            # Fallback to creating own pool (for standalone usage)
-            self.database_url = database_url or os.getenv("DATABASE_URL")
-            
-            # Validate DATABASE_URL is set
-            if not self.database_url:
-                raise ValueError(
-                    "DATABASE_URL environment variable is missing or empty. "
-                    "Please set the DATABASE_URL environment variable or provide it as a parameter. "
-                    "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
-                )
-            
-            self.connection_pool = None
-            self._pool_initialized = False
-            self._use_main_pool = False
-            logger.info("Creating standalone database pool for pricing calculations")
-        
-        self._pool_lock = asyncio.Lock()
+    def __init__(self, db_connection=None):
+        self.db_connection = db_connection
         self.base_cost_factors = {
             "openai_api_calls": 0.5,  # Credits per API call
             "knowledge_retrieval": 0.2,  # Credits per knowledge piece
@@ -61,60 +33,7 @@ class DynamicComprehensivePricing:
             "market_demand_factor": 1.0  # Dynamic based on demand
         }
     
-    async def initialize_pool(self):
-        """Initialize connection pool (only if not using main pool)"""
-        if self._use_main_pool:
-            # Check if main pool is available
-            self.connection_pool = get_db_pool()
-            self._pool_initialized = self.connection_pool is not None
-            if not self._pool_initialized:
-                logger.warning("Main database pool not yet initialized, pricing calculations may fail")
-            return
-        
-        # Fallback: create standalone pool
-        async with self._pool_lock:
-            if not self._pool_initialized:
-                try:
-                    self.connection_pool = await asyncpg.create_pool(
-                        self.database_url,
-                        min_size=2,
-                        max_size=10
-                    )
-                    self._pool_initialized = True
-                    logger.info("Standalone database connection pool initialized successfully")
-                except Exception as e:
-                    logger.error(f"Failed to initialize database connection pool: {e}")
-                    raise ConnectionError(
-                        f"Unable to connect to database: {str(e)}. "
-                        "Please check your DATABASE_URL configuration."
-                    )
-    
-    async def get_connection(self):
-        """Get connection from pool"""
-        if not self._pool_initialized:
-            await self.initialize_pool()
-        
-        if not self.connection_pool:
-            raise ConnectionError("Database connection pool not available")
-        
-        if self._use_main_pool:
-            return await self.connection_pool.acquire()
-        else:
-            return await self.connection_pool.acquire()
-    
-    async def release_connection(self, conn):
-        """Release connection back to pool"""
-        if self.connection_pool:
-            if self._use_main_pool:
-                await self.connection_pool.release(conn)
-            else:
-                await self.connection_pool.release(conn)
-    
-    async def close_pool(self):
-        """Close connection pool (only if we created it)"""
-        if not self._use_main_pool and self.connection_pool:
-            await self.connection_pool.close()
-            self.connection_pool = None
+
     
     async def calculate_comprehensive_reading_price(self, 
                                                    service_config: Optional[Dict[str, Any]] = None,
@@ -161,12 +80,22 @@ class DynamicComprehensivePricing:
     
     async def _calculate_actual_costs(self) -> Dict[str, float]:
         """Calculate actual costs based on recent usage"""
-        conn = None
-        try:
-            conn = await self.get_connection()
+        if not self.db_connection:
+            # Return default costs if no database connection
+            return {
+                "openai_api_cost": 2.5,
+                "knowledge_processing_cost": 1.0,
+                "chart_generation_cost": 1.5,
+                "remedies_generation_cost": 1.2,
+                "server_processing_cost": 0.8,
+                "elevenlabs_voice_cost": 2.5,
+                "did_video_generation_cost": 4.0,
+                "total_operational_cost": 14.5
+            }
             
+        try:
             # Get recent comprehensive reading sessions
-            recent_sessions = await conn.fetchval("""
+            recent_sessions = await self.db_connection.fetchval("""
                 SELECT COUNT(*) as session_count 
                 FROM sessions 
                 WHERE service_type = 'comprehensive_life_reading_30min' 
@@ -211,9 +140,6 @@ class DynamicComprehensivePricing:
                 "did_video_generation_cost": 4.0,
                 "total_operational_cost": 14.5
             }
-        finally:
-            if conn:
-                await self.release_connection(conn)
     
     def _estimate_openai_costs(self) -> float:
         """Estimate OpenAI API costs for comprehensive reading"""
@@ -266,12 +192,12 @@ class DynamicComprehensivePricing:
     
     async def _get_demand_factor(self) -> float:
         """Calculate demand factor based on recent usage patterns"""
-        conn = None
-        try:
-            conn = await self.get_connection()
+        if not self.db_connection:
+            return 1.0  # Default to no change if no database connection
             
+        try:
             # Get sessions from last 24 hours vs previous 24 hours
-            result = await conn.fetchrow("""
+            result = await self.db_connection.fetchrow("""
                 SELECT 
                     COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as recent,
                     COUNT(CASE WHEN created_at BETWEEN NOW() - INTERVAL '2 days' AND NOW() - INTERVAL '1 day' THEN 1 END) as previous
@@ -303,19 +229,19 @@ class DynamicComprehensivePricing:
         except Exception as e:
             logger.error(f"Demand factor calculation error: {e}")
             return 1.0  # Default to no change
-        finally:
-            if conn:
-                await self.release_connection(conn)
     
     async def _get_ai_price_recommendation(self) -> Dict[str, Any]:
         """Get AI-based pricing recommendation"""
-        conn = None
-        try:
-            # Use connection pool instead of direct connection
-            conn = await self.get_connection()
+        if not self.db_connection:
+            return {
+                "recommended_price": 12,
+                "confidence": 0.5,
+                "reasoning": "No database connection available"
+            }
             
+        try:
             # Get latest AI recommendation for comprehensive service
-            result = await conn.fetchrow("""
+            result = await self.db_connection.fetchrow("""
                 SELECT recommendation_data, confidence_score 
                 FROM ai_pricing_recommendations 
                 WHERE service_type = 'comprehensive_life_reading_30min'
@@ -345,9 +271,6 @@ class DynamicComprehensivePricing:
                 "confidence": 0.5,
                 "reasoning": "Fallback recommendation due to system error"
             }
-        finally:
-            if conn:
-                await self.release_connection(conn)
     
     def _calculate_base_price(self, costs: Dict[str, float]) -> float:
         """Calculate base price from costs"""
@@ -417,12 +340,13 @@ class DynamicComprehensivePricing:
     
     async def update_service_price(self, new_pricing: Dict[str, Any]) -> bool:
         """Update the service price in the database"""
-        conn = None
-        try:
-            conn = await self.get_connection()
+        if not self.db_connection:
+            logger.error("No database connection available for price update")
+            return False
             
+        try:
             # Update service_types table
-            await conn.execute("""
+            await self.db_connection.execute("""
                 UPDATE service_types 
                 SET credits_required = $1, 
                     pricing_data = $2,
@@ -434,7 +358,7 @@ class DynamicComprehensivePricing:
             )
             
             # Log the price change
-            await conn.execute("""
+            await self.db_connection.execute("""
                 INSERT INTO pricing_history 
                 (service_name, old_price, new_price, reasoning, changed_at)
                 VALUES ($1, $2, $3, $4, NOW())
@@ -451,17 +375,15 @@ class DynamicComprehensivePricing:
         except Exception as e:
             logger.error(f"Price update error: {e}")
             return False
-        finally:
-            if conn:
-                await self.release_connection(conn)
     
     async def get_current_price_info(self) -> Dict[str, Any]:
         """Get current pricing information"""
-        conn = None
-        try:
-            conn = await self.get_connection()
+        if not self.db_connection:
+            logger.error("No database connection available for price retrieval")
+            return await self.calculate_comprehensive_reading_price()
             
-            result = await conn.fetchrow("""
+        try:
+            result = await self.db_connection.fetchrow("""
                 SELECT credits_required, pricing_data, last_price_update
                 FROM service_types 
                 WHERE name = 'comprehensive_life_reading_30min'
@@ -480,14 +402,11 @@ class DynamicComprehensivePricing:
         except Exception as e:
             logger.error(f"Price retrieval error: {e}")
             return await self.calculate_comprehensive_reading_price()
-        finally:
-            if conn:
-                await self.release_connection(conn)
 
 # Pricing recommendation functions (NO AUTO-UPDATE)
 async def generate_pricing_recommendations():
     """Generate pricing recommendations for admin review (NO AUTO-UPDATE)"""
-    pricing_engine = DynamicComprehensivePricing()
+    pricing_engine = DynamicComprehensivePricing()  # No database connection - will use defaults
     
     # Calculate recommended pricing
     pricing_recommendation = await pricing_engine.calculate_comprehensive_reading_price()
