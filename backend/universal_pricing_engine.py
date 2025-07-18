@@ -318,8 +318,12 @@ class UniversalPricingEngine:
     async def _get_demand_factor(self, service_name: str) -> float:
         """Get demand factor for the service"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                raise Exception("Shared database pool not available")
+                
+            async with pool.acquire() as conn:
                 result = await conn.fetchrow("""
                     SELECT 
                         COUNT(CASE WHEN created_at > NOW() - INTERVAL '1 day' THEN 1 END) as recent,
@@ -338,9 +342,6 @@ class UniversalPricingEngine:
                     demand_ratio = recent_demand / previous_demand
                     demand_factor = 0.8 + (demand_ratio * 0.6)
                     return max(0.7, min(1.5, demand_factor))
-                    
-            finally:
-                await conn.close()
                 
         except Exception as e:
             logger.error(f"Demand calculation error: {e}")
@@ -349,8 +350,12 @@ class UniversalPricingEngine:
     async def _get_ai_recommendation(self, service_name: str) -> Dict[str, Any]:
         """Get AI-based pricing recommendation"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                raise Exception("Shared database pool not available")
+                
+            async with pool.acquire() as conn:
                 result = await conn.fetchrow("""
                     SELECT recommendation_data, confidence_score 
                     FROM ai_pricing_recommendations 
@@ -367,9 +372,6 @@ class UniversalPricingEngine:
                         "confidence": result['confidence_score'],
                         "reasoning": recommendation_data.get("reasoning", "AI analysis")
                     }
-                
-            finally:
-                await conn.close()
             
         except Exception as e:
             logger.error(f"AI recommendation error: {e}")
@@ -468,8 +470,12 @@ class UniversalPricingEngine:
     async def get_service_config_from_db(self, service_name: str) -> Optional[ServiceConfiguration]:
         """Get service configuration from database"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                raise Exception("Shared database pool not available")
+                
+            async with pool.acquire() as conn:
                 result = await conn.fetchrow("""
                     SELECT name, display_name, duration_minutes, credits_required, service_category,
                            voice_enabled, video_enabled, comprehensive_reading_enabled as interactive_enabled,
@@ -494,9 +500,6 @@ class UniversalPricingEngine:
                         base_credits=result['credits_required'],
                         service_category=result['service_category']
                     )
-                    
-            finally:
-                await conn.close()
                 
         except Exception as e:
             logger.error(f"Database error: {e}")
@@ -580,13 +583,13 @@ async def calculate_universal_pricing(service_name: str) -> PricingResult:
 async def get_smart_pricing_recommendations() -> Dict[str, Any]:
     """Get smart pricing recommendations based on system performance"""
     try:
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            print("❌ ERROR: DATABASE_URL environment variable is required but not set")
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            print("❌ ERROR: Shared database pool not available")
             return {}
-        conn = await asyncpg.connect(database_url)
-        
-        try:
+            
+        async with pool.acquire() as conn:
             # Get pricing performance data
             performance_data = await conn.fetchrow("""
                 SELECT 
@@ -646,9 +649,6 @@ async def get_smart_pricing_recommendations() -> Dict[str, Any]:
                     })
             
             return recommendations
-            
-        finally:
-            await conn.close()
             
     except Exception as e:
         logger.error(f"Smart pricing recommendations error: {e}")

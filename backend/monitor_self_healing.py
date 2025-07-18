@@ -51,8 +51,11 @@ class ProductionMonitor:
     
     async def check_health(self):
         """Check system health status"""
-        conn = await asyncpg.connect(self.database_url)
-        try:
+        import db
+            pool = db.get_db_pool()
+            if not pool:
+                return None
+            async with pool.acquire() as conn:
             # Get latest health check
             result = await conn.fetchrow("""
                 SELECT * FROM health_check_results
@@ -79,14 +82,14 @@ class ProductionMonitor:
                 if age > timedelta(minutes=10):
                     print(f"⚠️  Last health check was {age.total_seconds()/60:.0f} minutes ago")
                     self.metrics['missed_checks'] += 1
-            
-        finally:
-            await conn.close()
     
     async def check_fixes(self):
         """Check what fixes have been applied"""
-        conn = await asyncpg.connect(self.database_url)
-        try:
+        import db
+            pool = db.get_db_pool()
+            if not pool:
+                return None
+            async with pool.acquire() as conn:
             # Get recent fixes
             fixes = await conn.fetch("""
                 SELECT * FROM database_backups
@@ -97,14 +100,14 @@ class ProductionMonitor:
             for fix in fixes:
                 self.metrics[f'fix_{fix["issue_type"]}'] += 1
                 print(f"🔧 Recent fix: {fix['table_name']}.{fix['column_name']} - {fix['issue_type']}")
-            
-        finally:
-            await conn.close()
     
     async def check_errors(self):
         """Check for any errors"""
-        conn = await asyncpg.connect(self.database_url)
-        try:
+        import db
+            pool = db.get_db_pool()
+            if not pool:
+                return None
+            async with pool.acquire() as conn:
             # Check for failed health checks
             failed = await conn.fetch("""
                 SELECT * FROM health_check_results
@@ -118,14 +121,14 @@ class ProductionMonitor:
                     results = json.loads(record['results'])
                     if 'error' in results:
                         print(f"❌ Error at {record['timestamp']}: {results['error']}")
-            
-        finally:
-            await conn.close()
     
     async def check_performance(self):
         """Check system performance"""
-        conn = await asyncpg.connect(self.database_url)
-        try:
+        import db
+            pool = db.get_db_pool()
+            if not pool:
+                return None
+            async with pool.acquire() as conn:
             # Get average health check duration
             perf_data = await conn.fetch("""
                 SELECT 
@@ -143,9 +146,6 @@ class ProductionMonitor:
                     
                     if avg_duration > 60:
                         print(f"⚠️  Performance warning: Average check duration is {avg_duration:.1f}s")
-            
-        finally:
-            await conn.close()
     
     def print_summary(self):
         """Print current summary"""
@@ -293,9 +293,6 @@ async def verify_production_ready():
                     checks_passed += 1
                 else:
                     print(f"   ⚠️  Slow performance ({duration:.1f}s)")
-        
-    finally:
-        await conn.close()
     
     # Final verdict
     print(f"\n🎯 Production Readiness: {checks_passed}/{total_checks}")

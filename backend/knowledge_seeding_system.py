@@ -679,12 +679,13 @@ class KnowledgeSeeder:
                             knowledge_data["authority_level"]
                         )
             else:
-                # Fallback to direct connection if no pool
-                conn = None
-                try:
-                    if ASYNCPG_AVAILABLE:
-                        DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
-                        conn = await asyncpg.connect(DATABASE_URL)
+                # Use shared pool instead of direct connection
+                import db
+                pool = db.get_db_pool()
+                if not pool:
+                    raise Exception("Database pool not available")
+                    
+                async with pool.acquire() as conn:
                         
                         # Check column type for this connection
                         column_type = await conn.fetchval("""
@@ -786,12 +787,7 @@ class KnowledgeSeeder:
                                 knowledge_data["source_reference"],
                                 knowledge_data["authority_level"]
                             )
-                    else:
-                        logger.warning("AsyncPG not available, skipping knowledge seeding")
-                        return
-                finally:
-                    if conn:
-                        await conn.close()
+                    # Connection automatically released by pool context manager
             
             logger.info(f"Added knowledge: {knowledge_data['title'][:50]}...")
             
@@ -809,15 +805,10 @@ async def run_knowledge_seeding():
         # Import database configuration from existing JyotiFlow setup
         import db
         
-        # Get database pool from existing setup
-        if db.db_pool is None:
-            # Initialize database pool if not already done
-            import asyncpg
-            DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
-            db_pool = await asyncpg.create_pool(DATABASE_URL)
-            db.set_db_pool(db_pool)
-        else:
-            db_pool = db.db_pool
+        # Get database pool from shared setup - no competing pool creation
+        db_pool = db.get_db_pool()
+        if db_pool is None:
+            raise Exception("Shared database pool not available - ensure main.py has initialized it")
         
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")

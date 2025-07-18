@@ -55,19 +55,22 @@ class BirthChartCacheService:
                     return None
             
             # Handle registered users with database cache
-            conn = await asyncpg.connect(self.db_url)
-            
-            # Check for cached data with matching hash and valid expiry
-            cached_data = await conn.fetchrow("""
-                SELECT birth_chart_data, birth_chart_cached_at, birth_chart_expires_at
-                FROM users 
-                WHERE email = $1 
-                AND birth_chart_hash = $2 
-                AND birth_chart_expires_at > NOW()
-                AND birth_chart_data IS NOT NULL
-            """, user_email, birth_hash)
-            
-            await conn.close()
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available for birth chart cache")
+                return None
+                
+            async with pool.acquire() as conn:
+                # Check for cached data with matching hash and valid expiry
+                cached_data = await conn.fetchrow("""
+                    SELECT birth_chart_data, birth_chart_cached_at, birth_chart_expires_at
+                    FROM users 
+                    WHERE email = $1 
+                    AND birth_chart_hash = $2 
+                    AND birth_chart_expires_at > NOW()
+                    AND birth_chart_data IS NOT NULL
+                """, user_email, birth_hash)
             
             if cached_data:
                 logger.info(f"✅ Birth chart cache HIT for user {user_email}")
@@ -105,7 +108,12 @@ class BirthChartCacheService:
                 return True
             
             # Handle registered users with database cache
-            conn = await asyncpg.connect(self.db_url)
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available")
+                return None
+            conn = await pool.acquire()
             
             # Update user record with cached birth chart data
             await conn.execute("""
@@ -129,7 +137,7 @@ class BirthChartCacheService:
             birth_details.get('location'),
             user_email)
             
-            await conn.close()
+            await pool.release(conn)
             
             logger.info(f"✅ Birth chart cached for user {user_email}, expires at {expires_at}")
             return True
@@ -151,7 +159,12 @@ class BirthChartCacheService:
                 return True
             
             # Handle registered users
-            conn = await asyncpg.connect(self.db_url)
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available")
+                return None
+            conn = await pool.acquire()
             
             await conn.execute("""
                 UPDATE users SET 
@@ -162,7 +175,7 @@ class BirthChartCacheService:
                 WHERE email = $1
             """, user_email)
             
-            await conn.close()
+            await pool.release(conn)
             
             logger.info(f"✅ Birth chart cache invalidated for user {user_email}")
             return True
@@ -191,7 +204,12 @@ class BirthChartCacheService:
                 }
             
             # Handle registered users
-            conn = await asyncpg.connect(self.db_url)
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available")
+                return None
+            conn = await pool.acquire()
             
             user_data = await conn.fetchrow("""
                 SELECT 
@@ -204,7 +222,7 @@ class BirthChartCacheService:
                 WHERE email = $1
             """, user_email)
             
-            await conn.close()
+            await pool.release(conn)
             
             if user_data:
                 return {
@@ -255,7 +273,12 @@ class BirthChartCacheService:
             guest_cleaned = len(expired_guest_keys)
             
             # Clean up database cache
-            conn = await asyncpg.connect(self.db_url)
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available")
+                return None
+            conn = await pool.acquire()
             
             result = await conn.execute("""
                 UPDATE users SET 
@@ -267,7 +290,7 @@ class BirthChartCacheService:
                 AND birth_chart_data IS NOT NULL
             """)
             
-            await conn.close()
+            await pool.release(conn)
             
             # Extract number of rows updated using robust parsing
             db_cleaned = self._parse_affected_rows(result)
@@ -342,7 +365,12 @@ class BirthChartCacheService:
             ])
             
             # Get database cache statistics
-            conn = await asyncpg.connect(self.db_url)
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available")
+                return None
+            conn = await pool.acquire()
             
             stats = await conn.fetchrow("""
                 SELECT 
@@ -354,7 +382,7 @@ class BirthChartCacheService:
                 FROM users
             """)
             
-            await conn.close()
+            await pool.release(conn)
             
             return {
                 'total_users': stats['total_users'],

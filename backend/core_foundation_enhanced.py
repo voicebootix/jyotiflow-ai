@@ -232,37 +232,45 @@ class EnhancedJyotiFlowDatabase:
             return None
 
     async def initialize(self):
-        """Initialize database connection pool"""
+        """Initialize using shared database pool"""
         if not settings.database_url:
             logger.warning("DATABASE_URL not set - database functionality will be unavailable")
             return
             
         try:
-            self.pool = await asyncpg.create_pool(
-                settings.database_url,
-                min_size=5,
-                max_size=settings.database_pool_size,
-                timeout=settings.database_pool_timeout
-            )
+            # Use shared database pool instead of creating competing pool
+            import db
+            self.pool = db.get_db_pool()
+            
+            if not self.pool:
+                logger.warning("Shared database pool not available yet - will be set by main.py")
+                return
             
             # Initialize enhanced tables
             await self.initialize_enhanced_tables()
             
-            print("✅ Enhanced database initialized successfully")
+            print("✅ Enhanced database initialized successfully with shared pool")
         except Exception as e:
             print(f"❌ Database initialization failed: {e}")
             raise
     
     async def close(self):
-        """Close database connections"""
+        """Close database connections - shared pool managed by main.py"""
+        # Don't close shared pool - it's managed by main.py
         if self.pool:
-            await self.pool.close()
-            logger.info("✅ Database connections closed")
+            self.pool = None
+            logger.info("✅ Released reference to shared database pool")
     
     async def get_connection(self):
-        """Get database connection from pool"""
+        """Get database connection from shared pool"""
         if not self.pool:
-            await self.initialize()
+            # Get shared pool reference
+            import db
+            self.pool = db.get_db_pool()
+            
+        if not self.pool:
+            raise Exception("Shared database pool not available")
+            
         return await self.pool.acquire()
     
     async def release_connection(self, conn):

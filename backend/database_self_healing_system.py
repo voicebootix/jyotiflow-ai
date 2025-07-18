@@ -128,13 +128,21 @@ class PostgreSQLSchemaAnalyzer:
         self._known_schemas = {}
         
     async def get_connection(self) -> asyncpg.Connection:
-        """Get database connection"""
-        return await asyncpg.connect(self.database_url)
+        """Get database connection from shared pool"""
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+        return await pool.acquire()
     
     async def analyze_schema(self) -> Dict[str, Any]:
         """Analyze complete database schema"""
-        conn = await self.get_connection()
-        try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+        
+        async with pool.acquire() as conn:
             schema = {
                 'tables': await self._get_all_tables(conn),
                 'columns': await self._get_all_columns(conn),
@@ -147,9 +155,6 @@ class PostgreSQLSchemaAnalyzer:
             # Cache the schema
             self._known_schemas = schema
             return schema
-            
-        finally:
-            await conn.close()
     
     async def _get_all_tables(self, conn: asyncpg.Connection) -> List[Dict]:
         """Get all tables in database"""
@@ -460,9 +465,12 @@ class DatabaseIssueFixer:
             'rollback_available': False
         }
         
-        conn = await asyncpg.connect(self.database_url)
-        
-        try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+            
+        async with pool.acquire() as conn:
             # Start transaction
             await conn.execute('BEGIN')
             
@@ -503,9 +511,6 @@ class DatabaseIssueFixer:
             await conn.execute('ROLLBACK')
             result['errors'].append(str(e))
             logger.error(f"Error fixing issue {issue.issue_id}: {e}")
-            
-        finally:
-            await conn.close()
         
         return result
     
@@ -830,8 +835,12 @@ class DatabaseHealthMonitor:
     
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
-        conn = await asyncpg.connect(self.database_url)
-        try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+            
+        async with pool.acquire() as conn:
             metrics = {}
             
             # Table sizes
@@ -909,9 +918,6 @@ class DatabaseHealthMonitor:
                 metrics['unused_indexes'] = []
             
             return metrics
-            
-        finally:
-            await conn.close()
     
     def _should_auto_fix(self, issue: DatabaseIssue) -> bool:
         """
@@ -1030,8 +1036,12 @@ class SelfHealingOrchestrator:
     
     async def _save_results(self, results: Dict[str, Any]):
         """Save health check results"""
-        conn = await asyncpg.connect(self.database_url)
-        try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+            
+        async with pool.acquire() as conn:
             # Ensure health_check_results table exists
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS health_check_results (
@@ -1055,14 +1065,15 @@ class SelfHealingOrchestrator:
                 results['issues_fixed'],
                 len(results.get('critical_issues', []))
             )
-            
-        finally:
-            await conn.close()
     
     async def get_status(self) -> Dict[str, Any]:
         """Get current system status"""
-        conn = await asyncpg.connect(self.database_url)
-        try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+            
+        async with pool.acquire() as conn:
             # Get latest health check
             latest = await conn.fetchrow("""
                 SELECT * FROM health_check_results
@@ -1090,9 +1101,6 @@ class SelfHealingOrchestrator:
                 'active_critical_issues': active_issues,
                 'next_check': safe_utc_now() + timedelta(seconds=SCAN_INTERVAL_SECONDS) if self.running else None
             }
-            
-        finally:
-            await conn.close()
 
 
 # FastAPI Integration
@@ -1183,8 +1191,12 @@ async def get_current_issues():
         # Ensure tables exist
         await _ensure_health_tables_exist()
         
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+            
+        async with pool.acquire() as conn:
             latest = await conn.fetchrow("""
                 SELECT results FROM health_check_results
                 ORDER BY timestamp DESC
@@ -1200,8 +1212,6 @@ async def get_current_issues():
             
             return {'critical_issues': [], 'warnings': []}
             
-        finally:
-            await conn.close()
     except Exception as e:
         logger.error(f"Get issues endpoint error: {e}")
         return {'critical_issues': [], 'warnings': [], 'error': str(e)}
@@ -1212,8 +1222,12 @@ async def _ensure_health_tables_exist():
     if not DATABASE_URL:
         raise ValueError("DATABASE_URL environment variable not set")
     
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
+    import db
+    pool = db.get_db_pool()
+    if not pool:
+        raise Exception("Shared database pool not available")
+        
+    async with pool.acquire() as conn:
         # Create health_check_results table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS health_check_results (
@@ -1243,8 +1257,6 @@ async def _ensure_health_tables_exist():
     except Exception as e:
         logger.error(f"Failed to create health monitoring tables: {e}")
         raise
-    finally:
-        await conn.close()
 
 
 @router.post("/fix")
@@ -1269,8 +1281,12 @@ async def startup_event():
     """Initialize database self-healing on startup"""
     try:
         # Ensure required tables exist
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            raise Exception("Shared database pool not available")
+            
+        async with pool.acquire() as conn:
             await conn.execute("""
                 CREATE TABLE IF NOT EXISTS database_backups (
                     id SERIAL PRIMARY KEY,
@@ -1281,8 +1297,6 @@ async def startup_event():
                     created_at TIMESTAMP DEFAULT NOW()
                 )
             """)
-        finally:
-            await conn.close()
         
         # Start monitoring
         await orchestrator.start()

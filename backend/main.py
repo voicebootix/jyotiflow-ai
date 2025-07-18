@@ -181,9 +181,9 @@ from init_database import initialize_jyotiflow_database
 from db_schema_fix import fix_database_schema
 
 async def ensure_base_credits_column():
-    DB_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/jyotiflow')
-    conn = await asyncpg.connect(DB_URL)
-    try:
+    # Use shared database pool instead of creating individual connection
+    import db
+    async with db.get_db_pool().acquire() as conn:
         col_exists = await conn.fetchval("""
             SELECT 1 FROM information_schema.columns 
             WHERE table_name='service_types' AND column_name='base_credits'
@@ -194,8 +194,6 @@ async def ensure_base_credits_column():
             print("[AUTO-FIX] base_credits column added!")
         else:
             print("[AUTO-FIX] base_credits column already exists.")
-    finally:
-        await conn.close()
 
 async def apply_migrations():
     """Apply database migrations using the migration runner"""
@@ -225,10 +223,10 @@ async def lifespan(app: FastAPI):
     try:
         print("🚀 Starting JyotiFlow.ai backend with unified system...")
         
-        # Import and initialize the unified startup system
+        # Import and initialize the clean startup system (now simplified)
         from unified_startup_system import initialize_unified_jyotiflow, cleanup_unified_system
         
-        # Initialize everything through the unified system
+        # Initialize everything through the clean system
         db_pool = await initialize_unified_jyotiflow()
         
         # Set the pool in the db module for all routers to use
