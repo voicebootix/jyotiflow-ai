@@ -112,7 +112,7 @@ class BirthChartCacheService:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Database pool not available")
-                return None
+                return False
             
             async with pool.acquire() as conn:
                 # Update user record with cached birth chart data
@@ -161,7 +161,7 @@ class BirthChartCacheService:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Database pool not available")
-                return None
+                return False
             
             async with pool.acquire() as conn:
                 await conn.execute("""
@@ -271,7 +271,7 @@ class BirthChartCacheService:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Database pool not available")
-                return None
+                return 0
             
             async with pool.acquire() as conn:
                 result = await conn.execute("""
