@@ -403,16 +403,18 @@ class DynamicComprehensivePricing:
             logger.error(f"Price retrieval error: {e}")
             return await self.calculate_comprehensive_reading_price()
 
+# Import main app's database pool
+from db import get_db_pool
+
 # Pricing recommendation functions (NO AUTO-UPDATE)
 async def generate_pricing_recommendations():
     """Generate pricing recommendations for admin review (NO AUTO-UPDATE)"""
-    # Create database connection for standalone usage
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if not DATABASE_URL:
-        raise ValueError("DATABASE_URL environment variable is required")
+    # Use main app's database pool
+    db_pool = get_db_pool()
+    if not db_pool:
+        raise ValueError("Main database pool not available")
     
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
+    async with db_pool.acquire() as conn:
         pricing_engine = DynamicComprehensivePricing(db_connection=conn)
         
         # Calculate recommended pricing
@@ -420,8 +422,6 @@ async def generate_pricing_recommendations():
         
         # Get current pricing
         current_pricing = await pricing_engine.get_current_price_info()
-    finally:
-        await conn.close()
     
     # Analyze the recommendation
     current_price = current_pricing.get("current_price", 12)
@@ -453,49 +453,49 @@ async def generate_pricing_recommendations():
 
 async def apply_admin_approved_pricing(approved_price: float, admin_notes: str = "") -> Dict[str, Any]:
     """Apply admin-approved pricing change"""
-    # Create database connection for standalone usage
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if not DATABASE_URL:
+    # Use main app's database pool
+    db_pool = get_db_pool()
+    if not db_pool:
         return {
             "success": False,
-            "message": "DATABASE_URL environment variable is required"
+            "message": "Main database pool not available"
         }
     
-    conn = await asyncpg.connect(DATABASE_URL)
     try:
-        pricing_engine = DynamicComprehensivePricing(db_connection=conn)
-        
-        # Get current pricing for comparison
-        current_pricing = await pricing_engine.get_current_price_info()
-        current_price = current_pricing.get("current_price", 12)
-        
-        # Create pricing update data
-        approved_pricing = {
-            "current_price": approved_price,
-            "pricing_rationale": f"Admin approved: {admin_notes}",
-            "last_updated": datetime.now().isoformat(),
-            "approval_timestamp": datetime.now().isoformat(),
-            "approved_by": "admin"
-        }
-        
-        # Update the price
-        success = await pricing_engine.update_service_price(approved_pricing)
-        
-        if success:
-            logger.info(f"Admin approved price change: {current_price} -> {approved_price} credits")
-            return {
-                "success": True,
-                "message": "Price updated successfully",
-                "old_price": current_price,
-                "new_price": approved_price,
-                "updated_at": datetime.now().isoformat()
+        async with db_pool.acquire() as conn:
+            pricing_engine = DynamicComprehensivePricing(db_connection=conn)
+            
+            # Get current pricing for comparison
+            current_pricing = await pricing_engine.get_current_price_info()
+            current_price = current_pricing.get("current_price", 12)
+            
+            # Create pricing update data
+            approved_pricing = {
+                "current_price": approved_price,
+                "pricing_rationale": f"Admin approved: {admin_notes}",
+                "last_updated": datetime.now().isoformat(),
+                "approval_timestamp": datetime.now().isoformat(),
+                "approved_by": "admin"
             }
-        else:
-            logger.error("Failed to apply admin approved pricing")
-            return {
-                "success": False,
-                "message": "Failed to update price in database"
-            }
+            
+            # Update the price
+            success = await pricing_engine.update_service_price(approved_pricing)
+            
+            if success:
+                logger.info(f"Admin approved price change: {current_price} -> {approved_price} credits")
+                return {
+                    "success": True,
+                    "message": "Price updated successfully",
+                    "old_price": current_price,
+                    "new_price": approved_price,
+                    "updated_at": datetime.now().isoformat()
+                }
+            else:
+                logger.error("Failed to apply admin approved pricing")
+                return {
+                    "success": False,
+                    "message": "Failed to update price in database"
+                }
             
     except Exception as e:
         logger.error(f"Admin pricing application error: {e}")
@@ -503,20 +503,17 @@ async def apply_admin_approved_pricing(approved_price: float, admin_notes: str =
             "success": False,
             "message": f"Error applying pricing: {str(e)}"
         }
-    finally:
-        await conn.close()
 
 async def get_pricing_dashboard_data() -> Dict[str, Any]:
     """Get comprehensive pricing data for admin dashboard"""
-    # Create database connection for standalone usage
-    DATABASE_URL = os.getenv("DATABASE_URL")
-    if not DATABASE_URL:
+    # Use main app's database pool
+    db_pool = get_db_pool()
+    if not db_pool:
         return {
-            "error": "DATABASE_URL environment variable is required"
+            "error": "Main database pool not available"
         }
     
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
+    async with db_pool.acquire() as conn:
         pricing_engine = DynamicComprehensivePricing(db_connection=conn)
         
         current_pricing = await pricing_engine.get_current_price_info()
@@ -533,8 +530,6 @@ async def get_pricing_dashboard_data() -> Dict[str, Any]:
                 "ai_confidence": pricing_recommendation["ai_recommendation"]["confidence"]
             }
         }
-    finally:
-        await conn.close()
 
 # Integration with existing pricing system
 async def integrate_with_ai_pricing_recommendations():
@@ -558,14 +553,13 @@ if __name__ == "__main__":
         """Test the dynamic pricing system"""
         print("🧪 Testing Dynamic Comprehensive Pricing...")
         
-        # Create database connection for testing
-        DATABASE_URL = os.getenv("DATABASE_URL")
-        if not DATABASE_URL:
-            print("❌ DATABASE_URL environment variable is required")
+        # Use main app's database pool
+        db_pool = get_db_pool()
+        if not db_pool:
+            print("❌ Main database pool not available")
             return
         
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        async with db_pool.acquire() as conn:
             pricing_engine = DynamicComprehensivePricing(db_connection=conn)
             
             # Test price calculation
@@ -580,8 +574,6 @@ if __name__ == "__main__":
             current_info = await pricing_engine.get_current_price_info()
             print(f"   Current Price: {current_info.get('current_price', 'N/A')} credits")
             print(f"   Last Updated: {current_info.get('last_updated', 'N/A')}")
-        finally:
-            await conn.close()
         
         # Test pricing recommendations
         print("\n🤖 Testing Pricing Recommendations:")
