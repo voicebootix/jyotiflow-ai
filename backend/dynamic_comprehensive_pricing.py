@@ -11,6 +11,13 @@ import json
 import asyncpg
 import os
 
+# Import the main app's database pool
+try:
+    from db import get_db_pool
+    MAIN_DB_POOL_AVAILABLE = True
+except ImportError:
+    MAIN_DB_POOL_AVAILABLE = False
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -18,18 +25,29 @@ class DynamicComprehensivePricing:
     """Dynamic pricing engine for comprehensive readings"""
     
     def __init__(self, database_url: str = None):
-        self.database_url = database_url or os.getenv("DATABASE_URL")
+        # Use main app's database pool if available
+        if MAIN_DB_POOL_AVAILABLE:
+            self.connection_pool = get_db_pool()
+            self._pool_initialized = self.connection_pool is not None
+            self._use_main_pool = True
+            logger.info("Using main app's database pool for pricing calculations")
+        else:
+            # Fallback to creating own pool (for standalone usage)
+            self.database_url = database_url or os.getenv("DATABASE_URL")
+            
+            # Validate DATABASE_URL is set
+            if not self.database_url:
+                raise ValueError(
+                    "DATABASE_URL environment variable is missing or empty. "
+                    "Please set the DATABASE_URL environment variable or provide it as a parameter. "
+                    "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
+                )
+            
+            self.connection_pool = None
+            self._pool_initialized = False
+            self._use_main_pool = False
+            logger.info("Creating standalone database pool for pricing calculations")
         
-        # Validate DATABASE_URL is set
-        if not self.database_url:
-            raise ValueError(
-                "DATABASE_URL environment variable is missing or empty. "
-                "Please set the DATABASE_URL environment variable or provide it as a parameter. "
-                "Example: export DATABASE_URL='postgresql://user:password@localhost/dbname'"
-            )
-        
-        self.connection_pool = None
-        self._pool_initialized = False
         self._pool_lock = asyncio.Lock()
         self.base_cost_factors = {
             "openai_api_calls": 0.5,  # Credits per API call
@@ -44,7 +62,16 @@ class DynamicComprehensivePricing:
         }
     
     async def initialize_pool(self):
-        """Initialize connection pool"""
+        """Initialize connection pool (only if not using main pool)"""
+        if self._use_main_pool:
+            # Check if main pool is available
+            self.connection_pool = get_db_pool()
+            self._pool_initialized = self.connection_pool is not None
+            if not self._pool_initialized:
+                logger.warning("Main database pool not yet initialized, pricing calculations may fail")
+            return
+        
+        # Fallback: create standalone pool
         async with self._pool_lock:
             if not self._pool_initialized:
                 try:
@@ -54,7 +81,7 @@ class DynamicComprehensivePricing:
                         max_size=10
                     )
                     self._pool_initialized = True
-                    logger.info("Database connection pool initialized successfully")
+                    logger.info("Standalone database connection pool initialized successfully")
                 except Exception as e:
                     logger.error(f"Failed to initialize database connection pool: {e}")
                     raise ConnectionError(
@@ -66,16 +93,26 @@ class DynamicComprehensivePricing:
         """Get connection from pool"""
         if not self._pool_initialized:
             await self.initialize_pool()
-        return await self.connection_pool.acquire()
+        
+        if not self.connection_pool:
+            raise ConnectionError("Database connection pool not available")
+        
+        if self._use_main_pool:
+            return await self.connection_pool.acquire()
+        else:
+            return await self.connection_pool.acquire()
     
     async def release_connection(self, conn):
         """Release connection back to pool"""
         if self.connection_pool:
-            await self.connection_pool.release(conn)
+            if self._use_main_pool:
+                await self.connection_pool.release(conn)
+            else:
+                await self.connection_pool.release(conn)
     
     async def close_pool(self):
-        """Close connection pool"""
-        if self.connection_pool:
+        """Close connection pool (only if we created it)"""
+        if not self._use_main_pool and self.connection_pool:
             await self.connection_pool.close()
             self.connection_pool = None
     

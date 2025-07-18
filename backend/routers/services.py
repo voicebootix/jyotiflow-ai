@@ -22,6 +22,19 @@ async def get_dynamic_pricing(db, service_name: str = ""):
         # Try to get enhanced comprehensive pricing first
         if DYNAMIC_PRICING_AVAILABLE and service_name:
             try:
+                # Check if main database pool is ready first
+                from db import get_db_pool
+                db_pool = get_db_pool()
+                
+                if db_pool is None:
+                    logger.info("Main database pool not yet ready, using fallback pricing")
+                    return {
+                        "enhanced_pricing_enabled": False,
+                        "multiplier": 1.0,
+                        "service_pricing": {},
+                        "message": "Database initializing, using default pricing"
+                    }
+                
                 dynamic_pricing = DynamicComprehensivePricing()
                 comprehensive_pricing = await dynamic_pricing.calculate_comprehensive_reading_price(
                     service_config={"service_name": service_name}
@@ -35,6 +48,7 @@ async def get_dynamic_pricing(db, service_name: str = ""):
                 }
             except Exception as e:
                 logger.error(f"Enhanced pricing error: {e}")
+                # Fall through to basic pricing
         
         # Fallback to basic dynamic pricing
         result = await db.fetchrow("""
@@ -55,7 +69,8 @@ async def get_dynamic_pricing(db, service_name: str = ""):
         return {
             "enhanced_pricing_enabled": False,
             "multiplier": 1.0,
-            "service_pricing": {}
+            "service_pricing": {},
+            "message": "Database unavailable, using default pricing"
         }
 
 async def get_daily_free_credits_config(db):
