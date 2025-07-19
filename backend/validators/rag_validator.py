@@ -18,6 +18,7 @@ except ImportError:
 import logging
 logger = logging.getLogger(__name__)
 import openai
+import os
 
 class RAGValidator:
     """
@@ -30,7 +31,7 @@ class RAGValidator:
         if not NUMPY_AVAILABLE:
             logger.warning("numpy not installed - semantic similarity will use fallback calculation")
             
-        self.openai_client = openai.AsyncClient(api_key=settings.openai_api_key)
+        self.openai_client = openai.AsyncClient(api_key=os.getenv("OPENAI_API_KEY", ""))
         self.spiritual_keywords = self._load_spiritual_keywords()
         self.domain_keywords = self._load_domain_keywords()
         

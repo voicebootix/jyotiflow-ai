@@ -6,9 +6,6 @@ Ensures voice synthesis completed successfully.
 import logging
 from typing import Dict, Optional, Any
 
-import logging
-logger = logging.getLogger(__name__)
-
 logger = logging.getLogger(__name__)
 
 class ElevenLabsValidator:

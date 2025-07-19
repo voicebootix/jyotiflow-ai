@@ -12,8 +12,6 @@ from typing import Dict, List, Any, Optional
 from enum import Enum
 
 from db import db_manager
-import logging
-logger = logging.getLogger(__name__)
 from database_timezone_fixer import safe_utc_now
 
 logger = logging.getLogger(__name__)

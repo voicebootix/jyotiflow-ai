@@ -30,8 +30,6 @@ from validators.social_media_validator import SocialMediaValidator
 from .context_tracker import ContextTracker
 from .business_validator import BusinessLogicValidator
 
-logger = logging.getLogger(__name__)
-
 class IntegrationStatus(Enum):
     SUCCESS = "success"
     PARTIAL = "partial"

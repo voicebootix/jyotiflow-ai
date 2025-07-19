@@ -12,9 +12,6 @@ from datetime import datetime, timezone
 import aiohttp
 import asyncio
 
-import logging
-logger = logging.getLogger(__name__)
-
 logger = logging.getLogger(__name__)
 
 class SocialMediaValidator:

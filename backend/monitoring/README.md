@@ -61,6 +61,14 @@ python3 create_monitoring_tables.py
 export DATABASE_URL="postgresql://user:password@localhost:5432/yourdb"
 ```
 
+**⚠️ Security Note**: Never embed credentials directly in environment variables or code. Use secure secrets management solutions like:
+- HashiCorp Vault
+- AWS Secrets Manager / SSM Parameter Store
+- Azure Key Vault
+- Google Secret Manager
+- Doppler
+- Kubernetes Secrets (for K8s deployments)
+
 ### 3. Integration with FastAPI
 
 The monitoring system is automatically integrated when the application starts:

@@ -23,7 +23,6 @@ except ImportError:
 
 from db import db_manager
 import logging
-logger = logging.getLogger(__name__)
 import os
 import openai
 

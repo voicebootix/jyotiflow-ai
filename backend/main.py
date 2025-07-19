@@ -520,7 +520,7 @@ if MONITORING_AVAILABLE:
     try:
         register_monitoring_system(app)
         # Add monitoring middleware
-        app.middleware("http")(get_monitoring_middleware())
+        app.add_middleware(get_monitoring_middleware())
         print("✅ Monitoring system registered successfully with middleware")
     except Exception as e:
         print(f"❌ Failed to register monitoring system: {e}")
