@@ -52,17 +52,22 @@ try:
     from deps import get_current_admin_dependency
 except ImportError:
     # If deps module is not available, create a secure fallback
-    from fastapi import Security
+    from fastapi import Depends
     
     security = HTTPBearer()
     
-    async def get_current_admin_dependency(credentials: HTTPAuthorizationCredentials = Security(security)):
-        """Verify admin authentication token"""
+    async def verify_bearer_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+        """Verify bearer token and return admin user"""
+        # In a real implementation, you would verify the token here
+        # For now, we just reject all requests
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin authentication required. Please configure proper authentication.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Alias for consistency with the imported version
+    get_current_admin_dependency = verify_bearer_token
 
 from .integration_monitor import integration_monitor, IntegrationStatus
 from .business_validator import BusinessLogicValidator
