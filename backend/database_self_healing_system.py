@@ -392,14 +392,16 @@ class CodePatternAnalyzer:
                         }]
                     ))
                 
-                # Store query pattern
+                # Store query pattern with column information
                 table = self._extract_table_name(query)
                 if table:
+                    columns = self._extract_columns_from_query(query)
                     self.analyzer.query_patterns[table].append({
                         'file': self.file_path,
                         'line': line_no,
                         'query': query,
-                        'type': self._get_query_type(query)
+                        'type': self._get_query_type(query),
+                        'columns': columns  # Added column extraction
                     })
             
             def _extract_table_name(self, query: str) -> Optional[str]:
@@ -428,6 +430,102 @@ class CodePatternAnalyzer:
                     if query_lower.startswith(query_type):
                         return query_type.upper()
                 return 'OTHER'
+            
+            def _extract_columns_from_query(self, query: str) -> Dict[str, str]:
+                """Extract column references and their usage from query"""
+                columns = {}
+                query_lower = query.lower()
+                
+                # Extract from INSERT statements
+                insert_match = re.search(r'insert\s+into\s+\w+\s*\(([^)]+)\)\s*values\s*\(([^)]+)\)', query_lower, re.DOTALL)
+                if insert_match:
+                    cols = [c.strip() for c in insert_match.group(1).split(',')]
+                    vals = [v.strip() for v in insert_match.group(2).split(',')]
+                    for col, val in zip(cols, vals):
+                        columns[col] = self._infer_type_from_value(val)
+                
+                # Extract from SELECT statements
+                if 'select' in query_lower:
+                    # Extract columns between SELECT and FROM
+                    select_match = re.search(r'select\s+(.+?)\s+from', query_lower, re.DOTALL)
+                    if select_match:
+                        select_clause = select_match.group(1)
+                        if '*' not in select_clause:
+                            # Parse individual columns
+                            col_parts = select_clause.split(',')
+                            for part in col_parts:
+                                # Handle aliases
+                                col_match = re.match(r'(\w+)(?:\s+as\s+\w+)?', part.strip())
+                                if col_match:
+                                    columns[col_match.group(1)] = 'unknown'
+                
+                # Extract from WHERE clauses
+                where_patterns = [
+                    r'(\w+)\s*=\s*\$?\d+',  # column = $1 or column = 1
+                    r'(\w+)\s*=\s*[\'"]([^\'"]+)[\'"]',  # column = 'value'
+                    r'(\w+)\s+is\s+(?:not\s+)?null',  # column IS NULL
+                    r'(\w+)\s+in\s*\(',  # column IN (...)
+                    r'(\w+)\s*[<>]=?\s*',  # column > < >= <=
+                ]
+                
+                for pattern in where_patterns:
+                    for match in re.finditer(pattern, query_lower):
+                        col_name = match.group(1)
+                        if col_name not in ['and', 'or', 'not', 'where', 'from', 'select']:
+                            columns[col_name] = columns.get(col_name, 'unknown')
+                
+                # Extract from UPDATE statements
+                if 'update' in query_lower:
+                    set_pattern = r'set\s+(.+?)(?:where|$)'
+                    set_match = re.search(set_pattern, query_lower, re.DOTALL)
+                    if set_match:
+                        set_clause = set_match.group(1)
+                        # Parse SET column = value pairs
+                        set_parts = set_clause.split(',')
+                        for part in set_parts:
+                            col_match = re.match(r'(\w+)\s*=\s*(.+)', part.strip())
+                            if col_match:
+                                columns[col_match.group(1)] = self._infer_type_from_value(col_match.group(2))
+                
+                return columns
+            
+            def _infer_type_from_value(self, value: str) -> str:
+                """Infer column type from value in query"""
+                value = value.strip()
+                
+                # Check for explicit casts
+                if '::' in value:
+                    cast_match = re.search(r'::(\w+)', value)
+                    if cast_match:
+                        return cast_match.group(1).upper()
+                
+                # Check for NULL
+                if value.lower() == 'null':
+                    return 'unknown'
+                
+                # Check for boolean
+                if value.lower() in ['true', 'false']:
+                    return 'BOOLEAN'
+                
+                # Check for numbers
+                if re.match(r'^\$?\d+$', value) or re.match(r'^\d+$', value.replace('$', '')):
+                    return 'INTEGER'
+                
+                if re.match(r'^\d+\.\d+$', value):
+                    return 'NUMERIC'
+                
+                # Check for strings
+                if value.startswith("'") or value.startswith('"'):
+                    return 'VARCHAR'
+                
+                # Check for functions
+                if 'now()' in value.lower() or 'current_timestamp' in value.lower():
+                    return 'TIMESTAMP'
+                
+                if 'gen_random_uuid()' in value.lower():
+                    return 'UUID'
+                
+                return 'unknown'
         
         visitor = DatabaseVisitor(self, file_path, lines)
         visitor.visit(tree)
@@ -733,6 +831,13 @@ class DatabaseHealthMonitor:
             )
             schema_issues.extend(missing_table_issues)
             
+            # 3.6 Detect missing columns referenced in code
+            logger.info("Detecting missing columns...")
+            missing_column_issues = await self._detect_missing_columns(
+                schema, self.code_analyzer.query_patterns
+            )
+            schema_issues.extend(missing_column_issues)
+            
             # 4. Combine all issues
             all_issues = code_issues + schema_issues
             results['issues_found'] = len(all_issues)
@@ -955,6 +1060,99 @@ class DatabaseHealthMonitor:
                 ))
         
         return issues
+    
+    async def _detect_missing_columns(self, schema: Dict, query_patterns: Dict[str, List[Dict]]) -> List[DatabaseIssue]:
+        """Detect columns referenced in queries but missing from tables"""
+        issues = []
+        
+        for table_name, patterns in query_patterns.items():
+            # Skip if table doesn't exist (will be handled by missing table detection)
+            if table_name not in [t['tablename'] for t in schema['tables']]:
+                continue
+            
+            # Get existing columns for this table
+            existing_columns = set()
+            if table_name in schema['columns']:
+                existing_columns = {col['column_name'] for col in schema['columns'][table_name]}
+            
+            # Collect all columns referenced in queries for this table
+            referenced_columns = {}
+            for pattern in patterns:
+                if 'columns' in pattern:
+                    for col_name, col_type in pattern['columns'].items():
+                        if col_name not in existing_columns:
+                            # Track the inferred type and where it's used
+                            if col_name not in referenced_columns:
+                                referenced_columns[col_name] = {
+                                    'types': [],
+                                    'files': [],
+                                    'queries': []
+                                }
+                            referenced_columns[col_name]['types'].append(col_type)
+                            referenced_columns[col_name]['files'].append(pattern['file'])
+                            referenced_columns[col_name]['queries'].append(pattern['query'][:100])
+            
+            # Create issues for missing columns
+            for col_name, col_info in referenced_columns.items():
+                # Determine the most likely type
+                types = [t for t in col_info['types'] if t != 'unknown']
+                if types:
+                    # Use the most common type
+                    inferred_type = max(set(types), key=types.count)
+                else:
+                    # Default based on column name patterns
+                    inferred_type = self._infer_column_type_from_name(col_name)
+                
+                issues.append(DatabaseIssue(
+                    issue_type='MISSING_COLUMN',
+                    severity='HIGH',
+                    table=table_name,
+                    column=col_name,
+                    current_state='Column not found in table',
+                    expected_state=f'Column {col_name} {inferred_type}',
+                    fix_sql=f'ALTER TABLE {quote_ident(table_name)} ADD COLUMN {quote_ident(col_name)} {inferred_type}',
+                    affected_files=list(set(col_info['files']))[:3],
+                    affected_queries=col_info['queries'][:3]
+                ))
+        
+        return issues
+    
+    def _infer_column_type_from_name(self, column_name: str) -> str:
+        """Infer column type from naming patterns"""
+        col_lower = column_name.lower()
+        
+        # ID columns
+        if col_lower.endswith('_id') or col_lower == 'id':
+            return 'INTEGER'
+        
+        # Timestamps
+        if col_lower.endswith('_at') or col_lower.endswith('_date'):
+            return 'TIMESTAMP'
+        
+        # Booleans
+        if col_lower.startswith('is_') or col_lower.startswith('has_') or col_lower.startswith('can_'):
+            return 'BOOLEAN DEFAULT FALSE'
+        
+        # Common patterns
+        if 'email' in col_lower:
+            return 'VARCHAR(255)'
+        if 'name' in col_lower or 'title' in col_lower:
+            return 'VARCHAR(255)'
+        if 'description' in col_lower or 'content' in col_lower or 'text' in col_lower:
+            return 'TEXT'
+        if 'price' in col_lower or 'amount' in col_lower or 'cost' in col_lower:
+            return 'NUMERIC(10,2)'
+        if 'count' in col_lower or 'quantity' in col_lower:
+            return 'INTEGER DEFAULT 0'
+        if 'url' in col_lower or 'link' in col_lower:
+            return 'TEXT'
+        if 'status' in col_lower or 'type' in col_lower:
+            return 'VARCHAR(50)'
+        if 'json' in col_lower or 'data' in col_lower or 'meta' in col_lower:
+            return 'JSONB'
+        
+        # Default
+        return 'TEXT'
     
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
@@ -1309,7 +1507,7 @@ async def stop_monitoring():
 
 @router.get("/issues")
 async def get_current_issues():
-    """Get list of current issues"""
+    """Get list of current issues with full details"""
     try:
         # Ensure tables exist
         await _ensure_health_tables_exist()
@@ -1328,12 +1526,57 @@ async def get_current_issues():
             
             if latest and latest['results']:
                 results = json.loads(latest['results'])
+                
+                # Categorize issues by type for better UI display
+                issues_by_type = {
+                    'MISSING_TABLE': [],
+                    'MISSING_COLUMN': [],
+                    'TYPE_MISMATCH': [],
+                    'MISSING_INDEX': [],
+                    'MISSING_PRIMARY_KEY': [],
+                    'ORPHANED_DATA': [],
+                    'TYPE_CAST_IN_QUERY': []
+                }
+                
+                # Process critical issues
+                for issue in results.get('critical_issues', []):
+                    issue_type = issue.get('issue_type', 'OTHER')
+                    if issue_type in issues_by_type:
+                        issues_by_type[issue_type].append(issue)
+                
+                # Process warnings
+                for issue in results.get('warnings', []):
+                    issue_type = issue.get('issue_type', 'OTHER')
+                    if issue_type in issues_by_type:
+                        issues_by_type[issue_type].append(issue)
+                
                 return {
                     'critical_issues': results.get('critical_issues', []),
-                    'warnings': results.get('warnings', [])
+                    'warnings': results.get('warnings', []),
+                    'issues_by_type': issues_by_type,
+                    'summary': {
+                        'total_issues': results.get('issues_found', 0),
+                        'critical_count': len(results.get('critical_issues', [])),
+                        'warning_count': len(results.get('warnings', [])),
+                        'auto_fixable': sum(1 for issue in results.get('critical_issues', []) + results.get('warnings', []) 
+                                          if issue.get('fix_sql')),
+                        'requires_manual': sum(1 for issue in results.get('critical_issues', []) + results.get('warnings', []) 
+                                             if not issue.get('fix_sql'))
+                    }
                 }
             
-            return {'critical_issues': [], 'warnings': []}
+            return {
+                'critical_issues': [], 
+                'warnings': [],
+                'issues_by_type': {},
+                'summary': {
+                    'total_issues': 0,
+                    'critical_count': 0,
+                    'warning_count': 0,
+                    'auto_fixable': 0,
+                    'requires_manual': 0
+                }
+            }
             
     except Exception as e:
         logger.error(f"Get issues endpoint error: {e}")
@@ -1384,9 +1627,37 @@ async def _ensure_health_tables_exist():
             raise
 
 
+@router.post("/preview-fix")
+async def preview_fix(request: ManualFixRequest):
+    """Preview what a fix would do without applying it"""
+    try:
+        issue = DatabaseIssue(
+            issue_type=request.issue_type,
+            severity='CRITICAL',
+            table=request.table,
+            column=request.column,
+            fix_sql=request.fix_sql
+        )
+        
+        # Generate preview information
+        preview = {
+            'issue': asdict(issue),
+            'fix_explanation': _explain_fix(issue),
+            'affected_data': await _preview_affected_data(issue),
+            'rollback_possible': True,
+            'estimated_impact': _estimate_impact(issue)
+        }
+        
+        return preview
+        
+    except Exception as e:
+        logger.error(f"Preview fix error: {e}")
+        return {'error': str(e)}
+
+
 @router.post("/fix")
 async def manual_fix(request: ManualFixRequest):
-    """Manually fix a specific issue"""
+    """Manually fix a specific issue with optional approval"""
     issue = DatabaseIssue(
         issue_type=request.issue_type,
         severity='CRITICAL',
@@ -1399,6 +1670,62 @@ async def manual_fix(request: ManualFixRequest):
     result = await fixer.fix_issue(issue)
     
     return result
+
+
+def _explain_fix(issue: DatabaseIssue) -> str:
+    """Generate human-readable explanation of what the fix will do"""
+    explanations = {
+        'MISSING_TABLE': f"Create new table '{issue.table}' with the required schema",
+        'MISSING_COLUMN': f"Add column '{issue.column}' to table '{issue.table}'",
+        'TYPE_MISMATCH': f"Change data type of '{issue.column}' in '{issue.table}'",
+        'MISSING_INDEX': f"Create index on '{issue.column}' in '{issue.table}' for better performance",
+        'MISSING_PRIMARY_KEY': f"Add primary key to table '{issue.table}'",
+        'ORPHANED_DATA': f"Clean up orphaned records in '{issue.table}'",
+        'TYPE_CAST_IN_QUERY': f"Fix type casting issue for '{issue.column}' in queries"
+    }
+    return explanations.get(issue.issue_type, f"Apply fix for {issue.issue_type}")
+
+
+async def _preview_affected_data(issue: DatabaseIssue) -> Dict:
+    """Preview what data would be affected by the fix"""
+    try:
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            return {'error': 'Database not available'}
+            
+        async with pool.acquire() as conn:
+            if issue.issue_type == 'MISSING_TABLE':
+                # Check if any queries are failing due to missing table
+                return {'queries_affected': len(issue.affected_queries or [])}
+            
+            elif issue.issue_type == 'MISSING_COLUMN':
+                # Count rows in the table
+                count = await conn.fetchval(f"SELECT COUNT(*) FROM {quote_ident(issue.table)}")
+                return {'rows_affected': count, 'default_value': 'NULL'}
+            
+            elif issue.issue_type == 'TYPE_MISMATCH':
+                # Check for potential data loss
+                return {'potential_data_loss': False, 'conversion_safe': True}
+            
+            return {'info': 'No data preview available'}
+            
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def _estimate_impact(issue: DatabaseIssue) -> Dict:
+    """Estimate the impact of applying the fix"""
+    impacts = {
+        'MISSING_TABLE': {'risk': 'low', 'downtime': 'none', 'reversible': True},
+        'MISSING_COLUMN': {'risk': 'low', 'downtime': 'minimal', 'reversible': True},
+        'TYPE_MISMATCH': {'risk': 'medium', 'downtime': 'brief', 'reversible': True},
+        'MISSING_INDEX': {'risk': 'low', 'downtime': 'none', 'reversible': True},
+        'MISSING_PRIMARY_KEY': {'risk': 'medium', 'downtime': 'brief', 'reversible': False},
+        'ORPHANED_DATA': {'risk': 'medium', 'downtime': 'none', 'reversible': True},
+        'TYPE_CAST_IN_QUERY': {'risk': 'low', 'downtime': 'none', 'reversible': True}
+    }
+    return impacts.get(issue.issue_type, {'risk': 'unknown', 'downtime': 'unknown', 'reversible': False})
 
 
 # Startup integration

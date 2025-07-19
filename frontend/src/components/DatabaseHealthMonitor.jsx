@@ -2,29 +2,69 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { CheckCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+    CheckCircle, XCircle, AlertTriangle, Loader2, 
+    Play, Pause, RefreshCw, Shield, Zap, Eye,
+    Database, Columns, Key, Link, Trash2, Code
+} from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
+// Issue type icons and colors
+const ISSUE_CONFIG = {
+    MISSING_TABLE: { icon: Database, color: 'text-red-500', bgColor: 'bg-red-50' },
+    MISSING_COLUMN: { icon: Columns, color: 'text-orange-500', bgColor: 'bg-orange-50' },
+    TYPE_MISMATCH: { icon: AlertTriangle, color: 'text-yellow-500', bgColor: 'bg-yellow-50' },
+    MISSING_INDEX: { icon: Link, color: 'text-blue-500', bgColor: 'bg-blue-50' },
+    MISSING_PRIMARY_KEY: { icon: Key, color: 'text-purple-500', bgColor: 'bg-purple-50' },
+    ORPHANED_DATA: { icon: Trash2, color: 'text-gray-500', bgColor: 'bg-gray-50' },
+    TYPE_CAST_IN_QUERY: { icon: Code, color: 'text-indigo-500', bgColor: 'bg-indigo-50' }
+};
+
 export default function DatabaseHealthMonitor() {
     const [status, setStatus] = useState({ status: 'stopped', last_check: null });
-    const [issues, setIssues] = useState({ critical_issues: [], warnings: [] });
+    const [issues, setIssues] = useState({ 
+        critical_issues: [], 
+        warnings: [], 
+        issues_by_type: {},
+        summary: {
+            total_issues: 0,
+            critical_count: 0,
+            warning_count: 0,
+            auto_fixable: 0,
+            requires_manual: 0
+        }
+    });
     const [checkInProgress, setCheckInProgress] = useState(false);
     const [error, setError] = useState(null);
+    const [selectedIssue, setSelectedIssue] = useState(null);
+    const [fixPreview, setFixPreview] = useState(null);
+    const [autoMode, setAutoMode] = useState(false);
+    const [fixingIssue, setFixingIssue] = useState(false);
 
     const fetchStatus = async () => {
         try {
             setError(null);
             const response = await fetch(`${API_BASE_URL}/api/database-health/status`);
-            if (!response.ok) {
-                throw new Error(`API Error: ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`API Error: ${response.status}`);
             const data = await response.json();
             setStatus(data);
-            setIssues(data.issues || { critical_issues: [], warnings: [] });
         } catch (error) {
             console.error('Failed to fetch status:', error);
             setError('Failed to fetch database health status');
+        }
+    };
+
+    const fetchIssues = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/database-health/issues`);
+            if (!response.ok) throw new Error(`Failed to fetch issues: ${response.status}`);
+            const data = await response.json();
+            setIssues(data);
+        } catch (error) {
+            console.error('Failed to fetch issues:', error);
         }
     };
 
@@ -33,11 +73,9 @@ export default function DatabaseHealthMonitor() {
         try {
             setError(null);
             const response = await fetch(`${API_BASE_URL}/api/database-health/check`, { method: 'POST' });
-            if (!response.ok) {
-                throw new Error(`Health check failed: ${response.status}`);
-            }
-            const result = await response.json();
+            if (!response.ok) throw new Error(`Health check failed: ${response.status}`);
             await fetchStatus();
+            await fetchIssues();
         } catch (error) {
             console.error('Failed to run check:', error);
             setError('Failed to run health check');
@@ -47,179 +85,348 @@ export default function DatabaseHealthMonitor() {
     };
 
     const toggleMonitoring = async () => {
-        const endpoint = status.status === 'running' ? `${API_BASE_URL}/api/database-health/stop` : `${API_BASE_URL}/api/database-health/start`;
+        const endpoint = status.status === 'running' 
+            ? `${API_BASE_URL}/api/database-health/stop` 
+            : `${API_BASE_URL}/api/database-health/start`;
+        
         try {
-            await fetch(endpoint, { method: 'POST' });
+            const response = await fetch(endpoint, { method: 'POST' });
+            if (!response.ok) throw new Error(`Failed to toggle monitoring: ${response.status}`);
             await fetchStatus();
         } catch (error) {
             console.error('Failed to toggle monitoring:', error);
+            setError('Failed to toggle monitoring');
         }
     };
 
-    const fixIssue = async (issue) => {
-        if (!confirm(`Apply fix for ${issue.issue_type} on ${issue.table}?`)) {
-            return;
-        }
+    const previewFix = async (issue) => {
         try {
-            setError(null);
+            const response = await fetch(`${API_BASE_URL}/api/database-health/preview-fix`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    issue_type: issue.issue_type,
+                    table: issue.table,
+                    column: issue.column,
+                    fix_sql: issue.fix_sql
+                })
+            });
+            if (!response.ok) throw new Error('Failed to preview fix');
+            const preview = await response.json();
+            setFixPreview(preview);
+            setSelectedIssue(issue);
+        } catch (error) {
+            console.error('Failed to preview fix:', error);
+            setError('Failed to preview fix');
+        }
+    };
+
+    const applyFix = async (issue) => {
+        setFixingIssue(true);
+        try {
             const response = await fetch(`${API_BASE_URL}/api/database-health/fix`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ issue })
+                body: JSON.stringify({
+                    issue_type: issue.issue_type,
+                    table: issue.table,
+                    column: issue.column,
+                    fix_sql: issue.fix_sql
+                })
             });
-            if (!response.ok) {
-                throw new Error(`Fix failed: ${response.status}`);
-            }
-            const result = await response.json();
-            if (result.success) {
-                alert('Fix applied successfully');
-            } else {
-                throw new Error(result.error || 'Fix failed');
-            }
-            await fetchStatus();
+            if (!response.ok) throw new Error('Failed to apply fix');
+            
+            // Refresh data after fix
+            await runCheckNow();
+            setSelectedIssue(null);
+            setFixPreview(null);
         } catch (error) {
-            console.error('Failed to fix issue:', error);
-            setError(`Failed to apply fix: ${error.message}`);
+            console.error('Failed to apply fix:', error);
+            setError('Failed to apply fix');
+        } finally {
+            setFixingIssue(false);
         }
     };
 
     useEffect(() => {
         fetchStatus();
-        const interval = setInterval(fetchStatus, 30000); // Poll every 30 seconds
+        fetchIssues();
+        const interval = setInterval(() => {
+            fetchStatus();
+            fetchIssues();
+        }, 10000);
         return () => clearInterval(interval);
     }, []);
 
-    return (
-        <div className="space-y-4">
-            {/* Error Display */}
-            {error && (
-                <Alert variant="destructive">
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
-            )}
-            
-            {/* Status Card */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="flex items-center justify-between">
-                        Database Health Monitor
-                        <span className={`text-sm px-2 py-1 rounded ${
-                            status.status === 'running' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
-                            {status.status === 'running' ? 'Active' : 'Inactive'}
-                        </span>
-                    </CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="space-y-2">
-                        <p className="text-sm text-muted-foreground">
-                            Last check: {status.last_check ? new Date(status.last_check).toLocaleString() : 'Never'}
-                        </p>
-                        <p className="text-sm">
-                            Critical Issues: {issues.critical_issues.length}
-                        </p>
-                        <p className="text-sm">
-                            Warnings: {issues.warnings.length}
-                        </p>
-                    </div>
-                    <div className="mt-4 flex gap-2">
-                        <Button 
-                            onClick={runCheckNow} 
-                            disabled={checkInProgress}
-                        >
-                            {checkInProgress ? (
-                                <>
-                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Checking...
-                                </>
-                            ) : (
-                                'Run Check Now'
+    const renderIssueCard = (issue, index) => {
+        const config = ISSUE_CONFIG[issue.issue_type] || { icon: AlertTriangle, color: 'text-gray-500', bgColor: 'bg-gray-50' };
+        const Icon = config.icon;
+
+        return (
+            <Card key={index} className={`mb-4 ${config.bgColor} border-l-4 ${config.color.replace('text-', 'border-')}`}>
+                <CardContent className="p-4">
+                    <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                            <div className="flex items-center mb-2">
+                                <Icon className={`h-5 w-5 ${config.color} mr-2`} />
+                                <h4 className="font-semibold">{issue.issue_type.replace(/_/g, ' ')}</h4>
+                                <Badge className="ml-2" variant={issue.severity === 'CRITICAL' ? 'destructive' : 'secondary'}>
+                                    {issue.severity}
+                                </Badge>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-1">
+                                Table: <code className="bg-gray-100 px-1 rounded">{issue.table}</code>
+                                {issue.column && (
+                                    <> • Column: <code className="bg-gray-100 px-1 rounded">{issue.column}</code></>
+                                )}
+                            </p>
+                            <p className="text-sm mb-2">{issue.current_state} → {issue.expected_state}</p>
+                            {issue.affected_files && issue.affected_files.length > 0 && (
+                                <p className="text-xs text-gray-500">
+                                    Affected files: {issue.affected_files.join(', ')}
+                                </p>
                             )}
-                        </Button>
-                        <Button 
-                            onClick={toggleMonitoring}
-                            variant={status.status === 'running' ? 'destructive' : 'default'}
-                        >
-                            {status.status === 'running' ? 'Stop Monitoring' : 'Start Monitoring'}
-                        </Button>
+                        </div>
+                        <div className="flex flex-col gap-2 ml-4">
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => previewFix(issue)}
+                                disabled={!issue.fix_sql}
+                            >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Preview
+                            </Button>
+                            {autoMode && issue.fix_sql && (
+                                <Badge variant="success" className="text-xs">
+                                    <Zap className="h-3 w-3 mr-1" />
+                                    Auto-fix
+                                </Badge>
+                            )}
+                        </div>
                     </div>
                 </CardContent>
             </Card>
+        );
+    };
 
-            {/* Critical Issues */}
-            {issues.critical_issues.length > 0 && (
-                <Card className="border-red-200">
-                    <CardHeader>
-                        <CardTitle className="flex items-center text-red-600">
-                            <XCircle className="mr-2" />
-                            Critical Issues ({issues.critical_issues.length})
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-3">
-                            {issues.critical_issues.map((issue, idx) => (
-                                <Alert key={idx} variant="destructive">
-                                    <AlertDescription>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <p className="font-medium">{issue.issue_type}</p>
-                                                <p className="text-sm">
-                                                    Table: {issue.table}
-                                                    {issue.column && `, Column: ${issue.column}`}
-                                                </p>
-                                                <p className="text-sm mt-1">
-                                                    Current: {issue.current_state} → Expected: {issue.expected_state}
-                                                </p>
-                                            </div>
-                                            <Button 
-                                                size="sm" 
-                                                onClick={() => fixIssue(issue)}
-                                                disabled={!issue.fix_sql}
-                                            >
-                                                Fix Now
-                                            </Button>
-                                        </div>
-                                    </AlertDescription>
-                                </Alert>
-                            ))}
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Warnings */}
-            {issues.warnings.length > 0 && (
-                <Card className="border-yellow-200">
-                    <CardHeader>
-                        <CardTitle className="flex items-center text-yellow-600">
-                            <AlertTriangle className="mr-2" />
-                            Warnings ({issues.warnings.length})
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="space-y-2">
-                            {issues.warnings.map((warning, idx) => (
-                                <div key={idx} className="p-3 bg-yellow-50 rounded-md">
-                                    <p className="font-medium text-sm">{warning.issue_type}</p>
-                                    <p className="text-sm text-muted-foreground">
-                                        {warning.table}
-                                        {warning.column && `.${warning.column}`}: {warning.current_state}
-                                    </p>
+    return (
+        <div className="p-6 max-w-7xl mx-auto">
+            <div className="mb-6">
+                <h2 className="text-2xl font-bold mb-4">🏥 Database Health Monitor</h2>
+                
+                {/* Status Bar */}
+                <Card className="mb-6">
+                    <CardContent className="p-6">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div>
+                                <p className="text-sm text-gray-600">Status</p>
+                                <div className="flex items-center mt-1">
+                                    {status.status === 'running' ? (
+                                        <>
+                                            <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                                            <span className="font-semibold text-green-600">Running</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <XCircle className="h-5 w-5 text-gray-400 mr-2" />
+                                            <span className="font-semibold text-gray-600">Stopped</span>
+                                        </>
+                                    )}
                                 </div>
-                            ))}
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">Total Issues</p>
+                                <p className="text-2xl font-bold">{issues.summary.total_issues}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">Critical Issues</p>
+                                <p className="text-2xl font-bold text-red-600">{issues.summary.critical_count}</p>
+                            </div>
+                            <div>
+                                <p className="text-sm text-gray-600">Auto-fixable</p>
+                                <p className="text-2xl font-bold text-green-600">{issues.summary.auto_fixable}</p>
+                            </div>
+                        </div>
+                        
+                        {/* Control Buttons */}
+                        <div className="flex gap-3 mt-6">
+                            <Button onClick={toggleMonitoring} variant="outline">
+                                {status.status === 'running' ? (
+                                    <>
+                                        <Pause className="h-4 w-4 mr-2" />
+                                        Stop Monitoring
+                                    </>
+                                ) : (
+                                    <>
+                                        <Play className="h-4 w-4 mr-2" />
+                                        Start Monitoring
+                                    </>
+                                )}
+                            </Button>
+                            <Button onClick={runCheckNow} disabled={checkInProgress}>
+                                {checkInProgress ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Checking...
+                                    </>
+                                ) : (
+                                    <>
+                                        <RefreshCw className="h-4 w-4 mr-2" />
+                                        Run Check Now
+                                    </>
+                                )}
+                            </Button>
+                            <div className="ml-auto flex items-center gap-2">
+                                <span className="text-sm text-gray-600">Mode:</span>
+                                <Button
+                                    size="sm"
+                                    variant={autoMode ? 'default' : 'outline'}
+                                    onClick={() => setAutoMode(!autoMode)}
+                                >
+                                    {autoMode ? (
+                                        <>
+                                            <Zap className="h-4 w-4 mr-1" />
+                                            Auto Mode
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Shield className="h-4 w-4 mr-1" />
+                                            Manual Mode
+                                        </>
+                                    )}
+                                </Button>
+                            </div>
                         </div>
                     </CardContent>
                 </Card>
-            )}
 
-            {/* All Clear */}
-            {issues.critical_issues.length === 0 && issues.warnings.length === 0 && (
-                <Alert className="border-green-200">
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-600">
-                        All systems healthy! No issues detected.
-                    </AlertDescription>
-                </Alert>
+                {error && (
+                    <Alert variant="destructive" className="mb-4">
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                )}
+
+                {/* Issues Tabs */}
+                <Tabs defaultValue="by-severity" className="mt-6">
+                    <TabsList>
+                        <TabsTrigger value="by-severity">By Severity</TabsTrigger>
+                        <TabsTrigger value="by-type">By Type</TabsTrigger>
+                        <TabsTrigger value="all">All Issues</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="by-severity">
+                        {issues.critical_issues.length > 0 && (
+                            <div className="mb-6">
+                                <h3 className="text-lg font-semibold mb-3 text-red-600">Critical Issues</h3>
+                                {issues.critical_issues.map((issue, idx) => renderIssueCard(issue, `critical-${idx}`))}
+                            </div>
+                        )}
+                        {issues.warnings.length > 0 && (
+                            <div>
+                                <h3 className="text-lg font-semibold mb-3 text-yellow-600">Warnings</h3>
+                                {issues.warnings.map((issue, idx) => renderIssueCard(issue, `warning-${idx}`))}
+                            </div>
+                        )}
+                    </TabsContent>
+                    
+                    <TabsContent value="by-type">
+                        {Object.entries(issues.issues_by_type || {}).map(([type, typeIssues]) => (
+                            typeIssues.length > 0 && (
+                                <div key={type} className="mb-6">
+                                    <h3 className="text-lg font-semibold mb-3">{type.replace(/_/g, ' ')}</h3>
+                                    {typeIssues.map((issue, idx) => renderIssueCard(issue, `${type}-${idx}`))}
+                                </div>
+                            )
+                        ))}
+                    </TabsContent>
+                    
+                    <TabsContent value="all">
+                        {[...issues.critical_issues, ...issues.warnings].map((issue, idx) => 
+                            renderIssueCard(issue, `all-${idx}`)
+                        )}
+                    </TabsContent>
+                </Tabs>
+            </div>
+
+            {/* Fix Preview Modal */}
+            {selectedIssue && fixPreview && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                    <Card className="max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+                        <CardHeader>
+                            <CardTitle>Fix Preview</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <div>
+                                    <h4 className="font-semibold mb-2">What will happen:</h4>
+                                    <p className="text-sm">{fixPreview.fix_explanation}</p>
+                                </div>
+                                
+                                <div>
+                                    <h4 className="font-semibold mb-2">SQL to execute:</h4>
+                                    <pre className="bg-gray-100 p-3 rounded text-xs overflow-x-auto">
+                                        {selectedIssue.fix_sql}
+                                    </pre>
+                                </div>
+                                
+                                <div>
+                                    <h4 className="font-semibold mb-2">Impact Assessment:</h4>
+                                    <div className="grid grid-cols-3 gap-2 text-sm">
+                                        <div>
+                                            <span className="text-gray-600">Risk:</span>
+                                            <Badge variant={fixPreview.estimated_impact?.risk === 'low' ? 'success' : 'warning'}>
+                                                {fixPreview.estimated_impact?.risk || 'unknown'}
+                                            </Badge>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600">Downtime:</span>
+                                            <Badge>{fixPreview.estimated_impact?.downtime || 'unknown'}</Badge>
+                                        </div>
+                                        <div>
+                                            <span className="text-gray-600">Reversible:</span>
+                                            <Badge variant={fixPreview.estimated_impact?.reversible ? 'success' : 'destructive'}>
+                                                {fixPreview.estimated_impact?.reversible ? 'Yes' : 'No'}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                {fixPreview.affected_data && (
+                                    <div>
+                                        <h4 className="font-semibold mb-2">Affected Data:</h4>
+                                        <pre className="bg-gray-100 p-3 rounded text-xs">
+                                            {JSON.stringify(fixPreview.affected_data, null, 2)}
+                                        </pre>
+                                    </div>
+                                )}
+                                
+                                <div className="flex justify-end gap-3 mt-6">
+                                    <Button variant="outline" onClick={() => {
+                                        setSelectedIssue(null);
+                                        setFixPreview(null);
+                                    }}>
+                                        Cancel
+                                    </Button>
+                                    <Button 
+                                        variant="destructive" 
+                                        onClick={() => applyFix(selectedIssue)}
+                                        disabled={fixingIssue}
+                                    >
+                                        {fixingIssue ? (
+                                            <>
+                                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                                Applying Fix...
+                                            </>
+                                        ) : (
+                                            'Apply Fix'
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
             )}
         </div>
     );
