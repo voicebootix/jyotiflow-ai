@@ -1495,26 +1495,37 @@ class DatabaseHealthMonitor:
         """Detect duplicate data in tables by analyzing actual database constraints and data"""
         issues = []
         
+        logger.info("Starting duplicate data detection...")
+        logger.debug(f"Schema has {len(schema.get('tables', []))} tables")
+        logger.debug(f"Schema has columns for {len(schema.get('columns', {}))} tables")
+        
         import db
         pool = db.get_db_pool()
         if not pool:
+            logger.error("Database pool not available for duplicate detection")
             return issues
             
         async with pool.acquire() as conn:
             # 1. First, find all UNIQUE constraints in the database
-            unique_constraints = await conn.fetch("""
-                SELECT 
-                    tc.table_name,
-                    kcu.column_name,
-                    tc.constraint_name
-                FROM information_schema.table_constraints tc
-                JOIN information_schema.key_column_usage kcu 
-                    ON tc.constraint_name = kcu.constraint_name
-                    AND tc.table_schema = kcu.table_schema
-                WHERE tc.constraint_type = 'UNIQUE'
-                    AND tc.table_schema = 'public'
-                ORDER BY tc.table_name, kcu.ordinal_position
-            """)
+            logger.info("Fetching UNIQUE constraints from information_schema...")
+            try:
+                unique_constraints = await conn.fetch("""
+                    SELECT 
+                        tc.table_name,
+                        kcu.column_name,
+                        tc.constraint_name
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        AND tc.table_schema = kcu.table_schema
+                    WHERE tc.constraint_type = 'UNIQUE'
+                        AND tc.table_schema = 'public'
+                    ORDER BY tc.table_name, kcu.ordinal_position
+                """)
+                logger.info(f"Found {len(unique_constraints)} UNIQUE constraint columns")
+            except Exception as e:
+                logger.error(f"Failed to fetch UNIQUE constraints: {e}")
+                unique_constraints = []
             
             # Group by table and constraint to handle multi-column unique constraints
             unique_by_table = defaultdict(list)
@@ -1525,9 +1536,11 @@ class DatabaseHealthMonitor:
                 })
             
             # 2. Check each unique constraint for violations
+            logger.info(f"Checking {len(unique_by_table)} tables with UNIQUE constraints")
             for table_name in unique_by_table:
                 # Skip if table not in schema
                 if table_name not in [t['tablename'] for t in schema.get('tables', [])]:
+                    logger.debug(f"Skipping {table_name} - not in schema")
                     continue
                 
                 # Group columns by constraint name
@@ -1540,6 +1553,7 @@ class DatabaseHealthMonitor:
                         if len(columns) == 1:
                             # Single column unique constraint
                             column = columns[0]
+                            logger.debug(f"Checking single-column constraint {constraint_name} on {table_name}.{column}")
                             duplicates = await conn.fetch(f"""
                                 SELECT {quote_ident(column)}, COUNT(*) as count
                                 FROM {quote_ident(table_name)}
@@ -1551,6 +1565,7 @@ class DatabaseHealthMonitor:
                             """)
                             
                             if duplicates:
+                                logger.warning(f"Found duplicates in {table_name}.{column} violating constraint {constraint_name}")
                                 total_duplicates = await conn.fetchval(f"""
                                     SELECT SUM(count - 1) as total_duplicates
                                     FROM (
@@ -1563,6 +1578,7 @@ class DatabaseHealthMonitor:
                                 """)
                                 
                                 duplicate_values = [f"'{row[column]}' ({row['count']} times)" for row in duplicates[:3]]
+                                logger.info(f"Duplicate samples: {duplicate_values}")
                                 issues.append(DatabaseIssue(
                                     issue_type='DUPLICATE_DATA',
                                     severity='CRITICAL',
@@ -1578,6 +1594,7 @@ class DatabaseHealthMonitor:
                         else:
                             # Multi-column unique constraint
                             col_list = ", ".join(quote_ident(col) for col in columns)
+                            logger.debug(f"Checking multi-column constraint {constraint_name} on {table_name} columns: {columns}")
                             dup_count = await conn.fetchval(f"""
                                 SELECT COUNT(*) FROM (
                                     SELECT {col_list}, COUNT(*) as count
@@ -1588,6 +1605,7 @@ class DatabaseHealthMonitor:
                             """)
                             
                             if dup_count > 0:
+                                logger.warning(f"Found {dup_count} duplicate combinations in {table_name} violating constraint {constraint_name}")
                                 issues.append(DatabaseIssue(
                                     issue_type='DUPLICATE_DATA',
                                     severity='CRITICAL',
@@ -1616,6 +1634,8 @@ class DatabaseHealthMonitor:
                 r'.*_token$',  # Token columns
             ]
             
+            logger.info("Checking columns that should be unique based on naming patterns...")
+            pattern_check_count = 0
             for table in schema.get('tables', []):
                 table_name = table['tablename']
                 if table_name not in schema.get('columns', {}):
@@ -1639,6 +1659,8 @@ class DatabaseHealthMonitor:
                     )
                     
                     if should_be_unique:
+                        pattern_check_count += 1
+                        logger.debug(f"Checking {table_name}.{column_name} for duplicates (matches unique pattern)")
                         try:
                             # Check for duplicates
                             dup_count = await conn.fetchval(f"""
@@ -1652,6 +1674,7 @@ class DatabaseHealthMonitor:
                             """)
                             
                             if dup_count > 0:
+                                logger.warning(f"Found {dup_count} duplicate groups in {table_name}.{column_name} (no unique constraint)")
                                 # Get sample duplicates
                                 duplicates = await conn.fetch(f"""
                                     SELECT {quote_ident(column_name)}, COUNT(*) as count
@@ -1681,7 +1704,11 @@ class DatabaseHealthMonitor:
                         except Exception as e:
                             logger.warning(f"Error checking potential unique column {table_name}.{column_name}: {e}")
             
+            logger.info(f"Checked {pattern_check_count} columns based on naming patterns")
+            
             # 4. Check for completely duplicate rows in tables (excluding system columns)
+            logger.info("Checking for completely duplicate rows...")
+            duplicate_row_checks = 0
             for table in schema.get('tables', []):
                 table_name = table['tablename']
                 if table_name not in schema.get('columns', {}):
@@ -1695,6 +1722,8 @@ class DatabaseHealthMonitor:
                 ]
                 
                 if len(columns) > 1:  # Only check if there are meaningful columns
+                    duplicate_row_checks += 1
+                    logger.debug(f"Checking {table_name} for duplicate rows (columns: {columns[:3]}{'...' if len(columns) > 3 else ''})")
                     try:
                         col_list = ", ".join(quote_ident(col) for col in columns)
                         # Check for complete duplicate rows
@@ -1708,6 +1737,7 @@ class DatabaseHealthMonitor:
                         """)
                         
                         if dup_count > 0:
+                            logger.warning(f"Found {dup_count} sets of duplicate rows in {table_name}")
                             issues.append(DatabaseIssue(
                                 issue_type='DUPLICATE_DATA',
                                 severity='MEDIUM',
@@ -1723,6 +1753,9 @@ class DatabaseHealthMonitor:
                             
                     except Exception as e:
                         logger.warning(f"Error checking duplicate rows in {table_name}: {e}")
+        
+        logger.info(f"Checked {duplicate_row_checks} tables for duplicate rows")
+        logger.info(f"Duplicate detection completed. Found {len(issues)} total issues")
         
         return issues
     
