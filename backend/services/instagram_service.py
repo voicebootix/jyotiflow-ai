@@ -1,346 +1,354 @@
 """
-📸 INSTAGRAM SERVICE - Real Instagram Graph API Integration
-Instagram posting service using Facebook Graph API (Instagram uses Facebook's API)
+📸 INSTAGRAM SERVICE - Real API Validation
+Validates Instagram API credentials by making actual Instagram Basic Display API calls
 """
 
-import logging
-import asyncio
-from typing import Dict, Optional
 import aiohttp
-import json
+import logging
+from typing import Dict
+import hmac
+import hashlib
 
 logger = logging.getLogger(__name__)
 
 class InstagramService:
-    """Instagram Graph API Service for automated posting"""
+    """Real Instagram Basic Display API validation service"""
     
     def __init__(self):
-        self.base_url = "https://graph.facebook.com/v18.0"
+        self.graph_url = "https://graph.instagram.com"
+        self.basic_url = "https://api.instagram.com"
         self._credentials_cache = None
-        logger.info("📸 Instagram service initialized - will load credentials from database")
     
-    async def _get_credentials(self):
-        """Get Instagram credentials from database (platform_settings table)"""
-        if self._credentials_cache:
-            return self._credentials_cache
-        
+    async def validate_credentials(self, app_id: str, app_secret: str, access_token: str) -> Dict:
+        """
+        Validate Instagram credentials by making real API calls
+        Returns: {"success": bool, "message": str, "error": str}
+        """
         try:
-            import db
+            # Test 1: Validate app credentials
+            if app_id and app_secret:
+                app_test = await self._validate_app_credentials(app_id, app_secret)
+                if not app_test["success"]:
+                    return app_test
             
-            if not db.db_pool:
-                logger.error("❌ Database pool not available")
-                return None
+            # Test 2: Validate access token
+            token_test = await self._validate_access_token(access_token)
+            if not token_test["success"]:
+                return token_test
             
-            async with db.db_pool.acquire() as db_conn:
-                # Get Instagram credentials from platform_settings
-                row = await db_conn.fetchrow(
-                    "SELECT value FROM platform_settings WHERE key = 'instagram_credentials'"
-                )
-                
-                if row and row['value']:
-                    credentials = row['value']
-                    
-                    # Validate required fields
-                    required_fields = ['app_id', 'app_secret', 'access_token', 'user_id']
-                    missing_fields = [field for field in required_fields if not credentials.get(field)]
-                    
-                    if missing_fields:
-                        logger.error(f"❌ Missing Instagram credential fields: {', '.join(missing_fields)}")
-                        return None
-                    
-                    # Validate account type (must be Business or Creator)
-                    account_type = credentials.get('account_type')
-                    if account_type not in ['BUSINESS', 'CREATOR']:
-                        logger.error(f"❌ Instagram account type must be BUSINESS or CREATOR, got: {account_type}")
-                        return None
-                    
-                    # Cache credentials
-                    self._credentials_cache = credentials
-                    logger.info("✅ Instagram credentials loaded from database")
-                    return credentials
-                else:
-                    logger.error("❌ Instagram credentials not found in database. Please configure them in the admin dashboard.")
-                    return None
-                    
-        except Exception as e:
-            logger.error(f"❌ Failed to load Instagram credentials from database: {e}")
-            return None
-    
-    async def post_content(self, content: Dict, media_url: Optional[str] = None) -> Dict:
-        """Post content to Instagram"""
-        credentials = await self._get_credentials()
-        if not credentials:
-            return {
-                "success": False,
-                "error": "Instagram credentials not configured in admin dashboard."
-            }
-        
-        try:
-            if media_url:
-                # Instagram requires media for posts
-                result = await self._post_with_media(content, media_url, credentials)
-            else:
-                # Instagram Stories for text-only content
-                result = await self._post_story(content, credentials)
+            # Test 3: Get user profile info
+            profile_test = await self._get_user_profile(access_token)
+            if not profile_test["success"]:
+                return profile_test
             
-            if result.get("success"):
-                logger.info(f"✅ Successfully posted to Instagram: {result['post_id']}")
-                return {
-                    "success": True,
-                    "post_id": result["post_id"],
-                    "platform": "instagram",
-                    "post_url": f"https://instagram.com/p/{result['post_id']}"
-                }
-            else:
-                logger.error(f"❌ Instagram posting failed: {result.get('error')}")
-                return result
-                
-        except Exception as e:
-            logger.error(f"❌ Instagram posting exception: {e}")
-            return {
-                "success": False,
-                "error": f"Instagram posting failed: {str(e)}"
-            }
-    
-    async def _post_with_media(self, content: Dict, media_url: str, credentials: Dict) -> Dict:
-        """Post media content to Instagram"""
-        try:
-            # Step 1: Create media container
-            container_result = await self._create_media_container(content, media_url, credentials)
-            if not container_result.get("success"):
-                return container_result
+            # Test 4: Check if it's a business account (for posting)
+            business_test = await self._check_business_account(access_token)
             
-            # Step 2: Publish the media
-            publish_result = await self._publish_media(container_result["container_id"], credentials)
-            return publish_result
-            
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"Instagram media posting failed: {str(e)}"
-            }
-    
-    async def _create_media_container(self, content: Dict, media_url: str, credentials: Dict) -> Dict:
-        """Create Instagram media container"""
-        url = f"{self.base_url}/{credentials['user_id']}/media"
-        
-        # Prepare caption
-        caption = f"{content['title']}\n\n{content['description']}"
-        if content.get('hashtags'):
-            hashtags = ' '.join(content['hashtags'])
-            caption = f"{caption}\n\n{hashtags}"
-        
-        # Determine media type
-        is_video = any(ext in media_url.lower() for ext in ['.mp4', '.mov', '.avi'])
-        
-        data = {
-            "image_url" if not is_video else "video_url": media_url,
-            "caption": caption,
-            "access_token": credentials['access_token']
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=120, connect=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(3):
-                try:
-                    async with session.post(url, data=data) as response:
-                        if response.status == 200:
-                            try:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "container_id": result.get("id")
-                                }
-                            except (json.JSONDecodeError, KeyError):
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"Instagram API returned invalid JSON: {error_text}"
-                                }
-                        elif response.status == 429:
-                            if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
-                                continue
-                            else:
-                                return {
-                                    "success": False,
-                                    "error": "Instagram API rate limit exceeded"
-                                }
-                        else:
-                            error_text = await response.text()
-                            return {
-                                "success": False,
-                                "error": f"Instagram container creation error: {response.status} - {error_text}"
-                            }
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    else:
-                        return {
-                            "success": False,
-                            "error": f"Instagram container creation network error: {str(e)}"
-                        }
-            
-            return {
-                "success": False,
-                "error": "Instagram container creation failed after 3 attempts"
-            }
-    
-    async def _publish_media(self, container_id: str, credentials: Dict) -> Dict:
-        """Publish Instagram media container"""
-        url = f"{self.base_url}/{credentials['user_id']}/media_publish"
-        
-        data = {
-            "creation_id": container_id,
-            "access_token": credentials['access_token']
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=120, connect=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(3):
-                try:
-                    async with session.post(url, data=data) as response:
-                        if response.status == 200:
-                            try:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "post_id": result.get("id")
-                                }
-                            except (json.JSONDecodeError, KeyError):
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"Instagram API returned invalid JSON: {error_text}"
-                                }
-                        elif response.status == 429:
-                            if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
-                                continue
-                            else:
-                                return {
-                                    "success": False,
-                                    "error": "Instagram API rate limit exceeded"
-                                }
-                        else:
-                            error_text = await response.text()
-                            return {
-                                "success": False,
-                                "error": f"Instagram publish error: {response.status} - {error_text}"
-                            }
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    else:
-                        return {
-                            "success": False,
-                            "error": f"Instagram publish network error: {str(e)}"
-                        }
-            
-            return {
-                "success": False,
-                "error": "Instagram publish failed after 3 attempts"
-            }
-    
-    async def _post_story(self, content: Dict, credentials: Dict) -> Dict:
-        """Post Instagram Story for text-only content"""
-        # Instagram Stories implementation would go here
-        # For now, return not implemented
-        return {
-            "success": False,
-            "error": "Instagram Stories posting not yet implemented"
-        }
-    
-    async def get_account_info(self) -> Dict:
-        """Get Instagram account information"""
-        credentials = await self._get_credentials()
-        if not credentials:
-            return {"success": False, "error": "Instagram credentials not configured"}
-        
-        url = f"{self.base_url}/{credentials['user_id']}"
-        params = {
-            "fields": "id,username,account_type,media_count,followers_count",
-            "access_token": credentials['access_token']
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=60, connect=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(3):
-                try:
-                    async with session.get(url, params=params) as response:
-                        if response.status == 200:
-                            try:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "account_info": result
-                                }
-                            except (json.JSONDecodeError, KeyError):
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"Instagram API returned invalid JSON: {error_text}"
-                                }
-                        elif response.status == 429:
-                            if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
-                                continue
-                            else:
-                                return {
-                                    "success": False,
-                                    "error": "Instagram API rate limit exceeded"
-                                }
-                        else:
-                            error_text = await response.text()
-                            return {
-                                "success": False,
-                                "error": f"Failed to get account info: {response.status} - {error_text}"
-                            }
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    else:
-                        return {
-                            "success": False,
-                            "error": f"Failed to get account info: {str(e)}"
-                        }
-            
-            return {
-                "success": False,
-                "error": "Instagram account info request failed after 3 attempts"
-            }
-    
-    async def validate_credentials(self) -> Dict:
-        """Validate Instagram API credentials"""
-        credentials = await self._get_credentials()
-        if not credentials:
-            return {
-                "success": False,
-                "error": "Instagram credentials not configured in admin dashboard",
-                "missing": ["app_id", "app_secret", "access_token", "user_id", "account_type"]
-            }
-        
-        # Test with account info API call
-        account_info = await self.get_account_info()
-        if account_info.get("success"):
             return {
                 "success": True,
-                "message": "Instagram credentials are valid",
-                "username": account_info["account_info"].get("username"),
-                "user_id": account_info["account_info"].get("id")
+                "message": "Instagram credentials validated successfully. Ready for API calls!",
+                "user_info": profile_test.get("user_info", {}),
+                "is_business": business_test.get("is_business", False)
             }
-        else:
+            
+        except Exception as e:
+            logger.error(f"Instagram credential validation error: {e}")
             return {
                 "success": False,
-                "error": "Invalid credentials or API error",
-                "details": account_info.get("error")
+                "error": f"Instagram API validation failed: {str(e)}"
             }
+    
+    async def _validate_app_credentials(self, app_id: str, app_secret: str) -> Dict:
+        """Validate Instagram app credentials (Instagram uses Facebook Graph API)"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Instagram apps use Facebook Graph API for app token validation
+                url = "https://graph.facebook.com/oauth/access_token"
+                params = {
+                    "client_id": app_id,
+                    "client_secret": app_secret,
+                    "grant_type": "client_credentials"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "access_token" in data:
+                        return {
+                            "success": True,
+                            "message": "Instagram app credentials validated successfully",
+                            "app_token": data["access_token"]
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Invalid app credentials")
+                        return {
+                            "success": False,
+                            "error": f"App credentials validation failed: {error_msg}"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"App credentials test failed: {str(e)}"
+            }
+    
+    async def _validate_access_token(self, access_token: str) -> Dict:
+        """Validate access token by calling /me endpoint"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,username"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        return {
+                            "success": True,
+                            "message": f"Access token valid for user: @{data.get('username', 'Unknown')}",
+                            "user_id": data["id"],
+                            "username": data.get("username")
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Invalid access token")
+                        return {
+                            "success": False,
+                            "error": f"Access token validation failed: {error_msg}"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Access token test failed: {str(e)}"
+            }
+    
+    async def _get_user_profile(self, access_token: str) -> Dict:
+        """Get user profile information"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,username,account_type,media_count"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        return {
+                            "success": True,
+                            "message": "User profile retrieved successfully",
+                            "user_info": {
+                                "id": data["id"],
+                                "username": data.get("username"),
+                                "account_type": data.get("account_type", "PERSONAL"),
+                                "media_count": data.get("media_count", 0)
+                            }
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Could not retrieve profile")
+                        return {
+                            "success": False,
+                            "error": f"Profile retrieval failed: {error_msg}"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Profile retrieval failed: {str(e)}"
+            }
+    
+    async def _check_business_account(self, access_token: str) -> Dict:
+        """Check if account is business account (required for posting via API)"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me"
+                params = {
+                    "access_token": access_token,
+                    "fields": "account_type"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200:
+                        account_type = data.get("account_type", "PERSONAL")
+                        is_business = account_type in ["BUSINESS", "CREATOR"]
+                        
+                        return {
+                            "success": True,
+                            "is_business": is_business,
+                            "account_type": account_type,
+                            "message": f"Account type: {account_type}" + 
+                                     (" (Can post via API)" if is_business else " (Cannot post via API - need Business/Creator account)")
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Could not determine account type"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Business account check failed: {str(e)}"
+            }
+    
+    async def get_user_media(self, access_token: str, limit: int = 10) -> Dict:
+        """Get user's recent media"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me/media"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,media_type,media_url,thumbnail_url,permalink,timestamp",
+                    "limit": limit
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "data" in data:
+                        return {
+                            "success": True,
+                            "media": data["data"],
+                            "count": len(data["data"])
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Could not retrieve media"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Media retrieval failed: {str(e)}"
+            }
+    
+    def validate_webhook_signature(self, signature: str, payload: str, app_secret: str) -> bool:
+        """
+        Validate Instagram webhook signature using Meta Graph API requirements
+        
+        Args:
+            signature: The X-Hub-Signature-256 header value from Meta (e.g., "sha256=abc123...")
+            payload: The raw webhook payload as string
+            app_secret: Instagram app secret for HMAC validation
+            
+        Returns:
+            bool: True if signature is valid, False otherwise
+            
+        Note: 
+        - Synchronous method as HMAC operations don't require async
+        - Updated for latest Meta Graph API which uses SHA256 instead of deprecated SHA1
+        - Follows core.md principle of simplicity and reliability
+        """
+        try:
+            # Remove 'sha256=' prefix if present (Meta format: 'sha256=<hex_digest>')
+            if signature.startswith('sha256='):
+                received_signature = signature[7:]  # Remove 'sha256=' prefix
+            else:
+                # Fallback: assume signature is the raw hex digest
+                received_signature = signature
+            
+            # Calculate expected signature using SHA256 (Meta Graph API standard)
+            expected_signature = hmac.new(
+                app_secret.encode('utf-8'),
+                payload.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            # Secure comparison to prevent timing attacks
+            is_valid = hmac.compare_digest(received_signature, expected_signature)
+            
+            if not is_valid:
+                logger.warning("Instagram webhook signature validation failed")
+                logger.debug(f"Expected: {expected_signature[:8]}..., Received: {received_signature[:8]}...")
+            
+            return is_valid
+            
+        except Exception as e:
+            logger.error(f"Instagram webhook signature validation error: {e}")
+            return False
+    
+    def verify_webhook_request(self, headers: Dict[str, str], payload: str, app_secret: str) -> Dict[str, bool]:
+        """
+        Comprehensive webhook request verification for Instagram
+        
+        Args:
+            headers: HTTP headers from the webhook request
+            payload: Raw webhook payload
+            app_secret: Instagram app secret
+            
+        Returns:
+            Dict with verification results and details
+            
+        Note: Follows Meta Graph API webhook security best practices
+        """
+        verification_result = {
+            "signature_valid": False,
+            "has_signature_header": False,
+            "error": None
+        }
+        
+        try:
+            # Check for X-Hub-Signature-256 header (Meta standard)
+            signature_header = headers.get('X-Hub-Signature-256') or headers.get('x-hub-signature-256')
+            
+            if not signature_header:
+                # Fallback: check for deprecated SHA1 header
+                legacy_header = headers.get('X-Hub-Signature') or headers.get('x-hub-signature')
+                if legacy_header:
+                    verification_result["error"] = "Using deprecated SHA1 signature. Please upgrade to SHA256."
+                    logger.warning("Instagram webhook using deprecated SHA1 signature")
+                else:
+                    verification_result["error"] = "Missing X-Hub-Signature-256 header"
+                return verification_result
+            
+            verification_result["has_signature_header"] = True
+            
+            # Validate signature using synchronous method (core.md simplicity)
+            signature_valid = self.validate_webhook_signature(signature_header, payload, app_secret)
+            verification_result["signature_valid"] = signature_valid
+            
+            if not signature_valid:
+                verification_result["error"] = "Invalid webhook signature"
+            
+            return verification_result
+            
+        except Exception as e:
+            logger.error(f"Webhook verification error: {e}")
+            verification_result["error"] = f"Verification failed: {str(e)}"
+            return verification_result
+    
+    async def validate_webhook_signature_async(self, signature: str, payload: str, app_secret: str) -> bool:
+        """
+        Async wrapper for validate_webhook_signature for backward compatibility
+        
+        Note: This is just a wrapper around the synchronous method.
+        The core HMAC validation doesn't require async operations.
+        Use the sync version (validate_webhook_signature) for better performance.
+        
+        Args:
+            signature: The X-Hub-Signature-256 header value
+            payload: The raw webhook payload as string  
+            app_secret: Instagram app secret for HMAC validation
+            
+        Returns:
+            bool: True if signature is valid, False otherwise
+        """
+        return self.validate_webhook_signature(signature, payload, app_secret)
 
-# Global instance
-instagram_service = InstagramService()
+# Export - Following standardized new-instance pattern
+__all__ = ["InstagramService"]
 
-# Export
-__all__ = ["InstagramService", "instagram_service"]
+# Note: Use InstagramService() to create new instances for better isolation
+# No global instances - consistent pattern across all services
+# 
+# Key Methods:
+# - validate_credentials(): Real Instagram API validation  
+# - validate_webhook_signature(): Modern SHA256 webhook verification (SYNC - core.md compliant)
+# - validate_webhook_signature_async(): Async wrapper for backward compatibility
+# - verify_webhook_request(): Comprehensive webhook validation (SYNC - reliable)
+#
+# Design Note: Webhook validation is synchronous as HMAC operations don't require async.
+# This follows core.md principles of simplicity and avoids deprecated asyncio patterns.
