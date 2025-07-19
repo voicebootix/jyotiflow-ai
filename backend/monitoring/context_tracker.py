@@ -11,7 +11,9 @@ from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 from enum import Enum
 
-from core_foundation_enhanced import get_database as get_db, logger
+from db import db_manager
+import logging
+logger = logging.getLogger(__name__)
 from database_timezone_fixer import safe_utc_now
 
 logger = logging.getLogger(__name__)
@@ -307,8 +309,7 @@ class ContextTracker:
             snapshot = self._create_snapshot(context)
             context_hash = hashlib.md5(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
             
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     INSERT INTO context_snapshots 
@@ -317,7 +318,7 @@ class ContextTracker:
                 """, session_id, integration_point, json.dumps(snapshot), 
                     context_hash, safe_utc_now())
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                     
         except Exception as e:
             logger.error(f"Failed to store context snapshot: {e}")

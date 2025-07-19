@@ -21,7 +21,10 @@ except ImportError:
     # Log warning after logger is properly imported
     pass
 
-from core_foundation_enhanced import get_database as get_db, logger, settings
+from db import db_manager
+import logging
+logger = logging.getLogger(__name__)
+import os
 import openai
 
 logger = logging.getLogger(__name__)
@@ -38,13 +41,14 @@ class BusinessLogicValidator:
     
     def __init__(self):
         # Validate OpenAI API key is present
-        if not settings.openai_api_key:
+        openai_key = os.getenv('OPENAI_API_KEY')
+        if not openai_key:
             raise ValueError(
                 "OpenAI API key is missing. Please set the OPENAI_API_KEY environment variable."
             )
         
         try:
-            self.openai_client = openai.AsyncClient(api_key=settings.openai_api_key)
+            self.openai_client = openai.AsyncClient(api_key=openai_key)
         except Exception as e:
             raise ValueError(f"Failed to initialize OpenAI client: {e}")
             

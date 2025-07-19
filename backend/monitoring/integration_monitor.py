@@ -14,7 +14,9 @@ from enum import Enum
 import aiohttp
 import traceback
 
-from core_foundation_enhanced import get_database as get_db, logger, settings
+from db import db_manager
+import logging
+logger = logging.getLogger(__name__)
 
 # Import validators
 from validators.prokerala_validator import ProkeralaValidator
@@ -93,8 +95,7 @@ class IntegrationMonitor:
             await self.context_tracker.initialize_session(session_id, session_context)
             
             # Store in database
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     INSERT INTO validation_sessions 
@@ -105,7 +106,7 @@ class IntegrationMonitor:
                 """, session_id, user_id, session_context["started_at"], 
                     json.dumps(session_context), IntegrationStatus.SUCCESS.value)
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
             logger.info(f"✅ Started monitoring session {session_id}")
             return {"success": True, "session_id": session_id}
@@ -243,8 +244,7 @@ class IntegrationMonitor:
             session_context["metrics"] = session_metrics
             
             # Store final results in database
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     UPDATE validation_sessions
@@ -257,7 +257,7 @@ class IntegrationMonitor:
                     json.dumps(session_context),
                     session_id)
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
             # Generate session report
             session_report = {
@@ -304,8 +304,7 @@ class IntegrationMonitor:
                 health_status["integration_points"][point.value] = point_health
             
             # Get recent issues from database
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 recent_issues = await conn.fetch("""
                     SELECT issue_type, severity, description, created_at
@@ -319,7 +318,7 @@ class IntegrationMonitor:
                     dict(issue) for issue in recent_issues
                 ]
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
             # Determine overall system status
             critical_count = sum(
@@ -369,8 +368,7 @@ class IntegrationMonitor:
                                      validation_result: Dict):
         """Store validation result in database"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     INSERT INTO integration_validations
@@ -385,7 +383,7 @@ class IntegrationMonitor:
                     validation_result.get("error", ""),
                     validation_result.get("auto_fixed", False))
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
         except Exception as e:
             logger.error(f"Failed to store validation result: {e}")
     
@@ -418,8 +416,7 @@ class IntegrationMonitor:
             logger.critical(f"🚨 CRITICAL ISSUE in session {session_id}: {validation_result}")
             
             # Store in database for admin dashboard
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 for issue in validation_result.get("critical_issues", []):
                     await conn.execute("""
@@ -431,7 +428,7 @@ class IntegrationMonitor:
                         issue.get("description"), False, 
                         issue.get("user_impact", "User may receive incorrect guidance"))
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                         
         except Exception as e:
             logger.error(f"Failed to alert admin: {e}")
@@ -497,8 +494,7 @@ class IntegrationMonitor:
         """Check health of a specific integration point"""
         try:
             # Get recent validation results for this integration
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 recent_validations = await conn.fetch("""
                     SELECT status, COUNT(*) as count
@@ -540,7 +536,7 @@ class IntegrationMonitor:
                     "total_validations": total
                 }
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to check integration health: {e}")
