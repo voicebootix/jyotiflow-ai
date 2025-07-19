@@ -571,42 +571,79 @@ class CodePatternAnalyzer:
                 'columns': {}  # Regex mode doesn't extract columns
             })
     
-    async def _discover_table_schemas_from_migrations(self) -> Dict[str, str]:
-        """Dynamically discover table schemas from migration files"""
+    def _generate_table_schemas_from_queries(self, query_patterns: Dict[str, List[Dict]]) -> Dict[str, str]:
+        """Generate table schemas dynamically based on detected query patterns"""
         schemas = {}
-        migrations_dir = Path('backend/migrations')
         
-        if migrations_dir.exists():
-            for migration_file in migrations_dir.glob('*.py'):
-                content = migration_file.read_text()
+        # For each table found in query patterns, generate a CREATE TABLE statement
+        for table_name, queries in query_patterns.items():
+            if not queries:
+                continue
                 
-                # Extract CREATE TABLE statements
-                # Using regex to find CREATE TABLE blocks
-                create_table_pattern = r'CREATE TABLE(?:\s+IF NOT EXISTS)?\s+(\w+)\s*\([^;]+\);?'
-                matches = re.finditer(create_table_pattern, content, re.IGNORECASE | re.DOTALL)
+            # Analyze all queries for this table to determine schema
+            columns = {}
+            has_foreign_keys = []
+            
+            for query_info in queries:
+                query = query_info['query']
+                query_type = query_info['type']
+                query_columns = query_info.get('columns', {})
                 
-                for match in matches:
-                    full_statement = match.group(0)
-                    table_name = match.group(1)
-                    
-                    # Clean up the statement
-                    if not full_statement.strip().endswith(';'):
-                        full_statement += ';'
-                    
-                    schemas[table_name] = full_statement
-        
-        # Also check setup scripts
-        setup_files = ['backend/setup_monitoring_database.py', 'backend/setup_database.py']
-        for setup_file in setup_files:
-            if Path(setup_file).exists():
-                content = Path(setup_file).read_text()
-                matches = re.finditer(create_table_pattern, content, re.IGNORECASE | re.DOTALL)
+                # Add columns from this query
+                for col_name, col_type in query_columns.items():
+                    if col_name not in columns:
+                        columns[col_name] = col_type
+                    elif columns[col_name] != col_type and col_type != 'TEXT':
+                        # Prefer more specific types over TEXT
+                        columns[col_name] = col_type
                 
-                for match in matches:
-                    full_statement = match.group(0)
-                    table_name = match.group(1)
-                    if table_name not in schemas:  # Don't override migration definitions
-                        schemas[table_name] = full_statement
+                # Detect foreign key references
+                fk_pattern = r'FOREIGN KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s*(\w+)\s*\(\s*(\w+)\s*\)'
+                fk_matches = re.finditer(fk_pattern, query, re.IGNORECASE)
+                for fk_match in fk_matches:
+                    has_foreign_keys.append({
+                        'column': fk_match.group(1),
+                        'ref_table': fk_match.group(2),
+                        'ref_column': fk_match.group(3)
+                    })
+            
+            # Generate CREATE TABLE statement
+            if columns:
+                create_sql = f"CREATE TABLE IF NOT EXISTS {table_name} (\n"
+                
+                # Add id column if not present (common pattern)
+                if 'id' not in columns:
+                    create_sql += "    id SERIAL PRIMARY KEY,\n"
+                
+                # Add detected columns
+                for col_name, col_type in columns.items():
+                    if col_name == 'id' and col_type == 'INTEGER':
+                        create_sql += f"    {col_name} SERIAL PRIMARY KEY,\n"
+                    else:
+                        # Add NOT NULL for certain column patterns
+                        not_null = ''
+                        if col_name.endswith('_id') or col_name in ['name', 'email', 'username']:
+                            not_null = ' NOT NULL'
+                        
+                        create_sql += f"    {col_name} {col_type}{not_null},\n"
+                
+                # Add timestamp columns if detected in queries
+                if 'created_at' in columns:
+                    # Already added above
+                    pass
+                elif any('created' in q['query'].lower() for q in queries):
+                    create_sql += "    created_at TIMESTAMP DEFAULT NOW(),\n"
+                
+                # Add foreign key constraints
+                for fk in has_foreign_keys:
+                    create_sql += f"    FOREIGN KEY ({fk['column']}) REFERENCES {fk['ref_table']}({fk['ref_column']}),\n"
+                
+                # Remove trailing comma and close
+                create_sql = create_sql.rstrip(',\n') + "\n);"
+                
+                schemas[table_name] = create_sql
+                
+                logger.info(f"Generated schema for table '{table_name}' based on {len(queries)} queries")
         
         return schemas
 
@@ -1016,8 +1053,8 @@ class DatabaseHealthMonitor:
         issues = []
         existing_tables = {t['tablename'] for t in schema['tables']}
         
-        # Dynamically discover table schemas from migration files
-        monitoring_table_schemas = await self._discover_table_schemas_from_migrations()
+        # Dynamically generate table schemas based on query patterns
+        monitoring_table_schemas = self._generate_table_schemas_from_queries(query_patterns)
         
         # Check monitoring tables first (these are causing the errors in logs)
         for table_name, create_sql in monitoring_table_schemas.items():
