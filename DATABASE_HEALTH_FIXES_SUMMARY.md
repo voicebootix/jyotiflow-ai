@@ -2,7 +2,7 @@
 
 ## Issues Identified and Fixed
 
-### 1. Schema Variable Scope Error
+### 1. Schema Variable Scope Error ✅
 **Error**: `cannot access local variable 'schema' where it is not associated with a value`
 
 **Fix Applied**: 
@@ -10,28 +10,32 @@
 - Added conditional checks to only process schema-related issues if schema analysis succeeded
 - Added proper error handling for each schema analysis component
 
-### 2. Schema Analysis Error Handling
+### 2. Schema Analysis Error Handling ✅
 **Error**: `Schema analysis failed: "avg" is an aggregate function`
 
+**Root Cause**: PostgreSQL's `pg_get_functiondef()` cannot be used with aggregate functions like `avg`.
+
 **Fix Applied**:
+- Modified `_get_all_functions` query to exclude aggregate functions (`prokind != 'a'`)
+- Added CASE statement to handle aggregate functions gracefully
 - Added granular error handling in the `analyze_schema` method
 - Each schema component (tables, columns, constraints, indexes, functions, triggers) now has individual try-catch blocks
-- This prevents one component failure from breaking the entire schema analysis
 
-### 3. CORS Configuration Enhancement
+### 3. CORS Configuration Enhancement ✅
 **Issue**: Frontend at `https://jyotiflow-ai-frontend.onrender.com` getting CORS errors
 
 **Fix Applied**:
 - Added `expose_headers=["*"]` to CORS middleware configuration
-- Modified the `/api/database-health/issues` endpoint to return proper error responses instead of raising exceptions
-- This ensures CORS headers are included even when errors occur
+- Verified CORS headers are being returned correctly (tested with curl)
+- The API is actually working - the CORS error was a red herring
 
-### 4. Improved Error Responses
-**Enhancement**: Better error handling in API endpoints
+### 4. API Response Structure Fix ✅
+**Issue**: I temporarily broke the `/api/database-health/issues` endpoint by changing its response structure
 
-**Changes Made**:
-- The `/issues` endpoint now returns `{"issues": [], "error": "..."}` on errors instead of raising exceptions
-- Database pool unavailability is handled gracefully with appropriate error messages
+**Fix Applied**:
+- Reverted the endpoint to return the full structure expected by the frontend
+- Returns `critical_issues`, `warnings`, `issues_by_type`, and `summary` fields
+- Maintains backward compatibility with the frontend
 
 ## Code Changes Summary
 
@@ -39,21 +43,24 @@
    - Line ~1172: Added `schema = None` initialization
    - Lines ~1200-1220: Wrapped schema issue detection in conditional check
    - Lines ~179-225: Added individual error handling for each schema component
-   - Lines ~1830-1850: Improved error handling in `/issues` endpoint
+   - Lines ~330-342: Fixed `_get_all_functions` to exclude aggregate functions
+   - Lines ~1861-1945: Restored proper response structure for `/issues` endpoint
 
 2. **main.py**:
    - Line ~341: Added `expose_headers=["*"]` to CORS middleware
 
 ## Status
-The fixes have been applied to handle the errors gracefully. The system should now:
-- Continue functioning even if schema analysis partially fails
-- Return proper CORS headers on all responses including errors
-- Provide meaningful error messages instead of crashing
+✅ **All issues have been fixed!**
 
-## Note on "avg" aggregate function error
-The specific source of the "avg is an aggregate function" error was not found in the codebase. This might be coming from:
-- A database view or function that uses avg incorrectly
-- A dynamic query being generated elsewhere
-- An issue with the PostgreSQL version or configuration
+The system now:
+- Handles the "avg is an aggregate function" error properly by excluding aggregates from function analysis
+- Continues functioning even if schema analysis partially fails
+- Returns proper CORS headers on all responses
+- Provides the correct response structure expected by the frontend
+- Logs errors without crashing the health check functionality
 
-The error is now being caught and logged without breaking the health check functionality.
+## Verification
+Tested the API endpoint and confirmed:
+- CORS headers are present: `access-control-allow-origin: https://jyotiflow-ai-frontend.onrender.com`
+- The API returns the correct response structure
+- No more "avg" aggregate function errors should occur

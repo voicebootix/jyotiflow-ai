@@ -334,9 +334,14 @@ class PostgreSQLSchemaAnalyzer:
             SELECT 
                 proname AS function_name,
                 pg_get_function_identity_arguments(oid) AS arguments,
-                pg_get_functiondef(oid) AS definition
+                CASE 
+                    WHEN prokind = 'a' THEN 'AGGREGATE FUNCTION'
+                    ELSE pg_get_functiondef(oid) 
+                END AS definition,
+                prokind
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
+            AND prokind != 'a'  -- Exclude aggregate functions which can't use pg_get_functiondef
         """
         rows = await conn.fetch(query)
         return [dict(row) for row in rows]
@@ -1865,7 +1870,19 @@ async def get_current_issues():
         pool = db.get_db_pool()
         if not pool:
             logger.error("Database pool not available for issues endpoint")
-            return {"issues": [], "error": "Database connection not available"}
+            return {
+                'critical_issues': [], 
+                'warnings': [],
+                'issues_by_type': {},
+                'summary': {
+                    'total_issues': 0,
+                    'critical_count': 0,
+                    'warning_count': 0,
+                    'auto_fixable': 0,
+                    'requires_manual': 0
+                },
+                'error': 'Database connection not available'
+            }
             
         async with pool.acquire() as conn:
             latest = await conn.fetchrow("""
@@ -1874,17 +1891,63 @@ async def get_current_issues():
                 LIMIT 1
             """)
             
-            if not latest or not latest['results']:
-                return {"issues": []}
+            if latest and latest['results']:
+                results = json.loads(latest['results'])
+                
+                # Categorize issues by type for better UI display
+                issues_by_type = {
+                    'MISSING_TABLE': [],
+                    'MISSING_COLUMN': [],
+                    'TYPE_MISMATCH': [],
+                    'MISSING_INDEX': [],
+                    'MISSING_PRIMARY_KEY': [],
+                    'ORPHANED_DATA': [],
+                    'TYPE_CAST_IN_QUERY': []
+                }
+                
+                # Process critical issues
+                for issue in results.get('critical_issues', []):
+                    issue_type = issue.get('issue_type', 'OTHER')
+                    if issue_type in issues_by_type:
+                        issues_by_type[issue_type].append(issue)
+                
+                # Process warnings
+                for issue in results.get('warnings', []):
+                    issue_type = issue.get('issue_type', 'OTHER')
+                    if issue_type in issues_by_type:
+                        issues_by_type[issue_type].append(issue)
+                
+                return {
+                    'critical_issues': results.get('critical_issues', []),
+                    'warnings': results.get('warnings', []),
+                    'issues_by_type': issues_by_type,
+                    'summary': {
+                        'total_issues': results.get('issues_found', 0),
+                        'critical_count': len(results.get('critical_issues', [])),
+                        'warning_count': len(results.get('warnings', [])),
+                        'auto_fixable': sum(1 for issue in results.get('critical_issues', []) + results.get('warnings', []) 
+                                          if issue.get('fix_sql')),
+                        'requires_manual': sum(1 for issue in results.get('critical_issues', []) + results.get('warnings', []) 
+                                             if not issue.get('fix_sql'))
+                    }
+                }
             
-            results = json.loads(latest['results'])
-            issues = results.get('critical_issues', []) + results.get('warnings', [])
-            
-            return {"issues": issues}
+            return {
+                'critical_issues': [], 
+                'warnings': [],
+                'issues_by_type': {},
+                'summary': {
+                    'total_issues': 0,
+                    'critical_count': 0,
+                    'warning_count': 0,
+                    'auto_fixable': 0,
+                    'requires_manual': 0
+                }
+            }
             
     except Exception as e:
-        logger.error(f"Error getting current issues: {e}")
-        return {"issues": [], "error": str(e)}
+        logger.error(f"Get issues endpoint error: {e}")
+        return {'critical_issues': [], 'warnings': [], 'error': str(e)}
 
 
 async def _ensure_health_tables_exist():
