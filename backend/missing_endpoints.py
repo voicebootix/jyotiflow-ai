@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, Depends
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 import logging
-from deps import get_db
+from db import get_db
 
 logger = logging.getLogger(__name__)
 
