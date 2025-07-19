@@ -27,48 +27,130 @@ def get_user_id_as_int(request: Request) -> int | None:
 # தமிழ் - பயனர் சமூக பங்கேற்பு பெறுதல்
 @router.get("/my-participation")
 async def get_user_participation(request: Request, db=Depends(get_db)):
-    """Get user's community participation metrics"""
+    """Get user's community participation metrics - returns exactly what frontend expects"""
     user_id = get_user_id_as_int(request)
     if not user_id:
-        return {"success": True, "data": {}}
+        return {"success": True, "data": {
+            "satsang_attended": 0,
+            "satsang_upcoming": [],
+            "community_rank": "New Member",
+            "contribution_score": 0
+        }}
     
     try:
+        # Get user email for additional queries
         user = await db.fetchrow("SELECT email FROM users WHERE id=$1", user_id)
         if not user:
-            return {"success": True, "data": {}}
+            return {"success": True, "data": {
+                "satsang_attended": 0,
+                "satsang_upcoming": [],
+                "community_rank": "New Member",
+                "contribution_score": 0
+            }}
         
-        # Get user's session data for community metrics
-        sessions = await db.fetch("""
-            SELECT 
-                COUNT(*) as total_sessions,
-                COUNT(DISTINCT DATE(created_at)) as active_days,
-                MAX(created_at) as last_activity,
-                AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) as avg_session_duration
-            FROM sessions 
-            WHERE user_email = $1
-        """, user["email"])
+        user_email = user["email"]
         
-        if not sessions:
-            return {"success": True, "data": {}}
+        # Count satsang events attended
+        satsang_attended_count = 0
+        try:
+            # Try to get actual satsang attendance if table exists
+            satsang_count = await db.fetchval("""
+                SELECT COUNT(*) 
+                FROM satsang_attendees 
+                WHERE user_email = $1 AND attended = true
+            """, user_email)
+            if satsang_count:
+                satsang_attended_count = satsang_count
+        except Exception:
+            # If satsang_attendees table doesn't exist, use sessions as proxy
+            # Count unique days with sessions as a proxy for satsang attendance
+            session_days = await db.fetchval("""
+                SELECT COUNT(DISTINCT DATE(created_at))
+                FROM sessions 
+                WHERE user_email = $1
+            """, user_email)
+            satsang_attended_count = session_days or 0
         
-        session_data = sessions[0]
+        # Get upcoming satsang events
+        satsang_upcoming = []
+        try:
+            # Get upcoming satsang events from satsang_events table
+            upcoming_events = await db.fetch("""
+                SELECT 
+                    id,
+                    title,
+                    description,
+                    scheduled_at,
+                    duration_minutes,
+                    max_attendees,
+                    status
+                FROM satsang_events 
+                WHERE scheduled_at > NOW() 
+                    AND status IN ('scheduled', 'upcoming')
+                ORDER BY scheduled_at ASC
+                LIMIT 5
+            """)
+            
+            satsang_upcoming = [
+                {
+                    "id": event["id"],
+                    "title": event["title"],
+                    "description": event["description"],
+                    "scheduled_at": event["scheduled_at"].isoformat() if event["scheduled_at"] else None,
+                    "duration_minutes": event["duration_minutes"],
+                    "status": event["status"]
+                }
+                for event in upcoming_events
+            ]
+        except Exception:
+            # If satsang_events table doesn't exist, return empty array
+            satsang_upcoming = []
         
-        # Calculate community participation metrics
-        participation = {
-            "total_sessions": session_data["total_sessions"] or 0,
-            "active_days": session_data["active_days"] or 0,
-            "last_activity": session_data["last_activity"].isoformat() if session_data["last_activity"] else None,
-            "avg_session_duration": round(session_data["avg_session_duration"] or 0, 2),
-            "participation_level": "active" if session_data["total_sessions"] > 10 else "regular" if session_data["total_sessions"] > 5 else "new",
-            "community_rank": "Seeker" if session_data["total_sessions"] < 10 else "Practitioner" if session_data["total_sessions"] < 25 else "Guide",
-            "contribution_score": min(session_data["total_sessions"] * 10, 100),
-            "engagement_rate": min((session_data["active_days"] / max(session_data["total_sessions"], 1)) * 100, 100)
+        # Calculate community rank and contribution score based on activity
+        total_sessions = await db.fetchval("""
+            SELECT COUNT(*) FROM sessions WHERE user_email = $1
+        """, user_email) or 0
+        
+        # Determine community rank based on participation
+        if total_sessions >= 50 or satsang_attended_count >= 20:
+            community_rank = "Spiritual Guide"
+            contribution_score = 100
+        elif total_sessions >= 25 or satsang_attended_count >= 10:
+            community_rank = "Active Practitioner"
+            contribution_score = 75
+        elif total_sessions >= 10 or satsang_attended_count >= 5:
+            community_rank = "Regular Seeker"
+            contribution_score = 50
+        elif total_sessions >= 5 or satsang_attended_count >= 2:
+            community_rank = "Growing Member"
+            contribution_score = 25
+        else:
+            community_rank = "New Member"
+            contribution_score = 10
+        
+        # Return exactly what frontend expects
+        return {
+            "success": True,
+            "data": {
+                "satsang_attended": satsang_attended_count,
+                "satsang_upcoming": satsang_upcoming,
+                "community_rank": community_rank,
+                "contribution_score": contribution_score
+            }
         }
         
-        return {"success": True, "data": participation}
     except Exception as e:
         print(f"Error getting community participation: {e}")
-        return {"success": True, "data": {}}
+        # Return default values on error
+        return {
+            "success": True, 
+            "data": {
+                "satsang_attended": 0,
+                "satsang_upcoming": [],
+                "community_rank": "New Member",
+                "contribution_score": 0
+            }
+        }
 
 # தமிழ் - சமூக புள்ளிவிவரங்கள் பெறுதல்
 @router.get("/stats")
@@ -78,24 +160,30 @@ async def get_community_stats(db=Depends(get_db)):
         # Get community statistics
         stats = await db.fetchrow("""
             SELECT 
-                COUNT(DISTINCT user_email) as active_members,
+                COUNT(DISTINCT user_email) as total_members,
                 COUNT(*) as total_sessions,
-                COUNT(DISTINCT DATE(created_at)) as active_days,
                 AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) as avg_session_duration
-            FROM sessions 
+            FROM sessions
             WHERE created_at > NOW() - INTERVAL '30 days'
         """)
         
         if not stats:
             return {"success": True, "data": {}}
         
+        # Get active members (users with sessions in last 7 days)
+        active_members = await db.fetchval("""
+            SELECT COUNT(DISTINCT user_email)
+            FROM sessions
+            WHERE created_at > NOW() - INTERVAL '7 days'
+        """)
+        
         community_stats = {
-            "active_members": stats["active_members"] or 0,
+            "total_members": stats["total_members"] or 0,
+            "active_members": active_members or 0,
             "total_sessions": stats["total_sessions"] or 0,
-            "active_days": stats["active_days"] or 0,
             "avg_session_duration": round(stats["avg_session_duration"] or 0, 2),
-            "community_health": "thriving" if stats["active_members"] > 50 else "growing" if stats["active_members"] > 20 else "developing",
-            "engagement_rate": min((stats["active_days"] / max(stats["total_sessions"], 1)) * 100, 100)
+            "engagement_rate": round((active_members / max(stats["total_members"], 1)) * 100, 2) if stats["total_members"] else 0,
+            "growth_trend": "positive"  # Placeholder for now
         }
         
         return {"success": True, "data": community_stats}
