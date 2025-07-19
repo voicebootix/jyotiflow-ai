@@ -447,7 +447,7 @@ class SocialMediaValidator:
             
             if not db_manager:
                 logger.error("Database manager not available")
-                return health_status
+                return validation_result
                 
             conn = await db_manager.get_connection()
             try:
