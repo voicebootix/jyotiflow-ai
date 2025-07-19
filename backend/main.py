@@ -341,6 +341,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # Expose all headers to the client
 )
 
 # --- Global Exception Handler ---

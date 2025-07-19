@@ -185,14 +185,43 @@ class PostgreSQLSchemaAnalyzer:
             raise Exception("Shared database pool not available")
         
         async with pool.acquire() as conn:
-            schema = {
-                'tables': await self._get_all_tables(conn),
-                'columns': await self._get_all_columns(conn),
-                'constraints': await self._get_all_constraints(conn),
-                'indexes': await self._get_all_indexes(conn),
-                'functions': await self._get_all_functions(conn),
-                'triggers': await self._get_all_triggers(conn)
-            }
+            schema = {}
+            
+            try:
+                schema['tables'] = await self._get_all_tables(conn)
+            except Exception as e:
+                logger.error(f"Error getting tables: {e}")
+                schema['tables'] = []
+            
+            try:
+                schema['columns'] = await self._get_all_columns(conn)
+            except Exception as e:
+                logger.error(f"Error getting columns: {e}")
+                schema['columns'] = {}
+            
+            try:
+                schema['constraints'] = await self._get_all_constraints(conn)
+            except Exception as e:
+                logger.error(f"Error getting constraints: {e}")
+                schema['constraints'] = {}
+            
+            try:
+                schema['indexes'] = await self._get_all_indexes(conn)
+            except Exception as e:
+                logger.error(f"Error getting indexes: {e}")
+                schema['indexes'] = {}
+            
+            try:
+                schema['functions'] = await self._get_all_functions(conn)
+            except Exception as e:
+                logger.error(f"Error getting functions: {e}")
+                schema['functions'] = []
+            
+            try:
+                schema['triggers'] = await self._get_all_triggers(conn)
+            except Exception as e:
+                logger.error(f"Error getting triggers: {e}")
+                schema['triggers'] = []
             
             # Cache the schema
             self._known_schemas = schema
@@ -1169,6 +1198,8 @@ class DatabaseHealthMonitor:
             'performance_metrics': {}
         }
         
+        schema = None  # Initialize schema variable
+        
         try:
             # 1. Analyze database schema
             logger.info("Analyzing database schema...")
@@ -1196,23 +1227,27 @@ class DatabaseHealthMonitor:
                 'issues_found': len(code_issues)
             }
             
-            # 3. Detect schema issues
-            logger.info("Detecting schema issues...")
-            schema_issues = await self._detect_schema_issues(schema)
-            
-            # 3.5 Detect critical missing tables referenced in code
-            logger.info("Detecting missing critical tables...")
-            missing_table_issues = await self._detect_critical_missing_tables(
-                schema, self.code_analyzer.query_patterns
-            )
-            schema_issues.extend(missing_table_issues)
-            
-            # 3.6 Detect missing columns referenced in code
-            logger.info("Detecting missing columns...")
-            missing_column_issues = await self._detect_missing_columns(
-                schema, self.code_analyzer.query_patterns
-            )
-            schema_issues.extend(missing_column_issues)
+            # 3. Detect schema issues (only if schema was successfully analyzed)
+            schema_issues = []
+            if schema:
+                logger.info("Detecting schema issues...")
+                schema_issues = await self._detect_schema_issues(schema)
+                
+                # 3.5 Detect critical missing tables referenced in code
+                logger.info("Detecting missing critical tables...")
+                missing_table_issues = await self._detect_critical_missing_tables(
+                    schema, self.code_analyzer.query_patterns
+                )
+                schema_issues.extend(missing_table_issues)
+                
+                # 3.6 Detect missing columns referenced in code
+                logger.info("Detecting missing columns...")
+                missing_column_issues = await self._detect_missing_columns(
+                    schema, self.code_analyzer.query_patterns
+                )
+                schema_issues.extend(missing_column_issues)
+            else:
+                logger.warning("Skipping schema issue detection due to schema analysis failure")
             
             # 4. Combine all issues
             all_issues = code_issues + schema_issues
@@ -1829,7 +1864,8 @@ async def get_current_issues():
         import db
         pool = db.get_db_pool()
         if not pool:
-            raise Exception("Shared database pool not available")
+            logger.error("Database pool not available for issues endpoint")
+            return {"issues": [], "error": "Database connection not available"}
             
         async with pool.acquire() as conn:
             latest = await conn.fetchrow("""
@@ -1838,63 +1874,17 @@ async def get_current_issues():
                 LIMIT 1
             """)
             
-            if latest and latest['results']:
-                results = json.loads(latest['results'])
-                
-                # Categorize issues by type for better UI display
-                issues_by_type = {
-                    'MISSING_TABLE': [],
-                    'MISSING_COLUMN': [],
-                    'TYPE_MISMATCH': [],
-                    'MISSING_INDEX': [],
-                    'MISSING_PRIMARY_KEY': [],
-                    'ORPHANED_DATA': [],
-                    'TYPE_CAST_IN_QUERY': []
-                }
-                
-                # Process critical issues
-                for issue in results.get('critical_issues', []):
-                    issue_type = issue.get('issue_type', 'OTHER')
-                    if issue_type in issues_by_type:
-                        issues_by_type[issue_type].append(issue)
-                
-                # Process warnings
-                for issue in results.get('warnings', []):
-                    issue_type = issue.get('issue_type', 'OTHER')
-                    if issue_type in issues_by_type:
-                        issues_by_type[issue_type].append(issue)
-                
-                return {
-                    'critical_issues': results.get('critical_issues', []),
-                    'warnings': results.get('warnings', []),
-                    'issues_by_type': issues_by_type,
-                    'summary': {
-                        'total_issues': results.get('issues_found', 0),
-                        'critical_count': len(results.get('critical_issues', [])),
-                        'warning_count': len(results.get('warnings', [])),
-                        'auto_fixable': sum(1 for issue in results.get('critical_issues', []) + results.get('warnings', []) 
-                                          if issue.get('fix_sql')),
-                        'requires_manual': sum(1 for issue in results.get('critical_issues', []) + results.get('warnings', []) 
-                                             if not issue.get('fix_sql'))
-                    }
-                }
+            if not latest or not latest['results']:
+                return {"issues": []}
             
-            return {
-                'critical_issues': [], 
-                'warnings': [],
-                'issues_by_type': {},
-                'summary': {
-                    'total_issues': 0,
-                    'critical_count': 0,
-                    'warning_count': 0,
-                    'auto_fixable': 0,
-                    'requires_manual': 0
-                }
-            }
+            results = json.loads(latest['results'])
+            issues = results.get('critical_issues', []) + results.get('warnings', [])
+            
+            return {"issues": issues}
             
     except Exception as e:
-        logger.error(f"Get issues endpoint error: {e}")
-        return {'critical_issues': [], 'warnings': [], 'error': str(e)}
+        logger.error(f"Error getting current issues: {e}")
+        return {"issues": [], "error": str(e)}
 
 
 async def _ensure_health_tables_exist():
