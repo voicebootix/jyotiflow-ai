@@ -845,74 +845,17 @@ class DatabaseHealthMonitor:
         issues = []
         all_tables_in_schema = {t['tablename'] for t in schema['tables']}
         
-        # Define CREATE TABLE statements for known monitoring tables
-        monitoring_table_definitions = {
-            'integration_validations': """
-                CREATE TABLE IF NOT EXISTS integration_validations (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255) NOT NULL,
-                    integration_name VARCHAR(100) NOT NULL,
-                    validation_type VARCHAR(100),
-                    status VARCHAR(50),
-                    expected_value TEXT,
-                    actual_value TEXT,
-                    error_message TEXT,
-                    validation_time TIMESTAMP DEFAULT NOW(),
-                    auto_fixed BOOLEAN DEFAULT FALSE,
-                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_integration_validations_session 
-                ON integration_validations(session_id);
-                CREATE INDEX IF NOT EXISTS idx_integration_validations_time 
-                ON integration_validations(validation_time);
-            """,
-            'business_logic_issues': """
-                CREATE TABLE IF NOT EXISTS business_logic_issues (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255),
-                    issue_type VARCHAR(100),
-                    severity VARCHAR(50),
-                    description TEXT,
-                    auto_fixable BOOLEAN DEFAULT FALSE,
-                    fixed BOOLEAN DEFAULT FALSE,
-                    user_impact TEXT,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
-                );
-                CREATE INDEX IF NOT EXISTS idx_business_logic_issues_session
-                ON business_logic_issues(session_id);
-            """,
-            'validation_sessions': """
-                CREATE TABLE IF NOT EXISTS validation_sessions (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255) UNIQUE NOT NULL,
-                    user_id INTEGER,
-                    started_at TIMESTAMP DEFAULT NOW(),
-                    completed_at TIMESTAMP,
-                    overall_status VARCHAR(50),
-                    user_context JSONB,
-                    validation_results JSONB,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                );
-            """,
-            'context_snapshots': """
-                CREATE TABLE IF NOT EXISTS context_snapshots (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255) NOT NULL,
-                    integration_point VARCHAR(100) NOT NULL,
-                    context_data JSONB NOT NULL,
-                    context_hash VARCHAR(64),
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
-                );
-            """
-        }
+        # Discover table schemas from migrations and code
+        discovered_schemas = await self._discover_table_schemas()
         
         for table_name, patterns in query_patterns.items():
             if table_name not in all_tables_in_schema:
-                # Check if it's a monitoring table we know how to create
-                fix_sql = monitoring_table_definitions.get(table_name)
+                # Look for CREATE TABLE statement in discovered schemas
+                fix_sql = discovered_schemas.get(table_name)
+                
+                if not fix_sql:
+                    # Try to find in migration files specifically
+                    fix_sql = await self._find_create_table_in_migrations(table_name)
                 
                 issues.append(DatabaseIssue(
                     issue_type='MISSING_TABLE',
@@ -921,9 +864,82 @@ class DatabaseHealthMonitor:
                     current_state='Table not found in schema',
                     expected_state='Table must exist',
                     fix_sql=fix_sql,
-                    affected_files=[p['file'] for p in patterns[:3]]  # Show first 3 files
+                    affected_files=[p['file'] for p in patterns[:3]]
                 ))
         return issues
+    
+    async def _discover_table_schemas(self) -> Dict[str, str]:
+        """Discover CREATE TABLE statements from codebase"""
+        schemas = {}
+        
+        # Search Python files for CREATE TABLE statements
+        python_files = glob.glob("**/*.py", recursive=True)
+        sql_files = glob.glob("**/*.sql", recursive=True)
+        
+        all_files = python_files + sql_files
+        
+        for file_path in all_files:
+            if any(skip in file_path for skip in ['venv/', '__pycache__/', '.git/', 'node_modules/']):
+                continue
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                # Find CREATE TABLE statements
+                create_table_pattern = r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\([^;]+\);?'
+                matches = re.finditer(create_table_pattern, content, re.IGNORECASE | re.DOTALL)
+                
+                for match in matches:
+                    table_name = match.group(1).lower()
+                    create_statement = match.group(0)
+                    
+                    # Clean up the statement
+                    create_statement = re.sub(r'\s+', ' ', create_statement)
+                    
+                    # Store the schema
+                    schemas[table_name] = create_statement
+                    
+            except Exception as e:
+                logger.debug(f"Error reading {file_path}: {e}")
+        
+        return schemas
+    
+    async def _find_create_table_in_migrations(self, table_name: str) -> Optional[str]:
+        """Look specifically in migration files for a table's CREATE statement"""
+        migration_dirs = ['migrations/', 'backend/migrations/', 'database/migrations/']
+        
+        for migration_dir in migration_dirs:
+            if not os.path.exists(migration_dir):
+                continue
+            
+            migration_files = glob.glob(f"{migration_dir}*.sql") + glob.glob(f"{migration_dir}*.py")
+            
+            for file_path in sorted(migration_files, reverse=True):  # Check newest first
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # Look for CREATE TABLE for this specific table
+                    pattern = rf'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?{re.escape(table_name)}\s*\([^;]+\);?'
+                    match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
+                    
+                    if match:
+                        create_statement = match.group(0)
+                        
+                        # Also look for related indexes
+                        index_pattern = rf'CREATE\s+INDEX[^;]+ON\s+{re.escape(table_name)}[^;]+;'
+                        index_matches = re.findall(index_pattern, content, re.IGNORECASE)
+                        
+                        if index_matches:
+                            create_statement += '\n' + '\n'.join(index_matches)
+                        
+                        return create_statement
+                        
+                except Exception as e:
+                    logger.debug(f"Error reading migration {file_path}: {e}")
+        
+        return None
 
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
