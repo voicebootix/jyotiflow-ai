@@ -65,6 +65,43 @@ class IntegrationMonitor:
         self.context_tracker = ContextTracker()
         self.business_validator = BusinessLogicValidator()
         self.active_sessions = {}
+        self.metrics = {}  # Store metrics for each integration
+        
+    async def start_monitoring(self):
+        """Start background monitoring tasks"""
+        logger.info("🚀 Starting integration monitoring background tasks...")
+        # Start periodic health checks
+        asyncio.create_task(self._periodic_health_check())
+        
+    async def update_metrics(self, integration_name: str, metric_type: str, 
+                           value: float, metadata: Optional[Dict] = None):
+        """Update metrics for an integration point"""
+        if integration_name not in self.metrics:
+            self.metrics[integration_name] = {}
+        
+        if metric_type not in self.metrics[integration_name]:
+            self.metrics[integration_name][metric_type] = []
+        
+        self.metrics[integration_name][metric_type].append({
+            "value": value,
+            "timestamp": datetime.now(timezone.utc),
+            "metadata": metadata or {}
+        })
+        
+        # Keep only last 1000 metrics per type
+        if len(self.metrics[integration_name][metric_type]) > 1000:
+            self.metrics[integration_name][metric_type] = \
+                self.metrics[integration_name][metric_type][-1000:]
+    
+    async def _periodic_health_check(self):
+        """Periodically check integration health"""
+        while True:
+            try:
+                await asyncio.sleep(300)  # Check every 5 minutes
+                health_status = await self.get_system_health()
+                logger.info(f"📊 System health check: {health_status['overall_status']}")
+            except Exception as e:
+                logger.error(f"Error in periodic health check: {e}")
         
     async def start_session_monitoring(self, session_id: str, user_id: int, 
                                      birth_details: Dict, spiritual_question: str,

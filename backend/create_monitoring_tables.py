@@ -17,6 +17,7 @@ async def create_monitoring_tables():
         print("❌ DATABASE_URL environment variable is required")
         return False
     
+    conn = None
     try:
         conn = await asyncpg.connect(DATABASE_URL)
         
@@ -166,13 +167,16 @@ async def create_monitoring_tables():
         
         print("✅ Created performance indexes")
         
-        await conn.close()
         print("\n✅ All monitoring tables created successfully!")
         return True
         
     except Exception as e:
         print(f"❌ Error creating monitoring tables: {e}")
         return False
+    finally:
+        if conn:
+            await conn.close()
+            print("🔒 Database connection closed")
 
 if __name__ == "__main__":
     asyncio.run(create_monitoring_tables())
