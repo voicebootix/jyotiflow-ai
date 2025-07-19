@@ -8,8 +8,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import json
 
-from core_foundation_enhanced import logger
-
 logger = logging.getLogger(__name__)
 
 class ProkeralaValidator:

@@ -14,7 +14,9 @@ from enum import Enum
 import aiohttp
 import traceback
 
-from core_foundation_enhanced import get_database as get_db, logger, settings
+from db import db_manager
+
+logger = logging.getLogger(__name__)
 
 # Import validators
 from validators.prokerala_validator import ProkeralaValidator
@@ -27,8 +29,6 @@ from validators.social_media_validator import SocialMediaValidator
 # Import context tracker
 from .context_tracker import ContextTracker
 from .business_validator import BusinessLogicValidator
-
-logger = logging.getLogger(__name__)
 
 class IntegrationStatus(Enum):
     SUCCESS = "success"
@@ -65,6 +65,43 @@ class IntegrationMonitor:
         self.context_tracker = ContextTracker()
         self.business_validator = BusinessLogicValidator()
         self.active_sessions = {}
+        self.metrics = {}  # Store metrics for each integration
+        
+    async def start_monitoring(self):
+        """Start background monitoring tasks"""
+        logger.info("🚀 Starting integration monitoring background tasks...")
+        # Start periodic health checks
+        asyncio.create_task(self._periodic_health_check())
+        
+    async def update_metrics(self, integration_name: str, metric_type: str, 
+                           value: float, metadata: Optional[Dict] = None):
+        """Update metrics for an integration point"""
+        if integration_name not in self.metrics:
+            self.metrics[integration_name] = {}
+        
+        if metric_type not in self.metrics[integration_name]:
+            self.metrics[integration_name][metric_type] = []
+        
+        self.metrics[integration_name][metric_type].append({
+            "value": value,
+            "timestamp": datetime.now(timezone.utc),
+            "metadata": metadata or {}
+        })
+        
+        # Keep only last 1000 metrics per type
+        if len(self.metrics[integration_name][metric_type]) > 1000:
+            self.metrics[integration_name][metric_type] = \
+                self.metrics[integration_name][metric_type][-1000:]
+    
+    async def _periodic_health_check(self):
+        """Periodically check integration health"""
+        while True:
+            try:
+                await asyncio.sleep(300)  # Check every 5 minutes
+                health_status = await self.get_system_health()
+                logger.info(f"📊 System health check: {health_status['overall_status']}")
+            except Exception as e:
+                logger.error(f"Error in periodic health check: {e}")
         
     async def start_session_monitoring(self, session_id: str, user_id: int, 
                                      birth_details: Dict, spiritual_question: str,
@@ -93,8 +130,7 @@ class IntegrationMonitor:
             await self.context_tracker.initialize_session(session_id, session_context)
             
             # Store in database
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     INSERT INTO validation_sessions 
@@ -105,7 +141,7 @@ class IntegrationMonitor:
                 """, session_id, user_id, session_context["started_at"], 
                     json.dumps(session_context), IntegrationStatus.SUCCESS.value)
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
             logger.info(f"✅ Started monitoring session {session_id}")
             return {"success": True, "session_id": session_id}
@@ -243,8 +279,7 @@ class IntegrationMonitor:
             session_context["metrics"] = session_metrics
             
             # Store final results in database
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     UPDATE validation_sessions
@@ -257,7 +292,7 @@ class IntegrationMonitor:
                     json.dumps(session_context),
                     session_id)
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
             # Generate session report
             session_report = {
@@ -304,8 +339,7 @@ class IntegrationMonitor:
                 health_status["integration_points"][point.value] = point_health
             
             # Get recent issues from database
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 recent_issues = await conn.fetch("""
                     SELECT issue_type, severity, description, created_at
@@ -319,7 +353,7 @@ class IntegrationMonitor:
                     dict(issue) for issue in recent_issues
                 ]
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
             # Determine overall system status
             critical_count = sum(
@@ -369,8 +403,7 @@ class IntegrationMonitor:
                                      validation_result: Dict):
         """Store validation result in database"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     INSERT INTO integration_validations
@@ -385,7 +418,7 @@ class IntegrationMonitor:
                     validation_result.get("error", ""),
                     validation_result.get("auto_fixed", False))
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
         except Exception as e:
             logger.error(f"Failed to store validation result: {e}")
     
@@ -418,8 +451,7 @@ class IntegrationMonitor:
             logger.critical(f"🚨 CRITICAL ISSUE in session {session_id}: {validation_result}")
             
             # Store in database for admin dashboard
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 for issue in validation_result.get("critical_issues", []):
                     await conn.execute("""
@@ -431,7 +463,7 @@ class IntegrationMonitor:
                         issue.get("description"), False, 
                         issue.get("user_impact", "User may receive incorrect guidance"))
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                         
         except Exception as e:
             logger.error(f"Failed to alert admin: {e}")
@@ -497,8 +529,7 @@ class IntegrationMonitor:
         """Check health of a specific integration point"""
         try:
             # Get recent validation results for this integration
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 recent_validations = await conn.fetch("""
                     SELECT status, COUNT(*) as count
@@ -540,7 +571,7 @@ class IntegrationMonitor:
                     "total_validations": total
                 }
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to check integration health: {e}")

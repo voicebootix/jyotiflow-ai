@@ -10,6 +10,15 @@ import logging
 
 # Import the enhanced birth chart logic from spiritual.py to avoid duplication
 from .spiritual import get_prokerala_birth_chart_data, create_south_indian_chart_structure
+from db import db_manager
+try:
+    from monitoring.integration_hooks import MonitoringHooks
+except ImportError:
+    # Create a dummy decorator if monitoring is not available
+    class MonitoringHooks:
+        @staticmethod
+        def monitor_session(func):
+            return func
 
 # Import centralized authentication helper
 from auth.auth_helpers import AuthenticationHelper
@@ -157,6 +166,7 @@ async def schedule_session_followup(session_id: str, user_email: str, service_ty
         logger.error(f"Failed to schedule follow-up for session {session_id}: {e}")
 
 @router.post("/start")
+@MonitoringHooks.monitor_session
 async def start_session(request: Request, session_data: Dict[str, Any], db=Depends(get_db)):
     """Start a spiritual guidance session with enhanced birth chart integration"""
     user_id = get_user_id_from_token(request)
@@ -390,3 +400,5 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
             }
         }
     } 
+
+ 

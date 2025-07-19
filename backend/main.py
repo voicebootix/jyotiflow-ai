@@ -137,6 +137,7 @@ print("⚠️ Surgical auth router disabled - using main auth system only")
 # Monitoring system - Enhanced import handling with automatic recovery
 try:
     from monitoring.register_monitoring import register_monitoring_system, init_monitoring
+    from monitoring.core_integration import get_monitoring_middleware
     MONITORING_AVAILABLE = True
     print("✅ Monitoring system loaded successfully")
 except ImportError as e:
@@ -530,7 +531,9 @@ print("🚀 All routers registered successfully!")
 if MONITORING_AVAILABLE:
     try:
         register_monitoring_system(app)
-        print("✅ Monitoring system registered successfully")
+        # Add monitoring middleware
+        app.add_middleware(get_monitoring_middleware())
+        print("✅ Monitoring system registered successfully with middleware")
     except Exception as e:
         print(f"❌ Failed to register monitoring system: {e}")
         print("   → Monitoring imports succeeded but registration failed")

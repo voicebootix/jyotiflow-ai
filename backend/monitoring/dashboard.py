@@ -7,9 +7,76 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
-from core_foundation_enhanced import get_database as get_db, logger, StandardResponse
-from deps import get_current_admin_dependency
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from db import db_manager
+import logging
+logger = logging.getLogger(__name__)
+from pydantic import BaseModel, Field, model_validator
+from typing import Optional, Dict, Any
+
+class StandardResponse(BaseModel):
+    status: str
+    message: str
+    data: Dict[str, Any] = Field(default_factory=dict)
+    success: bool = Field(default=True, description="Backward compatibility field")
+    
+    @model_validator(mode='after')
+    def set_success_from_status(self) -> 'StandardResponse':
+        """Set success field based on status for backward compatibility"""
+        self.success = self.status == "success"
+        return self
+    
+    model_config = {
+        "extra": "forbid",
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "status": "success",
+                    "message": "Operation completed",
+                    "data": {},
+                    "success": True
+                }
+            ]
+        }
+    }
+
+class LegacyStandardResponse(BaseModel):
+    """Legacy response format for backward compatibility"""
+    success: bool
+    message: str
+    data: dict = {}
+    
+    @classmethod
+    def from_standard(cls, response: StandardResponse):
+        """Convert from new format to legacy format"""
+        return cls(
+            success=response.status == "success",
+            message=response.message,
+            data=response.data
+        )
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+# Import proper admin authentication
+try:
+    from deps import get_current_admin_dependency
+except ImportError:
+    # If deps module is not available, create a secure fallback
+    from fastapi import Depends
+    
+    security = HTTPBearer()
+    
+    async def verify_bearer_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+        """Verify bearer token and return admin user"""
+        # In a real implementation, you would verify the token here
+        # For now, we just reject all requests
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin authentication required. Please configure proper authentication.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    # Alias for consistency with the imported version
+    get_current_admin_dependency = verify_bearer_token
 
 from .integration_monitor import integration_monitor, IntegrationStatus
 from .business_validator import BusinessLogicValidator
@@ -109,8 +176,7 @@ class MonitoringDashboard:
     async def get_session_details(self, session_id: str) -> Dict:
         """Get detailed validation report for a specific session"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 # Get session data
                 session_data = await conn.fetchrow("""
@@ -148,7 +214,7 @@ class MonitoringDashboard:
                     "recommendations": await self._generate_session_recommendations(session_id)
                 }
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"❌ Failed to get session details: {e}")
@@ -157,8 +223,7 @@ class MonitoringDashboard:
     async def get_integration_health_details(self, integration_point: str) -> Dict:
         """Get detailed health information for a specific integration"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 # Get recent performance metrics
                 performance = await conn.fetch("""
@@ -216,7 +281,7 @@ class MonitoringDashboard:
                     }
                 }
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"❌ Failed to get integration health details: {e}")
@@ -277,8 +342,7 @@ class MonitoringDashboard:
     async def _get_recent_sessions(self) -> List[Dict]:
         """Get recent session summaries"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 sessions = await conn.fetch("""
                     SELECT 
@@ -303,7 +367,7 @@ class MonitoringDashboard:
                 
                 return [dict(s) for s in sessions]
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get recent sessions: {e}")
@@ -312,8 +376,7 @@ class MonitoringDashboard:
     async def _get_integration_statistics(self) -> Dict:
         """Get integration performance statistics"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 stats = await conn.fetchrow("""
                     SELECT
@@ -342,7 +405,7 @@ class MonitoringDashboard:
                     "by_integration": [dict(i) for i in by_integration]
                 }
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get integration statistics: {e}")
@@ -351,8 +414,7 @@ class MonitoringDashboard:
     async def _get_critical_issues(self) -> List[Dict]:
         """Get current critical issues requiring attention"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 issues = await conn.fetch("""
                     SELECT 
@@ -371,7 +433,7 @@ class MonitoringDashboard:
                 
                 return [dict(i) for i in issues]
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get critical issues: {e}")
@@ -380,8 +442,7 @@ class MonitoringDashboard:
     async def _get_social_media_health(self) -> Dict:
         """Get social media integration health status"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 # Get platform credentials status
                 platforms = await conn.fetch("""
@@ -423,7 +484,7 @@ class MonitoringDashboard:
                     "errors": [dict(e) for e in social_errors]
                 }
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get social media health: {e}")
@@ -436,8 +497,7 @@ class MonitoringDashboard:
     async def _calculate_overall_metrics(self) -> Dict:
         """Calculate overall system metrics"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 # Get success rate
                 success_rate = await conn.fetchrow("""
@@ -477,7 +537,7 @@ class MonitoringDashboard:
                     }
                 }
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to calculate overall metrics: {e}")
@@ -503,8 +563,7 @@ class MonitoringDashboard:
                 })
             
             # Check for high error rates
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 error_rate = await conn.fetchrow("""
                     SELECT 
@@ -521,7 +580,7 @@ class MonitoringDashboard:
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     })
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
             return alerts
             
@@ -532,8 +591,7 @@ class MonitoringDashboard:
     async def _generate_session_recommendations(self, session_id: str) -> List[str]:
         """Generate specific recommendations for a session"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            conn = await db_manager.get_connection()
             try:
                 # Get validation results
                 validation_data = await conn.fetchrow("""
@@ -554,7 +612,7 @@ class MonitoringDashboard:
                 # Use business validator to generate recommendations
                 return validation_results.get("recommendations", [])
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to generate session recommendations: {e}")
@@ -569,7 +627,7 @@ async def get_dashboard(admin=Depends(get_current_admin_dependency)):
     """Get monitoring dashboard data for admin interface"""
     dashboard_data = await monitoring_dashboard.get_dashboard_data()
     return StandardResponse(
-        success=True,
+        status="success",
         message="Dashboard data retrieved",
         data=dashboard_data
     )
@@ -583,7 +641,7 @@ async def get_session_validation(session_id: str, admin=Depends(get_current_admi
         raise HTTPException(status_code=404, detail=session_details["error"])
     
     return StandardResponse(
-        success=True,
+        status="success",
         message="Session validation details retrieved",
         data=session_details
     )
@@ -594,7 +652,7 @@ async def get_integration_health(integration_point: str, admin=Depends(get_curre
     health_details = await monitoring_dashboard.get_integration_health_details(integration_point)
     
     return StandardResponse(
-        success=True,
+        status="success",
         message="Integration health details retrieved",
         data=health_details
     )
@@ -605,7 +663,7 @@ async def trigger_test(test_type: str, admin=Depends(get_current_admin_dependenc
     test_result = await monitoring_dashboard.trigger_validation_test(test_type)
     
     return StandardResponse(
-        success=test_result.get("success", False),
+        status="success" if test_result.get("success", False) else "error",
         message=test_result.get("message", "Test triggered"),
         data=test_result
     )

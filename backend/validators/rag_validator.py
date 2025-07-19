@@ -15,8 +15,10 @@ except ImportError:
     # Log warning after logger is properly imported
     pass
 
-from core_foundation_enhanced import logger, settings
+import logging
+logger = logging.getLogger(__name__)
 import openai
+import os
 
 class RAGValidator:
     """
@@ -29,7 +31,10 @@ class RAGValidator:
         if not NUMPY_AVAILABLE:
             logger.warning("numpy not installed - semantic similarity will use fallback calculation")
             
-        self.openai_client = openai.AsyncClient(api_key=settings.openai_api_key)
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise ValueError("OpenAI API key is missing. Please set the OPENAI_API_KEY environment variable.")
+        self.openai_client = openai.AsyncClient(api_key=api_key)
         self.spiritual_keywords = self._load_spiritual_keywords()
         self.domain_keywords = self._load_domain_keywords()
         

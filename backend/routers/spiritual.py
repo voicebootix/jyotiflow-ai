@@ -12,6 +12,19 @@ import json
 import asyncpg
 from db import db_manager
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
+try:
+    from services.prokerala_service import ProkeralaService
+except ImportError:
+    ProkeralaService = None
+    
+try:
+    from monitoring.integration_hooks import MonitoringHooks
+except ImportError:
+    # Create a dummy decorator if monitoring is not available
+    class MonitoringHooks:
+        @staticmethod
+        def monitor_session(func):
+            return func
 
 # Import centralized JWT handler
 from auth.jwt_config import JWTHandler
@@ -312,6 +325,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
     return enhanced_response
 
 @router.post("/birth-chart")
+@MonitoringHooks.monitor_session
 async def get_birth_chart(request: Request):
     data = await request.json()
     print("[BirthChart] Incoming payload:", data)
@@ -331,6 +345,7 @@ async def get_birth_chart(request: Request):
     return await get_prokerala_birth_chart_data(user_email, birth_details)
 
 @router.post("/guidance")
+@MonitoringHooks.monitor_session
 async def get_spiritual_guidance(request: Request):
     """Enhanced spiritual guidance endpoint with RAG system integration"""
     logger.info("🕉️ Spiritual guidance endpoint called with RAG integration")
