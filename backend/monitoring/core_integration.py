@@ -54,7 +54,14 @@ class MonitoringCoreIntegration:
         from starlette.middleware.base import BaseHTTPMiddleware
         import time
         
+        # Store reference to self for the middleware class
+        monitoring_integration = self
+        
         class MonitoringMiddleware(BaseHTTPMiddleware):
+            def __init__(self, app):
+                super().__init__(app)
+                self.monitoring_integration = monitoring_integration
+                
             async def dispatch(self, request: Request, call_next):
                 """Middleware to monitor all API calls"""
                 start_time = time.time()
@@ -78,7 +85,7 @@ class MonitoringCoreIntegration:
                     response_time = int((time.time() - start_time) * 1000)  # ms
                     
                     # Log API call asynchronously
-                    asyncio.create_task(self.owner._log_api_call(
+                    asyncio.create_task(self.monitoring_integration._log_api_call(
                         endpoint=endpoint,
                         method=method,
                         status_code=response.status_code,
@@ -92,7 +99,7 @@ class MonitoringCoreIntegration:
                     # Log error
                     response_time = int((time.time() - start_time) * 1000)
                     
-                    asyncio.create_task(self.owner._log_api_call(
+                    asyncio.create_task(self.monitoring_integration._log_api_call(
                         endpoint=endpoint,
                         method=method,
                         status_code=500,
@@ -104,10 +111,7 @@ class MonitoringCoreIntegration:
                     # Re-raise the exception
                     raise
         
-        # Create instance with reference to self
-        middleware = MonitoringMiddleware
-        middleware.owner = self
-        return middleware
+        return MonitoringMiddleware
         
     async def _log_api_call(self, endpoint: str, method: str, status_code: int, 
                            response_time: int, request: Request, error: Optional[str] = None):

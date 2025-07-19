@@ -571,7 +571,7 @@ async def get_dashboard(admin=Depends(get_current_admin_dependency)):
     """Get monitoring dashboard data for admin interface"""
     dashboard_data = await monitoring_dashboard.get_dashboard_data()
     return StandardResponse(
-        success=True,
+        status="success",
         message="Dashboard data retrieved",
         data=dashboard_data
     )
@@ -585,7 +585,7 @@ async def get_session_validation(session_id: str, admin=Depends(get_current_admi
         raise HTTPException(status_code=404, detail=session_details["error"])
     
     return StandardResponse(
-        success=True,
+        status="success",
         message="Session validation details retrieved",
         data=session_details
     )
@@ -596,7 +596,7 @@ async def get_integration_health(integration_point: str, admin=Depends(get_curre
     health_details = await monitoring_dashboard.get_integration_health_details(integration_point)
     
     return StandardResponse(
-        success=True,
+        status="success",
         message="Integration health details retrieved",
         data=health_details
     )

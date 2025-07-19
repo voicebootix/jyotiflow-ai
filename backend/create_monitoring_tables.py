@@ -86,6 +86,22 @@ async def create_monitoring_tables():
         """)
         print("✅ Created context_snapshots table")
         
+        # Create monitoring_api_calls table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS monitoring_api_calls (
+                id SERIAL PRIMARY KEY,
+                endpoint VARCHAR(500) NOT NULL,
+                method VARCHAR(10) NOT NULL,
+                status_code INTEGER,
+                response_time INTEGER,
+                user_id INTEGER,
+                request_body TEXT,
+                error TEXT,
+                timestamp TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        print("✅ Created monitoring_api_calls table")
+        
         # Create monitoring_alerts table
         await conn.execute("""
             CREATE TABLE IF NOT EXISTS monitoring_alerts (
@@ -121,6 +137,16 @@ async def create_monitoring_tables():
         await conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_integration_validations_session
             ON integration_validations(session_id);
+        """)
+        
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_monitoring_api_calls_timestamp
+            ON monitoring_api_calls(timestamp DESC);
+        """)
+        
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_monitoring_api_calls_endpoint
+            ON monitoring_api_calls(endpoint);
         """)
         
         await conn.execute("""
