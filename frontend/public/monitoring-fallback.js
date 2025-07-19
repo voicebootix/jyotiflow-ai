@@ -8,10 +8,12 @@ function createMonitoringWebSocket() {
     function connect() {
         try {
             // Get WebSocket URL from configuration, with fallback
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const apiUrl = window.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+            const backendUrl = new URL(apiUrl);
+            const wsProtocol = backendUrl.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = (typeof window !== 'undefined' && window.MONITORING_WS_URL) ||
                          (typeof process !== 'undefined' && process.env.MONITORING_WS_URL) ||
-                         `${protocol}//${window.location.host}/api/monitoring/ws`;
+                         `${wsProtocol}//${backendUrl.host}/api/monitoring/ws`;
             
             ws = new WebSocket(wsUrl);
             
@@ -56,7 +58,8 @@ function createMonitoringWebSocket() {
         // Poll monitoring endpoint every 30 seconds as fallback
         setInterval(async () => {
             try {
-                const response = await fetch('/api/monitoring/dashboard');
+                const apiUrl = window.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+            const response = await fetch(`${apiUrl}/api/monitoring/dashboard`);
                 const data = await response.json();
                 updateMonitoringDashboard(data);
             } catch (e) {

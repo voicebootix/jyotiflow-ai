@@ -8,6 +8,7 @@ import {
 import spiritualAPI from '../../lib/api';
 
 const SystemMonitoring = () => {
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
   const [monitoringData, setMonitoringData] = useState(null);
   const [selectedSession, setSelectedSession] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +56,9 @@ const SystemMonitoring = () => {
 
   const connectWebSocket = () => {
     try {
-      const wsUrl = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/monitoring/ws`;
+      const backendUrl = new URL(API_BASE_URL);
+      const wsProtocol = backendUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${wsProtocol}//${backendUrl.host}/api/monitoring/ws`;
       wsRef.current = new WebSocket(wsUrl);
 
       wsRef.current.onopen = () => {

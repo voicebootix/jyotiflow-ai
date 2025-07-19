@@ -106,7 +106,8 @@ const Profile = () => {
 
   const loadCosmicInsights = async () => {
     try {
-      const response = await fetch('/api/user/cosmic-insights', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+      const response = await fetch(`${API_BASE_URL}/api/user/cosmic-insights`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
