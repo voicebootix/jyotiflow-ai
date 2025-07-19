@@ -8,18 +8,15 @@ function createMonitoringWebSocket() {
     function connect() {
         try {
             // Get API URL from configuration, with fallback
-            // Try import.meta.env first (for Vite processed files), then window, then default
-            const apiUrl = (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
-                          window.VITE_API_URL || 
-                          'https://jyotiflow-ai.onrender.com';
+            // Since this is a public script (not an ES module), we can only use window variables
+            const apiUrl = window.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
             
             const backendUrl = new URL(apiUrl);
             const wsProtocol = backendUrl.protocol === 'https:' ? 'wss:' : 'ws:';
             
-            // Get WebSocket URL with similar fallback pattern
-            const wsUrl = (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_WS_URL) ||
-                         (typeof window !== 'undefined' && window.MONITORING_WS_URL) ||
-                         (typeof process !== 'undefined' && process.env.MONITORING_WS_URL) ||
+            // Get WebSocket URL with fallback pattern
+            const wsUrl = window.VITE_WS_URL ||
+                         window.MONITORING_WS_URL ||
                          `${wsProtocol}//${backendUrl.host}/api/monitoring/ws`;
             
             ws = new WebSocket(wsUrl);
@@ -65,9 +62,7 @@ function createMonitoringWebSocket() {
         // Poll monitoring endpoint every 30 seconds as fallback
         setInterval(async () => {
             try {
-                const apiUrl = (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
-                              window.VITE_API_URL || 
-                              'https://jyotiflow-ai.onrender.com';
+                const apiUrl = window.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
                 const response = await fetch(`${apiUrl}/api/monitoring/dashboard`);
                 const data = await response.json();
                 updateMonitoringDashboard(data);
