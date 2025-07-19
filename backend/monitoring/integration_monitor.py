@@ -15,7 +15,7 @@ import aiohttp
 import traceback
 
 from db import db_manager
-import logging
+
 logger = logging.getLogger(__name__)
 
 # Import validators

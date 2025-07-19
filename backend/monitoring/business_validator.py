@@ -11,6 +11,8 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 import re
+import os
+import openai
 
 # Try to import numpy, but handle gracefully if not installed
 try:
@@ -20,11 +22,6 @@ except ImportError:
     NUMPY_AVAILABLE = False
     # Log warning after logger is properly imported
     pass
-
-from db import db_manager
-import logging
-import os
-import openai
 
 logger = logging.getLogger(__name__)
 

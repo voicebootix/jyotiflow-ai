@@ -7,6 +7,7 @@ import asyncio
 from typing import Optional
 from functools import wraps
 import time
+from fastapi import Request
 
 # Import monitoring components
 from .integration_monitor import IntegrationMonitor
@@ -50,7 +51,6 @@ class MonitoringCoreIntegration:
             
     def create_middleware(self):
         """Create FastAPI middleware for monitoring"""
-        from fastapi import Request, Response
         from starlette.middleware.base import BaseHTTPMiddleware
         import time
         
@@ -136,7 +136,7 @@ class MonitoringCoreIntegration:
                         request_body = request.state._body.decode("utf-8") if request.state._body else None
                     # Note: We cannot read request.body() here as it would consume the stream
                     # The body should be captured by endpoint handlers and stored in request.state
-                except:
+                except (AttributeError, UnicodeDecodeError):
                     pass
             
             conn = await db_manager.get_connection()
