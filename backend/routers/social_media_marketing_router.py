@@ -40,6 +40,79 @@ print("✅ REAL AI Marketing Director loaded with OpenAI GPT-4o-mini integration
 
 logger = logging.getLogger(__name__)
 
+# Enhanced API response helpers (core.md & refresh.md: actionable feedback)
+def get_platform_suggestions(platform: str, error_message: str) -> List[str]:
+    """Generate platform-specific suggestions based on error type"""
+    suggestions = {
+        'youtube': [
+            'Verify your YouTube API key is active in Google Cloud Console',
+            'Check that YouTube Data API v3 is enabled',
+            'Ensure your channel is public and not suspended',
+            'Try using your channel URL instead of Channel ID',
+            'Make sure your API key has the correct restrictions'
+        ],
+        'facebook': [
+            'Verify your Page Access Token is not expired',
+            'Check app permissions: pages_manage_posts, pages_read_engagement',
+            'Ensure your Facebook page is published and active',
+            'Confirm your app is not in development mode',
+            'Try generating a new Page Access Token'
+        ],
+        'instagram': [
+            'Make sure your Instagram account is a business account',
+            'Verify Instagram is linked to your Facebook page',
+            'Check that your access token has proper permissions',
+            'Ensure your app has Instagram Basic Display API access',
+            'Try refreshing your access token'
+        ],
+        'tiktok': [
+            'Confirm your TikTok for Business account is approved',
+            'Check that your app has Marketing API access',
+            'Verify client credentials are correct and active',
+            'Ensure your TikTok account meets API requirements',
+            'Contact TikTok support if repeatedly failing'
+        ]
+    }
+    
+    # Add error-specific suggestions
+    base_suggestions = suggestions.get(platform, [])
+    
+    if 'token' in error_message.lower():
+        base_suggestions.insert(0, f'Your {platform} access token may be expired or invalid')
+    elif 'permission' in error_message.lower():
+        base_suggestions.insert(0, f'Check your {platform} app permissions and scopes')
+    elif 'not found' in error_message.lower():
+        base_suggestions.insert(0, f'Verify your {platform} account/channel exists and is accessible')
+    
+    return base_suggestions[:5]  # Limit to 5 suggestions
+
+def get_platform_help_links(platform: str) -> List[Dict[str, str]]:
+    """Get platform-specific help documentation links"""
+    help_links = {
+        'youtube': [
+            {'text': 'YouTube Data API Setup', 'url': 'https://developers.google.com/youtube/v3/getting-started'},
+            {'text': 'Find Your Channel ID', 'url': 'https://support.google.com/youtube/answer/3250431'},
+            {'text': 'API Key Restrictions', 'url': 'https://cloud.google.com/docs/authentication/api-keys'}
+        ],
+        'facebook': [
+            {'text': 'Facebook for Developers', 'url': 'https://developers.facebook.com/'},
+            {'text': 'Page Access Tokens', 'url': 'https://developers.facebook.com/docs/pages/access-tokens'},
+            {'text': 'App Permissions', 'url': 'https://developers.facebook.com/docs/permissions/reference'}
+        ],
+        'instagram': [
+            {'text': 'Instagram Basic Display', 'url': 'https://developers.facebook.com/docs/instagram-basic-display-api'},
+            {'text': 'Business Account Setup', 'url': 'https://help.instagram.com/502981923235522'},
+            {'text': 'Instagram API Guide', 'url': 'https://developers.facebook.com/docs/instagram-api'}
+        ],
+        'tiktok': [
+            {'text': 'TikTok for Business API', 'url': 'https://ads.tiktok.com/marketing_api/docs'},
+            {'text': 'Apply for API Access', 'url': 'https://ads.tiktok.com/marketing_api/docs?id=1738455508553729'},
+            {'text': 'TikTok Developer Portal', 'url': 'https://developers.tiktok.com/'}
+        ]
+    }
+    
+    return help_links.get(platform, [])
+
 # Create router
 social_marketing_router = APIRouter(
     prefix="/api/admin/social-marketing",
@@ -409,10 +482,9 @@ async def test_platform_connection(
                     "error": f"Missing required fields: {', '.join(missing_fields)}"
                 }
             else:
-                # Real API validation with correct field names
+                # Real API validation with consistent global instance import
                 try:
-                    from services.facebook_service import FacebookService
-                    facebook_service = FacebookService()
+                    from services.facebook_service import facebook_service
                     result = await facebook_service.validate_credentials(
                         config.get('app_id'),
                         config.get('app_secret'),
@@ -440,10 +512,9 @@ async def test_platform_connection(
                     "error": f"Missing required fields: {', '.join(missing_fields)}"
                 }
             else:
-                # Real API validation
+                # Real API validation with consistent global instance
                 try:
-                    from services.youtube_service import YouTubeService
-                    youtube_service = YouTubeService()
+                    from services.youtube_service import youtube_service
                     result = await youtube_service.validate_credentials(
                         config.get('api_key'), 
                         config.get('channel_id')
@@ -470,10 +541,9 @@ async def test_platform_connection(
                     "error": f"Missing required fields: {', '.join(missing_fields)}"
                 }
             else:
-                # Real API validation
+                # Real API validation with consistent global instance
                 try:
-                    from services.tiktok_service import TikTokService
-                    tiktok_service = TikTokService()
+                    from services.tiktok_service import tiktok_service
                     result = await tiktok_service.validate_credentials(
                         config.get('client_key'), 
                         config.get('client_secret')
@@ -500,10 +570,9 @@ async def test_platform_connection(
                     "error": f"Missing required fields: {', '.join(missing_fields)}"
                 }
             else:
-                # Real API validation
+                # Real API validation with consistent global instance
                 try:
-                    from services.instagram_service import InstagramService
-                    instagram_service = InstagramService()
+                    from services.instagram_service import instagram_service
                     result = await instagram_service.validate_credentials(
                         config.get('app_id'),
                         config.get('app_secret'),
@@ -539,11 +608,28 @@ async def test_platform_connection(
         else:
             raise HTTPException(status_code=400, detail=f"Platform {platform} not supported")
         
-        return StandardResponse(
-            success=result.get('success', False),
-            data=result,
-            message=f"{platform.capitalize()} connection test completed"
-        )
+        # Enhanced response formatting (core.md & refresh.md: actionable feedback)
+        if result.get('success'):
+            return StandardResponse(
+                success=True,
+                data=result,
+                message=f"{platform.capitalize()} connection successful!"
+            )
+        else:
+            # Enhanced error response with guidance
+            error_message = result.get('error', 'Connection failed')
+            enhanced_error = {
+                **result,
+                'platform': platform,
+                'suggestions': get_platform_suggestions(platform, error_message),
+                'help_links': get_platform_help_links(platform)
+            }
+            
+            return StandardResponse(
+                success=False,
+                data=enhanced_error,
+                message=f"{platform.capitalize()} connection failed: {error_message}"
+            )
         
     except HTTPException:
         raise

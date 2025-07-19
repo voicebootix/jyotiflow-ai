@@ -565,49 +565,61 @@ class SocialMediaMarketingEngine:
             return {"success": False, "error": str(e)}
     
     async def _post_to_facebook(self, post_data: Dict, media_url: Optional[str]) -> Dict:
-        """Real Facebook posting using Facebook service"""
+        """Real Facebook posting using consistent global instance"""
         try:
             from services.facebook_service import facebook_service
             
             result = await facebook_service.post_content(post_data, media_url)
             return result
             
+        except ImportError:
+            logger.error("❌ Facebook service not available")
+            return {"success": False, "error": "Facebook service not available"}
         except Exception as e:
             logger.error(f"❌ Facebook posting failed: {e}")
             return {"success": False, "error": f"Facebook posting failed: {str(e)}"}
     
     async def _post_to_instagram(self, post_data: Dict, media_url: Optional[str]) -> Dict:
-        """Real Instagram posting using Instagram service"""
+        """Real Instagram posting using consistent global instance"""
         try:
             from services.instagram_service import instagram_service
             
             result = await instagram_service.post_content(post_data, media_url)
             return result
             
+        except ImportError:
+            logger.error("❌ Instagram service not available")
+            return {"success": False, "error": "Instagram service not available"}
         except Exception as e:
             logger.error(f"❌ Instagram posting failed: {e}")
             return {"success": False, "error": f"Instagram posting failed: {str(e)}"}
     
     async def _post_to_youtube(self, post_data: Dict, media_url: Optional[str]) -> Dict:
-        """Real YouTube posting using YouTube service"""
+        """Real YouTube posting using consistent global instance"""
         try:
             from services.youtube_service import youtube_service
             
             result = await youtube_service.post_content(post_data, media_url)
             return result
             
+        except ImportError:
+            logger.error("❌ YouTube service not available")
+            return {"success": False, "error": "YouTube service not available"}
         except Exception as e:
             logger.error(f"❌ YouTube posting failed: {e}")
             return {"success": False, "error": f"YouTube posting failed: {str(e)}"}
     
     async def _post_to_tiktok(self, post_data: Dict, media_url: Optional[str]) -> Dict:
-        """Real TikTok posting using TikTok service"""
+        """Real TikTok posting using consistent global instance"""
         try:
             from services.tiktok_service import tiktok_service
             
             result = await tiktok_service.post_content(post_data, media_url)
             return result
             
+        except ImportError:
+            logger.error("❌ TikTok service not available")
+            return {"success": False, "error": "TikTok service not available"}
         except Exception as e:
             logger.error(f"❌ TikTok posting failed: {e}")
             return {"success": False, "error": f"TikTok posting failed: {str(e)}"}
