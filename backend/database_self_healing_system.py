@@ -438,8 +438,11 @@ class CodePatternAnalyzer:
                 query_lower = query.lower()
                 
                 # Extract from INSERT statements
-                insert_match = re.search(r'insert\s+into\s+\w+\s*\(([^)]+)\)\s*values\s*\(([^)]+)\)', query_lower, re.DOTALL)
+                # First normalize the query to handle multi-line formatting
+                query_normalized = re.sub(r'\s+', ' ', query)
+                insert_match = re.search(r'insert\s+into\s+\w+\s*\(([^)]+)\)\s*values\s*\(([^)]+)\)', query_normalized, re.IGNORECASE | re.DOTALL)
                 if insert_match:
+                    # Clean and split columns and values
                     cols = [c.strip() for c in insert_match.group(1).split(',')]
                     vals = [v.strip() for v in insert_match.group(2).split(',')]
                     for col, val in zip(cols, vals):
