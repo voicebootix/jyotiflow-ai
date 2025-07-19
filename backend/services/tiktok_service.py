@@ -217,8 +217,8 @@ class TikTokService:
                 "error": f"App token validation failed: {str(e)}"
             }
 
-# Export - Following standardized new-instance pattern
-__all__ = ["TikTokService"]
+# Global instance for consistent import pattern (refresh.md: consistent architecture)
+tiktok_service = TikTokService()
 
-# Note: Use TikTokService() to create new instances for better isolation
-# Global instances removed to follow consistent pattern across all services
+# Export
+__all__ = ["TikTokService", "tiktok_service"]

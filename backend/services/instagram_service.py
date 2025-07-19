@@ -338,12 +338,12 @@ class InstagramService:
         """
         return self.validate_webhook_signature(signature, payload, app_secret)
 
-# Export - Following standardized new-instance pattern
-__all__ = ["InstagramService"]
+# Global instance for consistent import pattern (refresh.md: consistent architecture)
+instagram_service = InstagramService()
 
-# Note: Use InstagramService() to create new instances for better isolation
-# No global instances - consistent pattern across all services
-# 
+# Export
+__all__ = ["InstagramService", "instagram_service"]
+
 # Key Methods:
 # - validate_credentials(): Real Instagram API validation  
 # - validate_webhook_signature(): Modern SHA256 webhook verification (SYNC - core.md compliant)

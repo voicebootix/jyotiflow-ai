@@ -320,8 +320,11 @@ class FacebookService:
                 "error": f"Page access token test failed: {str(e)}"
             }
 
-# Export - Following standardized new-instance pattern
-__all__ = ["FacebookService"]
+# Global instance for consistent import pattern (refresh.md: consistent architecture)
+facebook_service = FacebookService()
+
+# Export
+__all__ = ["FacebookService", "facebook_service"]
 
 # Note: Use FacebookService() to create new instances for better isolation
 # No global instances - consistent pattern across all services
