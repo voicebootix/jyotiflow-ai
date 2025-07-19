@@ -90,6 +90,9 @@ import db
 # Import the migration runner
 from run_migrations import MigrationRunner
 
+# Import unified startup system
+from simple_unified_startup import initialize_unified_jyotiflow, cleanup_unified_system
+
 # Import enhanced spiritual guidance router
 try:
     from enhanced_spiritual_guidance_router import router as enhanced_spiritual_router
@@ -225,9 +228,6 @@ async def lifespan(app: FastAPI):
     # Startup operations
     try:
         print("🚀 Starting JyotiFlow.ai backend with unified system...")
-        
-        # Import and initialize the clean startup system (now simplified)
-        from .simple_unified_startup import initialize_unified_jyotiflow, cleanup_unified_system
         
         # Initialize everything through the clean system
         db_pool = await initialize_unified_jyotiflow()
