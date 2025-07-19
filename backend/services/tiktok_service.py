@@ -19,26 +19,36 @@ class TikTokService:
     async def validate_credentials(self, client_key: str, client_secret: str) -> Dict:
         """
         Validate TikTok credentials by making real API calls
+        Fixed: Proper API scope handling (core.md & refresh.md compliant)
         Returns: {"success": bool, "message": str, "error": str}
         """
         try:
-            # Test 1: Get access token using client credentials
+            # Test 1: Get app access token using client credentials
             token_test = await self._test_client_credentials(client_key, client_secret)
             if not token_test["success"]:
                 return token_test
             
-            # Test 2: Validate access token by calling user info
+            # Test 2: Validate the app access token with app-specific endpoints
             access_token = token_test.get("access_token")
-            if access_token:
-                user_validation = await self._validate_access_token(access_token)
-                if not user_validation["success"]:
-                    return user_validation
             
-            # Both tests passed
+            # Fix: Ensure access token exists before proceeding (no false positives)
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "No access token received from TikTok API"
+                }
+            
+            # Fix: Use app-specific endpoint instead of user endpoint
+            app_validation = await self._validate_app_access_token(access_token)
+            if not app_validation["success"]:
+                return app_validation
+            
+            # Both tests passed with proper API scope
             return {
                 "success": True,
-                "message": "TikTok credentials validated successfully",
-                "access_token": access_token
+                "message": "TikTok app credentials validated successfully",
+                "access_token": access_token,
+                "token_type": "app_access_token"
             }
             
         except Exception as e:
@@ -129,11 +139,15 @@ class TikTokService:
                 "error": f"Failed to test TikTok client credentials: {str(e)}"
             }
     
-    async def _validate_access_token(self, access_token: str) -> Dict:
-        """Validate access token by calling TikTok API"""
+    async def _validate_app_access_token(self, access_token: str) -> Dict:
+        """
+        Validate app access token using app-specific endpoints
+        Fixed: Uses proper API scope for app tokens (core.md & refresh.md compliant)
+        """
         try:
-            # Try to get user info to validate token
-            url = f"{self.base_url}/v2/user/info/"
+            # Use app-specific endpoint that works with app access tokens
+            # /v2/app/info/ is an app-level endpoint (not user-specific)
+            url = f"{self.base_url}/v2/app/info/"
             
             headers = {
                 "Authorization": f"Bearer {access_token}",
@@ -146,37 +160,38 @@ class TikTokService:
                         result = await response.json()
                         
                         if result.get("error"):
-                            error_message = result["error"].get("message", "Token validation failed")
+                            error_message = result["error"].get("message", "App token validation failed")
                             return {
                                 "success": False,
-                                "error": f"TikTok token validation failed: {error_message}"
+                                "error": f"TikTok app token validation failed: {error_message}"
                             }
                         
-                        # Token is valid
+                        # App token is valid
                         return {
                             "success": True,
-                            "message": "Access token is valid"
+                            "message": "App access token is valid",
+                            "app_info": result.get("data", {})
                         }
                     
                     elif response.status == 401:
                         return {
                             "success": False,
-                            "error": "Invalid or expired TikTok access token"
+                            "error": "Invalid or expired TikTok app access token"
                         }
                     elif response.status == 403:
                         return {
                             "success": False,
-                            "error": "TikTok API access forbidden for this token"
+                            "error": "TikTok API access forbidden for this app token"
                         }
                     elif response.status == 400:
                         return {
                             "success": False,
-                            "error": "Bad request - invalid parameters or token format"
+                            "error": "Bad request - invalid app token format"
                         }
                     elif response.status == 404:
                         return {
                             "success": False,
-                            "error": "TikTok API endpoint not found - check API version"
+                            "error": "TikTok app API endpoint not found - check API version"
                         }
                     elif response.status == 429:
                         return {
@@ -190,16 +205,16 @@ class TikTokService:
                         }
                     else:
                         # All non-200 status codes should be treated as failures
-                        # Only 200 indicates successful token validation
+                        # Only 200 indicates successful app token validation
                         return {
                             "success": False,
-                            "error": f"Token validation failed with status {response.status}"
+                            "error": f"App token validation failed with status {response.status}"
                         }
                         
         except Exception as e:
             return {
                 "success": False,
-                "error": f"Token validation failed: {str(e)}"
+                "error": f"App token validation failed: {str(e)}"
             }
 
 # Export - Following standardized new-instance pattern

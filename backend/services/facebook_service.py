@@ -13,35 +13,58 @@ class FacebookService:
     """Real Facebook Graph API validation service"""
     
     def __init__(self):
-        self.graph_url = "https://graph.facebook.com/v18.0"
+        # Updated to Facebook Graph API v21.0 (latest as of October 2024)
+        # Following core.md & refresh.md principles: stay current with API versions
+        # Benefits: latest security patches, new features, improved stability
+        self.graph_url = "https://graph.facebook.com/v21.0"
         self._credentials_cache = None
     
     async def validate_credentials(self, app_id: str, app_secret: str, access_token: str) -> Dict:
         """
         Validate Facebook credentials by making real Graph API calls
+        Supports both user access tokens and page access tokens (core.md & refresh.md compliant)
         Returns: {"success": bool, "message": str, "error": str}
         """
         try:
-            # Test 1: Validate access token
-            token_test = await self._validate_access_token(access_token)
-            if not token_test["success"]:
-                return token_test
-            
-            # Test 2: Validate app credentials
+            # Test 1: Validate app credentials first
             app_test = await self._validate_app_credentials(app_id, app_secret)
             if not app_test["success"]:
                 return app_test
             
-            # Test 3: Check permissions
-            permissions_test = await self._check_permissions(access_token)
-            if not permissions_test["success"]:
-                return permissions_test
+            # Test 2: Determine token type and validate accordingly
+            token_info = await self._analyze_token_type(access_token)
             
-            return {
-                "success": True,
-                "message": "Facebook credentials validated successfully. Ready for posting!",
-                "permissions": permissions_test.get("permissions", [])
-            }
+            if token_info.get("is_page_token"):
+                # Page access token validation (different endpoints)
+                page_test = await self._validate_page_access_token(access_token)
+                if not page_test["success"]:
+                    return page_test
+                
+                return {
+                    "success": True,
+                    "message": "Facebook page credentials validated successfully. Ready for posting!",
+                    "token_type": "page_access_token",
+                    "page_id": page_test.get("page_id"),
+                    "page_name": page_test.get("page_name")
+                }
+            else:
+                # User access token validation (original flow)
+                token_test = await self._validate_access_token(access_token)
+                if not token_test["success"]:
+                    return token_test
+                
+                # Test 3: Check permissions for user tokens
+                permissions_test = await self._check_permissions(access_token)
+                if not permissions_test["success"]:
+                    return permissions_test
+                
+                return {
+                    "success": True,
+                    "message": "Facebook user credentials validated successfully. Ready for posting!",
+                    "token_type": "user_access_token",
+                    "user_id": token_test.get("user_id"),
+                    "permissions": permissions_test.get("permissions", [])
+                }
             
         except Exception as e:
             logger.error(f"Facebook credential validation error: {e}")
@@ -190,6 +213,72 @@ class FacebookService:
             return {
                 "success": False,
                 "error": f"Pages retrieval failed: {str(e)}"
+            }
+
+    async def _analyze_token_type(self, access_token: str) -> Dict:
+        """
+        Analyze access token to determine if it's a user token or page token
+        Uses /me endpoint to detect token type (core.md: explicit analysis)
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me"
+                params = {"access_token": access_token}
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        # Check if this is a page by looking for page-specific fields
+                        if "category" in data or "about" in data or "fan_count" in data:
+                            return {"is_page_token": True, "token_type": "page"}
+                        else:
+                            return {"is_page_token": False, "token_type": "user"}
+                    else:
+                        # If /me fails, try to determine from error or assume user token
+                        return {"is_page_token": False, "token_type": "user"}
+                        
+        except Exception as e:
+            logger.error(f"Token type analysis error: {e}")
+            # Default to user token validation if analysis fails
+            return {"is_page_token": False, "token_type": "user"}
+    
+    async def _validate_page_access_token(self, access_token: str) -> Dict:
+        """
+        Validate page access token using page-specific endpoints
+        Different from user tokens - uses page info endpoint (refresh.md: proper scope)
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Use /me endpoint for page info (works for page tokens)
+                url = f"{self.graph_url}/me"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,name,category,about,fan_count"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        return {
+                            "success": True,
+                            "message": f"Page access token valid for: {data.get('name', 'Unknown')}",
+                            "page_id": data["id"],
+                            "page_name": data.get("name"),
+                            "category": data.get("category"),
+                            "fan_count": data.get("fan_count")
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Invalid page access token")
+                        return {
+                            "success": False,
+                            "error": f"Page access token validation failed: {error_msg}"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Page access token test failed: {str(e)}"
             }
 
 # Export - Following standardized new-instance pattern
