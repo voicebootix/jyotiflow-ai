@@ -5,8 +5,7 @@ Validates YouTube API credentials by making actual API calls
 
 import aiohttp
 import logging
-from typing import Dict, Optional
-import json
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

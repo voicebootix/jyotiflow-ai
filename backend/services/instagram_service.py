@@ -5,8 +5,7 @@ Validates Instagram API credentials by making actual Instagram Basic Display API
 
 import aiohttp
 import logging
-from typing import Dict, Optional
-import json
+from typing import Dict
 import hmac
 import hashlib
 
@@ -262,7 +261,7 @@ class InstagramService:
             is_valid = hmac.compare_digest(received_signature, expected_signature)
             
             if not is_valid:
-                logger.warning(f"Instagram webhook signature validation failed")
+                logger.warning("Instagram webhook signature validation failed")
                 logger.debug(f"Expected: {expected_signature[:8]}..., Received: {received_signature[:8]}...")
             
             return is_valid
