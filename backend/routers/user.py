@@ -98,7 +98,7 @@ async def get_profile(request: Request, db=Depends(get_db)):
     return {
         "id": user["id"],
         "email": user["email"],
-        "name": user["name"],
+        "name": user["name"] or user["full_name"],
         "full_name": user["full_name"],
         "credits": user["credits"],
         "role": user["role"],
