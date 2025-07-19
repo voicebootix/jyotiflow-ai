@@ -1492,25 +1492,8 @@ class DatabaseHealthMonitor:
         return infer_column_type_from_name(column_name)
     
     async def _detect_duplicate_data(self, schema: Dict) -> List[DatabaseIssue]:
-        """Detect duplicate data in tables"""
+        """Detect duplicate data in tables by analyzing actual database constraints and data"""
         issues = []
-        
-        # Define tables and columns that should have unique values
-        unique_checks = [
-            ("users", "email"),
-            ("sessions", "session_id"),
-            ("service_types", "name"),
-            ("followup_templates", "template_name"),
-            ("service_configurations", "service_name"),
-            ("spiritual_guidance_sessions", "session_id"),
-            ("user_spiritual_journeys", "session_id"),
-            ("ai_marketing_campaigns", "campaign_id"),
-            ("ai_marketing_insights", "insight_id"),
-            ("user_birth_charts", "birth_details_hash"),
-            ("livechat_sessions", "session_id"),
-            ("ai_recommendations", "recommendation_id"),
-            ("cache_storage", "cache_key"),
-        ]
         
         import db
         pool = db.get_db_pool()
@@ -1518,108 +1501,228 @@ class DatabaseHealthMonitor:
             return issues
             
         async with pool.acquire() as conn:
-            for table, column in unique_checks:
-                # Check if table exists in schema
-                if table not in [t['tablename'] for t in schema.get('tables', [])]:
-                    continue
-                    
-                # Check if column exists
-                if table not in schema.get('columns', {}) or \
-                   column not in [c['column_name'] for c in schema['columns'].get(table, [])]:
+            # 1. First, find all UNIQUE constraints in the database
+            unique_constraints = await conn.fetch("""
+                SELECT 
+                    tc.table_name,
+                    kcu.column_name,
+                    tc.constraint_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu 
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'UNIQUE'
+                    AND tc.table_schema = 'public'
+                ORDER BY tc.table_name, kcu.ordinal_position
+            """)
+            
+            # Group by table and constraint to handle multi-column unique constraints
+            unique_by_table = defaultdict(list)
+            for row in unique_constraints:
+                unique_by_table[row['table_name']].append({
+                    'column': row['column_name'],
+                    'constraint': row['constraint_name']
+                })
+            
+            # 2. Check each unique constraint for violations
+            for table_name in unique_by_table:
+                # Skip if table not in schema
+                if table_name not in [t['tablename'] for t in schema.get('tables', [])]:
                     continue
                 
-                try:
-                    # Check for duplicates
-                    duplicates = await conn.fetch(f"""
-                        SELECT {quote_ident(column)}, COUNT(*) as count
-                        FROM {quote_ident(table)}
-                        WHERE {quote_ident(column)} IS NOT NULL
-                        GROUP BY {quote_ident(column)}
-                        HAVING COUNT(*) > 1
-                        ORDER BY count DESC
-                        LIMIT 5
-                    """)
-                    
-                    if duplicates:
-                        # Get total duplicate count
-                        total_duplicates = await conn.fetchval(f"""
-                            SELECT SUM(count - 1) as total_duplicates
-                            FROM (
-                                SELECT COUNT(*) as count
-                                FROM {quote_ident(table)}
+                # Group columns by constraint name
+                constraints_dict = defaultdict(list)
+                for item in unique_by_table[table_name]:
+                    constraints_dict[item['constraint']].append(item['column'])
+                
+                for constraint_name, columns in constraints_dict.items():
+                    try:
+                        if len(columns) == 1:
+                            # Single column unique constraint
+                            column = columns[0]
+                            duplicates = await conn.fetch(f"""
+                                SELECT {quote_ident(column)}, COUNT(*) as count
+                                FROM {quote_ident(table_name)}
                                 WHERE {quote_ident(column)} IS NOT NULL
                                 GROUP BY {quote_ident(column)}
                                 HAVING COUNT(*) > 1
-                            ) as dup_counts
-                        """)
-                        
-                        # Create an issue for duplicate data
-                        duplicate_values = [f"'{row[column]}' ({row['count']} times)" for row in duplicates[:3]]
-                        issues.append(DatabaseIssue(
-                            issue_type='DUPLICATE_DATA',
-                            severity='HIGH',
-                            table=table,
-                            column=column,
-                            current_state=f"{total_duplicates} duplicate records found",
-                            expected_state=f"Unique values in {column}",
-                            description=f"Found duplicate values in {table}.{column}: {', '.join(duplicate_values)}{'...' if len(duplicates) > 3 else ''}",
-                            fix_sql=None,  # No automatic fix for duplicates - needs manual review
-                            affected_files=[],
-                            affected_queries=[]
-                        ))
-                        
-                except Exception as e:
-                    logger.warning(f"Error checking duplicates in {table}.{column}: {e}")
-        
-        # Also check for duplicate rows in critical tables
-        duplicate_row_checks = [
-            ("sessions", ["user_id", "service_type_id", "created_at"]),
-            ("followup_actions", ["session_id", "template_id", "scheduled_date"]),
-            ("api_usage_metrics", ["api_name", "endpoint", "date"]),
-        ]
-        
-        async with pool.acquire() as conn:
-            for table, columns in duplicate_row_checks:
-                # Check if table exists
-                if table not in [t['tablename'] for t in schema.get('tables', [])]:
+                                ORDER BY count DESC
+                                LIMIT 5
+                            """)
+                            
+                            if duplicates:
+                                total_duplicates = await conn.fetchval(f"""
+                                    SELECT SUM(count - 1) as total_duplicates
+                                    FROM (
+                                        SELECT COUNT(*) as count
+                                        FROM {quote_ident(table_name)}
+                                        WHERE {quote_ident(column)} IS NOT NULL
+                                        GROUP BY {quote_ident(column)}
+                                        HAVING COUNT(*) > 1
+                                    ) as dup_counts
+                                """)
+                                
+                                duplicate_values = [f"'{row[column]}' ({row['count']} times)" for row in duplicates[:3]]
+                                issues.append(DatabaseIssue(
+                                    issue_type='DUPLICATE_DATA',
+                                    severity='CRITICAL',
+                                    table=table_name,
+                                    column=column,
+                                    current_state=f"{total_duplicates} duplicate records violating UNIQUE constraint",
+                                    expected_state=f"Unique values enforced by constraint {constraint_name}",
+                                    description=f"UNIQUE constraint violation in {table_name}.{column}: {', '.join(duplicate_values)}{'...' if len(duplicates) > 3 else ''}",
+                                    fix_sql=None,  # Manual review needed
+                                    affected_files=[],
+                                    affected_queries=[]
+                                ))
+                        else:
+                            # Multi-column unique constraint
+                            col_list = ", ".join(quote_ident(col) for col in columns)
+                            dup_count = await conn.fetchval(f"""
+                                SELECT COUNT(*) FROM (
+                                    SELECT {col_list}, COUNT(*) as count
+                                    FROM {quote_ident(table_name)}
+                                    GROUP BY {col_list}
+                                    HAVING COUNT(*) > 1
+                                ) as dups
+                            """)
+                            
+                            if dup_count > 0:
+                                issues.append(DatabaseIssue(
+                                    issue_type='DUPLICATE_DATA',
+                                    severity='CRITICAL',
+                                    table=table_name,
+                                    column=None,
+                                    current_state=f"{dup_count} duplicate combinations violating UNIQUE constraint",
+                                    expected_state=f"Unique combinations enforced by constraint {constraint_name}",
+                                    description=f"UNIQUE constraint violation in {table_name} on columns ({', '.join(columns)})",
+                                    fix_sql=None,
+                                    affected_files=[],
+                                    affected_queries=[]
+                                ))
+                                
+                    except Exception as e:
+                        logger.warning(f"Error checking unique constraint {constraint_name} in {table_name}: {e}")
+            
+            # 3. Check for duplicates in columns that SHOULD have unique constraints based on naming patterns
+            # These are columns that look like they should be unique but don't have constraints
+            unique_pattern_columns = [
+                r'.*_id$',  # Columns ending with _id
+                r'.*_key$',  # Columns ending with _key
+                r'.*_code$',  # Columns ending with _code
+                r'^email$',  # Email columns
+                r'^username$',  # Username columns
+                r'.*_hash$',  # Hash columns
+                r'.*_token$',  # Token columns
+            ]
+            
+            for table in schema.get('tables', []):
+                table_name = table['tablename']
+                if table_name not in schema.get('columns', {}):
                     continue
                     
-                # Check if all columns exist
-                if table not in schema.get('columns', {}):
-                    continue
+                for column_info in schema['columns'][table_name]:
+                    column_name = column_info['column_name']
                     
-                table_columns = [c['column_name'] for c in schema['columns'].get(table, [])]
-                if not all(col in table_columns for col in columns):
+                    # Skip if already has unique constraint
+                    has_unique = any(
+                        col['column'] == column_name 
+                        for col in unique_by_table.get(table_name, [])
+                    )
+                    if has_unique:
+                        continue
+                    
+                    # Check if column matches any unique pattern
+                    should_be_unique = any(
+                        re.match(pattern, column_name, re.IGNORECASE) 
+                        for pattern in unique_pattern_columns
+                    )
+                    
+                    if should_be_unique:
+                        try:
+                            # Check for duplicates
+                            dup_count = await conn.fetchval(f"""
+                                SELECT COUNT(*) FROM (
+                                    SELECT {quote_ident(column_name)}, COUNT(*) as count
+                                    FROM {quote_ident(table_name)}
+                                    WHERE {quote_ident(column_name)} IS NOT NULL
+                                    GROUP BY {quote_ident(column_name)}
+                                    HAVING COUNT(*) > 1
+                                ) as dups
+                            """)
+                            
+                            if dup_count > 0:
+                                # Get sample duplicates
+                                duplicates = await conn.fetch(f"""
+                                    SELECT {quote_ident(column_name)}, COUNT(*) as count
+                                    FROM {quote_ident(table_name)}
+                                    WHERE {quote_ident(column_name)} IS NOT NULL
+                                    GROUP BY {quote_ident(column_name)}
+                                    HAVING COUNT(*) > 1
+                                    ORDER BY count DESC
+                                    LIMIT 3
+                                """)
+                                
+                                duplicate_values = [f"'{row[column_name]}' ({row['count']} times)" for row in duplicates]
+                                
+                                issues.append(DatabaseIssue(
+                                    issue_type='DUPLICATE_DATA',
+                                    severity='HIGH',
+                                    table=table_name,
+                                    column=column_name,
+                                    current_state=f"{dup_count} groups of duplicates (no unique constraint)",
+                                    expected_state=f"Column {column_name} should probably have unique constraint",
+                                    description=f"Column {table_name}.{column_name} has duplicates but no unique constraint: {', '.join(duplicate_values)}",
+                                    fix_sql=f"-- Consider adding: ALTER TABLE {quote_ident(table_name)} ADD CONSTRAINT {quote_ident(f'{table_name}_{column_name}_unique')} UNIQUE ({quote_ident(column_name)});",
+                                    affected_files=[],
+                                    affected_queries=[]
+                                ))
+                                
+                        except Exception as e:
+                            logger.warning(f"Error checking potential unique column {table_name}.{column_name}: {e}")
+            
+            # 4. Check for completely duplicate rows in tables (excluding system columns)
+            for table in schema.get('tables', []):
+                table_name = table['tablename']
+                if table_name not in schema.get('columns', {}):
                     continue
                 
-                try:
-                    col_list = ", ".join(quote_ident(col) for col in columns)
-                    # Check for duplicate rows
-                    dup_count = await conn.fetchval(f"""
-                        SELECT COUNT(*) FROM (
-                            SELECT {col_list}, COUNT(*) as count
-                            FROM {quote_ident(table)}
-                            GROUP BY {col_list}
-                            HAVING COUNT(*) > 1
-                        ) as dups
-                    """)
-                    
-                    if dup_count > 0:
-                        issues.append(DatabaseIssue(
-                            issue_type='DUPLICATE_DATA',
-                            severity='MEDIUM',
-                            table=table,
-                            column=None,
-                            current_state=f"{dup_count} duplicate row combinations found",
-                            expected_state="Unique row combinations",
-                            description=f"Found {dup_count} duplicate row combinations in {table} based on columns: {', '.join(columns)}",
-                            fix_sql=None,  # No automatic fix
-                            affected_files=[],
-                            affected_queries=[]
-                        ))
+                # Get all columns except system columns
+                columns = [
+                    col['column_name'] 
+                    for col in schema['columns'][table_name]
+                    if col['column_name'] not in ['id', 'created_at', 'updated_at']
+                ]
+                
+                if len(columns) > 1:  # Only check if there are meaningful columns
+                    try:
+                        col_list = ", ".join(quote_ident(col) for col in columns)
+                        # Check for complete duplicate rows
+                        dup_count = await conn.fetchval(f"""
+                            SELECT COUNT(*) FROM (
+                                SELECT {col_list}, COUNT(*) as count
+                                FROM {quote_ident(table_name)}
+                                GROUP BY {col_list}
+                                HAVING COUNT(*) > 1
+                            ) as dups
+                        """)
                         
-                except Exception as e:
-                    logger.warning(f"Error checking duplicate rows in {table}: {e}")
+                        if dup_count > 0:
+                            issues.append(DatabaseIssue(
+                                issue_type='DUPLICATE_DATA',
+                                severity='MEDIUM',
+                                table=table_name,
+                                column=None,
+                                current_state=f"{dup_count} sets of duplicate rows",
+                                expected_state="No duplicate rows",
+                                description=f"Found {dup_count} sets of completely duplicate rows in {table_name} (ignoring id/timestamps)",
+                                fix_sql=None,  # Too complex for auto-fix
+                                affected_files=[],
+                                affected_queries=[]
+                            ))
+                            
+                    except Exception as e:
+                        logger.warning(f"Error checking duplicate rows in {table_name}: {e}")
         
         return issues
     
