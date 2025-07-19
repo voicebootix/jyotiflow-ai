@@ -683,7 +683,12 @@ class KnowledgeSeeder:
                 import db
                 pool = db.get_db_pool()
                 if not pool:
-                    raise Exception("Database pool not available")
+                    raise RuntimeError(
+                        "Database pool initialization failed or is unavailable. "
+                        "This may indicate issues with database connection configuration, "
+                        "network connectivity, or system startup sequence. "
+                        "Check DATABASE_URL environment variable and ensure the unified startup system completed successfully."
+                    )
                 async with pool.acquire() as conn:
                         
                         # Check column type for this connection

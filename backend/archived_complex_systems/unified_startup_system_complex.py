@@ -10,7 +10,6 @@ import asyncpg
 import logging
 import traceback
 import time
-from datetime import datetime
 from typing import Optional
 
 logging.basicConfig(level=logging.INFO)

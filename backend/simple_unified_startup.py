@@ -50,10 +50,19 @@ async def initialize_jyotiflow_simple():
         logger.error(f"❌ System initialization failed after {elapsed_time:.2f} seconds: {e}")
         raise
 
-async def cleanup_jyotiflow_simple():
-    """Simple cleanup function"""
+async def cleanup_jyotiflow_simple(db_pool=None):
+    """Simple cleanup function with proper pool closure"""
     logger.info("🔄 Shutting down JyotiFlow.ai...")
-    # Cleanup will be handled by main.py pool.close()
+    
+    if db_pool:
+        try:
+            await db_pool.close()
+            logger.info("🗄️ Database pool closed successfully")
+        except Exception as e:
+            logger.error(f"⚠️ Error closing database pool: {e}")
+    else:
+        logger.warning("⚠️ No database pool provided for cleanup")
+    
     logger.info("✅ Cleanup completed")
 
 # Global instance tracking (minimal)
@@ -64,6 +73,14 @@ async def initialize_unified_jyotiflow():
     global _startup_instance
     return await initialize_jyotiflow_simple()
 
-async def cleanup_unified_system():
+async def cleanup_unified_system(db_pool=None):
     """Cleanup entry point for compatibility with existing main.py"""  
-    await cleanup_jyotiflow_simple()
+    await cleanup_jyotiflow_simple(db_pool)
+
+def get_unified_system_status():
+    """Get simple system status for health checks"""
+    return {
+        "system_available": True,
+        "architecture": "clean_shared_pool",
+        "startup_type": "simplified"
+    }
