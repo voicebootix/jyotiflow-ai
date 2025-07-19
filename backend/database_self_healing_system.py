@@ -440,13 +440,39 @@ class CodePatternAnalyzer:
                 # Extract from INSERT statements
                 # First normalize the query to handle multi-line formatting
                 query_normalized = re.sub(r'\s+', ' ', query)
-                insert_match = re.search(r'insert\s+into\s+\w+\s*\(([^)]+)\)\s*values\s*\(([^)]+)\)', query_normalized, re.IGNORECASE | re.DOTALL)
-                if insert_match:
-                    # Clean and split columns and values
-                    cols = [c.strip() for c in insert_match.group(1).split(',')]
-                    vals = [v.strip() for v in insert_match.group(2).split(',')]
-                    for col, val in zip(cols, vals):
-                        columns[col] = self._infer_type_from_value(val)
+                
+                # Use a more robust pattern that handles nested parentheses
+                # First find the table and column list
+                table_cols_match = re.search(r'insert\s+into\s+\w+\s*\((.*?)\)\s*values', query_normalized, re.IGNORECASE | re.DOTALL)
+                if table_cols_match:
+                    cols_str = table_cols_match.group(1)
+                    cols = [c.strip() for c in cols_str.split(',')]
+                    
+                    # Find VALUES clause - handle nested parentheses by counting
+                    values_start = query_normalized.lower().find('values')
+                    if values_start != -1:
+                        # Find the opening parenthesis after VALUES
+                        paren_start = query_normalized.find('(', values_start)
+                        if paren_start != -1:
+                            # Count parentheses to find the matching closing one
+                            paren_count = 1
+                            i = paren_start + 1
+                            while i < len(query_normalized) and paren_count > 0:
+                                if query_normalized[i] == '(':
+                                    paren_count += 1
+                                elif query_normalized[i] == ')':
+                                    paren_count -= 1
+                                i += 1
+                            
+                            if paren_count == 0:
+                                values_str = query_normalized[paren_start + 1:i - 1]
+                                # Parse values more carefully to handle nested functions
+                                vals = self._parse_values_with_nested_parens(values_str)
+                                
+                                # Match columns with values
+                                for col, val in zip(cols, vals):
+                                    if val:
+                                        columns[col] = self._infer_type_from_value(val)
                 
                 # Extract from SELECT statements
                 if 'select' in query_lower:
@@ -493,6 +519,48 @@ class CodePatternAnalyzer:
                 
                 return columns
             
+            def _parse_values_with_nested_parens(self, values_str: str) -> List[str]:
+                """Parse comma-separated values handling nested parentheses and brackets"""
+                values = []
+                current_value = ""
+                paren_depth = 0
+                bracket_depth = 0
+                in_quotes = False
+                quote_char = None
+                
+                for char in values_str:
+                    if char in ["'", '"'] and not in_quotes:
+                        in_quotes = True
+                        quote_char = char
+                        current_value += char
+                    elif char == quote_char and in_quotes and (len(current_value) == 0 or current_value[-1] != '\\'):
+                        in_quotes = False
+                        quote_char = None
+                        current_value += char
+                    elif char == '(' and not in_quotes:
+                        paren_depth += 1
+                        current_value += char
+                    elif char == ')' and not in_quotes:
+                        paren_depth -= 1
+                        current_value += char
+                    elif char == '[' and not in_quotes:
+                        bracket_depth += 1
+                        current_value += char
+                    elif char == ']' and not in_quotes:
+                        bracket_depth -= 1
+                        current_value += char
+                    elif char == ',' and paren_depth == 0 and bracket_depth == 0 and not in_quotes:
+                        values.append(current_value.strip())
+                        current_value = ""
+                    else:
+                        current_value += char
+                
+                # Add the last value
+                if current_value.strip():
+                    values.append(current_value.strip())
+                
+                return values
+            
             def _infer_type_from_value(self, value: str) -> str:
                 """Infer column type from value in query"""
                 value = value.strip()
@@ -511,8 +579,10 @@ class CodePatternAnalyzer:
                 if value.lower() in ['true', 'false']:
                     return 'BOOLEAN'
                 
-                # Check for numbers
-                if re.match(r'^\$?\d+$', value) or re.match(r'^\d+$', value.replace('$', '')):
+                # Check for numbers (parameter placeholders or numeric literals)
+                if re.match(r'^\$\d+$', value):  # PostgreSQL parameter placeholder
+                    return 'INTEGER'  # Default type for parameters
+                elif re.match(r'^\d+$', value):  # Pure integer
                     return 'INTEGER'
                 
                 if re.match(r'^\d+\.\d+$', value):
@@ -574,6 +644,12 @@ class CodePatternAnalyzer:
                 'columns': {}  # Regex mode doesn't extract columns
             })
     
+    def _escape_identifier(self, identifier: str) -> str:
+        """Escape SQL identifier to prevent injection"""
+        # Remove any existing quotes and wrap in double quotes
+        cleaned = identifier.replace('"', '')
+        return f'"{cleaned}"'
+    
     def _generate_table_schemas_from_queries(self, query_patterns: Dict[str, List[Dict]]) -> Dict[str, str]:
         """Generate table schemas dynamically based on detected query patterns"""
         schemas = {}
@@ -596,9 +672,10 @@ class CodePatternAnalyzer:
                 for col_name, col_type in query_columns.items():
                     if col_name not in columns:
                         columns[col_name] = col_type
-                    elif columns[col_name] != col_type and col_type != 'TEXT':
-                        # Prefer more specific types over TEXT
+                    elif columns[col_name] == 'TEXT' and col_type != 'TEXT':
+                        # Replace TEXT with more specific type
                         columns[col_name] = col_type
+                    # Keep existing specific type if both are non-TEXT and different
                 
                 # Detect foreign key references
                 fk_pattern = r'FOREIGN KEY\s*\(\s*(\w+)\s*\)\s*REFERENCES\s*(\w+)\s*\(\s*(\w+)\s*\)'
@@ -613,7 +690,9 @@ class CodePatternAnalyzer:
             # Generate CREATE TABLE statement
             # Even if no columns detected, create a basic table structure
             if True:  # Always generate for missing tables
-                create_sql = f"CREATE TABLE IF NOT EXISTS {table_name} (\n"
+                # Escape table name to prevent SQL injection
+                table_name_escaped = self._escape_identifier(table_name)
+                create_sql = f"CREATE TABLE IF NOT EXISTS {table_name_escaped} (\n"
                 
                 # Add id column if not present (common pattern)
                 if 'id' not in columns:
@@ -621,15 +700,16 @@ class CodePatternAnalyzer:
                 
                 # Add detected columns
                 for col_name, col_type in columns.items():
+                    col_name_escaped = self._escape_identifier(col_name)
                     if col_name == 'id' and col_type == 'INTEGER':
-                        create_sql += f"    {col_name} SERIAL PRIMARY KEY,\n"
+                        create_sql += f"    {col_name_escaped} SERIAL PRIMARY KEY,\n"
                     else:
                         # Add NOT NULL for certain column patterns
                         not_null = ''
                         if col_name.endswith('_id') or col_name in ['name', 'email', 'username']:
                             not_null = ' NOT NULL'
                         
-                        create_sql += f"    {col_name} {col_type}{not_null},\n"
+                        create_sql += f"    {col_name_escaped} {col_type}{not_null},\n"
                 
                 # If no columns detected, add minimal structure
                 if not columns:
@@ -640,19 +720,20 @@ class CodePatternAnalyzer:
                         create_sql += "    user_id INTEGER,\n"
                     if 'log' in table_name or 'issue' in table_name:
                         create_sql += "    description TEXT,\n"
-                    # Always add a timestamp
-                    create_sql += "    created_at TIMESTAMP DEFAULT NOW(),\n"
+                    # Add timestamp if not already present
+                    if 'created_at' not in columns:
+                        create_sql += "    created_at TIMESTAMP DEFAULT NOW(),\n"
                 
-                # Add timestamp columns if detected in queries
-                if 'created_at' in columns:
-                    # Already added above
-                    pass
-                elif any('created' in q['query'].lower() for q in queries):
+                # Add timestamp columns if detected in queries but not in columns
+                elif 'created_at' not in columns and any('created' in q['query'].lower() for q in queries):
                     create_sql += "    created_at TIMESTAMP DEFAULT NOW(),\n"
                 
                 # Add foreign key constraints
                 for fk in has_foreign_keys:
-                    create_sql += f"    FOREIGN KEY ({fk['column']}) REFERENCES {fk['ref_table']}({fk['ref_column']}),\n"
+                    col_escaped = self._escape_identifier(fk['column'])
+                    ref_table_escaped = self._escape_identifier(fk['ref_table'])
+                    ref_col_escaped = self._escape_identifier(fk['ref_column'])
+                    create_sql += f"    FOREIGN KEY ({col_escaped}) REFERENCES {ref_table_escaped}({ref_col_escaped}),\n"
                 
                 # Remove trailing comma and close
                 create_sql = create_sql.rstrip(',\n') + "\n);"
