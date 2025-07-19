@@ -59,12 +59,14 @@ export default function DatabaseHealthMonitor() {
 
     const fetchIssues = async () => {
         try {
+            setError(null);
             const response = await fetch(`${API_BASE_URL}/api/database-health/issues`);
             if (!response.ok) throw new Error(`Failed to fetch issues: ${response.status}`);
             const data = await response.json();
             setIssues(data);
         } catch (error) {
             console.error('Failed to fetch issues:', error);
+            setError('Failed to fetch database issues');
         }
     };
 
@@ -90,6 +92,7 @@ export default function DatabaseHealthMonitor() {
             : `${API_BASE_URL}/api/database-health/start`;
         
         try {
+            setError(null);
             const response = await fetch(endpoint, { method: 'POST' });
             if (!response.ok) throw new Error(`Failed to toggle monitoring: ${response.status}`);
             await fetchStatus();
@@ -101,6 +104,7 @@ export default function DatabaseHealthMonitor() {
 
     const previewFix = async (issue) => {
         try {
+            setError(null);
             const response = await fetch(`${API_BASE_URL}/api/database-health/preview-fix`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -122,7 +126,12 @@ export default function DatabaseHealthMonitor() {
     };
 
     const applyFix = async (issue) => {
+        // Prevent multiple concurrent executions
+        if (fixingIssue) return;
+        
         setFixingIssue(true);
+        setError(null);
+        
         try {
             const response = await fetch(`${API_BASE_URL}/api/database-health/fix`, {
                 method: 'POST',
@@ -136,10 +145,17 @@ export default function DatabaseHealthMonitor() {
             });
             if (!response.ok) throw new Error('Failed to apply fix');
             
-            // Refresh data after fix
-            await runCheckNow();
+            // Clear modal state first
             setSelectedIssue(null);
             setFixPreview(null);
+            
+            // Then refresh data
+            try {
+                await runCheckNow();
+            } catch (refreshError) {
+                // Log but don't fail - the fix was already applied
+                console.error('Failed to refresh after fix:', refreshError);
+            }
         } catch (error) {
             console.error('Failed to apply fix:', error);
             setError('Failed to apply fix');
@@ -147,6 +163,38 @@ export default function DatabaseHealthMonitor() {
             setFixingIssue(false);
         }
     };
+
+    // Auto-fix logic
+    useEffect(() => {
+        if (autoMode && issues.critical_issues?.length > 0 && !fixingIssue) {
+            const autoFixableIssues = issues.critical_issues.filter(issue => 
+                issue.fix_sql && issue.severity === 'CRITICAL'
+            );
+            
+            if (autoFixableIssues.length > 0) {
+                // Auto-fix the first critical issue
+                const issueToFix = autoFixableIssues[0];
+                console.log('Auto-fixing issue:', issueToFix);
+                applyFix(issueToFix);
+            }
+        }
+    }, [autoMode, issues.critical_issues, fixingIssue]);
+
+    // Modal accessibility - Escape key handling
+    useEffect(() => {
+        const handleEscape = (e) => {
+            if (e.key === 'Escape' && selectedIssue) {
+                setSelectedIssue(null);
+                setFixPreview(null);
+            }
+        };
+        
+        if (selectedIssue) {
+            document.addEventListener('keydown', handleEscape);
+            // Focus trap would go here in production
+            return () => document.removeEventListener('keydown', handleEscape);
+        }
+    }, [selectedIssue]);
 
     useEffect(() => {
         fetchStatus();
@@ -351,10 +399,21 @@ export default function DatabaseHealthMonitor() {
 
             {/* Fix Preview Modal */}
             {selectedIssue && fixPreview && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div 
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="modal-title"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setSelectedIssue(null);
+                            setFixPreview(null);
+                        }
+                    }}
+                >
                     <Card className="max-w-2xl w-full max-h-[80vh] overflow-y-auto">
                         <CardHeader>
-                            <CardTitle>Fix Preview</CardTitle>
+                            <CardTitle id="modal-title">Fix Preview</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="space-y-4">
