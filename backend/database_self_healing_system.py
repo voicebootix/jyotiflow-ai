@@ -608,7 +608,8 @@ class CodePatternAnalyzer:
                     })
             
             # Generate CREATE TABLE statement
-            if columns:
+            # Even if no columns detected, create a basic table structure
+            if True:  # Always generate for missing tables
                 create_sql = f"CREATE TABLE IF NOT EXISTS {table_name} (\n"
                 
                 # Add id column if not present (common pattern)
@@ -626,6 +627,18 @@ class CodePatternAnalyzer:
                             not_null = ' NOT NULL'
                         
                         create_sql += f"    {col_name} {col_type}{not_null},\n"
+                
+                # If no columns detected, add minimal structure
+                if not columns:
+                    # Add common columns based on table name patterns
+                    if 'session' in table_name:
+                        create_sql += "    session_id VARCHAR(255),\n"
+                    if 'user' in table_name or 'validation' in table_name:
+                        create_sql += "    user_id INTEGER,\n"
+                    if 'log' in table_name or 'issue' in table_name:
+                        create_sql += "    description TEXT,\n"
+                    # Always add a timestamp
+                    create_sql += "    created_at TIMESTAMP DEFAULT NOW(),\n"
                 
                 # Add timestamp columns if detected in queries
                 if 'created_at' in columns:
