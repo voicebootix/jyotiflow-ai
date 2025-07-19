@@ -12,6 +12,12 @@ from datetime import datetime, timezone
 import aiohttp
 import asyncio
 
+try:
+    from db_manager import db_manager
+except ImportError:
+    # Fallback if db_manager is not available
+    db_manager = None
+
 logger = logging.getLogger(__name__)
 
 class SocialMediaValidator:
@@ -77,8 +83,11 @@ class SocialMediaValidator:
         }
         
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            if not db_manager:
+                logger.error("Database manager not available")
+                return results
+                
+            conn = await db_manager.get_connection()
             try:
                 # Get all platform credentials
                 platforms_data = await conn.fetch("""
@@ -110,7 +119,7 @@ class SocialMediaValidator:
                 
                 return results
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
         except Exception as e:
             logger.error(f"Platform testing error: {e}")
@@ -436,8 +445,11 @@ class SocialMediaValidator:
                 "content_generation_working": False
             }
             
-            db = await get_db()
-            conn = await db.get_connection()
+            if not db_manager:
+                logger.error("Database manager not available")
+                return health_status
+                
+            conn = await db_manager.get_connection()
             try:
                 # Check configured credentials
                 credential_count = await conn.fetchval("""
@@ -488,7 +500,7 @@ class SocialMediaValidator:
                 
                 return validation_result
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
             
         except Exception as e:
             logger.error(f"Social media health check error: {e}")
@@ -710,8 +722,11 @@ class SocialMediaValidator:
     async def _check_platform_readiness(self, platform: str) -> Dict:
         """Check if platform is ready for posting"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            if not db_manager:
+                logger.error("Database manager not available")
+                return {"ready": False, "reason": "Database not available"}
+                
+            conn = await db_manager.get_connection()
             try:
                 # Check if credentials exist
                 creds = await conn.fetchrow("""
@@ -735,7 +750,7 @@ class SocialMediaValidator:
                 
                 return {"ready": True}
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             return {"ready": False, "reason": str(e)}
@@ -743,8 +758,11 @@ class SocialMediaValidator:
     async def _attempt_token_refresh(self, platform: str) -> Dict:
         """Attempt to refresh expired tokens using OAuth refresh flow"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            if not db_manager:
+                logger.error("Database manager not available")
+                return {"success": False, "error": "Database not available"}
+                
+            conn = await db_manager.get_connection()
             try:
                 # Get refresh token from database
                 token_data = await conn.fetchrow("""
@@ -768,7 +786,7 @@ class SocialMediaValidator:
                 else:
                     return {"success": False, "reason": f"Token refresh not supported for {platform}"}
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
                     
         except Exception as e:
             logger.error(f"Token refresh error for {platform}: {e}")
@@ -868,8 +886,11 @@ class SocialMediaValidator:
     async def _save_refreshed_token(self, platform: str, new_token: str):
         """Save refreshed token to database"""
         try:
-            db = await get_db()
-            conn = await db.get_connection()
+            if not db_manager:
+                logger.error("Database manager not available")
+                return False
+                
+            conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     UPDATE platform_settings 
@@ -877,7 +898,7 @@ class SocialMediaValidator:
                     WHERE platform = $2 AND setting_key = 'access_token'
                 """, json.dumps(new_token), platform)
             finally:
-                await db.release_connection(conn)
+                await db_manager.release_connection(conn)
         except Exception as e:
             logger.error(f"Failed to save refreshed token for {platform}: {e}")
     

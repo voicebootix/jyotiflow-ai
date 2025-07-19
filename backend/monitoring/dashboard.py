@@ -17,10 +17,48 @@ class StandardResponse(BaseModel):
     status: str
     message: str
     data: dict = {}
-# from deps import get_current_admin_dependency
-# For now, we'll skip admin authentication for testing
-async def get_current_admin_dependency():
-    return {"id": 1, "email": "admin@test.com"}
+    
+    # Add computed property for backward compatibility
+    @property
+    def success(self) -> bool:
+        """Backward compatibility property"""
+        return self.status == "success"
+    
+    class Config:
+        # Allow property access in JSON serialization
+        orm_mode = True
+
+class LegacyStandardResponse(BaseModel):
+    """Legacy response format for backward compatibility"""
+    success: bool
+    message: str
+    data: dict = {}
+    
+    @classmethod
+    def from_standard(cls, response: StandardResponse):
+        """Convert from new format to legacy format"""
+        return cls(
+            success=response.status == "success",
+            message=response.message,
+            data=response.data
+        )
+from fastapi import HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
+# Import proper admin authentication
+try:
+    from deps import get_current_admin_dependency
+except ImportError:
+    # If deps module is not available, create a secure fallback
+    security = HTTPBearer()
+    
+    async def get_current_admin_dependency(credentials: HTTPAuthorizationCredentials = Depends(security)):
+        """Require authentication for admin endpoints"""
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Admin authentication required. Please configure proper authentication.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 from .integration_monitor import integration_monitor, IntegrationStatus
 from .business_validator import BusinessLogicValidator
