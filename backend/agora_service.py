@@ -113,9 +113,14 @@ class AgoraChannelManager:
                 'expires_at': (datetime.now() + timedelta(hours=1)).isoformat()
             }
             
-            # Store in database
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            # Store in database using shared pool
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available for Agora service")
+                return session_data  # Return session data even if DB storage fails
+                
+            async with pool.acquire() as conn:
                 await conn.execute("""
                     INSERT INTO live_chat_sessions 
                     (session_id, user_id, channel_name, session_type, status, created_at, expires_at)
@@ -127,9 +132,6 @@ class AgoraChannelManager:
                 
                 logger.info(f"Session created: {session_id} for user {user_id}")
                 return session_data
-                
-            finally:
-                await conn.close()
                 
         except Exception as e:
             logger.error(f"Channel creation failed: {e}")
@@ -147,8 +149,12 @@ class AgoraChannelManager:
         """
         try:
             # Get session details
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available")
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+            async with pool.acquire() as conn:
                 session = await conn.fetchrow("""
                     SELECT channel_name, session_type, status, expires_at
                     FROM live_chat_sessions
@@ -179,9 +185,6 @@ class AgoraChannelManager:
                     'status': 'ready_to_join'
                 }
                 
-            finally:
-                await conn.close()
-                
         except Exception as e:
             logger.error(f"Join channel failed: {e}")
             raise HTTPException(status_code=500, detail="Join channel failed")
@@ -189,8 +192,12 @@ class AgoraChannelManager:
     async def _record_participant_join(self, session_id: str, user_id: int):
         """Record user joining session"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available")
+                return None
+            async with pool.acquire() as conn:
                 await conn.execute("""
                     INSERT INTO session_participants 
                     (session_id, user_id, joined_at, status)
@@ -198,9 +205,6 @@ class AgoraChannelManager:
                     ON CONFLICT (session_id, user_id) 
                     DO UPDATE SET joined_at = $3, status = $4
                 """, session_id, user_id, datetime.now(), 'joined')
-                
-            finally:
-                await conn.close()
                 
         except Exception as e:
             logger.error(f"Failed to record participant join: {e}")
@@ -216,8 +220,12 @@ class AgoraChannelManager:
             Session end confirmation
         """
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available")
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+            async with pool.acquire() as conn:
                 # Update session status
                 await conn.execute("""
                     UPDATE live_chat_sessions 
@@ -239,9 +247,6 @@ class AgoraChannelManager:
                     'ended_at': datetime.now().isoformat()
                 }
                 
-            finally:
-                await conn.close()
-                
         except Exception as e:
             logger.error(f"End session failed: {e}")
             raise HTTPException(status_code=500, detail="End session failed")
@@ -256,8 +261,12 @@ class AgoraChannelManager:
             Session status and participant info
         """
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available")
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+            async with pool.acquire() as conn:
                 # Get session details
                 session = await conn.fetchrow("""
                     SELECT session_id, user_id, channel_name, session_type, 
@@ -296,9 +305,6 @@ class AgoraChannelManager:
                 }
                 
                 return session_data
-                
-            finally:
-                await conn.close()
                 
         except Exception as e:
             logger.error(f"Get session status failed: {e}")
@@ -346,8 +352,12 @@ class AgoraServiceManager:
             })
             
             # Update session status to active
-            conn = await asyncpg.connect(self.channel_manager.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available")
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
+            async with pool.acquire() as conn:
                 await conn.execute("""
                     UPDATE live_chat_sessions 
                     SET status = 'active', agora_token = $1
@@ -357,9 +367,6 @@ class AgoraServiceManager:
                 logger.info(f"Live session initiated: {session_data['session_id']}")
                 return session_data
                 
-            finally:
-                await conn.close()
-                
         except Exception as e:
             logger.error(f"Live session initiation failed: {e}")
             raise HTTPException(status_code=500, detail="Live session initiation failed")
@@ -367,8 +374,12 @@ class AgoraServiceManager:
     async def create_database_tables(self):
         """Create necessary database tables for Agora integration"""
         try:
-            conn = await asyncpg.connect(self.channel_manager.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available")
+                return None
+            async with pool.acquire() as conn:
                 # Live chat sessions table
                 await conn.execute("""
                     CREATE TABLE IF NOT EXISTS live_chat_sessions (
@@ -416,9 +427,6 @@ class AgoraServiceManager:
                 """)
                 
                 logger.info("Agora database tables created successfully")
-                
-            finally:
-                await conn.close()
                 
         except Exception as e:
             logger.error(f"Database table creation failed: {e}")

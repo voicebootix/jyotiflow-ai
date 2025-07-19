@@ -111,8 +111,13 @@ class AdminPricingDashboard:
     async def _get_pricing_history(self) -> List[Dict[str, Any]]:
         """Get pricing history for the last 30 days"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Shared database pool not available for pricing dashboard")
+                return []
+                
+            async with pool.acquire() as conn:
                 rows = await conn.fetch("""
                     SELECT service_name, old_price, new_price, reasoning, changed_at
                     FROM pricing_history
@@ -135,9 +140,6 @@ class AdminPricingDashboard:
                 
                 return history
                 
-            finally:
-                await conn.close()
-                
         except Exception as e:
             logger.error(f"Pricing history error: {e}")
             return []
@@ -145,8 +147,20 @@ class AdminPricingDashboard:
     async def _get_demand_analytics(self) -> Dict[str, Any]:
         """Get demand analytics for pricing decisions"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available for demand analytics")
+                return {
+                    "daily_demand": [],
+                    "hourly_demand": [],
+                    "total_sessions_30_days": 0,
+                    "avg_daily_sessions": 0,
+                    "recent_7_day_avg": 0,
+                    "trend": "unknown",
+                    "peak_hours": []
+                }
+            async with pool.acquire() as conn:
                 # Get session counts by day for last 30 days
                 daily_rows = await conn.fetch("""
                     SELECT 
@@ -206,9 +220,6 @@ class AdminPricingDashboard:
                     "peak_hours": sorted(hourly_demand, key=lambda x: x["sessions"], reverse=True)[:3]
                 }
                 
-            finally:
-                await conn.close()
-                
         except Exception as e:
             logger.error(f"Demand analytics error: {e}")
             return {
@@ -224,8 +235,19 @@ class AdminPricingDashboard:
     async def _calculate_revenue_impact(self) -> Dict[str, Any]:
         """Calculate revenue impact of pricing changes"""
         try:
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available for revenue impact calculation")
+                return {
+                    "current_revenue_30_days": 0,
+                    "current_sessions_30_days": 0,
+                    "current_avg_price": 12,
+                    "price_performance": [],
+                    "price_scenarios": [],
+                    "optimal_price_range": {"min": 11, "max": 13}
+                }
+            async with pool.acquire() as conn:
                 # Get revenue for last 30 days
                 revenue_row = await conn.fetchrow("""
                     SELECT 
@@ -292,9 +314,6 @@ class AdminPricingDashboard:
                     }
                 }
                 
-            finally:
-                await conn.close()
-                
         except Exception as e:
             logger.error(f"Revenue impact calculation error: {e}")
             return {
@@ -357,8 +376,15 @@ class AdminPricingDashboard:
                     "message": "Dynamic pricing system not available"
                 }
             
-            conn = await asyncpg.connect(self.database_url)
-            try:
+            import db
+            pool = db.get_db_pool()
+            if not pool:
+                logger.warning("Database pool not available for pricing override")
+                return {
+                    "success": False,
+                    "message": "Database pool not available - pricing override failed"
+                }
+            async with pool.acquire() as conn:
                 # Store pricing override
                 await conn.execute("""
                     INSERT INTO pricing_overrides 
@@ -390,9 +416,6 @@ class AdminPricingDashboard:
                     "override_price": override_request.override_price,
                     "expires_at": (datetime.now() + timedelta(hours=override_request.duration_hours)).isoformat()
                 }
-                
-            finally:
-                await conn.close()
                 
         except Exception as e:
             logger.error(f"Pricing override error: {e}")

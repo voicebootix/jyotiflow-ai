@@ -175,15 +175,16 @@ except ImportError:
 # Import database initialization
 from init_database import initialize_jyotiflow_database
 
-# Enhanced startup integration and fixes are now consolidated in unified_startup_system.py
-
-# Import database schema fix
-from db_schema_fix import fix_database_schema
+# Enhanced startup integration and fixes are now consolidated in simple_unified_startup.py
 
 async def ensure_base_credits_column():
-    DB_URL = os.getenv('DATABASE_URL', 'postgresql://postgres:password@localhost:5432/jyotiflow')
-    conn = await asyncpg.connect(DB_URL)
-    try:
+    # Use shared database pool instead of creating individual connection
+    import db
+    pool = db.get_db_pool()
+    if not pool:
+        raise RuntimeError("Database pool not available - ensure system is properly initialized")
+    
+    async with pool.acquire() as conn:
         col_exists = await conn.fetchval("""
             SELECT 1 FROM information_schema.columns 
             WHERE table_name='service_types' AND column_name='base_credits'
@@ -194,8 +195,6 @@ async def ensure_base_credits_column():
             print("[AUTO-FIX] base_credits column added!")
         else:
             print("[AUTO-FIX] base_credits column already exists.")
-    finally:
-        await conn.close()
 
 async def apply_migrations():
     """Apply database migrations using the migration runner"""
@@ -221,14 +220,16 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan manager using unified startup system"""
+    db_pool = None  # Initialize pool variable for cleanup scope
+    
     # Startup operations
     try:
         print("🚀 Starting JyotiFlow.ai backend with unified system...")
         
-        # Import and initialize the unified startup system
-        from unified_startup_system import initialize_unified_jyotiflow, cleanup_unified_system
+        # Import and initialize the clean startup system (now simplified)
+        from .simple_unified_startup import initialize_unified_jyotiflow, cleanup_unified_system
         
-        # Initialize everything through the unified system
+        # Initialize everything through the clean system
         db_pool = await initialize_unified_jyotiflow()
         
         # Set the pool in the db module for all routers to use
@@ -260,7 +261,7 @@ async def lifespan(app: FastAPI):
     # Shutdown operations (cleanup)
     try:
         print("🔄 Shutting down unified system...")
-        await cleanup_unified_system()
+        await cleanup_unified_system(db_pool)
         print("✅ Unified system shutdown completed")
     except Exception as e:
         print(f"⚠️ Error during unified system cleanup: {str(e)}")
@@ -388,7 +389,7 @@ async def health_check():
         # Get unified system status
         unified_status = {}
         try:
-            from unified_startup_system import get_unified_system_status
+            from .simple_unified_startup import get_unified_system_status
             unified_status = get_unified_system_status()
         except Exception:
             unified_status = {"system_available": False}
