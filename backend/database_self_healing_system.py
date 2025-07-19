@@ -13,6 +13,7 @@ import json
 import asyncio
 import asyncpg
 import hashlib
+from pathlib import Path
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
@@ -569,6 +570,45 @@ class CodePatternAnalyzer:
                 'type': 'UNKNOWN',
                 'columns': {}  # Regex mode doesn't extract columns
             })
+    
+    async def _discover_table_schemas_from_migrations(self) -> Dict[str, str]:
+        """Dynamically discover table schemas from migration files"""
+        schemas = {}
+        migrations_dir = Path('backend/migrations')
+        
+        if migrations_dir.exists():
+            for migration_file in migrations_dir.glob('*.py'):
+                content = migration_file.read_text()
+                
+                # Extract CREATE TABLE statements
+                # Using regex to find CREATE TABLE blocks
+                create_table_pattern = r'CREATE TABLE(?:\s+IF NOT EXISTS)?\s+(\w+)\s*\([^;]+\);?'
+                matches = re.finditer(create_table_pattern, content, re.IGNORECASE | re.DOTALL)
+                
+                for match in matches:
+                    full_statement = match.group(0)
+                    table_name = match.group(1)
+                    
+                    # Clean up the statement
+                    if not full_statement.strip().endswith(';'):
+                        full_statement += ';'
+                    
+                    schemas[table_name] = full_statement
+        
+        # Also check setup scripts
+        setup_files = ['backend/setup_monitoring_database.py', 'backend/setup_database.py']
+        for setup_file in setup_files:
+            if Path(setup_file).exists():
+                content = Path(setup_file).read_text()
+                matches = re.finditer(create_table_pattern, content, re.IGNORECASE | re.DOTALL)
+                
+                for match in matches:
+                    full_statement = match.group(0)
+                    table_name = match.group(1)
+                    if table_name not in schemas:  # Don't override migration definitions
+                        schemas[table_name] = full_statement
+        
+        return schemas
 
 
 class DatabaseIssueFixer:
@@ -976,64 +1016,8 @@ class DatabaseHealthMonitor:
         issues = []
         existing_tables = {t['tablename'] for t in schema['tables']}
         
-        # Define schemas for critical monitoring tables
-        # These are required for the Integration Monitoring System to function
-        monitoring_table_schemas = {
-            'validation_sessions': """
-                CREATE TABLE IF NOT EXISTS validation_sessions (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255) UNIQUE NOT NULL,
-                    user_id INTEGER,
-                    started_at TIMESTAMP DEFAULT NOW(),
-                    completed_at TIMESTAMP,
-                    overall_status VARCHAR(50),
-                    user_context JSONB,
-                    validation_results JSONB,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    FOREIGN KEY (user_id) REFERENCES users(id)
-                )
-            """,
-            'integration_validations': """
-                CREATE TABLE IF NOT EXISTS integration_validations (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255) NOT NULL,
-                    integration_name VARCHAR(100) NOT NULL,
-                    validation_type VARCHAR(100),
-                    status VARCHAR(50),
-                    expected_value TEXT,
-                    actual_value TEXT,
-                    error_message TEXT,
-                    validation_time TIMESTAMP DEFAULT NOW(),
-                    auto_fixed BOOLEAN DEFAULT FALSE,
-                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
-                )
-            """,
-            'business_logic_issues': """
-                CREATE TABLE IF NOT EXISTS business_logic_issues (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255),
-                    issue_type VARCHAR(100),
-                    severity VARCHAR(50),
-                    description TEXT,
-                    auto_fixable BOOLEAN DEFAULT FALSE,
-                    fixed BOOLEAN DEFAULT FALSE,
-                    user_impact TEXT,
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
-                )
-            """,
-            'context_snapshots': """
-                CREATE TABLE IF NOT EXISTS context_snapshots (
-                    id SERIAL PRIMARY KEY,
-                    session_id VARCHAR(255) NOT NULL,
-                    integration_point VARCHAR(100) NOT NULL,
-                    context_data JSONB NOT NULL,
-                    context_hash VARCHAR(64),
-                    created_at TIMESTAMP DEFAULT NOW(),
-                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
-                )
-            """
-        }
+        # Dynamically discover table schemas from migration files
+        monitoring_table_schemas = await self._discover_table_schemas_from_migrations()
         
         # Check monitoring tables first (these are causing the errors in logs)
         for table_name, create_sql in monitoring_table_schemas.items():
