@@ -71,7 +71,8 @@ class MonitoringCoreIntegration:
                 method = request.method
                 
                 # Skip monitoring endpoints to avoid recursion
-                if endpoint.startswith("/monitoring"):
+                # All monitoring endpoints are under /api/monitoring prefix
+                if endpoint.startswith("/api/monitoring") or endpoint.startswith("/monitoring/ws"):
                     return await call_next(request)
                 
                 # Store request info for later use
