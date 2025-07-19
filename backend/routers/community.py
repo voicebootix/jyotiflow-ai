@@ -177,13 +177,42 @@ async def get_community_stats(db=Depends(get_db)):
             WHERE created_at > NOW() - INTERVAL '7 days'
         """)
         
+        # Calculate growth trend by comparing current month to previous month
+        growth_trend = "placeholder"  # Default placeholder value
+        try:
+            # Get member count from previous month
+            prev_month_members = await db.fetchval("""
+                SELECT COUNT(DISTINCT user_email)
+                FROM sessions
+                WHERE created_at > NOW() - INTERVAL '60 days'
+                  AND created_at <= NOW() - INTERVAL '30 days'
+            """)
+            
+            current_members = stats["total_members"] or 0
+            
+            if prev_month_members and prev_month_members > 0:
+                growth_percentage = ((current_members - prev_month_members) / prev_month_members) * 100
+                if growth_percentage > 5:
+                    growth_trend = "positive"
+                elif growth_percentage < -5:
+                    growth_trend = "negative"
+                else:
+                    growth_trend = "stable"
+            else:
+                # Not enough historical data
+                growth_trend = "placeholder_insufficient_data"
+                
+        except Exception as e:
+            print(f"Error calculating growth trend: {e}")
+            growth_trend = "placeholder_error"
+        
         community_stats = {
             "total_members": stats["total_members"] or 0,
             "active_members": active_members or 0,
             "total_sessions": stats["total_sessions"] or 0,
             "avg_session_duration": round(stats["avg_session_duration"] or 0, 2),
             "engagement_rate": round((active_members / max(stats["total_members"], 1)) * 100, 2) if stats["total_members"] else 0,
-            "growth_trend": "positive"  # Placeholder for now
+            "growth_trend": growth_trend
         }
         
         return {"success": True, "data": community_stats}
