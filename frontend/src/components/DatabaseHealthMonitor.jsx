@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -43,6 +43,10 @@ export default function DatabaseHealthMonitor() {
     const [fixPreview, setFixPreview] = useState(null);
     const [autoMode, setAutoMode] = useState(false);
     const [fixingIssue, setFixingIssue] = useState(false);
+    
+    // Track attempted fixes to prevent infinite loops - moved up before fetchIssues
+    const [attemptedFixes, setAttemptedFixes] = useState(new Set());
+    const [lastAutoFixTime, setLastAutoFixTime] = useState(0);
 
     const fetchStatus = async () => {
         try {
@@ -65,9 +69,8 @@ export default function DatabaseHealthMonitor() {
             const data = await response.json();
             setIssues(data);
             
-            // Clear attempted fixes when new issues are fetched
-            // This allows retrying fixes after a refresh
-            setAttemptedFixes(new Set());
+            // Don't clear attempted fixes here to prevent infinite loops
+            // Only clear when user manually triggers a refresh
         } catch (error) {
             console.error('Failed to fetch issues:', error);
             setError('Failed to fetch database issues');
@@ -80,6 +83,10 @@ export default function DatabaseHealthMonitor() {
             setError(null);
             const response = await fetch(`${API_BASE_URL}/api/database-health/check`, { method: 'POST' });
             if (!response.ok) throw new Error(`Health check failed: ${response.status}`);
+            
+            // Clear attempted fixes on manual check to allow retrying
+            setAttemptedFixes(new Set());
+            
             await fetchStatus();
             await fetchIssues();
         } catch (error) {
@@ -153,9 +160,10 @@ export default function DatabaseHealthMonitor() {
             setSelectedIssue(null);
             setFixPreview(null);
             
-            // Then refresh data
+            // Then refresh data by calling fetch functions directly
             try {
-                await runCheckNow();
+                await fetchStatus();
+                await fetchIssues();
             } catch (refreshError) {
                 // Log but don't fail - the fix was already applied
                 console.error('Failed to refresh after fix:', refreshError);
@@ -168,10 +176,6 @@ export default function DatabaseHealthMonitor() {
         }
     };
 
-    // Track attempted fixes to prevent infinite loops
-    const [attemptedFixes, setAttemptedFixes] = useState(new Set());
-    const [lastAutoFixTime, setLastAutoFixTime] = useState(0);
-    
     // Auto-fix logic with loop prevention
     useEffect(() => {
         if (autoMode && issues.critical_issues?.length > 0 && !fixingIssue) {
@@ -199,7 +203,8 @@ export default function DatabaseHealthMonitor() {
                 applyFix(issueToFix);
             }
         }
-    }, [autoMode, issues.critical_issues, fixingIssue, applyFix, attemptedFixes, lastAutoFixTime]);
+    }, [autoMode, issues.critical_issues, fixingIssue, attemptedFixes, lastAutoFixTime]);
+    // Note: applyFix is intentionally excluded to prevent infinite loops
 
     // Modal accessibility - Escape key handling
     useEffect(() => {
