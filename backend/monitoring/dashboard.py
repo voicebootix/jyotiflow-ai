@@ -12,21 +12,24 @@ from db import db_manager
 import logging
 logger = logging.getLogger(__name__)
 from pydantic import BaseModel
+from typing import Optional
 
 class StandardResponse(BaseModel):
     status: str
     message: str
     data: dict = {}
+    success: Optional[bool] = None  # Include for backward compatibility
     
-    # Add computed property for backward compatibility
-    @property
-    def success(self) -> bool:
-        """Backward compatibility property"""
-        return self.status == "success"
+    def __init__(self, **data):
+        """Initialize with backward compatibility"""
+        super().__init__(**data)
+        # Set success based on status if not explicitly provided
+        if self.success is None:
+            self.success = self.status == "success"
     
     class Config:
-        # Allow property access in JSON serialization
-        orm_mode = True
+        # Allow field serialization
+        extra = "forbid"
 
 class LegacyStandardResponse(BaseModel):
     """Legacy response format for backward compatibility"""
@@ -645,7 +648,7 @@ async def trigger_test(test_type: str, admin=Depends(get_current_admin_dependenc
     test_result = await monitoring_dashboard.trigger_validation_test(test_type)
     
     return StandardResponse(
-        success=test_result.get("success", False),
+        status="success" if test_result.get("success", False) else "error",
         message=test_result.get("message", "Test triggered"),
         data=test_result
     )

@@ -760,7 +760,7 @@ class SocialMediaValidator:
         try:
             if not db_manager:
                 logger.error("Database manager not available")
-                return {"success": False, "error": "Database not available"}
+                return {"success": False, "reason": "Database not available"}
                 
             conn = await db_manager.get_connection()
             try:
