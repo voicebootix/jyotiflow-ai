@@ -20,7 +20,8 @@ const ISSUE_CONFIG = {
     MISSING_INDEX: { icon: Link, color: 'text-blue-500', bgColor: 'bg-blue-50' },
     MISSING_PRIMARY_KEY: { icon: Key, color: 'text-purple-500', bgColor: 'bg-purple-50' },
     ORPHANED_DATA: { icon: Trash2, color: 'text-gray-500', bgColor: 'bg-gray-50' },
-    TYPE_CAST_IN_QUERY: { icon: Code, color: 'text-indigo-500', bgColor: 'bg-indigo-50' }
+    TYPE_CAST_IN_QUERY: { icon: Code, color: 'text-indigo-500', bgColor: 'bg-indigo-50' },
+    DUPLICATE_DATA: { icon: AlertTriangle, color: 'text-red-600', bgColor: 'bg-red-100' }
 };
 
 export default function DatabaseHealthMonitor() {

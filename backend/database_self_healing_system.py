@@ -1251,6 +1251,11 @@ class DatabaseHealthMonitor:
                     schema, self.code_analyzer.query_patterns
                 )
                 schema_issues.extend(missing_column_issues)
+                
+                # 3.7 Detect duplicate data
+                logger.info("Detecting duplicate data...")
+                duplicate_issues = await self._detect_duplicate_data(schema)
+                schema_issues.extend(duplicate_issues)
             else:
                 logger.warning("Skipping schema issue detection due to schema analysis failure")
             
@@ -1485,6 +1490,138 @@ class DatabaseHealthMonitor:
     def _infer_column_type_from_name(self, column_name: str) -> str:
         """Infer column type from naming patterns - delegates to standalone function"""
         return infer_column_type_from_name(column_name)
+    
+    async def _detect_duplicate_data(self, schema: Dict) -> List[DatabaseIssue]:
+        """Detect duplicate data in tables"""
+        issues = []
+        
+        # Define tables and columns that should have unique values
+        unique_checks = [
+            ("users", "email"),
+            ("sessions", "session_id"),
+            ("service_types", "name"),
+            ("followup_templates", "template_name"),
+            ("service_configurations", "service_name"),
+            ("spiritual_guidance_sessions", "session_id"),
+            ("user_spiritual_journeys", "session_id"),
+            ("ai_marketing_campaigns", "campaign_id"),
+            ("ai_marketing_insights", "insight_id"),
+            ("user_birth_charts", "birth_details_hash"),
+            ("livechat_sessions", "session_id"),
+            ("ai_recommendations", "recommendation_id"),
+            ("cache_storage", "cache_key"),
+        ]
+        
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            return issues
+            
+        async with pool.acquire() as conn:
+            for table, column in unique_checks:
+                # Check if table exists in schema
+                if table not in [t['tablename'] for t in schema.get('tables', [])]:
+                    continue
+                    
+                # Check if column exists
+                if table not in schema.get('columns', {}) or \
+                   column not in [c['column_name'] for c in schema['columns'].get(table, [])]:
+                    continue
+                
+                try:
+                    # Check for duplicates
+                    duplicates = await conn.fetch(f"""
+                        SELECT {quote_ident(column)}, COUNT(*) as count
+                        FROM {quote_ident(table)}
+                        WHERE {quote_ident(column)} IS NOT NULL
+                        GROUP BY {quote_ident(column)}
+                        HAVING COUNT(*) > 1
+                        ORDER BY count DESC
+                        LIMIT 5
+                    """)
+                    
+                    if duplicates:
+                        # Get total duplicate count
+                        total_duplicates = await conn.fetchval(f"""
+                            SELECT SUM(count - 1) as total_duplicates
+                            FROM (
+                                SELECT COUNT(*) as count
+                                FROM {quote_ident(table)}
+                                WHERE {quote_ident(column)} IS NOT NULL
+                                GROUP BY {quote_ident(column)}
+                                HAVING COUNT(*) > 1
+                            ) as dup_counts
+                        """)
+                        
+                        # Create an issue for duplicate data
+                        duplicate_values = [f"'{row[column]}' ({row['count']} times)" for row in duplicates[:3]]
+                        issues.append(DatabaseIssue(
+                            issue_type='DUPLICATE_DATA',
+                            severity='HIGH',
+                            table=table,
+                            column=column,
+                            current_state=f"{total_duplicates} duplicate records found",
+                            expected_state=f"Unique values in {column}",
+                            description=f"Found duplicate values in {table}.{column}: {', '.join(duplicate_values)}{'...' if len(duplicates) > 3 else ''}",
+                            fix_sql=None,  # No automatic fix for duplicates - needs manual review
+                            affected_files=[],
+                            affected_queries=[]
+                        ))
+                        
+                except Exception as e:
+                    logger.warning(f"Error checking duplicates in {table}.{column}: {e}")
+        
+        # Also check for duplicate rows in critical tables
+        duplicate_row_checks = [
+            ("sessions", ["user_id", "service_type_id", "created_at"]),
+            ("followup_actions", ["session_id", "template_id", "scheduled_date"]),
+            ("api_usage_metrics", ["api_name", "endpoint", "date"]),
+        ]
+        
+        async with pool.acquire() as conn:
+            for table, columns in duplicate_row_checks:
+                # Check if table exists
+                if table not in [t['tablename'] for t in schema.get('tables', [])]:
+                    continue
+                    
+                # Check if all columns exist
+                if table not in schema.get('columns', {}):
+                    continue
+                    
+                table_columns = [c['column_name'] for c in schema['columns'].get(table, [])]
+                if not all(col in table_columns for col in columns):
+                    continue
+                
+                try:
+                    col_list = ", ".join(quote_ident(col) for col in columns)
+                    # Check for duplicate rows
+                    dup_count = await conn.fetchval(f"""
+                        SELECT COUNT(*) FROM (
+                            SELECT {col_list}, COUNT(*) as count
+                            FROM {quote_ident(table)}
+                            GROUP BY {col_list}
+                            HAVING COUNT(*) > 1
+                        ) as dups
+                    """)
+                    
+                    if dup_count > 0:
+                        issues.append(DatabaseIssue(
+                            issue_type='DUPLICATE_DATA',
+                            severity='MEDIUM',
+                            table=table,
+                            column=None,
+                            current_state=f"{dup_count} duplicate row combinations found",
+                            expected_state="Unique row combinations",
+                            description=f"Found {dup_count} duplicate row combinations in {table} based on columns: {', '.join(columns)}",
+                            fix_sql=None,  # No automatic fix
+                            affected_files=[],
+                            affected_queries=[]
+                        ))
+                        
+                except Exception as e:
+                    logger.warning(f"Error checking duplicate rows in {table}: {e}")
+        
+        return issues
     
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
@@ -1787,7 +1924,7 @@ class ManualFixRequest(BaseModel):
         allowed_types = [
             'MISSING_TABLE', 'MISSING_COLUMN', 'TYPE_MISMATCH', 
             'MISSING_INDEX', 'ORPHANED_DATA', 'PERFORMANCE',
-            'MISSING_PRIMARY_KEY', 'TYPE_CAST_IN_QUERY'
+            'MISSING_PRIMARY_KEY', 'TYPE_CAST_IN_QUERY', 'DUPLICATE_DATA'
         ]
         if v not in allowed_types:
             raise ValueError(f"Invalid issue type. Must be one of: {', '.join(allowed_types)}")
@@ -1902,7 +2039,8 @@ async def get_current_issues():
                     'MISSING_INDEX': [],
                     'MISSING_PRIMARY_KEY': [],
                     'ORPHANED_DATA': [],
-                    'TYPE_CAST_IN_QUERY': []
+                    'TYPE_CAST_IN_QUERY': [],
+                    'DUPLICATE_DATA': []
                 }
                 
                 # Process critical issues
