@@ -7,11 +7,18 @@ function createMonitoringWebSocket() {
     
     function connect() {
         try {
-            // Get WebSocket URL from configuration, with fallback
-            const apiUrl = window.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+            // Get API URL from configuration, with fallback
+            // Try import.meta.env first (for Vite processed files), then window, then default
+            const apiUrl = (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
+                          window.VITE_API_URL || 
+                          'https://jyotiflow-ai.onrender.com';
+            
             const backendUrl = new URL(apiUrl);
             const wsProtocol = backendUrl.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = (typeof window !== 'undefined' && window.MONITORING_WS_URL) ||
+            
+            // Get WebSocket URL with similar fallback pattern
+            const wsUrl = (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_WS_URL) ||
+                         (typeof window !== 'undefined' && window.MONITORING_WS_URL) ||
                          (typeof process !== 'undefined' && process.env.MONITORING_WS_URL) ||
                          `${wsProtocol}//${backendUrl.host}/api/monitoring/ws`;
             
@@ -58,8 +65,10 @@ function createMonitoringWebSocket() {
         // Poll monitoring endpoint every 30 seconds as fallback
         setInterval(async () => {
             try {
-                const apiUrl = window.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
-            const response = await fetch(`${apiUrl}/api/monitoring/dashboard`);
+                const apiUrl = (typeof import !== 'undefined' && import.meta && import.meta.env && import.meta.env.VITE_API_URL) ||
+                              window.VITE_API_URL || 
+                              'https://jyotiflow-ai.onrender.com';
+                const response = await fetch(`${apiUrl}/api/monitoring/dashboard`);
                 const data = await response.json();
                 updateMonitoringDashboard(data);
             } catch (e) {
