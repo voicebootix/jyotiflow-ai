@@ -92,6 +92,44 @@ def quote_ident(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+def infer_column_type_from_name(column_name: str) -> str:
+    """Infer column type from naming patterns - standalone function"""
+    col_lower = column_name.lower()
+    
+    # ID columns
+    if col_lower == 'id' or col_lower.endswith('_id'):
+        if col_lower == 'session_id':
+            return 'VARCHAR(255)'
+        return 'INTEGER'
+    
+    # Boolean columns
+    if col_lower.startswith('is_') or col_lower.startswith('has_') or col_lower.endswith('_flag'):
+        return 'BOOLEAN'
+    
+    # Timestamp columns
+    if any(pattern in col_lower for pattern in ['_at', '_date', '_time', 'created', 'updated', 'modified']):
+        return 'TIMESTAMP'
+    
+    # Numeric columns
+    if any(pattern in col_lower for pattern in ['count', 'amount', 'quantity', 'total', 'sum']):
+        return 'INTEGER'
+    if any(pattern in col_lower for pattern in ['price', 'cost', 'rate', 'percentage']):
+        return 'NUMERIC(10,2)'
+    
+    # Text columns
+    if any(pattern in col_lower for pattern in ['name', 'title', 'email', 'username', 'code']):
+        return 'VARCHAR(255)'
+    if any(pattern in col_lower for pattern in ['description', 'comment', 'note', 'message', 'content']):
+        return 'TEXT'
+    
+    # JSON columns
+    if any(pattern in col_lower for pattern in ['json', 'data', 'metadata', 'config', 'settings']):
+        return 'JSONB'
+    
+    # Default
+    return 'TEXT'
+
+
 @dataclass
 class DatabaseIssue:
     """Represents a detected database issue"""
@@ -501,7 +539,7 @@ class CodePatternAnalyzer:
                 
                 # Match columns with inferred types
                 for col_name in column_names:
-                    columns[col_name] = self._infer_column_type_from_name(col_name)
+                    columns[col_name] = infer_column_type_from_name(col_name)
                 
                 return columns
             
@@ -551,7 +589,7 @@ class CodePatternAnalyzer:
                     elif in_where and token.ttype in (sqlparse.tokens.Name, None):
                         # Check if this is followed by an operator
                         if i + 1 < len(tokens) and tokens[i + 1].value in ('=', '>', '<', '>=', '<=', '!=', 'IS', 'IN', 'LIKE'):
-                            columns[token.value] = self._infer_column_type_from_name(token.value)
+                            columns[token.value] = infer_column_type_from_name(token.value)
                 
                 return columns
             
@@ -1405,41 +1443,8 @@ class DatabaseHealthMonitor:
         return issues
     
     def _infer_column_type_from_name(self, column_name: str) -> str:
-        """Infer column type from naming patterns"""
-        col_lower = column_name.lower()
-        
-        # ID columns
-        if col_lower.endswith('_id') or col_lower == 'id':
-            return 'INTEGER'
-        
-        # Timestamps
-        if col_lower.endswith('_at') or col_lower.endswith('_date'):
-            return 'TIMESTAMP'
-        
-        # Booleans
-        if col_lower.startswith('is_') or col_lower.startswith('has_') or col_lower.startswith('can_'):
-            return 'BOOLEAN DEFAULT FALSE'
-        
-        # Common patterns
-        if 'email' in col_lower:
-            return 'VARCHAR(255)'
-        if 'name' in col_lower or 'title' in col_lower:
-            return 'VARCHAR(255)'
-        if 'description' in col_lower or 'content' in col_lower or 'text' in col_lower:
-            return 'TEXT'
-        if 'price' in col_lower or 'amount' in col_lower or 'cost' in col_lower:
-            return 'NUMERIC(10,2)'
-        if 'count' in col_lower or 'quantity' in col_lower:
-            return 'INTEGER DEFAULT 0'
-        if 'url' in col_lower or 'link' in col_lower:
-            return 'TEXT'
-        if 'status' in col_lower or 'type' in col_lower:
-            return 'VARCHAR(50)'
-        if 'json' in col_lower or 'data' in col_lower or 'meta' in col_lower:
-            return 'JSONB'
-        
-        # Default
-        return 'TEXT'
+        """Infer column type from naming patterns - delegates to standalone function"""
+        return infer_column_type_from_name(column_name)
     
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
