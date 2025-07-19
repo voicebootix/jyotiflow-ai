@@ -509,12 +509,8 @@ if ENV_DEBUG_ROUTER_AVAILABLE:
     print("✅ Environment debug router registered")
 
 # Missing endpoints router for 404 fixes
-if MISSING_ENDPOINTS_AVAILABLE:
-    app.include_router(ai_router)
-    app.include_router(missing_user_router)
-    app.include_router(sessions_router)
-    app.include_router(community_router)
-    print("✅ Missing endpoints router registered")
+# Note: These routers are already registered above at lines 455-457
+# Removed duplicate registration to avoid conflicts
 
 print("🚀 All routers registered successfully!")
 
