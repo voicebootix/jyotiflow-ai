@@ -175,7 +175,16 @@ async def get_community_stats(db=Depends(get_db)):
             SELECT COUNT(DISTINCT user_email)
             FROM sessions
             WHERE created_at > NOW() - INTERVAL '7 days'
-        """)
+        """) or 0  # Ensure we always have a number, not None
+        
+        # Calculate proper engagement rate: (7-day active / 30-day total) * 100
+        # This shows what percentage of monthly users are currently active
+        total_members = stats["total_members"] or 0
+        engagement_rate = 0.0
+        
+        if total_members > 0:
+            # Calculate engagement as percentage of monthly users who were active in last 7 days
+            engagement_rate = round((active_members / total_members) * 100, 2)
         
         # Calculate growth trend by comparing current month to previous month
         growth_trend = "placeholder"  # Default placeholder value
@@ -188,7 +197,7 @@ async def get_community_stats(db=Depends(get_db)):
                   AND created_at <= NOW() - INTERVAL '30 days'
             """)
             
-            current_members = stats["total_members"] or 0
+            current_members = total_members
             
             if prev_month_members and prev_month_members > 0:
                 growth_percentage = ((current_members - prev_month_members) / prev_month_members) * 100
@@ -207,11 +216,11 @@ async def get_community_stats(db=Depends(get_db)):
             growth_trend = "placeholder_error"
         
         community_stats = {
-            "total_members": stats["total_members"] or 0,
-            "active_members": active_members or 0,
+            "total_members": total_members,
+            "active_members": active_members,
             "total_sessions": stats["total_sessions"] or 0,
             "avg_session_duration": round(stats["avg_session_duration"] or 0, 2),
-            "engagement_rate": round((active_members / max(stats["total_members"], 1)) * 100, 2) if stats["total_members"] else 0,
+            "engagement_rate": engagement_rate,
             "growth_trend": growth_trend
         }
         
