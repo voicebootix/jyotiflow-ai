@@ -78,6 +78,7 @@ async def register(form: RegisterForm, db=Depends(get_db)):
         
         token = await create_jwt_token(user_id, form.email, "user")
         return {
+            "success": True,
             "access_token": token, 
             "user": {
                 "id": str(user_id), 
