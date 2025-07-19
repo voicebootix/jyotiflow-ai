@@ -857,7 +857,8 @@ class DatabaseHealthMonitor:
                     actual_value TEXT,
                     error_message TEXT,
                     validation_time TIMESTAMP DEFAULT NOW(),
-                    auto_fixed BOOLEAN DEFAULT FALSE
+                    auto_fixed BOOLEAN DEFAULT FALSE,
+                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_integration_validations_session 
                 ON integration_validations(session_id);
@@ -874,7 +875,8 @@ class DatabaseHealthMonitor:
                     auto_fixable BOOLEAN DEFAULT FALSE,
                     fixed BOOLEAN DEFAULT FALSE,
                     user_impact TEXT,
-                    created_at TIMESTAMP DEFAULT NOW()
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
                 );
                 CREATE INDEX IF NOT EXISTS idx_business_logic_issues_session
                 ON business_logic_issues(session_id);
@@ -889,7 +891,8 @@ class DatabaseHealthMonitor:
                     overall_status VARCHAR(50),
                     user_context JSONB,
                     validation_results JSONB,
-                    created_at TIMESTAMP DEFAULT NOW()
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    FOREIGN KEY (user_id) REFERENCES users(id)
                 );
             """,
             'context_snapshots': """
@@ -899,7 +902,8 @@ class DatabaseHealthMonitor:
                     integration_point VARCHAR(100) NOT NULL,
                     context_data JSONB NOT NULL,
                     context_hash VARCHAR(64),
-                    created_at TIMESTAMP DEFAULT NOW()
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
                 );
             """
         }
