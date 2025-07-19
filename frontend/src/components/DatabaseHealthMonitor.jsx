@@ -64,6 +64,10 @@ export default function DatabaseHealthMonitor() {
             if (!response.ok) throw new Error(`Failed to fetch issues: ${response.status}`);
             const data = await response.json();
             setIssues(data);
+            
+            // Clear attempted fixes when new issues are fetched
+            // This allows retrying fixes after a refresh
+            setAttemptedFixes(new Set());
         } catch (error) {
             console.error('Failed to fetch issues:', error);
             setError('Failed to fetch database issues');
@@ -164,21 +168,38 @@ export default function DatabaseHealthMonitor() {
         }
     };
 
-    // Auto-fix logic
+    // Track attempted fixes to prevent infinite loops
+    const [attemptedFixes, setAttemptedFixes] = useState(new Set());
+    const [lastAutoFixTime, setLastAutoFixTime] = useState(0);
+    
+    // Auto-fix logic with loop prevention
     useEffect(() => {
         if (autoMode && issues.critical_issues?.length > 0 && !fixingIssue) {
+            const now = Date.now();
+            const cooldownMs = 5000; // 5 second cooldown between auto-fixes
+            
+            if (now - lastAutoFixTime < cooldownMs) {
+                return; // Still in cooldown period
+            }
+            
             const autoFixableIssues = issues.critical_issues.filter(issue => 
-                issue.fix_sql && issue.severity === 'CRITICAL'
+                issue.fix_sql && 
+                issue.severity === 'CRITICAL' &&
+                !attemptedFixes.has(issue.issue_id || `${issue.table}-${issue.issue_type}`)
             );
             
             if (autoFixableIssues.length > 0) {
-                // Auto-fix the first critical issue
+                // Auto-fix the first critical issue not yet attempted
                 const issueToFix = autoFixableIssues[0];
+                const issueKey = issueToFix.issue_id || `${issueToFix.table}-${issueToFix.issue_type}`;
+                
                 console.log('Auto-fixing issue:', issueToFix);
+                setAttemptedFixes(prev => new Set([...prev, issueKey]));
+                setLastAutoFixTime(now);
                 applyFix(issueToFix);
             }
         }
-    }, [autoMode, issues.critical_issues, fixingIssue]);
+    }, [autoMode, issues.critical_issues, fixingIssue, applyFix, attemptedFixes, lastAutoFixTime]);
 
     // Modal accessibility - Escape key handling
     useEffect(() => {

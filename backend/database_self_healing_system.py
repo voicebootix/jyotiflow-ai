@@ -737,7 +737,7 @@ class CodePatternAnalyzer:
     
     def _generate_table_schemas_from_queries(self, query_patterns: Dict[str, List[Dict]], 
                                            min_queries: int = 2,
-                                           dry_run: bool = False) -> Dict[str, str]:
+                                           dry_run: bool = False) -> Dict[str, Any]:
         """Generate table schemas dynamically based on detected query patterns
         
         Args:
@@ -792,9 +792,13 @@ class CodePatternAnalyzer:
                 table_name_escaped = self._escape_identifier(table_name)
                 create_sql = f"CREATE TABLE IF NOT EXISTS {table_name_escaped} (\n"
                 
+                # Track columns for validation (including auto-generated ones)
+                validation_columns = columns.copy()
+                
                 # Add id column if not present (common pattern)
                 if 'id' not in columns:
                     create_sql += "    id SERIAL PRIMARY KEY,\n"
+                    validation_columns['id'] = 'SERIAL'
                 
                 # Add detected columns
                 for col_name, col_type in columns.items():
@@ -814,17 +818,22 @@ class CodePatternAnalyzer:
                     # Add common columns based on table name patterns
                     if 'session' in table_name:
                         create_sql += "    session_id VARCHAR(255),\n"
+                        validation_columns['session_id'] = 'VARCHAR(255)'
                     if 'user' in table_name or 'validation' in table_name:
                         create_sql += "    user_id INTEGER,\n"
+                        validation_columns['user_id'] = 'INTEGER'
                     if 'log' in table_name or 'issue' in table_name:
                         create_sql += "    description TEXT,\n"
+                        validation_columns['description'] = 'TEXT'
                     # Add timestamp if not already present
-                    if 'created_at' not in columns:
+                    if 'created_at' not in validation_columns:
                         create_sql += "    created_at TIMESTAMP DEFAULT NOW(),\n"
+                        validation_columns['created_at'] = 'TIMESTAMP'
                 
                 # Add timestamp columns if detected in queries but not in columns
                 elif 'created_at' not in columns and any('created' in q['query'].lower() for q in queries):
                     create_sql += "    created_at TIMESTAMP DEFAULT NOW(),\n"
+                    validation_columns['created_at'] = 'TIMESTAMP'
                 
                 # Add foreign key constraints
                 for fk in has_foreign_keys:
@@ -837,7 +846,7 @@ class CodePatternAnalyzer:
                 create_sql = create_sql.rstrip(',\n') + "\n);"
                 
                 # Validate generated schema
-                if self._validate_schema(create_sql, columns):
+                if self._validate_schema(create_sql, validation_columns):
                     schemas[table_name] = create_sql
                     logger.info(f"Generated schema for table '{table_name}' based on {len(queries)} queries")
                 else:
