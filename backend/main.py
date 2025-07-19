@@ -177,9 +177,6 @@ from init_database import initialize_jyotiflow_database
 
 # Enhanced startup integration and fixes are now consolidated in simple_unified_startup.py
 
-# Import database schema fix
-from db_schema_fix import fix_database_schema
-
 async def ensure_base_credits_column():
     # Use shared database pool instead of creating individual connection
     import db

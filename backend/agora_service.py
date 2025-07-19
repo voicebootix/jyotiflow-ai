@@ -153,7 +153,7 @@ class AgoraChannelManager:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Shared database pool not available")
-                return None
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
             async with pool.acquire() as conn:
                 session = await conn.fetchrow("""
                     SELECT channel_name, session_type, status, expires_at
@@ -224,7 +224,7 @@ class AgoraChannelManager:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Shared database pool not available")
-                return None
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
             async with pool.acquire() as conn:
                 # Update session status
                 await conn.execute("""
@@ -265,7 +265,7 @@ class AgoraChannelManager:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Shared database pool not available")
-                return None
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
             async with pool.acquire() as conn:
                 # Get session details
                 session = await conn.fetchrow("""
@@ -356,7 +356,7 @@ class AgoraServiceManager:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Shared database pool not available")
-                return None
+                raise HTTPException(status_code=503, detail="Database service temporarily unavailable")
             async with pool.acquire() as conn:
                 await conn.execute("""
                     UPDATE live_chat_sessions 

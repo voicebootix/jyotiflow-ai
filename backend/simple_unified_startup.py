@@ -4,7 +4,6 @@ Clean, minimal database initialization with shared pool architecture
 """
 
 import os
-import asyncio
 import asyncpg
 import logging
 import time

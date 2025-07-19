@@ -204,7 +204,16 @@ class BirthChartCacheService:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Database pool not available")
-                return None
+                return {
+                    'has_birth_details': False,
+                    'has_cached_data': False,
+                    'cache_valid': False,
+                    'cached_at': None,
+                    'expires_at': None,
+                    'has_free_birth_chart': False,
+                    'user_type': 'unknown',
+                    'service_available': False
+                }
             
             async with pool.acquire() as conn:
                 user_data = await conn.fetchrow("""
@@ -361,7 +370,17 @@ class BirthChartCacheService:
             pool = db.get_db_pool()
             if not pool:
                 logger.warning("Database pool not available")
-                return None
+                return {
+                    'total_users': 0,
+                    'users_with_cached_data': 0,
+                    'users_with_valid_cache': 0,
+                    'users_with_free_chart': 0,
+                    'cache_hit_ratio': 0.0,
+                    'avg_cache_age_days': 0.0,
+                    'guest_cache_total': guest_total,
+                    'guest_cache_valid': guest_valid,
+                    'database_available': False
+                }
             
             async with pool.acquire() as conn:
                 stats = await conn.fetchrow("""
