@@ -723,6 +723,11 @@ class DatabaseHealthMonitor:
             logger.info("Detecting schema issues...")
             schema_issues = await self._detect_schema_issues(schema)
             
+            # 3.5 Detect missing tables from code patterns
+            logger.info("Detecting missing tables from code patterns...")
+            missing_table_issues = await self._detect_missing_tables(schema, self.code_analyzer.query_patterns)
+            schema_issues.extend(missing_table_issues)
+            
             # 4. Combine all issues
             all_issues = code_issues + schema_issues
             results['issues_found'] = len(all_issues)
@@ -834,6 +839,87 @@ class DatabaseHealthMonitor:
         
         return issues
     
+    async def _detect_missing_tables(self, schema: Dict, query_patterns: Dict[str, List[Dict]]) -> List[DatabaseIssue]:
+        """Detect tables that are referenced in code but missing in the schema."""
+        issues = []
+        all_tables_in_schema = {t['tablename'] for t in schema['tables']}
+        
+        # Define CREATE TABLE statements for known monitoring tables
+        monitoring_table_definitions = {
+            'integration_validations': """
+                CREATE TABLE IF NOT EXISTS integration_validations (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255) NOT NULL,
+                    integration_name VARCHAR(100) NOT NULL,
+                    validation_type VARCHAR(100),
+                    status VARCHAR(50),
+                    expected_value TEXT,
+                    actual_value TEXT,
+                    error_message TEXT,
+                    validation_time TIMESTAMP DEFAULT NOW(),
+                    auto_fixed BOOLEAN DEFAULT FALSE
+                );
+                CREATE INDEX IF NOT EXISTS idx_integration_validations_session 
+                ON integration_validations(session_id);
+                CREATE INDEX IF NOT EXISTS idx_integration_validations_time 
+                ON integration_validations(validation_time);
+            """,
+            'business_logic_issues': """
+                CREATE TABLE IF NOT EXISTS business_logic_issues (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255),
+                    issue_type VARCHAR(100),
+                    severity VARCHAR(50),
+                    description TEXT,
+                    auto_fixable BOOLEAN DEFAULT FALSE,
+                    fixed BOOLEAN DEFAULT FALSE,
+                    user_impact TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+                CREATE INDEX IF NOT EXISTS idx_business_logic_issues_session
+                ON business_logic_issues(session_id);
+            """,
+            'validation_sessions': """
+                CREATE TABLE IF NOT EXISTS validation_sessions (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255) UNIQUE NOT NULL,
+                    user_id INTEGER,
+                    started_at TIMESTAMP DEFAULT NOW(),
+                    completed_at TIMESTAMP,
+                    overall_status VARCHAR(50),
+                    user_context JSONB,
+                    validation_results JSONB,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """,
+            'context_snapshots': """
+                CREATE TABLE IF NOT EXISTS context_snapshots (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255) NOT NULL,
+                    integration_point VARCHAR(100) NOT NULL,
+                    context_data JSONB NOT NULL,
+                    context_hash VARCHAR(64),
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """
+        }
+        
+        for table_name, patterns in query_patterns.items():
+            if table_name not in all_tables_in_schema:
+                # Check if it's a monitoring table we know how to create
+                fix_sql = monitoring_table_definitions.get(table_name)
+                
+                issues.append(DatabaseIssue(
+                    issue_type='MISSING_TABLE',
+                    severity='CRITICAL',
+                    table=table_name,
+                    current_state='Table not found in schema',
+                    expected_state='Table must exist',
+                    fix_sql=fix_sql,
+                    affected_files=[p['file'] for p in patterns[:3]]  # Show first 3 files
+                ))
+        return issues
+
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
         import db
