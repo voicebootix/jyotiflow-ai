@@ -56,8 +56,7 @@ CRITICAL_TABLES = {
 
 # SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
 SPIRITUAL_SERVICE_PRIORITIES = {
-    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base', 
-                 'integration_validations', 'business_logic_issues', 'validation_sessions', 'context_snapshots'],
+    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base'],
     'HIGH': ['credit_transactions', 'payments', 'birth_chart_cache'],
     'MEDIUM': ['followup_templates', 'health_check_results'],
     'LOW': ['database_backups', 'platform_settings']
@@ -724,11 +723,6 @@ class DatabaseHealthMonitor:
             logger.info("Detecting schema issues...")
             schema_issues = await self._detect_schema_issues(schema)
             
-            # 3.5 Detect missing tables from code patterns
-            logger.info("Detecting missing tables from code patterns...")
-            missing_table_issues = await self._detect_missing_tables(schema, self.code_analyzer.query_patterns)
-            schema_issues.extend(missing_table_issues)
-            
             # 4. Combine all issues
             all_issues = code_issues + schema_issues
             results['issues_found'] = len(all_issues)
@@ -840,107 +834,6 @@ class DatabaseHealthMonitor:
         
         return issues
     
-    async def _detect_missing_tables(self, schema: Dict, query_patterns: Dict[str, List[Dict]]) -> List[DatabaseIssue]:
-        """Detect tables that are referenced in code but missing in the schema."""
-        issues = []
-        all_tables_in_schema = {t['tablename'] for t in schema['tables']}
-        
-        # Discover table schemas from migrations and code
-        discovered_schemas = await self._discover_table_schemas()
-        
-        for table_name, patterns in query_patterns.items():
-            if table_name not in all_tables_in_schema:
-                # Look for CREATE TABLE statement in discovered schemas
-                fix_sql = discovered_schemas.get(table_name)
-                
-                if not fix_sql:
-                    # Try to find in migration files specifically
-                    fix_sql = await self._find_create_table_in_migrations(table_name)
-                
-                issues.append(DatabaseIssue(
-                    issue_type='MISSING_TABLE',
-                    severity='CRITICAL',
-                    table=table_name,
-                    current_state='Table not found in schema',
-                    expected_state='Table must exist',
-                    fix_sql=fix_sql,
-                    affected_files=[p['file'] for p in patterns[:3]]
-                ))
-        return issues
-    
-    async def _discover_table_schemas(self) -> Dict[str, str]:
-        """Discover CREATE TABLE statements from codebase"""
-        schemas = {}
-        
-        # Search Python files for CREATE TABLE statements
-        python_files = glob.glob("**/*.py", recursive=True)
-        sql_files = glob.glob("**/*.sql", recursive=True)
-        
-        all_files = python_files + sql_files
-        
-        for file_path in all_files:
-            if any(skip in file_path for skip in ['venv/', '__pycache__/', '.git/', 'node_modules/']):
-                continue
-            
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                # Find CREATE TABLE statements
-                create_table_pattern = r'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(\w+)\s*\([^;]+\);?'
-                matches = re.finditer(create_table_pattern, content, re.IGNORECASE | re.DOTALL)
-                
-                for match in matches:
-                    table_name = match.group(1).lower()
-                    create_statement = match.group(0)
-                    
-                    # Clean up the statement
-                    create_statement = re.sub(r'\s+', ' ', create_statement)
-                    
-                    # Store the schema
-                    schemas[table_name] = create_statement
-                    
-            except Exception as e:
-                logger.debug(f"Error reading {file_path}: {e}")
-        
-        return schemas
-    
-    async def _find_create_table_in_migrations(self, table_name: str) -> Optional[str]:
-        """Look specifically in migration files for a table's CREATE statement"""
-        migration_dirs = ['migrations/', 'backend/migrations/', 'database/migrations/']
-        
-        for migration_dir in migration_dirs:
-            if not os.path.exists(migration_dir):
-                continue
-            
-            migration_files = glob.glob(f"{migration_dir}*.sql") + glob.glob(f"{migration_dir}*.py")
-            
-            for file_path in sorted(migration_files, reverse=True):  # Check newest first
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                    
-                    # Look for CREATE TABLE for this specific table
-                    pattern = rf'CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?{re.escape(table_name)}\s*\([^;]+\);?'
-                    match = re.search(pattern, content, re.IGNORECASE | re.DOTALL)
-                    
-                    if match:
-                        create_statement = match.group(0)
-                        
-                        # Also look for related indexes
-                        index_pattern = rf'CREATE\s+INDEX[^;]+ON\s+{re.escape(table_name)}[^;]+;'
-                        index_matches = re.findall(index_pattern, content, re.IGNORECASE)
-                        
-                        if index_matches:
-                            create_statement += '\n' + '\n'.join(index_matches)
-                        
-                        return create_statement
-                        
-                except Exception as e:
-                    logger.debug(f"Error reading migration {file_path}: {e}")
-        
-        return None
-
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
         import db
