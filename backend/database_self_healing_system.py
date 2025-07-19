@@ -1596,9 +1596,8 @@ class DatabaseHealthMonitor:
                 severity='CRITICAL',
                 table=table_name,
                 column=column,
-                current_state=f"{total_duplicates} duplicate groups violating UNIQUE constraint",
+                current_state=f"{total_duplicates} duplicate groups violating UNIQUE constraint. Found duplicates: {', '.join(duplicate_values)}{'...' if len(duplicates) > 3 else ''}",
                 expected_state=f"Unique values enforced by constraint {constraint_name}",
-                description=f"UNIQUE constraint violation in {table_name}.{column}: {', '.join(duplicate_values)}{'...' if len(duplicates) > 3 else ''}",
                 fix_sql=None,  # Manual review needed
                 affected_files=[],
                 affected_queries=[]
@@ -1631,9 +1630,8 @@ class DatabaseHealthMonitor:
                 severity='CRITICAL',
                 table=table_name,
                 column=None,
-                current_state=f"{dup_count} duplicate combinations violating UNIQUE constraint",
+                current_state=f"{dup_count} duplicate combinations violating UNIQUE constraint on columns ({', '.join(columns)})",
                 expected_state=f"Unique combinations enforced by constraint {constraint_name}",
-                description=f"UNIQUE constraint violation in {table_name} on columns ({', '.join(columns)})",
                 fix_sql=None,
                 affected_files=[],
                 affected_queries=[]
@@ -1732,9 +1730,8 @@ class DatabaseHealthMonitor:
                     severity='HIGH',
                     table=table_name,
                     column=column_name,
-                    current_state=f"{dup_count} groups of duplicates (no unique constraint)",
+                    current_state=f"{dup_count} groups of duplicates (no unique constraint). Found: {', '.join(duplicate_values)}",
                     expected_state=f"Column {column_name} should probably have unique constraint",
-                    description=f"Column {table_name}.{column_name} has duplicates but no unique constraint: {', '.join(duplicate_values)}",
                     fix_sql=f"-- Consider adding: ALTER TABLE {quote_ident(table_name)} ADD CONSTRAINT {quote_ident(f'{table_name}_{column_name}_unique')} UNIQUE ({quote_ident(column_name)});",
                     affected_files=[],
                     affected_queries=[]
@@ -1790,9 +1787,8 @@ class DatabaseHealthMonitor:
                             severity='MEDIUM',
                             table=table_name,
                             column=None,
-                            current_state=f"{dup_count} sets of duplicate rows",
+                            current_state=f"Found {dup_count} sets of completely duplicate rows (ignoring id/timestamps)",
                             expected_state="No duplicate rows",
-                            description=f"Found {dup_count} sets of completely duplicate rows in {table_name} (ignoring id/timestamps)",
                             fix_sql=None,  # Too complex for auto-fix
                             affected_files=[],
                             affected_queries=[]
