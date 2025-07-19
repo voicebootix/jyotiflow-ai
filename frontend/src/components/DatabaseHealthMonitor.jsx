@@ -20,7 +20,8 @@ const ISSUE_CONFIG = {
     MISSING_INDEX: { icon: Link, color: 'text-blue-500', bgColor: 'bg-blue-50' },
     MISSING_PRIMARY_KEY: { icon: Key, color: 'text-purple-500', bgColor: 'bg-purple-50' },
     ORPHANED_DATA: { icon: Trash2, color: 'text-gray-500', bgColor: 'bg-gray-50' },
-    TYPE_CAST_IN_QUERY: { icon: Code, color: 'text-indigo-500', bgColor: 'bg-indigo-50' }
+    TYPE_CAST_IN_QUERY: { icon: Code, color: 'text-indigo-500', bgColor: 'bg-indigo-50' },
+    DUPLICATE_DATA: { icon: AlertTriangle, color: 'text-red-600', bgColor: 'bg-red-100' }
 };
 
 export default function DatabaseHealthMonitor() {
@@ -356,17 +357,24 @@ export default function DatabaseHealthMonitor() {
                             </div>
                             <div>
                                 <p className="text-sm text-gray-600">Total Issues</p>
-                                <p className="text-2xl font-bold">{issues.summary.total_issues}</p>
+                                <p className="text-2xl font-bold">{issues.summary.total_issues || 0}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-600">Critical Issues</p>
-                                <p className="text-2xl font-bold text-red-600">{issues.summary.critical_count}</p>
+                                <p className="text-2xl font-bold text-red-600">{issues.summary.critical_count || 0}</p>
                             </div>
                             <div>
                                 <p className="text-sm text-gray-600">Auto-fixable</p>
-                                <p className="text-2xl font-bold text-green-600">{issues.summary.auto_fixable}</p>
+                                <p className="text-2xl font-bold text-green-600">{issues.summary.auto_fixable || 0}</p>
                             </div>
                         </div>
+                        
+                        {/* Last Check Time */}
+                        {status.last_check && (
+                            <div className="mt-4 text-sm text-gray-600">
+                                Last check: {new Date(status.last_check).toLocaleString()}
+                            </div>
+                        )}
                         
                         {/* Control Buttons */}
                         <div className="flex gap-3 mt-6">
@@ -447,6 +455,13 @@ export default function DatabaseHealthMonitor() {
                                 {issues.warnings.map((issue, idx) => renderIssueCard(issue, `warning-${idx}`))}
                             </div>
                         )}
+                        {issues.critical_issues.length === 0 && issues.warnings.length === 0 && (
+                            <div className="text-center py-8">
+                                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                                <p className="text-lg font-medium text-gray-700">No issues found!</p>
+                                <p className="text-sm text-gray-500 mt-2">Your database is healthy.</p>
+                            </div>
+                        )}
                     </TabsContent>
                     
                     <TabsContent value="by-type">
@@ -458,11 +473,25 @@ export default function DatabaseHealthMonitor() {
                                 </div>
                             )
                         ))}
+                        {Object.values(issues.issues_by_type || {}).every(typeIssues => typeIssues.length === 0) && (
+                            <div className="text-center py-8">
+                                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                                <p className="text-lg font-medium text-gray-700">No issues found!</p>
+                                <p className="text-sm text-gray-500 mt-2">Your database is healthy.</p>
+                            </div>
+                        )}
                     </TabsContent>
                     
                     <TabsContent value="all">
                         {[...issues.critical_issues, ...issues.warnings].map((issue, idx) => 
                             renderIssueCard(issue, `all-${idx}`)
+                        )}
+                        {issues.critical_issues.length === 0 && issues.warnings.length === 0 && (
+                            <div className="text-center py-8">
+                                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
+                                <p className="text-lg font-medium text-gray-700">No issues found!</p>
+                                <p className="text-sm text-gray-500 mt-2">Your database is healthy.</p>
+                            </div>
                         )}
                     </TabsContent>
                 </Tabs>

@@ -185,14 +185,43 @@ class PostgreSQLSchemaAnalyzer:
             raise Exception("Shared database pool not available")
         
         async with pool.acquire() as conn:
-            schema = {
-                'tables': await self._get_all_tables(conn),
-                'columns': await self._get_all_columns(conn),
-                'constraints': await self._get_all_constraints(conn),
-                'indexes': await self._get_all_indexes(conn),
-                'functions': await self._get_all_functions(conn),
-                'triggers': await self._get_all_triggers(conn)
-            }
+            schema = {}
+            
+            try:
+                schema['tables'] = await self._get_all_tables(conn)
+            except Exception as e:
+                logger.error(f"Error getting tables: {e}")
+                schema['tables'] = []
+            
+            try:
+                schema['columns'] = await self._get_all_columns(conn)
+            except Exception as e:
+                logger.error(f"Error getting columns: {e}")
+                schema['columns'] = {}
+            
+            try:
+                schema['constraints'] = await self._get_all_constraints(conn)
+            except Exception as e:
+                logger.error(f"Error getting constraints: {e}")
+                schema['constraints'] = {}
+            
+            try:
+                schema['indexes'] = await self._get_all_indexes(conn)
+            except Exception as e:
+                logger.error(f"Error getting indexes: {e}")
+                schema['indexes'] = {}
+            
+            try:
+                schema['functions'] = await self._get_all_functions(conn)
+            except Exception as e:
+                logger.error(f"Error getting functions: {e}")
+                schema['functions'] = []
+            
+            try:
+                schema['triggers'] = await self._get_all_triggers(conn)
+            except Exception as e:
+                logger.error(f"Error getting triggers: {e}")
+                schema['triggers'] = []
             
             # Cache the schema
             self._known_schemas = schema
@@ -300,12 +329,16 @@ class PostgreSQLSchemaAnalyzer:
         return dict(indexes_by_table)
     
     async def _get_all_functions(self, conn: asyncpg.Connection) -> List[Dict]:
-        """Get all user-defined functions"""
+        """Get all user-defined functions including aggregates"""
         query = """
             SELECT 
                 proname AS function_name,
                 pg_get_function_identity_arguments(oid) AS arguments,
-                pg_get_functiondef(oid) AS definition
+                CASE 
+                    WHEN prokind = 'a' THEN 'AGGREGATE FUNCTION - ' || proname || '(' || pg_get_function_identity_arguments(oid) || ')'
+                    ELSE pg_get_functiondef(oid) 
+                END AS definition,
+                prokind
             FROM pg_proc
             WHERE pronamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public')
         """
@@ -1169,6 +1202,8 @@ class DatabaseHealthMonitor:
             'performance_metrics': {}
         }
         
+        schema = None  # Initialize schema variable
+        
         try:
             # 1. Analyze database schema
             logger.info("Analyzing database schema...")
@@ -1196,23 +1231,32 @@ class DatabaseHealthMonitor:
                 'issues_found': len(code_issues)
             }
             
-            # 3. Detect schema issues
-            logger.info("Detecting schema issues...")
-            schema_issues = await self._detect_schema_issues(schema)
-            
-            # 3.5 Detect critical missing tables referenced in code
-            logger.info("Detecting missing critical tables...")
-            missing_table_issues = await self._detect_critical_missing_tables(
-                schema, self.code_analyzer.query_patterns
-            )
-            schema_issues.extend(missing_table_issues)
-            
-            # 3.6 Detect missing columns referenced in code
-            logger.info("Detecting missing columns...")
-            missing_column_issues = await self._detect_missing_columns(
-                schema, self.code_analyzer.query_patterns
-            )
-            schema_issues.extend(missing_column_issues)
+            # 3. Detect schema issues (only if schema was successfully analyzed)
+            schema_issues = []
+            if schema:
+                logger.info("Detecting schema issues...")
+                schema_issues = await self._detect_schema_issues(schema)
+                
+                # 3.5 Detect critical missing tables referenced in code
+                logger.info("Detecting missing critical tables...")
+                missing_table_issues = await self._detect_critical_missing_tables(
+                    schema, self.code_analyzer.query_patterns
+                )
+                schema_issues.extend(missing_table_issues)
+                
+                # 3.6 Detect missing columns referenced in code
+                logger.info("Detecting missing columns...")
+                missing_column_issues = await self._detect_missing_columns(
+                    schema, self.code_analyzer.query_patterns
+                )
+                schema_issues.extend(missing_column_issues)
+                
+                # 3.7 Detect duplicate data
+                logger.info("Detecting duplicate data...")
+                duplicate_issues = await self._detect_duplicate_data(schema)
+                schema_issues.extend(duplicate_issues)
+            else:
+                logger.warning("Skipping schema issue detection due to schema analysis failure")
             
             # 4. Combine all issues
             all_issues = code_issues + schema_issues
@@ -1445,6 +1489,368 @@ class DatabaseHealthMonitor:
     def _infer_column_type_from_name(self, column_name: str) -> str:
         """Infer column type from naming patterns - delegates to standalone function"""
         return infer_column_type_from_name(column_name)
+    
+    async def _check_unique_constraint_violations(self, conn: asyncpg.Connection, schema: Dict) -> List[DatabaseIssue]:
+        """Check for violations of existing UNIQUE constraints"""
+        issues = []
+        
+        # Fetch all UNIQUE constraints from the database
+        logger.info("Fetching UNIQUE constraints from information_schema...")
+        try:
+            unique_constraints = await conn.fetch("""
+                SELECT 
+                    tc.table_name,
+                    kcu.column_name,
+                    tc.constraint_name
+                FROM information_schema.table_constraints tc
+                JOIN information_schema.key_column_usage kcu 
+                    ON tc.constraint_name = kcu.constraint_name
+                    AND tc.table_schema = kcu.table_schema
+                WHERE tc.constraint_type = 'UNIQUE'
+                    AND tc.table_schema = 'public'
+                ORDER BY tc.table_name, kcu.ordinal_position
+            """)
+            logger.info(f"Found {len(unique_constraints)} UNIQUE constraint columns")
+        except Exception as e:
+            logger.error(f"Failed to fetch UNIQUE constraints: {e}")
+            return issues
+        
+        # Group by table and constraint
+        unique_by_table = defaultdict(list)
+        for row in unique_constraints:
+            unique_by_table[row['table_name']].append({
+                'column': row['column_name'],
+                'constraint': row['constraint_name']
+            })
+        
+        # Check each unique constraint for violations
+        logger.info(f"Checking {len(unique_by_table)} tables with UNIQUE constraints")
+        for table_name in unique_by_table:
+            if table_name not in [t['tablename'] for t in schema.get('tables', [])]:
+                logger.debug(f"Skipping {table_name} - not in schema")
+                continue
+            
+            # Group columns by constraint name
+            constraints_dict = defaultdict(list)
+            for item in unique_by_table[table_name]:
+                constraints_dict[item['constraint']].append(item['column'])
+            
+            for constraint_name, columns in constraints_dict.items():
+                try:
+                    if len(columns) == 1:
+                        # Single column unique constraint
+                        issue = await self._check_single_column_constraint(
+                            conn, table_name, columns[0], constraint_name
+                        )
+                        if issue:
+                            issues.append(issue)
+                    else:
+                        # Multi-column unique constraint
+                        issue = await self._check_multi_column_constraint(
+                            conn, table_name, columns, constraint_name
+                        )
+                        if issue:
+                            issues.append(issue)
+                            
+                except Exception as e:
+                    logger.warning(f"Error checking unique constraint {constraint_name} in {table_name}: {e}")
+        
+        return issues
+    
+    async def _check_single_column_constraint(self, conn: asyncpg.Connection, table_name: str, 
+                                            column: str, constraint_name: str) -> Optional[DatabaseIssue]:
+        """Check a single column unique constraint for violations"""
+        logger.debug(f"Checking single-column constraint {constraint_name} on {table_name}.{column}")
+        
+        # Use LIMIT to improve performance on large tables
+        duplicates = await conn.fetch(f"""
+            SELECT {quote_ident(column)}, COUNT(*) as count
+            FROM {quote_ident(table_name)}
+            WHERE {quote_ident(column)} IS NOT NULL
+            GROUP BY {quote_ident(column)}
+            HAVING COUNT(*) > 1
+            ORDER BY count DESC
+            LIMIT 5
+        """)
+        
+        if duplicates:
+            logger.warning(f"Found duplicates in {table_name}.{column} violating constraint {constraint_name}")
+            
+            # Get total count with a more efficient query
+            total_duplicates = await conn.fetchval(f"""
+                SELECT COUNT(*) FROM (
+                    SELECT 1
+                    FROM {quote_ident(table_name)}
+                    WHERE {quote_ident(column)} IS NOT NULL
+                    GROUP BY {quote_ident(column)}
+                    HAVING COUNT(*) > 1
+                    LIMIT 1000  -- Limit for performance
+                ) as dup_check
+            """)
+            
+            duplicate_values = [f"'{row[column]}' ({row['count']} times)" for row in duplicates[:3]]
+            logger.info(f"Duplicate samples: {duplicate_values}")
+            
+            return DatabaseIssue(
+                issue_type='DUPLICATE_DATA',
+                severity='CRITICAL',
+                table=table_name,
+                column=column,
+                current_state=f"{total_duplicates} duplicate groups violating UNIQUE constraint. Found duplicates: {', '.join(duplicate_values)}{'...' if len(duplicates) > 3 else ''}",
+                expected_state=f"Unique values enforced by constraint {constraint_name}",
+                fix_sql=None,  # Manual review needed
+                affected_files=[],
+                affected_queries=[]
+            )
+        
+        return None
+    
+    async def _check_multi_column_constraint(self, conn: asyncpg.Connection, table_name: str,
+                                           columns: List[str], constraint_name: str) -> Optional[DatabaseIssue]:
+        """Check a multi-column unique constraint for violations"""
+        col_list = ", ".join(quote_ident(col) for col in columns)
+        logger.debug(f"Checking multi-column constraint {constraint_name} on {table_name} columns: {columns}")
+        
+        # More efficient count query with limit
+        dup_count = await conn.fetchval(f"""
+            SELECT COUNT(*) FROM (
+                SELECT 1
+                FROM {quote_ident(table_name)}
+                GROUP BY {col_list}
+                HAVING COUNT(*) > 1
+                LIMIT 100  -- Limit for performance
+            ) as dup_check
+        """)
+        
+        if dup_count > 0:
+            logger.warning(f"Found {dup_count} duplicate combinations in {table_name} violating constraint {constraint_name}")
+            
+            return DatabaseIssue(
+                issue_type='DUPLICATE_DATA',
+                severity='CRITICAL',
+                table=table_name,
+                column=None,
+                current_state=f"{dup_count} duplicate combinations violating UNIQUE constraint on columns ({', '.join(columns)})",
+                expected_state=f"Unique combinations enforced by constraint {constraint_name}",
+                fix_sql=None,
+                affected_files=[],
+                affected_queries=[]
+            )
+        
+        return None
+    
+    async def _check_pattern_based_uniqueness(self, conn: asyncpg.Connection, schema: Dict,
+                                            unique_by_table: Dict) -> List[DatabaseIssue]:
+        """Check columns that should be unique based on naming patterns"""
+        issues = []
+        
+        # Patterns that suggest a column should be unique
+        unique_pattern_columns = [
+            r'.*_id$',  # Columns ending with _id
+            r'.*_key$',  # Columns ending with _key
+            r'.*_code$',  # Columns ending with _code
+            r'^email$',  # Email columns
+            r'^username$',  # Username columns
+            r'.*_hash$',  # Hash columns
+            r'.*_token$',  # Token columns
+        ]
+        
+        logger.info("Checking columns that should be unique based on naming patterns...")
+        pattern_check_count = 0
+        
+        for table in schema.get('tables', []):
+            table_name = table['tablename']
+            if table_name not in schema.get('columns', {}):
+                continue
+            
+            for column_info in schema['columns'][table_name]:
+                column_name = column_info['column_name']
+                
+                # Skip if already has unique constraint
+                has_unique = any(
+                    col['column'] == column_name 
+                    for col in unique_by_table.get(table_name, [])
+                )
+                if has_unique:
+                    continue
+                
+                # Check if column matches any unique pattern
+                should_be_unique = any(
+                    re.match(pattern, column_name, re.IGNORECASE) 
+                    for pattern in unique_pattern_columns
+                )
+                
+                if should_be_unique:
+                    pattern_check_count += 1
+                    issue = await self._check_column_for_duplicates(
+                        conn, table_name, column_name
+                    )
+                    if issue:
+                        issues.append(issue)
+        
+        logger.info(f"Checked {pattern_check_count} columns based on naming patterns")
+        return issues
+    
+    async def _check_column_for_duplicates(self, conn: asyncpg.Connection, 
+                                         table_name: str, column_name: str) -> Optional[DatabaseIssue]:
+        """Check a single column for duplicates when it should probably be unique"""
+        logger.debug(f"Checking {table_name}.{column_name} for duplicates (matches unique pattern)")
+        
+        try:
+            # Efficient check with limit
+            dup_count = await conn.fetchval(f"""
+                SELECT COUNT(*) FROM (
+                    SELECT 1
+                    FROM {quote_ident(table_name)}
+                    WHERE {quote_ident(column_name)} IS NOT NULL
+                    GROUP BY {quote_ident(column_name)}
+                    HAVING COUNT(*) > 1
+                    LIMIT 100  -- Limit for performance
+                ) as dup_check
+            """)
+            
+            if dup_count > 0:
+                logger.warning(f"Found {dup_count} duplicate groups in {table_name}.{column_name} (no unique constraint)")
+                
+                # Get sample duplicates with limit
+                duplicates = await conn.fetch(f"""
+                    SELECT {quote_ident(column_name)}, COUNT(*) as count
+                    FROM {quote_ident(table_name)}
+                    WHERE {quote_ident(column_name)} IS NOT NULL
+                    GROUP BY {quote_ident(column_name)}
+                    HAVING COUNT(*) > 1
+                    ORDER BY count DESC
+                    LIMIT 3
+                """)
+                
+                duplicate_values = [f"'{row[column_name]}' ({row['count']} times)" for row in duplicates]
+                
+                return DatabaseIssue(
+                    issue_type='DUPLICATE_DATA',
+                    severity='HIGH',
+                    table=table_name,
+                    column=column_name,
+                    current_state=f"{dup_count} groups of duplicates (no unique constraint). Found: {', '.join(duplicate_values)}",
+                    expected_state=f"Column {column_name} should probably have unique constraint",
+                    fix_sql=f"-- Consider adding: ALTER TABLE {quote_ident(table_name)} ADD CONSTRAINT {quote_ident(f'{table_name}_{column_name}_unique')} UNIQUE ({quote_ident(column_name)});",
+                    affected_files=[],
+                    affected_queries=[]
+                )
+                
+        except Exception as e:
+            logger.warning(f"Error checking potential unique column {table_name}.{column_name}: {e}")
+        
+        return None
+    
+    async def _check_duplicate_rows(self, conn: asyncpg.Connection, schema: Dict) -> List[DatabaseIssue]:
+        """Check for completely duplicate rows in tables"""
+        issues = []
+        
+        logger.info("Checking for completely duplicate rows...")
+        duplicate_row_checks = 0
+        
+        for table in schema.get('tables', []):
+            table_name = table['tablename']
+            if table_name not in schema.get('columns', {}):
+                continue
+            
+            # Get all columns except system columns
+            columns = [
+                col['column_name'] 
+                for col in schema['columns'][table_name]
+                if col['column_name'] not in ['id', 'created_at', 'updated_at']
+            ]
+            
+            if len(columns) > 1:  # Only check if there are meaningful columns
+                duplicate_row_checks += 1
+                logger.debug(f"Checking {table_name} for duplicate rows (columns: {columns[:3]}{'...' if len(columns) > 3 else ''})")
+                
+                try:
+                    col_list = ", ".join(quote_ident(col) for col in columns)
+                    
+                    # Efficient duplicate row count with limit
+                    dup_count = await conn.fetchval(f"""
+                        SELECT COUNT(*) FROM (
+                            SELECT 1
+                            FROM {quote_ident(table_name)}
+                            GROUP BY {col_list}
+                            HAVING COUNT(*) > 1
+                            LIMIT 50  -- Limit for performance
+                        ) as dup_check
+                    """)
+                    
+                    if dup_count > 0:
+                        logger.warning(f"Found {dup_count} sets of duplicate rows in {table_name}")
+                        
+                        issues.append(DatabaseIssue(
+                            issue_type='DUPLICATE_DATA',
+                            severity='MEDIUM',
+                            table=table_name,
+                            column=None,
+                            current_state=f"Found {dup_count} sets of completely duplicate rows (ignoring id/timestamps)",
+                            expected_state="No duplicate rows",
+                            fix_sql=None,  # Too complex for auto-fix
+                            affected_files=[],
+                            affected_queries=[]
+                        ))
+                        
+                except Exception as e:
+                    logger.warning(f"Error checking duplicate rows in {table_name}: {e}")
+        
+        logger.info(f"Checked {duplicate_row_checks} tables for duplicate rows")
+        return issues
+    
+    async def _detect_duplicate_data(self, schema: Dict) -> List[DatabaseIssue]:
+        """Detect duplicate data in tables by analyzing actual database constraints and data"""
+        issues = []
+        
+        logger.info("Starting duplicate data detection...")
+        logger.debug(f"Schema has {len(schema.get('tables', []))} tables")
+        logger.debug(f"Schema has columns for {len(schema.get('columns', {}))} tables")
+        
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            logger.error("Database pool not available for duplicate detection")
+            return issues
+        
+        try:
+            async with pool.acquire() as conn:
+                # 1. Check for violations of existing UNIQUE constraints
+                constraint_issues = await self._check_unique_constraint_violations(conn, schema)
+                issues.extend(constraint_issues)
+                
+                # Need to get unique_by_table for pattern-based checks
+                unique_constraints = await conn.fetch("""
+                    SELECT tc.table_name, kcu.column_name, tc.constraint_name
+                    FROM information_schema.table_constraints tc
+                    JOIN information_schema.key_column_usage kcu 
+                        ON tc.constraint_name = kcu.constraint_name
+                        AND tc.table_schema = kcu.table_schema
+                    WHERE tc.constraint_type = 'UNIQUE'
+                        AND tc.table_schema = 'public'
+                """)
+                
+                unique_by_table = defaultdict(list)
+                for row in unique_constraints:
+                    unique_by_table[row['table_name']].append({
+                        'column': row['column_name'],
+                        'constraint': row['constraint_name']
+                    })
+                
+                # 2. Check columns that should be unique based on naming patterns
+                pattern_issues = await self._check_pattern_based_uniqueness(conn, schema, unique_by_table)
+                issues.extend(pattern_issues)
+                
+                # 3. Check for completely duplicate rows
+                duplicate_row_issues = await self._check_duplicate_rows(conn, schema)
+                issues.extend(duplicate_row_issues)
+        
+        except Exception as e:
+            logger.error(f"Error during duplicate detection: {e}")
+        
+        logger.info(f"Duplicate detection completed. Found {len(issues)} total issues")
+        return issues
     
     async def _check_performance(self) -> Dict[str, Any]:
         """Check database performance metrics"""
@@ -1747,7 +2153,7 @@ class ManualFixRequest(BaseModel):
         allowed_types = [
             'MISSING_TABLE', 'MISSING_COLUMN', 'TYPE_MISMATCH', 
             'MISSING_INDEX', 'ORPHANED_DATA', 'PERFORMANCE',
-            'MISSING_PRIMARY_KEY', 'TYPE_CAST_IN_QUERY'
+            'MISSING_PRIMARY_KEY', 'TYPE_CAST_IN_QUERY', 'DUPLICATE_DATA'
         ]
         if v not in allowed_types:
             raise ValueError(f"Invalid issue type. Must be one of: {', '.join(allowed_types)}")
@@ -1829,7 +2235,20 @@ async def get_current_issues():
         import db
         pool = db.get_db_pool()
         if not pool:
-            raise Exception("Shared database pool not available")
+            logger.error("Database pool not available for issues endpoint")
+            return {
+                'critical_issues': [], 
+                'warnings': [],
+                'issues_by_type': {},
+                'summary': {
+                    'total_issues': 0,
+                    'critical_count': 0,
+                    'warning_count': 0,
+                    'auto_fixable': 0,
+                    'requires_manual': 0
+                },
+                'error': 'Database connection not available'
+            }
             
         async with pool.acquire() as conn:
             latest = await conn.fetchrow("""
@@ -1849,7 +2268,8 @@ async def get_current_issues():
                     'MISSING_INDEX': [],
                     'MISSING_PRIMARY_KEY': [],
                     'ORPHANED_DATA': [],
-                    'TYPE_CAST_IN_QUERY': []
+                    'TYPE_CAST_IN_QUERY': [],
+                    'DUPLICATE_DATA': []
                 }
                 
                 # Process critical issues
