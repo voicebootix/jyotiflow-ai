@@ -56,7 +56,10 @@ CRITICAL_TABLES = {
 
 # SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
 SPIRITUAL_SERVICE_PRIORITIES = {
-    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base'],
+    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base',
+                 # Integration Monitoring System tables (required for production debugging)
+                 'validation_sessions', 'integration_validations', 
+                 'business_logic_issues', 'context_snapshots'],
     'HIGH': ['credit_transactions', 'payments', 'birth_chart_cache'],
     'MEDIUM': ['followup_templates', 'health_check_results'],
     'LOW': ['database_backups', 'platform_settings']
@@ -723,6 +726,13 @@ class DatabaseHealthMonitor:
             logger.info("Detecting schema issues...")
             schema_issues = await self._detect_schema_issues(schema)
             
+            # 3.5 Detect critical missing tables referenced in code
+            logger.info("Detecting missing critical tables...")
+            missing_table_issues = await self._detect_critical_missing_tables(
+                schema, self.code_analyzer.query_patterns
+            )
+            schema_issues.extend(missing_table_issues)
+            
             # 4. Combine all issues
             all_issues = code_issues + schema_issues
             results['issues_found'] = len(all_issues)
@@ -830,6 +840,118 @@ class DatabaseHealthMonitor:
                     table=table_name,
                     current_state='No primary key',
                     expected_state='Primary key required'
+                ))
+        
+        return issues
+    
+    async def _detect_critical_missing_tables(self, schema: Dict, query_patterns: Dict[str, List[Dict]]) -> List[DatabaseIssue]:
+        """Detect critical system tables that are missing but required."""
+        issues = []
+        existing_tables = {t['tablename'] for t in schema['tables']}
+        
+        # Define schemas for critical monitoring tables
+        # These are required for the Integration Monitoring System to function
+        monitoring_table_schemas = {
+            'validation_sessions': """
+                CREATE TABLE IF NOT EXISTS validation_sessions (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255) UNIQUE NOT NULL,
+                    user_id INTEGER,
+                    started_at TIMESTAMP DEFAULT NOW(),
+                    completed_at TIMESTAMP,
+                    overall_status VARCHAR(50),
+                    user_context JSONB,
+                    validation_results JSONB,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    FOREIGN KEY (user_id) REFERENCES users(id)
+                )
+            """,
+            'integration_validations': """
+                CREATE TABLE IF NOT EXISTS integration_validations (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255) NOT NULL,
+                    integration_name VARCHAR(100) NOT NULL,
+                    validation_type VARCHAR(100),
+                    status VARCHAR(50),
+                    expected_value TEXT,
+                    actual_value TEXT,
+                    error_message TEXT,
+                    validation_time TIMESTAMP DEFAULT NOW(),
+                    auto_fixed BOOLEAN DEFAULT FALSE,
+                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
+                )
+            """,
+            'business_logic_issues': """
+                CREATE TABLE IF NOT EXISTS business_logic_issues (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255),
+                    issue_type VARCHAR(100),
+                    severity VARCHAR(50),
+                    description TEXT,
+                    auto_fixable BOOLEAN DEFAULT FALSE,
+                    fixed BOOLEAN DEFAULT FALSE,
+                    user_impact TEXT,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
+                )
+            """,
+            'context_snapshots': """
+                CREATE TABLE IF NOT EXISTS context_snapshots (
+                    id SERIAL PRIMARY KEY,
+                    session_id VARCHAR(255) NOT NULL,
+                    integration_point VARCHAR(100) NOT NULL,
+                    context_data JSONB NOT NULL,
+                    context_hash VARCHAR(64),
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    FOREIGN KEY (session_id) REFERENCES validation_sessions(session_id)
+                )
+            """
+        }
+        
+        # Check monitoring tables first (these are causing the errors in logs)
+        for table_name, create_sql in monitoring_table_schemas.items():
+            if table_name not in existing_tables:
+                # Check if this table is actually being used in code
+                if table_name in query_patterns:
+                    logger.warning(f"🚨 Critical monitoring table '{table_name}' is missing but actively used!")
+                    issues.append(DatabaseIssue(
+                        issue_type='MISSING_TABLE',
+                        severity='CRITICAL',
+                        table=table_name,
+                        current_state='Table missing - monitoring system failing',
+                        expected_state='Table required for Integration Monitoring System',
+                        fix_sql=create_sql,
+                        affected_files=[p['file'] for p in query_patterns[table_name][:3]]
+                    ))
+        
+        # Also check other critical business tables
+        for table_name in CRITICAL_TABLES:
+            if table_name not in existing_tables:
+                logger.warning(f"⚠️ Critical business table '{table_name}' is missing!")
+                issues.append(DatabaseIssue(
+                    issue_type='MISSING_TABLE',
+                    severity='CRITICAL',
+                    table=table_name,
+                    current_state='Critical table missing',
+                    expected_state='Table required for core business logic',
+                    fix_sql=None  # These need proper schema definition
+                ))
+        
+        # Add indexes for monitoring tables if they exist but lack indexes
+        if 'integration_validations' in existing_tables:
+            # Check if indexes exist
+            table_indexes = schema.get('indexes', {}).get('integration_validations', [])
+            index_names = [idx.get('index_name', '') for idx in table_indexes]
+            
+            if 'idx_integration_validations_session' not in index_names:
+                issues.append(DatabaseIssue(
+                    issue_type='MISSING_INDEX',
+                    severity='HIGH',
+                    table='integration_validations',
+                    column='session_id',
+                    current_state='Missing performance index',
+                    expected_state='Index needed for monitoring queries',
+                    fix_sql='CREATE INDEX IF NOT EXISTS idx_integration_validations_session ON integration_validations(session_id)'
                 ))
         
         return issues
