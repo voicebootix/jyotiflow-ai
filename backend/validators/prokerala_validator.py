@@ -8,7 +8,8 @@ from datetime import datetime
 from typing import Dict, List, Optional, Any
 import json
 
-from core_foundation_enhanced import logger
+import logging
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 

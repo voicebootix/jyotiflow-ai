@@ -6,7 +6,8 @@ Ensures voice synthesis completed successfully.
 import logging
 from typing import Dict, Optional, Any
 
-from core_foundation_enhanced import logger
+import logging
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 

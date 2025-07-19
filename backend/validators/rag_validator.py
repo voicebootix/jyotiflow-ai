@@ -15,7 +15,8 @@ except ImportError:
     # Log warning after logger is properly imported
     pass
 
-from core_foundation_enhanced import logger, settings
+import logging
+logger = logging.getLogger(__name__)
 import openai
 
 class RAGValidator:

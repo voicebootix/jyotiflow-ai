@@ -12,7 +12,8 @@ from datetime import datetime, timezone
 import aiohttp
 import asyncio
 
-from core_foundation_enhanced import logger, get_database as get_db
+import logging
+logger = logging.getLogger(__name__)
 
 logger = logging.getLogger(__name__)
 
