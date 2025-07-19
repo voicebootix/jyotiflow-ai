@@ -56,16 +56,13 @@ except ImportError:
     
     security = HTTPBearer()
     
-    async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Security(security)):
+    async def get_current_admin_dependency(credentials: HTTPAuthorizationCredentials = Security(security)):
         """Verify admin authentication token"""
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin authentication required. Please configure proper authentication.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
-    # Create the dependency function
-    get_current_admin_dependency = verify_admin_token
 
 from .integration_monitor import integration_monitor, IntegrationStatus
 from .business_validator import BusinessLogicValidator
