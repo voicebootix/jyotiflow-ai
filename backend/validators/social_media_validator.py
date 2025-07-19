@@ -13,7 +13,7 @@ import aiohttp
 import asyncio
 
 try:
-    from db_manager import db_manager
+    from db import db_manager
 except ImportError:
     # Fallback if db_manager is not available
     db_manager = None

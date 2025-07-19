@@ -16,7 +16,7 @@ from .business_validator import BusinessValidator
 
 # Database manager
 try:
-    from db_manager import db_manager
+    from db import db_manager
 except ImportError:
     print("⚠️ db_manager not available, monitoring will run in limited mode")
     db_manager = None
