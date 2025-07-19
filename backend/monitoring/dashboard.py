@@ -7,7 +7,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from db import db_manager
 import logging
 logger = logging.getLogger(__name__)
@@ -45,7 +45,6 @@ class LegacyStandardResponse(BaseModel):
             message=response.message,
             data=response.data
         )
-from fastapi import HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 # Import proper admin authentication
@@ -53,15 +52,20 @@ try:
     from deps import get_current_admin_dependency
 except ImportError:
     # If deps module is not available, create a secure fallback
+    from fastapi import Security
+    
     security = HTTPBearer()
     
-    async def get_current_admin_dependency(credentials: HTTPAuthorizationCredentials = Depends(security)):
-        """Require authentication for admin endpoints"""
+    async def verify_admin_token(credentials: HTTPAuthorizationCredentials = Security(security)):
+        """Verify admin authentication token"""
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Admin authentication required. Please configure proper authentication.",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    
+    # Create the dependency function
+    get_current_admin_dependency = verify_admin_token
 
 from .integration_monitor import integration_monitor, IntegrationStatus
 from .business_validator import BusinessLogicValidator
