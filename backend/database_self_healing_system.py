@@ -1734,23 +1734,26 @@ class HealthCheckResponse(BaseModel):
     next_check: Optional[datetime]
 
 
-from pydantic import validator
+from pydantic import field_validator
 
 class ManualFixRequest(BaseModel):
     issue_type: str
     table: str
-    column: Optional[str]
-    fix_sql: Optional[str]
+    column: Optional[str] = None
+    fix_sql: Optional[str] = None
     
-    @validator('issue_type')
+    @field_validator('issue_type')
     def validate_issue_type(cls, v):
-        allowed_types = ['MISSING_TABLE', 'MISSING_COLUMN', 'TYPE_MISMATCH', 
-                        'MISSING_INDEX', 'ORPHANED_DATA', 'PERFORMANCE']
+        allowed_types = [
+            'MISSING_TABLE', 'MISSING_COLUMN', 'TYPE_MISMATCH', 
+            'MISSING_INDEX', 'ORPHANED_DATA', 'PERFORMANCE',
+            'MISSING_PRIMARY_KEY', 'TYPE_CAST_IN_QUERY'
+        ]
         if v not in allowed_types:
             raise ValueError(f"Invalid issue type. Must be one of: {', '.join(allowed_types)}")
         return v
     
-    @validator('table', 'column')
+    @field_validator('table', 'column')
     def validate_no_sql_injection(cls, v):
         if v:
             suspicious_patterns = [';', '--', '/*', '*/', 'DROP', 'DELETE', 'EXEC', 'UNION']

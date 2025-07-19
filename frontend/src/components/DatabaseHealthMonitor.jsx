@@ -47,6 +47,15 @@ export default function DatabaseHealthMonitor() {
     // Track attempted fixes to prevent infinite loops - moved up before fetchIssues
     const [attemptedFixes, setAttemptedFixes] = useState(new Set());
     const [lastAutoFixTime, setLastAutoFixTime] = useState(0);
+    
+    // Consistent issue key generation
+    const getIssueKey = useCallback((issue) => {
+        // Prefer issue_id if available and non-empty, otherwise use table-type combination
+        if (issue.issue_id && issue.issue_id.trim()) {
+            return issue.issue_id;
+        }
+        return `${issue.table || 'unknown'}-${issue.issue_type || 'unknown'}`;
+    }, []);
 
     const fetchStatus = async () => {
         try {
@@ -136,7 +145,7 @@ export default function DatabaseHealthMonitor() {
         }
     };
 
-    const applyFix = async (issue) => {
+    const applyFix = useCallback(async (issue) => {
         // Prevent multiple concurrent executions
         if (fixingIssue) return;
         
@@ -156,6 +165,11 @@ export default function DatabaseHealthMonitor() {
             });
             if (!response.ok) throw new Error('Failed to apply fix');
             
+            // Mark this issue as attempted
+            const issueKey = getIssueKey(issue);
+            setAttemptedFixes(prev => new Set([...prev, issueKey]));
+            setLastAutoFixTime(Date.now());
+            
             // Clear modal state first
             setSelectedIssue(null);
             setFixPreview(null);
@@ -174,7 +188,7 @@ export default function DatabaseHealthMonitor() {
         } finally {
             setFixingIssue(false);
         }
-    };
+    }, [fixingIssue, getIssueKey]);
 
     // Auto-fix logic with loop prevention
     useEffect(() => {
@@ -189,24 +203,20 @@ export default function DatabaseHealthMonitor() {
             const autoFixableIssues = issues.critical_issues.filter(issue => 
                 issue.fix_sql && 
                 issue.severity === 'CRITICAL' &&
-                !attemptedFixes.has(issue.issue_id || `${issue.table}-${issue.issue_type}`)
+                !attemptedFixes.has(getIssueKey(issue))
             );
             
             if (autoFixableIssues.length > 0) {
                 // Auto-fix the first critical issue not yet attempted
                 const issueToFix = autoFixableIssues[0];
-                const issueKey = issueToFix.issue_id || `${issueToFix.table}-${issueToFix.issue_type}`;
-                
                 console.log('Auto-fixing issue:', issueToFix);
-                setAttemptedFixes(prev => new Set([...prev, issueKey]));
-                setLastAutoFixTime(now);
+                // State updates are now handled inside applyFix
                 applyFix(issueToFix);
             }
         }
-    }, [autoMode, issues.critical_issues, fixingIssue, attemptedFixes, lastAutoFixTime]);
-    // Note: applyFix is intentionally excluded to prevent infinite loops
+    }, [autoMode, issues.critical_issues, fixingIssue, attemptedFixes, lastAutoFixTime, applyFix, getIssueKey]);
 
-    // Modal accessibility - Escape key handling
+    // Modal accessibility - Escape key handling and focus management
     useEffect(() => {
         const handleEscape = (e) => {
             if (e.key === 'Escape' && selectedIssue) {
@@ -215,12 +225,47 @@ export default function DatabaseHealthMonitor() {
             }
         };
         
-        if (selectedIssue) {
+        if (selectedIssue && fixPreview) {
             document.addEventListener('keydown', handleEscape);
-            // Focus trap would go here in production
+            
+            // Focus management
+            const modalElement = document.querySelector('[role="dialog"]');
+            if (modalElement) {
+                const focusableElements = modalElement.querySelectorAll(
+                    'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+                );
+                const firstElement = focusableElements[0];
+                const lastElement = focusableElements[focusableElements.length - 1];
+                
+                // Focus first element
+                if (firstElement) {
+                    firstElement.focus();
+                }
+                
+                // Trap focus
+                const trapFocus = (e) => {
+                    if (e.key === 'Tab') {
+                        if (e.shiftKey && document.activeElement === firstElement) {
+                            e.preventDefault();
+                            lastElement.focus();
+                        } else if (!e.shiftKey && document.activeElement === lastElement) {
+                            e.preventDefault();
+                            firstElement.focus();
+                        }
+                    }
+                };
+                
+                modalElement.addEventListener('keydown', trapFocus);
+                
+                return () => {
+                    document.removeEventListener('keydown', handleEscape);
+                    modalElement.removeEventListener('keydown', trapFocus);
+                };
+            }
+            
             return () => document.removeEventListener('keydown', handleEscape);
         }
-    }, [selectedIssue]);
+    }, [selectedIssue, fixPreview]);
 
     useEffect(() => {
         fetchStatus();
