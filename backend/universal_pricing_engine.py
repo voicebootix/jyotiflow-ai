@@ -586,10 +586,10 @@ async def get_smart_pricing_recommendations() -> Dict[str, Any]:
         if not pool:
             print("❌ ERROR: Shared database pool not available")
             return {}
-            
-            async with pool.acquire() as conn:
-                # Get pricing performance data
-                performance_data = await conn.fetchrow("""
+        
+        async with pool.acquire() as conn:
+            # Get pricing performance data
+            performance_data = await conn.fetchrow("""
                 SELECT 
                     COUNT(*) as total_sessions,
                     AVG(credits_used) as avg_credits_used,
