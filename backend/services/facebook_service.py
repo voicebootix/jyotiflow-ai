@@ -1,392 +1,186 @@
 """
-🔵 FACEBOOK SERVICE - Real Facebook Graph API Integration
-Complete Facebook posting service for social media automation
+📘 FACEBOOK SERVICE - Real API Validation
+Validates Facebook API credentials by making actual Graph API calls
 """
 
-import os
-import logging
-import asyncio
-from typing import Dict, Optional, List
 import aiohttp
+import logging
+from typing import Dict, Optional
 import json
-from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 class FacebookService:
-    """Facebook Graph API Service for automated posting"""
+    """Real Facebook Graph API validation service"""
     
     def __init__(self):
-        # Initialize without credentials - will load from database when needed
-        self.base_url = "https://graph.facebook.com/v18.0"
+        self.graph_url = "https://graph.facebook.com/v18.0"
         self._credentials_cache = None
-        logger.info("🔵 Facebook service initialized - will load credentials from database")
     
-    async def _get_credentials(self):
-        """Get Facebook credentials from database (platform_settings table)"""
-        if self._credentials_cache:
-            return self._credentials_cache
-        
+    async def validate_credentials(self, app_id: str, app_secret: str, access_token: str) -> Dict:
+        """
+        Validate Facebook credentials by making real Graph API calls
+        Returns: {"success": bool, "message": str, "error": str}
+        """
         try:
-            import db
-            import json
+            # Test 1: Validate access token
+            token_test = await self._validate_access_token(access_token)
+            if not token_test["success"]:
+                return token_test
             
-            # Get database connection
-            if not db.db_pool:
-                logger.error("❌ Database pool not available")
-                return None
+            # Test 2: Validate app credentials
+            app_test = await self._validate_app_credentials(app_id, app_secret)
+            if not app_test["success"]:
+                return app_test
             
-            async with db.db_pool.acquire() as db_conn:
-                # Get Facebook credentials from platform_settings
-                row = await db_conn.fetchrow(
-                    "SELECT value FROM platform_settings WHERE key = $1",
-                    "facebook_credentials"
-                )
-                
-                if row and row['value']:
-                    try:
-                        credentials = json.loads(row['value']) if isinstance(row['value'], str) else row['value']
-                    except (json.JSONDecodeError, TypeError):
-                        logger.error("❌ Invalid JSON format in Facebook credentials")
-                        return None
-                    
-                    # Validate required fields
-                    required_fields = ['app_id', 'app_secret', 'page_access_token', 'page_id']
-                    missing_fields = [field for field in required_fields if not credentials.get(field)]
-                    
-                    if missing_fields:
-                        logger.error(f"❌ Missing Facebook credential fields: {', '.join(missing_fields)}")
-                        return None
-                    
-                    # Cache credentials
-                    self._credentials_cache = credentials
-                    logger.info("✅ Facebook credentials loaded from database")
-                    return credentials
-                else:
-                    logger.error("❌ Facebook credentials not found in database. Please configure them in the admin dashboard.")
-                    return None
-                    
-        except Exception as e:
-            logger.error(f"❌ Failed to load Facebook credentials from database: {e}")
-            return None
-        
-    async def post_content(self, content: Dict, media_url: Optional[str] = None) -> Dict:
-        """Post content to Facebook page"""
-        # Get credentials from database
-        credentials = await self._get_credentials()
-        if not credentials:
-            return {
-                "success": False,
-                "error": "Facebook credentials not configured in admin dashboard."
-            }
-        
-        try:
-            # Prepare the post message
-            message = f"{content['title']}\n\n{content['description']}"
+            # Test 3: Check permissions
+            permissions_test = await self._check_permissions(access_token)
+            if not permissions_test["success"]:
+                return permissions_test
             
-            # Add hashtags
-            if content.get('hashtags'):
-                hashtags = ' '.join(content['hashtags'])
-                message = f"{message}\n\n{hashtags}"
-            
-            if media_url:
-                # Post with media (photo/video)
-                result = await self._post_with_media(message, media_url, credentials)
-            else:
-                # Text-only post
-                result = await self._post_text_only(message, credentials)
-            
-            if result.get("success"):
-                logger.info(f"✅ Successfully posted to Facebook: {result['post_id']}")
-                return {
-                    "success": True,
-                    "post_id": result["post_id"],
-                    "platform": "facebook",
-                    "post_url": f"https://facebook.com/{result['post_id']}"
-                }
-            else:
-                logger.error(f"❌ Facebook posting failed: {result.get('error')}")
-                return result
-                
-        except Exception as e:
-            logger.error(f"❌ Facebook posting exception: {e}")
-            return {
-                "success": False,
-                "error": f"Facebook posting failed: {str(e)}"
-            }
-    
-    async def _post_text_only(self, message: str, credentials: Dict) -> Dict:
-        """Post text-only content to Facebook"""
-        url = f"{self.base_url}/{credentials['page_id']}/feed"
-        
-        data = {
-            "message": message,
-            "access_token": credentials['page_access_token']
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=60, connect=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(3):  # 3 retry attempts
-                try:
-                    async with session.post(url, data=data) as response:
-                        if response.status == 200:
-                            try:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "post_id": result.get("id")
-                                }
-                            except (json.JSONDecodeError, KeyError):
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"Facebook API returned invalid JSON: {error_text}"
-                                }
-                        elif response.status == 429:  # Rate limit
-                            if attempt < 2:  # Only retry if not last attempt
-                                await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                                continue
-                            else:
-                                return {
-                                    "success": False,
-                                    "error": "Facebook API rate limit exceeded"
-                                }
-                        else:
-                            error_text = await response.text()
-                            return {
-                                "success": False,
-                                "error": f"Facebook API error: {response.status} - {error_text}"
-                            }
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:  # Only retry if not last attempt
-                        await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                        continue
-                    else:
-                                                 return {
-                             "success": False,
-                             "error": f"Facebook API network error: {str(e)}"
-                         }
-            
-            # If we get here, all attempts failed
-            return {
-                "success": False,
-                "error": "Facebook API request failed after 3 attempts"
-            }
-    
-    async def _post_with_media(self, message: str, media_url: str, credentials: Dict) -> Dict:
-        """Post content with media (photo or video) to Facebook"""
-        # First, determine if it's a photo or video based on URL
-        is_video = any(ext in media_url.lower() for ext in ['.mp4', '.mov', '.avi', '.webm'])
-        
-        if is_video:
-            return await self._post_video(message, media_url, credentials)
-        else:
-            return await self._post_photo(message, media_url, credentials)
-    
-    async def _post_photo(self, message: str, photo_url: str, credentials: Dict) -> Dict:
-        """Post photo to Facebook"""
-        url = f"{self.base_url}/{credentials['page_id']}/photos"
-        
-        data = {
-            "url": photo_url,
-            "caption": message,
-            "access_token": credentials['page_access_token']
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=120, connect=10)  # Longer timeout for media
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(3):
-                try:
-                    async with session.post(url, data=data) as response:
-                        if response.status == 200:
-                            try:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "post_id": result.get("id")
-                                }
-                            except (json.JSONDecodeError, KeyError):
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"Facebook API returned invalid JSON: {error_text}"
-                                }
-                        elif response.status == 429:
-                            if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
-                                continue
-                            else:
-                                return {
-                                    "success": False,
-                                    "error": "Facebook API rate limit exceeded"
-                                }
-                        else:
-                            error_text = await response.text()
-                            return {
-                                "success": False,
-                                "error": f"Facebook photo upload error: {response.status} - {error_text}"
-                            }
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    else:
-                        return {
-                            "success": False,
-                            "error": f"Facebook photo upload network error: {str(e)}"
-                        }
-            
-            return {
-                "success": False,
-                "error": "Facebook photo upload failed after 3 attempts"
-            }
-    
-    async def _post_video(self, message: str, video_url: str, credentials: Dict) -> Dict:
-        """Post video to Facebook"""
-        url = f"{self.base_url}/{credentials['page_id']}/videos"
-        
-        data = {
-            "file_url": video_url,
-            "description": message,
-            "access_token": credentials['page_access_token']
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=300, connect=10)  # Longer timeout for video
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(3):
-                try:
-                    async with session.post(url, data=data) as response:
-                        if response.status == 200:
-                            try:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "post_id": result.get("id")
-                                }
-                            except (json.JSONDecodeError, KeyError):
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"Facebook API returned invalid JSON: {error_text}"
-                                }
-                        elif response.status == 429:
-                            if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
-                                continue
-                            else:
-                                return {
-                                    "success": False,
-                                    "error": "Facebook API rate limit exceeded"
-                                }
-                        else:
-                            error_text = await response.text()
-                            return {
-                                "success": False,
-                                "error": f"Facebook video upload error: {response.status} - {error_text}"
-                            }
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    else:
-                        return {
-                            "success": False,
-                            "error": f"Facebook video upload network error: {str(e)}"
-                        }
-            
-            return {
-                "success": False,
-                "error": "Facebook video upload failed after 3 attempts"
-            }
-    
-    async def get_page_info(self) -> Dict:
-        """Get Facebook page information"""
-        credentials = await self._get_credentials()
-        if not credentials:
-            return {"success": False, "error": "Facebook credentials not configured"}
-        
-        url = f"{self.base_url}/{credentials['page_id']}"
-        params = {
-            "fields": "id,name,username,followers_count,fan_count",
-            "access_token": credentials['page_access_token']
-        }
-        
-        timeout = aiohttp.ClientTimeout(total=60, connect=10)
-        async with aiohttp.ClientSession(timeout=timeout) as session:
-            for attempt in range(3):
-                try:
-                    async with session.get(url, params=params) as response:
-                        if response.status == 200:
-                            try:
-                                result = await response.json()
-                                return {
-                                    "success": True,
-                                    "page_info": result
-                                }
-                            except (json.JSONDecodeError, KeyError):
-                                error_text = await response.text()
-                                return {
-                                    "success": False,
-                                    "error": f"Facebook API returned invalid JSON: {error_text}"
-                                }
-                        elif response.status == 429:
-                            if attempt < 2:
-                                await asyncio.sleep(2 ** attempt)
-                                continue
-                            else:
-                                return {
-                                    "success": False,
-                                    "error": "Facebook API rate limit exceeded"
-                                }
-                        else:
-                            error_text = await response.text()
-                            return {
-                                "success": False,
-                                "error": f"Failed to get page info: {response.status} - {error_text}"
-                            }
-                except (aiohttp.ClientError, asyncio.TimeoutError) as e:
-                    if attempt < 2:
-                        await asyncio.sleep(2 ** attempt)
-                        continue
-                    else:
-                        return {
-                            "success": False,
-                            "error": f"Failed to get page info: {str(e)}"
-                        }
-            
-            return {
-                "success": False,
-                "error": "Facebook page info request failed after 3 attempts"
-            }
-    
-    async def validate_credentials(self) -> Dict:
-        """Validate Facebook API credentials"""
-        credentials = await self._get_credentials()
-        if not credentials:
-            return {
-                "success": False,
-                "error": "Facebook credentials not configured in admin dashboard",
-                "missing": ["app_id", "app_secret", "page_access_token", "page_id"]
-            }
-        
-        # Test with a simple API call
-        page_info = await self.get_page_info()
-        if page_info.get("success"):
             return {
                 "success": True,
-                "message": "Facebook credentials are valid",
-                "page_name": page_info["page_info"].get("name"),
-                "page_id": page_info["page_info"].get("id")
+                "message": "Facebook credentials validated successfully. Ready for posting!",
+                "permissions": permissions_test.get("permissions", [])
             }
-        else:
+            
+        except Exception as e:
+            logger.error(f"Facebook credential validation error: {e}")
             return {
                 "success": False,
-                "error": "Invalid credentials or API error",
-                "details": page_info.get("error")
+                "error": f"Facebook API validation failed: {str(e)}"
             }
-
-# Global instance
-facebook_service = FacebookService()
-
-# Export
-__all__ = ["FacebookService", "facebook_service"]
+    
+    async def _validate_access_token(self, access_token: str) -> Dict:
+        """Validate access token by calling /me endpoint"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,name"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        return {
+                            "success": True,
+                            "message": f"Access token valid for user: {data.get('name', 'Unknown')}",
+                            "user_id": data["id"]
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Invalid access token")
+                        return {
+                            "success": False,
+                            "error": f"Access token validation failed: {error_msg}"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Access token test failed: {str(e)}"
+            }
+    
+    async def _validate_app_credentials(self, app_id: str, app_secret: str) -> Dict:
+        """Validate app credentials by getting app access token"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/oauth/access_token"
+                params = {
+                    "client_id": app_id,
+                    "client_secret": app_secret,
+                    "grant_type": "client_credentials"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "access_token" in data:
+                        return {
+                            "success": True,
+                            "message": "App credentials validated successfully",
+                            "app_token": data["access_token"]
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Invalid app credentials")
+                        return {
+                            "success": False,
+                            "error": f"App credentials validation failed: {error_msg}"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"App credentials test failed: {str(e)}"
+            }
+    
+    async def _check_permissions(self, access_token: str) -> Dict:
+        """Check what permissions the access token has"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me/permissions"
+                params = {"access_token": access_token}
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "data" in data:
+                        granted_permissions = [
+                            perm["permission"] for perm in data["data"] 
+                            if perm["status"] == "granted"
+                        ]
+                        
+                        required_permissions = ["pages_manage_posts", "pages_read_engagement"]
+                        missing_permissions = [p for p in required_permissions if p not in granted_permissions]
+                        
+                        if missing_permissions:
+                            return {
+                                "success": False,
+                                "error": f"Missing required permissions: {', '.join(missing_permissions)}",
+                                "permissions": granted_permissions
+                            }
+                        else:
+                            return {
+                                "success": True,
+                                "message": "All required permissions granted",
+                                "permissions": granted_permissions
+                            }
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Could not retrieve permissions"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Permissions check failed: {str(e)}"
+            }
+    
+    async def get_pages(self, access_token: str) -> Dict:
+        """Get user's Facebook pages"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me/accounts"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,name,access_token"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "data" in data:
+                        return {
+                            "success": True,
+                            "pages": data["data"]
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Could not retrieve pages"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Pages retrieval failed: {str(e)}"
+            }

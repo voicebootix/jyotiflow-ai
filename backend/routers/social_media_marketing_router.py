@@ -437,8 +437,128 @@ async def test_platform_connection(
                     "error": f"Connection test failed: {str(service_error)}"
                 }
                 
-        elif platform in ['instagram', 'youtube', 'twitter', 'tiktok']:
-            # Basic validation for other platforms
+        elif platform == 'youtube':
+            # Real YouTube API validation
+            required_fields = get_required_fields(platform)
+            missing_fields = [field for field in required_fields if not config.get(field)]
+            
+            if missing_fields:
+                result = {
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }
+            else:
+                # Real API validation
+                try:
+                    from services.youtube_service import youtube_service
+                    result = await youtube_service.validate_credentials(
+                        config.get('api_key'), 
+                        config.get('channel_id')
+                    )
+                except ImportError:
+                    result = {
+                        "success": False,
+                        "error": "YouTube service not available"
+                    }
+                except Exception as e:
+                    result = {
+                        "success": False,
+                        "error": f"YouTube validation failed: {str(e)}"
+                    }
+        
+        elif platform == 'tiktok':
+            # Real TikTok API validation
+            required_fields = get_required_fields(platform)
+            missing_fields = [field for field in required_fields if not config.get(field)]
+            
+            if missing_fields:
+                result = {
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }
+            else:
+                # Real API validation
+                try:
+                    from services.tiktok_service import tiktok_service
+                    result = await tiktok_service.validate_credentials(
+                        config.get('client_key'), 
+                        config.get('client_secret')
+                    )
+                except ImportError:
+                    result = {
+                        "success": False,
+                        "error": "TikTok service not available"
+                    }
+                except Exception as e:
+                    result = {
+                        "success": False,
+                        "error": f"TikTok validation failed: {str(e)}"
+                    }
+        
+        elif platform == 'instagram':
+            # Real Instagram API validation
+            required_fields = get_required_fields(platform)
+            missing_fields = [field for field in required_fields if not config.get(field)]
+            
+            if missing_fields:
+                result = {
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }
+            else:
+                # Real API validation
+                try:
+                    from services.instagram_service import InstagramService
+                    instagram_service = InstagramService()
+                    result = await instagram_service.validate_credentials(
+                        config.get('client_id'),
+                        config.get('client_secret'),
+                        config.get('access_token')
+                    )
+                except ImportError:
+                    result = {
+                        "success": False,
+                        "error": "Instagram service not available"
+                    }
+                except Exception as e:
+                    result = {
+                        "success": False,
+                        "error": f"Instagram validation failed: {str(e)}"
+                    }
+        
+        elif platform == 'facebook':
+            # Real Facebook API validation
+            required_fields = get_required_fields(platform)
+            missing_fields = [field for field in required_fields if not config.get(field)]
+            
+            if missing_fields:
+                result = {
+                    "success": False,
+                    "error": f"Missing required fields: {', '.join(missing_fields)}"
+                }
+            else:
+                # Real API validation
+                try:
+                    from services.facebook_service import FacebookService
+                    facebook_service = FacebookService()
+                    result = await facebook_service.validate_credentials(
+                        config.get('app_id'),
+                        config.get('app_secret'),
+                        config.get('access_token')
+                    )
+                except ImportError:
+                    result = {
+                        "success": False,
+                        "error": "Facebook service not available"
+                    }
+                except Exception as e:
+                    result = {
+                        "success": False,
+                        "error": f"Facebook validation failed: {str(e)}"
+                    }
+        
+        elif platform in ['twitter']:
+            # Basic validation for platforms without real API validation yet
             required_fields = get_required_fields(platform)
             missing_fields = [field for field in required_fields if not config.get(field)]
             
@@ -450,7 +570,7 @@ async def test_platform_connection(
             else:
                 result = {
                     "success": True,
-                    "message": f"{platform.capitalize()} credentials appear valid (basic validation)"
+                    "message": f"{platform.capitalize()} credentials appear valid (basic validation - real validation coming soon)"
                 }
             
         else:

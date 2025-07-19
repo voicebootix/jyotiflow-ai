@@ -134,13 +134,13 @@ except ImportError:
 SURGICAL_AUTH_AVAILABLE = False
 print("⚠️ Surgical auth router disabled - using main auth system only")
 
-# Monitoring system
-try:
-    from monitoring.register_monitoring import register_monitoring_system, init_monitoring
-    MONITORING_AVAILABLE = True
-except ImportError:
-    MONITORING_AVAILABLE = False
-    print("⚠️ Monitoring system not available")
+# Monitoring system - TEMPORARILY DISABLED to fix table errors
+# try:
+#     from monitoring.register_monitoring import register_monitoring_system, init_monitoring
+#     MONITORING_AVAILABLE = True
+# except ImportError:
+MONITORING_AVAILABLE = False
+print("⚠️ Monitoring system temporarily disabled - fixing table errors")
 
 # Debug router for testing
 try:
@@ -241,8 +241,8 @@ async def lifespan(app: FastAPI):
         # Initialize monitoring system if available
         if MONITORING_AVAILABLE:
             try:
-                await init_monitoring()
-                print("✅ Monitoring system initialized")
+                # await init_monitoring()  # Temporarily disabled
+                print("⚠️ Monitoring system initialization skipped")
             except Exception as monitor_error:
                 print(f"⚠️ Failed to initialize monitoring: {monitor_error}")
                 # Continue running even if monitoring fails
@@ -517,8 +517,8 @@ print("🚀 All routers registered successfully!")
 # Register monitoring system
 if MONITORING_AVAILABLE:
     try:
-        register_monitoring_system(app)
-        print("✅ Monitoring system registered successfully")
+        # register_monitoring_system(app)  # Temporarily disabled
+        print("⚠️ Monitoring system registration skipped")
     except Exception as e:
         print(f"❌ Failed to register monitoring system: {e}")
 
