@@ -218,30 +218,69 @@ class FacebookService:
     async def _analyze_token_type(self, access_token: str) -> Dict:
         """
         Analyze access token to determine if it's a user token or page token
-        Uses /me endpoint to detect token type (core.md: explicit analysis)
+        Uses /me endpoint with explicit field requests (core.md & refresh.md: reliable detection)
         """
         try:
             async with aiohttp.ClientSession() as session:
                 url = f"{self.graph_url}/me"
-                params = {"access_token": access_token}
+                # Fix: Explicitly request page-specific fields for reliable detection
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,name,category,about,fan_count,email,first_name,last_name"
+                }
                 
                 async with session.get(url, params=params) as response:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
-                        # Check if this is a page by looking for page-specific fields
-                        if "category" in data or "about" in data or "fan_count" in data:
-                            return {"is_page_token": True, "token_type": "page"}
+                        # Check if this is a page by looking for explicitly requested page-specific fields
+                        # Page tokens will have category, about, fan_count; User tokens will have email, first_name, last_name
+                        page_indicators = ["category", "about", "fan_count"]
+                        user_indicators = ["email", "first_name", "last_name"]
+                        
+                        has_page_fields = any(field in data for field in page_indicators)
+                        has_user_fields = any(field in data for field in user_indicators)
+                        
+                        if has_page_fields and not has_user_fields:
+                            return {
+                                "is_page_token": True, 
+                                "token_type": "page",
+                                "detection_method": "explicit_page_fields",
+                                "page_name": data.get("name")
+                            }
+                        elif has_user_fields and not has_page_fields:
+                            return {
+                                "is_page_token": False, 
+                                "token_type": "user",
+                                "detection_method": "explicit_user_fields",
+                                "user_name": data.get("name")
+                            }
                         else:
-                            return {"is_page_token": False, "token_type": "user"}
+                            # Fallback: If unclear, default to user token for safety
+                            logger.warning(f"Ambiguous token type detection. Page fields: {has_page_fields}, User fields: {has_user_fields}")
+                            return {
+                                "is_page_token": False, 
+                                "token_type": "user",
+                                "detection_method": "fallback_to_user"
+                            }
                     else:
-                        # If /me fails, try to determine from error or assume user token
-                        return {"is_page_token": False, "token_type": "user"}
+                        # If /me fails, default to user token validation
+                        error_msg = data.get("error", {}).get("message", "Unknown error")
+                        logger.warning(f"Token type analysis failed: {error_msg}")
+                        return {
+                            "is_page_token": False, 
+                            "token_type": "user",
+                            "detection_method": "api_error_fallback"
+                        }
                         
         except Exception as e:
             logger.error(f"Token type analysis error: {e}")
             # Default to user token validation if analysis fails
-            return {"is_page_token": False, "token_type": "user"}
+            return {
+                "is_page_token": False, 
+                "token_type": "user",
+                "detection_method": "exception_fallback"
+            }
     
     async def _validate_page_access_token(self, access_token: str) -> Dict:
         """
