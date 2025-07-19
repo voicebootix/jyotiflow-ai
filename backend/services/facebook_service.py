@@ -129,7 +129,15 @@ class FacebookService:
                             if perm["status"] == "granted"
                         ]
                         
-                        required_permissions = ["pages_manage_posts", "pages_read_engagement"]
+                        # Updated Facebook Graph API permissions for comprehensive social media management
+                        # Following core.md principle: explicit, complete requirements
+                        required_permissions = [
+                            "pages_manage_posts",           # Create, edit, delete posts
+                            "pages_read_engagement",        # Read likes, comments, shares metrics  
+                            "pages_manage_engagement",      # Moderate comments, manage interactions
+                            "pages_read_user_engagement",   # Read detailed user interaction data
+                            "publish_video"                 # Publish video content (future-ready)
+                        ]
                         missing_permissions = [p for p in required_permissions if p not in granted_permissions]
                         
                         if missing_permissions:

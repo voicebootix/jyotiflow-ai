@@ -168,12 +168,32 @@ class TikTokService:
                             "success": False,
                             "error": "TikTok API access forbidden for this token"
                         }
-                    else:
-                        # For client credentials flow, we might not have user permissions
-                        # So if we got this far, the credentials are likely valid
+                    elif response.status == 400:
                         return {
-                            "success": True,
-                            "message": "TikTok credentials appear valid (limited scope)"
+                            "success": False,
+                            "error": "Bad request - invalid parameters or token format"
+                        }
+                    elif response.status == 404:
+                        return {
+                            "success": False,
+                            "error": "TikTok API endpoint not found - check API version"
+                        }
+                    elif response.status == 429:
+                        return {
+                            "success": False,
+                            "error": "Rate limit exceeded - too many API requests"
+                        }
+                    elif response.status >= 500:
+                        return {
+                            "success": False,
+                            "error": f"TikTok API server error (status: {response.status})"
+                        }
+                    else:
+                        # All non-200 status codes should be treated as failures
+                        # Only 200 indicates successful token validation
+                        return {
+                            "success": False,
+                            "error": f"Token validation failed with status {response.status}"
                         }
                         
         except Exception as e:
