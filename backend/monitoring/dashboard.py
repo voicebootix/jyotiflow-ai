@@ -11,25 +11,34 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPExce
 from db import db_manager
 import logging
 logger = logging.getLogger(__name__)
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field, model_validator
+from typing import Optional, Dict, Any
 
 class StandardResponse(BaseModel):
     status: str
     message: str
-    data: dict = {}
-    success: Optional[bool] = None  # Include for backward compatibility
+    data: Dict[str, Any] = Field(default_factory=dict)
+    success: bool = Field(default=True, description="Backward compatibility field")
     
-    def __init__(self, **data):
-        """Initialize with backward compatibility"""
-        super().__init__(**data)
-        # Set success based on status if not explicitly provided
-        if self.success is None:
-            self.success = self.status == "success"
+    @model_validator(mode='after')
+    def set_success_from_status(self) -> 'StandardResponse':
+        """Set success field based on status for backward compatibility"""
+        self.success = self.status == "success"
+        return self
     
-    class Config:
-        # Allow field serialization
-        extra = "forbid"
+    model_config = {
+        "extra": "forbid",
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "status": "success",
+                    "message": "Operation completed",
+                    "data": {},
+                    "success": True
+                }
+            ]
+        }
+    }
 
 class LegacyStandardResponse(BaseModel):
     """Legacy response format for backward compatibility"""
