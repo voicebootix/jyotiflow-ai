@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request, Depends
 from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 import logging
-from backend.deps import get_db
+from deps import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def get_user_email_from_token(request: Request) -> Optional[str]:
         
         token = auth_header.split(" ")[1]
         # Import here to avoid circular imports
-        from backend.core_foundation_enhanced import EnhancedSecurityManager
+        from core_foundation_enhanced import EnhancedSecurityManager
         user_data = EnhancedSecurityManager.verify_access_token(token)
         return user_data.get("email")
     except Exception as e:
