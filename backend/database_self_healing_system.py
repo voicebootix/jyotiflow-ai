@@ -547,6 +547,28 @@ class CodePatternAnalyzer:
                 if match:
                     query = match.group(1)
                     self._check_regex_query_issues(query, line_no, line, file_path)
+    
+    def _check_regex_query_issues(self, query: str, line_no: int, line: str, file_path: str):
+        """Check query issues when using regex fallback"""
+        query_lower = query.lower()
+        
+        # Extract table name
+        table = None
+        for pattern in [r'from\s+(\w+)', r'into\s+(\w+)', r'update\s+(\w+)']:
+            match = re.search(pattern, query_lower)
+            if match:
+                table = match.group(1)
+                break
+        
+        if table:
+            # Store in query patterns (simplified - no column extraction in regex mode)
+            self.query_patterns[table].append({
+                'file': file_path,
+                'line': line_no,
+                'query': query,
+                'type': 'UNKNOWN',
+                'columns': {}  # Regex mode doesn't extract columns
+            })
 
 
 class DatabaseIssueFixer:
