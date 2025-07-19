@@ -1332,7 +1332,7 @@ class DatabaseHealthMonitor:
         
         # Dynamically generate table schemas based on query patterns
         # For critical monitoring tables, allow generation with just 1 query
-        monitoring_table_schemas = self._generate_table_schemas_from_queries(
+        monitoring_table_schemas = self.code_analyzer._generate_table_schemas_from_queries(
             query_patterns, 
             min_queries=1,  # Critical tables need immediate creation
             dry_run=False
