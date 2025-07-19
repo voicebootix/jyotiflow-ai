@@ -512,7 +512,7 @@ if ENV_DEBUG_ROUTER_AVAILABLE:
 if MISSING_ENDPOINTS_AVAILABLE:
     app.include_router(ai_router)
     app.include_router(missing_user_router)
-    app.include_router(sessions_router)
+    app.include_router(missing_sessions_router)
     app.include_router(community_router)
     print("✅ Missing endpoints router registered")
 
