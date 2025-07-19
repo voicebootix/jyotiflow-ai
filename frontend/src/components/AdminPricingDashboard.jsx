@@ -42,6 +42,11 @@ const AdminPricingDashboard = () => {
       
       // Fetch smart pricing recommendations
       const response = await fetch('/api/spiritual/enhanced/pricing/smart-recommendations');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.recommendations) {

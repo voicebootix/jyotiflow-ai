@@ -8,9 +8,10 @@ function createMonitoringWebSocket() {
     function connect() {
         try {
             // Get WebSocket URL from configuration, with fallback
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = (typeof window !== 'undefined' && window.MONITORING_WS_URL) ||
                          (typeof process !== 'undefined' && process.env.MONITORING_WS_URL) ||
-                         'wss://jyotiflow-ai.onrender.com/api/monitoring/ws';
+                         `${protocol}//${window.location.host}/api/monitoring/ws`;
             
             ws = new WebSocket(wsUrl);
             
