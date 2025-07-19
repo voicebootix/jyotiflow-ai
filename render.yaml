@@ -63,7 +63,7 @@ services:
       - key: NODE_VERSION
         value: 20
       - key: VITE_API_URL
-        value: https://jyotiflow-backend.onrender.com
+        value: https://jyotiflow-ai.onrender.com
     routes:
       - type: rewrite
         source: /*

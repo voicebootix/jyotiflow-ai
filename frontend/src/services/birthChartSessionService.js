@@ -86,7 +86,8 @@ class BirthChartSessionService {
       if (!anonymousChart) return false;
       
       // Call backend to link chart to user
-      const response = await fetch('/api/spiritual/birth-chart/link-to-user', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+      const response = await fetch(`${API_BASE_URL}/api/spiritual/birth-chart/link-to-user`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -208,7 +209,8 @@ class BirthChartSessionService {
       };
       
       // Send to analytics endpoint
-      fetch('/api/analytics/conversion-funnel', {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+    fetch(`${API_BASE_URL}/api/analytics/conversion-funnel`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(eventData)

@@ -13,6 +13,14 @@ export default defineConfig({
   },
   server: {
     historyApiFallback: true, // Enable client-side routing in development
+    proxy: {
+      '/api': {
+        target: process.env.VITE_API_URL || 'http://localhost:8000',
+        changeOrigin: true,
+        secure: false,
+        ws: true, // Enable WebSocket proxy
+      },
+    },
   },
   build: {
     rollupOptions: {

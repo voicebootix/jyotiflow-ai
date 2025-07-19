@@ -10,8 +10,10 @@ import {
   Heart, Video, Mic, MessageCircle, Gift, Calendar
 } from 'lucide-react';
 import { getProkeralaEndpoints } from '../config/prokeralaEndpoints';
+import spiritualAPI from '../lib/api';
 
 const AdminPricingDashboard = () => {
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
   const [pricingData, setPricingData] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [satsangEvents, setSatsangEvents] = useState([]);
@@ -41,7 +43,12 @@ const AdminPricingDashboard = () => {
       setLoading(true);
       
       // Fetch smart pricing recommendations
-      const response = await fetch('/api/spiritual/enhanced/pricing/smart-recommendations');
+      const response = await fetch(`${API_BASE_URL}/api/spiritual/enhanced/pricing/smart-recommendations`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
       
       if (data.recommendations) {
@@ -62,7 +69,7 @@ const AdminPricingDashboard = () => {
 
   const fetchSatsangEvents = async () => {
     try {
-      const response = await fetch('/api/spiritual/enhanced/satsang/events');
+      const response = await fetch(`${API_BASE_URL}/api/spiritual/enhanced/satsang/events`);
       const data = await response.json();
       setSatsangEvents(data.events || []);
     } catch (error) {
@@ -72,7 +79,7 @@ const AdminPricingDashboard = () => {
 
   const fetchWelcomeCredits = async () => {
     try {
-      const response = await fetch('/api/admin/pricing/welcome-credits');
+      const response = await fetch(`${API_BASE_URL}/api/admin/pricing/welcome-credits`);
       const data = await response.json();
       if (data.success) {
         setWelcomeCredits(data.welcome_credits);
@@ -85,7 +92,7 @@ const AdminPricingDashboard = () => {
   const updateWelcomeCredits = async () => {
     setUpdatingCredits(true);
     try {
-      const response = await fetch('/api/admin/pricing/welcome-credits', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/pricing/welcome-credits`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ welcome_credits: welcomeCredits })
@@ -106,7 +113,7 @@ const AdminPricingDashboard = () => {
 
   const applyPricingRecommendation = async (recommendation, adminNotes = '') => {
     try {
-      const response = await fetch('/api/spiritual/enhanced/pricing/apply', {
+      const response = await fetch(`${API_BASE_URL}/api/spiritual/enhanced/pricing/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -127,7 +134,7 @@ const AdminPricingDashboard = () => {
 
   const createSatsangEvent = async (eventData) => {
     try {
-      const response = await fetch('/api/spiritual/enhanced/satsang/create', {
+      const response = await fetch(`${API_BASE_URL}/api/spiritual/enhanced/satsang/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(eventData)
@@ -144,7 +151,7 @@ const AdminPricingDashboard = () => {
 
   const loadProkeralaCosts = async (serviceId) => {
     try {
-      const response = await fetch(`/api/admin/products/pricing/prokerala-cost/${serviceId}`);
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/pricing/prokerala-cost/${serviceId}`);
       const data = await response.json();
       if (data.success) {
         setProkeralaCosts(prev => ({
@@ -159,7 +166,7 @@ const AdminPricingDashboard = () => {
 
   const loadProkeralaConfig = async () => {
     try {
-      const response = await fetch('/api/admin/products/pricing/prokerala-config');
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/pricing/prokerala-config`);
       const data = await response.json();
       if (data.success) {
         setProkeralaConfig(data.data);
@@ -171,7 +178,7 @@ const AdminPricingDashboard = () => {
 
   const updateProkeralaConfig = async (config) => {
     try {
-      const response = await fetch('/api/admin/products/pricing/update-prokerala-config', {
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/pricing/update-prokerala-config`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(config)
@@ -188,7 +195,7 @@ const AdminPricingDashboard = () => {
 
   const loadServicesForConfiguration = async () => {
     try {
-      const response = await fetch('/api/admin/products/service-types');
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/service-types`);
       const data = await response.json();
       if (response.ok) {
         setServices(data);
@@ -212,7 +219,7 @@ const AdminPricingDashboard = () => {
     if (!modalService) return;
 
     try {
-      const response = await fetch(`/api/admin/products/service-types/${modalService.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/service-types/${modalService.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
