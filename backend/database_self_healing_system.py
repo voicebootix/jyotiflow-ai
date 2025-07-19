@@ -732,9 +732,8 @@ class CodePatternAnalyzer:
     
     def _escape_identifier(self, identifier: str) -> str:
         """Escape SQL identifier to prevent injection"""
-        # Remove any existing quotes and wrap in double quotes
-        cleaned = identifier.replace('"', '')
-        return f'"{cleaned}"'
+        # Use the existing secure quote_ident function
+        return quote_ident(identifier)
     
     def _generate_table_schemas_from_queries(self, query_patterns: Dict[str, List[Dict]], 
                                            min_queries: int = 2,
