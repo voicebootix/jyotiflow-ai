@@ -226,7 +226,7 @@ class InstagramService:
                 "error": f"Media retrieval failed: {str(e)}"
             }
     
-    async def validate_webhook_signature(self, signature: str, payload: str, app_secret: str) -> bool:
+    def validate_webhook_signature(self, signature: str, payload: str, app_secret: str) -> bool:
         """
         Validate Instagram webhook signature using Meta Graph API requirements
         
@@ -238,7 +238,10 @@ class InstagramService:
         Returns:
             bool: True if signature is valid, False otherwise
             
-        Note: Updated for latest Meta Graph API which uses SHA256 instead of deprecated SHA1
+        Note: 
+        - Synchronous method as HMAC operations don't require async
+        - Updated for latest Meta Graph API which uses SHA256 instead of deprecated SHA1
+        - Follows core.md principle of simplicity and reliability
         """
         try:
             # Remove 'sha256=' prefix if present (Meta format: 'sha256=<hex_digest>')
@@ -304,18 +307,8 @@ class InstagramService:
             
             verification_result["has_signature_header"] = True
             
-            # Validate signature using async method (but call it synchronously here)
-            import asyncio
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If already in async context, we can't use loop.run_until_complete
-                # So we'll do the validation directly
-                signature_valid = self._validate_signature_sync(signature_header, payload, app_secret)
-            else:
-                signature_valid = loop.run_until_complete(
-                    self.validate_webhook_signature(signature_header, payload, app_secret)
-                )
-            
+            # Validate signature using synchronous method (core.md simplicity)
+            signature_valid = self.validate_webhook_signature(signature_header, payload, app_secret)
             verification_result["signature_valid"] = signature_valid
             
             if not signature_valid:
@@ -328,28 +321,23 @@ class InstagramService:
             verification_result["error"] = f"Verification failed: {str(e)}"
             return verification_result
     
-    def _validate_signature_sync(self, signature: str, payload: str, app_secret: str) -> bool:
-        """Synchronous version of signature validation for use in verify_webhook_request"""
-        try:
-            # Remove 'sha256=' prefix if present
-            if signature.startswith('sha256='):
-                received_signature = signature[7:]
-            else:
-                received_signature = signature
+    async def validate_webhook_signature_async(self, signature: str, payload: str, app_secret: str) -> bool:
+        """
+        Async wrapper for validate_webhook_signature for backward compatibility
+        
+        Note: This is just a wrapper around the synchronous method.
+        The core HMAC validation doesn't require async operations.
+        Use the sync version (validate_webhook_signature) for better performance.
+        
+        Args:
+            signature: The X-Hub-Signature-256 header value
+            payload: The raw webhook payload as string  
+            app_secret: Instagram app secret for HMAC validation
             
-            # Calculate expected signature
-            expected_signature = hmac.new(
-                app_secret.encode('utf-8'),
-                payload.encode('utf-8'),
-                hashlib.sha256
-            ).hexdigest()
-            
-            # Secure comparison
-            return hmac.compare_digest(received_signature, expected_signature)
-            
-        except Exception as e:
-            logger.error(f"Sync signature validation error: {e}")
-            return False
+        Returns:
+            bool: True if signature is valid, False otherwise
+        """
+        return self.validate_webhook_signature(signature, payload, app_secret)
 
 # Export - Following standardized new-instance pattern
 __all__ = ["InstagramService"]
@@ -358,6 +346,10 @@ __all__ = ["InstagramService"]
 # No global instances - consistent pattern across all services
 # 
 # Key Methods:
-# - validate_credentials(): Real Instagram API validation
-# - validate_webhook_signature(): Modern SHA256 webhook verification
-# - verify_webhook_request(): Comprehensive webhook validation
+# - validate_credentials(): Real Instagram API validation  
+# - validate_webhook_signature(): Modern SHA256 webhook verification (SYNC - core.md compliant)
+# - validate_webhook_signature_async(): Async wrapper for backward compatibility
+# - verify_webhook_request(): Comprehensive webhook validation (SYNC - reliable)
+#
+# Design Note: Webhook validation is synchronous as HMAC operations don't require async.
+# This follows core.md principles of simplicity and avoids deprecated asyncio patterns.
