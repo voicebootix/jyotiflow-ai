@@ -151,7 +151,7 @@ const AdminPricingDashboard = () => {
 
   const loadProkeralaCosts = async (serviceId) => {
     try {
-      const response = await fetch(`/api/admin/products/pricing/prokerala-cost/${serviceId}`);
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/pricing/prokerala-cost/${serviceId}`);
       const data = await response.json();
       if (data.success) {
         setProkeralaCosts(prev => ({
@@ -219,7 +219,7 @@ const AdminPricingDashboard = () => {
     if (!modalService) return;
 
     try {
-      const response = await fetch(`/api/admin/products/service-types/${modalService.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/products/service-types/${modalService.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
