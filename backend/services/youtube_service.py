@@ -172,7 +172,8 @@ class YouTubeService:
             # Clean up input
             channel_input = channel_input.strip()
             
-            # Case 1: Already a Channel ID (starts with UC and 22 chars total)
+            # Case 1: Already a Channel ID (starts with UC and 24 chars total - YouTube standard format)
+            # Example: UCxxxxxxxxxxxxxxxxxxx (UC + 22 base64-like characters)
             if channel_input.startswith('UC') and len(channel_input) == 24:
                 return {
                     "success": True,
