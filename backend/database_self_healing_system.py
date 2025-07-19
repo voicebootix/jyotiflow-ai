@@ -56,7 +56,8 @@ CRITICAL_TABLES = {
 
 # SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
 SPIRITUAL_SERVICE_PRIORITIES = {
-    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base'],
+    'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base', 
+                 'integration_validations', 'business_logic_issues', 'validation_sessions', 'context_snapshots'],
     'HIGH': ['credit_transactions', 'payments', 'birth_chart_cache'],
     'MEDIUM': ['followup_templates', 'health_check_results'],
     'LOW': ['database_backups', 'platform_settings']
