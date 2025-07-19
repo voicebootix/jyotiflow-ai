@@ -7,6 +7,8 @@ import aiohttp
 import logging
 from typing import Dict, Optional
 import json
+import hmac
+import hashlib
 
 logger = logging.getLogger(__name__)
 
@@ -18,23 +20,29 @@ class InstagramService:
         self.basic_url = "https://api.instagram.com"
         self._credentials_cache = None
     
-    async def validate_credentials(self, client_id: str, client_secret: str, access_token: str) -> Dict:
+    async def validate_credentials(self, app_id: str, app_secret: str, access_token: str) -> Dict:
         """
         Validate Instagram credentials by making real API calls
         Returns: {"success": bool, "message": str, "error": str}
         """
         try:
-            # Test 1: Validate access token
+            # Test 1: Validate app credentials
+            if app_id and app_secret:
+                app_test = await self._validate_app_credentials(app_id, app_secret)
+                if not app_test["success"]:
+                    return app_test
+            
+            # Test 2: Validate access token
             token_test = await self._validate_access_token(access_token)
             if not token_test["success"]:
                 return token_test
             
-            # Test 2: Get user profile info
+            # Test 3: Get user profile info
             profile_test = await self._get_user_profile(access_token)
             if not profile_test["success"]:
                 return profile_test
             
-            # Test 3: Check if it's a business account (for posting)
+            # Test 4: Check if it's a business account (for posting)
             business_test = await self._check_business_account(access_token)
             
             return {
@@ -49,6 +57,39 @@ class InstagramService:
             return {
                 "success": False,
                 "error": f"Instagram API validation failed: {str(e)}"
+            }
+    
+    async def _validate_app_credentials(self, app_id: str, app_secret: str) -> Dict:
+        """Validate Instagram app credentials (Instagram uses Facebook Graph API)"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Instagram apps use Facebook Graph API for app token validation
+                url = "https://graph.facebook.com/oauth/access_token"
+                params = {
+                    "client_id": app_id,
+                    "client_secret": app_secret,
+                    "grant_type": "client_credentials"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "access_token" in data:
+                        return {
+                            "success": True,
+                            "message": "Instagram app credentials validated successfully",
+                            "app_token": data["access_token"]
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Invalid app credentials")
+                        return {
+                            "success": False,
+                            "error": f"App credentials validation failed: {error_msg}"
+                        }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"App credentials test failed: {str(e)}"
             }
     
     async def _validate_access_token(self, access_token: str) -> Dict:
@@ -185,19 +226,138 @@ class InstagramService:
                 "error": f"Media retrieval failed: {str(e)}"
             }
     
-    async def validate_webhook_signature(self, signature: str, payload: str, client_secret: str) -> bool:
-        """Validate Instagram webhook signature"""
-        import hmac
-        import hashlib
+    async def validate_webhook_signature(self, signature: str, payload: str, app_secret: str) -> bool:
+        """
+        Validate Instagram webhook signature using Meta Graph API requirements
         
+        Args:
+            signature: The X-Hub-Signature-256 header value from Meta (e.g., "sha256=abc123...")
+            payload: The raw webhook payload as string
+            app_secret: Instagram app secret for HMAC validation
+            
+        Returns:
+            bool: True if signature is valid, False otherwise
+            
+        Note: Updated for latest Meta Graph API which uses SHA256 instead of deprecated SHA1
+        """
         try:
+            # Remove 'sha256=' prefix if present (Meta format: 'sha256=<hex_digest>')
+            if signature.startswith('sha256='):
+                received_signature = signature[7:]  # Remove 'sha256=' prefix
+            else:
+                # Fallback: assume signature is the raw hex digest
+                received_signature = signature
+            
+            # Calculate expected signature using SHA256 (Meta Graph API standard)
             expected_signature = hmac.new(
-                client_secret.encode(),
-                payload.encode(),
-                hashlib.sha1
+                app_secret.encode('utf-8'),
+                payload.encode('utf-8'),
+                hashlib.sha256
             ).hexdigest()
             
-            return signature == f"sha1={expected_signature}"
+            # Secure comparison to prevent timing attacks
+            is_valid = hmac.compare_digest(received_signature, expected_signature)
+            
+            if not is_valid:
+                logger.warning(f"Instagram webhook signature validation failed")
+                logger.debug(f"Expected: {expected_signature[:8]}..., Received: {received_signature[:8]}...")
+            
+            return is_valid
+            
         except Exception as e:
-            logger.error(f"Webhook signature validation failed: {e}")
+            logger.error(f"Instagram webhook signature validation error: {e}")
             return False
+    
+    def verify_webhook_request(self, headers: Dict[str, str], payload: str, app_secret: str) -> Dict[str, bool]:
+        """
+        Comprehensive webhook request verification for Instagram
+        
+        Args:
+            headers: HTTP headers from the webhook request
+            payload: Raw webhook payload
+            app_secret: Instagram app secret
+            
+        Returns:
+            Dict with verification results and details
+            
+        Note: Follows Meta Graph API webhook security best practices
+        """
+        verification_result = {
+            "signature_valid": False,
+            "has_signature_header": False,
+            "error": None
+        }
+        
+        try:
+            # Check for X-Hub-Signature-256 header (Meta standard)
+            signature_header = headers.get('X-Hub-Signature-256') or headers.get('x-hub-signature-256')
+            
+            if not signature_header:
+                # Fallback: check for deprecated SHA1 header
+                legacy_header = headers.get('X-Hub-Signature') or headers.get('x-hub-signature')
+                if legacy_header:
+                    verification_result["error"] = "Using deprecated SHA1 signature. Please upgrade to SHA256."
+                    logger.warning("Instagram webhook using deprecated SHA1 signature")
+                else:
+                    verification_result["error"] = "Missing X-Hub-Signature-256 header"
+                return verification_result
+            
+            verification_result["has_signature_header"] = True
+            
+            # Validate signature using async method (but call it synchronously here)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # If already in async context, we can't use loop.run_until_complete
+                # So we'll do the validation directly
+                signature_valid = self._validate_signature_sync(signature_header, payload, app_secret)
+            else:
+                signature_valid = loop.run_until_complete(
+                    self.validate_webhook_signature(signature_header, payload, app_secret)
+                )
+            
+            verification_result["signature_valid"] = signature_valid
+            
+            if not signature_valid:
+                verification_result["error"] = "Invalid webhook signature"
+            
+            return verification_result
+            
+        except Exception as e:
+            logger.error(f"Webhook verification error: {e}")
+            verification_result["error"] = f"Verification failed: {str(e)}"
+            return verification_result
+    
+    def _validate_signature_sync(self, signature: str, payload: str, app_secret: str) -> bool:
+        """Synchronous version of signature validation for use in verify_webhook_request"""
+        try:
+            # Remove 'sha256=' prefix if present
+            if signature.startswith('sha256='):
+                received_signature = signature[7:]
+            else:
+                received_signature = signature
+            
+            # Calculate expected signature
+            expected_signature = hmac.new(
+                app_secret.encode('utf-8'),
+                payload.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            
+            # Secure comparison
+            return hmac.compare_digest(received_signature, expected_signature)
+            
+        except Exception as e:
+            logger.error(f"Sync signature validation error: {e}")
+            return False
+
+# Export - Following standardized new-instance pattern
+__all__ = ["InstagramService"]
+
+# Note: Use InstagramService() to create new instances for better isolation
+# No global instances - consistent pattern across all services
+# 
+# Key Methods:
+# - validate_credentials(): Real Instagram API validation
+# - validate_webhook_signature(): Modern SHA256 webhook verification
+# - verify_webhook_request(): Comprehensive webhook validation

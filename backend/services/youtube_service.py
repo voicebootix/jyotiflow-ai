@@ -48,12 +48,15 @@ class YouTubeService:
             }
     
     async def _test_api_key(self, api_key: str) -> Dict:
-        """Test if API key is valid by calling YouTube API"""
+        """Test if API key is valid by calling YouTube API (API key only - no OAuth required)"""
         try:
-            url = f"{self.base_url}/channels"
+            # Use search endpoint instead of mine=true (which requires OAuth 2.0)
+            url = f"{self.base_url}/search"
             params = {
                 "part": "snippet",
-                "mine": "true",
+                "q": "youtube api test",
+                "type": "video",
+                "maxResults": 1,
                 "key": api_key
             }
             
@@ -83,10 +86,18 @@ class YouTubeService:
                             "error": "Invalid YouTube API request format"
                         }
                     elif response.status == 200:
-                        return {
-                            "success": True,
-                            "message": "API key is valid"
-                        }
+                        # Additional validation: check if we got valid search results
+                        data = await response.json()
+                        if "items" in data:
+                            return {
+                                "success": True,
+                                "message": "YouTube API key is valid and working"
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "error": "YouTube API key valid but returned unexpected data format"
+                            }
                     else:
                         return {
                             "success": False,
@@ -143,5 +154,8 @@ class YouTubeService:
                 "error": f"Channel ID validation failed: {str(e)}"
             }
 
-# Global instance
-youtube_service = YouTubeService()
+# Export - Following standardized new-instance pattern
+__all__ = ["YouTubeService"]
+
+# Note: Use YouTubeService() to create new instances for better isolation
+# Global instances removed to follow consistent pattern across all services

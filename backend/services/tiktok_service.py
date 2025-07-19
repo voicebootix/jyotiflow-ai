@@ -183,5 +183,8 @@ class TikTokService:
                 "error": f"Token validation failed: {str(e)}"
             }
 
-# Global instance
-tiktok_service = TikTokService()
+# Export - Following standardized new-instance pattern
+__all__ = ["TikTokService"]
+
+# Note: Use TikTokService() to create new instances for better isolation
+# Global instances removed to follow consistent pattern across all services

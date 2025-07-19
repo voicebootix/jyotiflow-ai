@@ -134,13 +134,19 @@ except ImportError:
 SURGICAL_AUTH_AVAILABLE = False
 print("⚠️ Surgical auth router disabled - using main auth system only")
 
-# Monitoring system - TEMPORARILY DISABLED to fix table errors
-# try:
-#     from monitoring.register_monitoring import register_monitoring_system, init_monitoring
-#     MONITORING_AVAILABLE = True
-# except ImportError:
-MONITORING_AVAILABLE = False
-print("⚠️ Monitoring system temporarily disabled - fixing table errors")
+# Monitoring system - Enhanced import handling with automatic recovery
+try:
+    from monitoring.register_monitoring import register_monitoring_system, init_monitoring
+    MONITORING_AVAILABLE = True
+    print("✅ Monitoring system loaded successfully")
+except ImportError as e:
+    MONITORING_AVAILABLE = False
+    print(f"⚠️ Monitoring system not available - ImportError: {e}")
+    print("   → Will auto-enable once monitoring dependencies are resolved")
+except Exception as e:
+    MONITORING_AVAILABLE = False
+    print(f"⚠️ Monitoring system failed to load - Error: {e}")
+    print("   → Check monitoring module configuration")
 
 # Debug router for testing
 try:
@@ -238,14 +244,19 @@ async def lifespan(app: FastAPI):
         print("✅ Database connection pool initialized successfully!")
         print("📊 Pool configuration: connections ready for use")
         
-        # Initialize monitoring system if available
+        # Initialize monitoring system if available - Enhanced error handling
         if MONITORING_AVAILABLE:
             try:
-                # await init_monitoring()  # Temporarily disabled
-                print("⚠️ Monitoring system initialization skipped")
+                await init_monitoring()
+                print("✅ Monitoring system initialized successfully")
             except Exception as monitor_error:
                 print(f"⚠️ Failed to initialize monitoring: {monitor_error}")
+                print("   → Monitoring loaded but initialization failed")
+                print("   → Check database tables: integration_validations, business_logic_issues")
                 # Continue running even if monitoring fails
+        else:
+            print("⚠️ Monitoring system initialization skipped - not available")
+            print("   → Will auto-initialize once monitoring dependencies are resolved")
         
         print("✅ Unified JyotiFlow.ai system ready!")
         print("🎯 Ready to serve API requests with all features enabled")
@@ -514,13 +525,18 @@ if ENV_DEBUG_ROUTER_AVAILABLE:
 
 print("🚀 All routers registered successfully!")
 
-# Register monitoring system
+# Register monitoring system - Enhanced error handling with automatic recovery
 if MONITORING_AVAILABLE:
     try:
-        # register_monitoring_system(app)  # Temporarily disabled
-        print("⚠️ Monitoring system registration skipped")
+        register_monitoring_system(app)
+        print("✅ Monitoring system registered successfully")
     except Exception as e:
         print(f"❌ Failed to register monitoring system: {e}")
+        print("   → Monitoring imports succeeded but registration failed")
+        print("   → Check database tables and monitoring configuration")
+else:
+    print("⚠️ Monitoring system registration skipped - not available")
+    print("   → Will auto-register once monitoring dependencies are resolved")
 
 # Surgical auth router - REMOVED (conflicting authentication system)
 # Using main auth system only (routers/auth.py)
