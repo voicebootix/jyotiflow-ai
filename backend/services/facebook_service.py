@@ -87,12 +87,12 @@ class FacebookService:
                     data = await response.json()
             
                     if response.status == 200 and "id" in data:
-                return {
-                    "success": True,
+                        return {
+                            "success": True,
                             "message": f"Access token valid for user: {data.get('name', 'Unknown')}",
                             "user_id": data["id"]
-                }
-            else:
+                        }
+                    else:
                         error_msg = data.get("error", {}).get("message", "Invalid access token")
                         return {
                             "success": False,
@@ -119,17 +119,17 @@ class FacebookService:
                     data = await response.json()
                     
                     if response.status == 200 and "access_token" in data:
-                                return {
-                                    "success": True,
+                        return {
+                            "success": True,
                             "message": "App credentials validated successfully",
                             "app_token": data["access_token"]
                         }
                     else:
                         error_msg = data.get("error", {}).get("message", "Invalid app credentials")
-                                                 return {
-                             "success": False,
+                        return {
+                            "success": False,
                             "error": f"App credentials validation failed: {error_msg}"
-                         }
+                        }
         except Exception as e:
             return {
                 "success": False,
@@ -224,12 +224,12 @@ class FacebookService:
             async with aiohttp.ClientSession() as session:
                 url = f"{self.graph_url}/me"
                 # Fix: Explicitly request page-specific fields for reliable detection
-        params = {
+                params = {
                     "access_token": access_token,
                     "fields": "id,name,category,about,fan_count,email,first_name,last_name"
-        }
+                }
         
-                    async with session.get(url, params=params) as response:
+                async with session.get(url, params=params) as response:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
@@ -300,15 +300,15 @@ class FacebookService:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
-            return {
-                "success": True,
+                        return {
+                            "success": True,
                             "message": f"Page access token valid for: {data.get('name', 'Unknown')}",
                             "page_id": data["id"],
                             "page_name": data.get("name"),
                             "category": data.get("category"),
                             "fan_count": data.get("fan_count")
-            }
-        else:
+                        }
+                    else:
                         error_msg = data.get("error", {}).get("message", "Invalid page access token")
                         return {
                             "success": False,
