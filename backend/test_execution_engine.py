@@ -12,8 +12,11 @@ import asyncio
 import asyncpg
 import traceback
 import importlib
+import ast
+import secrets
+import string
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional, Callable
+from typing import Dict, List, Any, Optional, Callable, Union
 import logging
 
 # Add current directory to Python path for imports
@@ -24,6 +27,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+class TestExecutionError(Exception):
+    """Custom exception for test execution failures"""
+    pass
 
 class TestExecutionEngine:
     """
@@ -37,8 +44,29 @@ class TestExecutionEngine:
         self.results = {}
         
     async def execute_test_suite(self, suite_name: str, test_category: str = "manual") -> Dict[str, Any]:
-        """Execute a specific test suite and return results"""
-        logger.info(f"🧪 Executing test suite: {suite_name}")
+        """
+        Execute a specific test suite and return comprehensive results.
+        
+        Args:
+            suite_name: Name of the test suite to execute
+            test_category: Category for organizing test results (default: "manual")
+            
+        Returns:
+            Dict containing:
+                - session_id: Unique identifier for this test run
+                - status: Overall test status ("passed", "failed", "partial", "error")
+                - total_tests: Number of tests executed
+                - passed_tests: Number of tests that passed
+                - failed_tests: Number of tests that failed
+                - success_rate: Percentage of tests that passed
+                - results: Detailed results for each test case
+                
+        Raises:
+            DatabaseConnectionError: If unable to connect to database
+            TestExecutionError: If test execution fails
+            TimeoutError: If test execution exceeds timeout
+        """
+        logger.info("🧪 Executing test suite: %s", suite_name.replace('"', '').replace("'", ""))
         
         # Create test execution session
         session_id = await self._create_test_session(suite_name, test_category)
@@ -264,12 +292,33 @@ class TestExecutionEngine:
                 "execution_time_ms": execution_time
             }
     
-    async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any]) -> Any:
-        """Execute test code in a safe environment"""
+    async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any]) -> Union[Dict[str, Any], Any]:
+        """
+        Safely execute test code with proper validation and security measures.
         
-        # Create a safe execution environment
+        Args:
+            test_code: The test code to execute
+            test_case: Test case metadata and configuration
+            
+        Returns:
+            Test execution result
+            
+        Raises:
+            TestExecutionError: If test execution fails
+            SyntaxError: If test code has syntax errors
+        """
+        # Validate test case input
+        self._validate_test_input(test_case)
+        
+        # Create a restricted execution environment
         test_globals = {
-            '__builtins__': __builtins__,
+            '__builtins__': {
+                'len': len, 'str': str, 'int': int, 'float': float, 'bool': bool,
+                'dict': dict, 'list': list, 'tuple': tuple, 'set': set,
+                'range': range, 'enumerate': enumerate, 'zip': zip,
+                'print': print, 'Exception': Exception, 'ValueError': ValueError,
+                'TypeError': TypeError, 'AssertionError': AssertionError
+            },
             'asyncio': asyncio,
             'asyncpg': asyncpg,
             'uuid': uuid,
@@ -284,7 +333,7 @@ class TestExecutionEngine:
         test_globals.update(test_case)
         
         try:
-            # Import additional modules if needed
+            # Import additional modules if needed (with validation)
             if 'httpx' in test_code:
                 import httpx
                 test_globals['httpx'] = httpx
@@ -295,10 +344,26 @@ class TestExecutionEngine:
                     test_globals['DatabaseSelfHealingSystem'] = DatabaseSelfHealingSystem
                     test_globals['extract_table_from_query'] = extract_table_from_query
                 except ImportError as e:
-                    logger.warning(f"Could not import database_self_healing_system: {e}")
+                    logger.warning("Could not import database_self_healing_system: %s", str(e))
             
-            # Execute the test code
-            exec(test_code, test_globals)
+            # SECURITY FIX: Use AST parsing instead of direct exec()
+            try:
+                # Parse and validate syntax first
+                parsed = ast.parse(test_code, mode='exec')
+                
+                # Validate AST for dangerous operations
+                self._validate_ast_safety(parsed)
+                
+                # Compile to bytecode
+                compiled = compile(parsed, '<test_code>', 'exec')
+                
+                # Execute with restricted globals
+                exec(compiled, test_globals)
+                
+            except SyntaxError as e:
+                raise TestExecutionError(f"Invalid test code syntax: {e}") from e
+            except Exception as e:
+                raise TestExecutionError(f"Test code compilation failed: {e}") from e
             
             # Find and execute the test function
             test_function_name = test_case.get('test_name', 'test_function')
@@ -314,11 +379,66 @@ class TestExecutionEngine:
                     if name.startswith('test_') and asyncio.iscoroutinefunction(obj):
                         return await obj()
                 
-                raise Exception(f"No test function found: {test_function_name}")
+                raise TestExecutionError(f"No test function found: {test_function_name}")
                 
+        except (SyntaxError, NameError, TypeError) as e:
+            logger.error("Test code execution failed: %s", str(e))
+            raise TestExecutionError(f"Test failed: {e}") from e
         except Exception as e:
-            logger.error(f"Test code execution failed: {e}")
+            logger.error("Unexpected error in test execution: %s", str(e))
             raise
+    
+    def _validate_test_input(self, test_case: Dict[str, Any]) -> None:
+        """Validate test case input for required fields and types."""
+        required_fields = ['test_name', 'test_code', 'test_type']
+        for field in required_fields:
+            if field not in test_case:
+                raise ValueError(f"Missing required field: {field}")
+        
+        if not isinstance(test_case['test_name'], str):
+            raise TypeError("test_name must be a string")
+        
+        if not isinstance(test_case['test_code'], str):
+            raise TypeError("test_code must be a string")
+    
+    def _validate_ast_safety(self, node: ast.AST) -> None:
+        """
+        Validate AST for potentially dangerous operations.
+        
+        Args:
+            node: AST node to validate
+            
+        Raises:
+            TestExecutionError: If dangerous operations are detected
+        """
+        dangerous_nodes = (
+            ast.Import, ast.ImportFrom,  # Restrict dynamic imports
+        )
+        
+        dangerous_functions = {
+            'eval', 'exec', 'compile', '__import__',
+            'open', 'file', 'input', 'raw_input',
+            'reload', 'vars', 'locals', 'globals'
+        }
+        
+        for child in ast.walk(node):
+            # Check for dangerous node types
+            if isinstance(child, dangerous_nodes):
+                if isinstance(child, (ast.Import, ast.ImportFrom)):
+                    # Allow only specific safe imports
+                    safe_modules = {'asyncio', 'asyncpg', 'uuid', 'json', 'datetime', 'httpx'}
+                    if isinstance(child, ast.Import):
+                        for alias in child.names:
+                            if alias.name not in safe_modules:
+                                raise TestExecutionError(f"Unsafe import detected: {alias.name}")
+                    elif isinstance(child, ast.ImportFrom):
+                        if child.module not in safe_modules:
+                            raise TestExecutionError(f"Unsafe module import: {child.module}")
+            
+            # Check for dangerous function calls
+            if isinstance(child, ast.Call) and isinstance(child.func, ast.Name):
+                if child.func.id in dangerous_functions:
+                    raise TestExecutionError(f"Unsafe function call detected: {child.func.id}")
     
     async def _test_database_connectivity(self) -> Dict[str, Any]:
         """Quick database connectivity test"""

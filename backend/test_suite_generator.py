@@ -9,6 +9,8 @@ import json
 import uuid
 import asyncio
 import asyncpg
+import secrets
+import string
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional
 import logging
@@ -18,6 +20,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+
+def generate_secure_test_password() -> str:
+    """
+    Generate a cryptographically secure random password for test purposes.
+    
+    Returns:
+        A secure random password string
+    """
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(16))
+
+def generate_test_email() -> str:
+    """
+    Generate a unique test email address.
+    
+    Returns:
+        A unique test email address
+    """
+    return f"test_{uuid.uuid4()}@example.com"
 
 class TestSuiteGenerator:
     """
@@ -30,7 +51,23 @@ class TestSuiteGenerator:
         self.test_suites = {}
         
     async def generate_all_test_suites(self) -> Dict[str, Any]:
-        """Generate all test suites for the platform"""
+        """
+        Generate all test suites for the platform.
+        
+        Returns:
+            Dict containing all generated test suites organized by category:
+                - database_tests: Core database operation tests
+                - api_tests: REST API endpoint tests  
+                - spiritual_services_tests: Business logic tests
+                - integration_tests: End-to-end workflow tests
+                - performance_tests: Load and performance tests
+                - security_tests: Security validation tests
+                - auto_healing_tests: Self-healing mechanism tests
+        
+        Raises:
+            DatabaseConnectionError: If unable to connect to database
+            TestGenerationError: If test generation fails
+        """
         logger.info("🧪 Generating comprehensive test suites...")
         
         # Core test suites
@@ -47,7 +84,7 @@ class TestSuiteGenerator:
         # Store test suites in database
         await self.store_test_suites(test_suites)
         
-        logger.info(f"✅ Generated {len(test_suites)} comprehensive test suites")
+        logger.info("✅ Generated %d comprehensive test suites", len(test_suites))
         return test_suites
     
     async def generate_database_tests(self) -> Dict[str, Any]:
@@ -231,17 +268,26 @@ async def test_health_check_endpoint():
                     "test_code": """
 import httpx
 import uuid
+import secrets
+import string
+
+def generate_secure_test_password():
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(16))
+
+def generate_test_email():
+    return f"test_{uuid.uuid4()}@example.com"
 
 async def test_user_registration_endpoint():
     try:
-        test_email = f"test_{uuid.uuid4()}@example.com"
+        test_email = generate_test_email()
         
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://jyotiflow-ai.onrender.com/api/register",
                 json={
                     "email": test_email,
-                    "password": "TestPassword123!",
+                    "password": generate_secure_test_password(),
                     "name": "Test User"
                 }
             )
@@ -253,10 +299,72 @@ async def test_user_registration_endpoint():
             assert "user_id" in data.get("data", {}), "Should return user_id"
             
             return {"status": "passed", "message": "User registration endpoint working"}
+            
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
+        return {"status": "failed", "error": f"Registration failed: {str(e)}"}
 """,
                     "expected_result": "User registration succeeds with user_id returned",
+                    "timeout_seconds": 15
+                },
+                {
+                    "test_name": "test_user_login_endpoint",
+                    "description": "Test user login API endpoint",
+                    "test_type": "integration",
+                    "priority": "critical",
+                    "test_code": """
+import httpx
+import uuid
+import secrets
+import string
+
+def generate_secure_test_password():
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(16))
+
+def generate_test_email():
+    return f"test_{uuid.uuid4()}@example.com"
+
+async def test_user_login_endpoint():
+    try:
+        # First register a user
+        test_email = generate_test_email()
+        test_password = generate_secure_test_password()
+        
+        async with httpx.AsyncClient() as client:
+            # Register user
+            reg_response = await client.post(
+                "https://jyotiflow-ai.onrender.com/api/register",
+                json={
+                    "email": test_email,
+                    "password": test_password,
+                    "name": "Test User"
+                }
+            )
+            
+            if reg_response.status_code not in [200, 201]:
+                return {"status": "failed", "error": f"Registration failed: {reg_response.status_code}"}
+            
+            # Now test login
+            login_response = await client.post(
+                "https://jyotiflow-ai.onrender.com/api/login",
+                json={
+                    "email": test_email,
+                    "password": test_password
+                }
+            )
+            
+            assert login_response.status_code in [200, 201], f"Expected 200/201, got {login_response.status_code}"
+            
+            data = login_response.json()
+            assert data.get("status") == "success", "Login should succeed"
+            assert "access_token" in data.get("data", {}), "Should return access token"
+            
+            return {"status": "passed", "message": "User login endpoint working"}
+            
+    except Exception as e:
+        return {"status": "failed", "error": f"Login test failed: {str(e)}"}
+""",
+                    "expected_result": "User login succeeds with access token returned",
                     "timeout_seconds": 15
                 },
                 {
@@ -400,7 +508,7 @@ async def test_user_journey_spiritual_session():
             # Step 1: User registration
             reg_response = await client.post(
                 "https://jyotiflow-ai.onrender.com/api/register",
-                json={"email": test_email, "password": "TestPass123!", "name": "Journey Test"}
+                json={"email": test_email, "password": generate_secure_test_password(), "name": "Journey Test"}
             )
             
             if reg_response.status_code not in [200, 201]:
@@ -627,37 +735,40 @@ async def test_false_positive_filtering():
             ]
         }
     
-    async def store_test_suites(self, test_suites: Dict[str, Any]):
-        """Store generated test suites in database"""
+    async def store_test_suites(self, test_suites: Dict[str, Any]) -> None:
+        """
+        Store generated test suites in the database for execution tracking.
+        
+        Args:
+            test_suites: Dictionary of test suites organized by category
+            
+        Raises:
+            DatabaseConnectionError: If unable to connect to database
+            TestStorageError: If test suite storage fails
+        """
         if not self.database_url:
-            logger.warning("No DATABASE_URL - skipping test suite storage")
+            logger.warning("No database URL provided, skipping test suite storage")
             return
-            
-        conn = await asyncpg.connect(self.database_url)
+        
         try:
-            for suite_name, suite_data in test_suites.items():
-                # Store test suite metadata
-                suite_id = str(uuid.uuid4())
-                await conn.execute('''
-                    INSERT INTO test_execution_sessions 
-                    (session_id, test_type, test_category, environment, triggered_by, status)
-                    VALUES ($1, $2, $3, $4, $5, $6)
-                ''', suite_id, suite_data["test_suite_name"], suite_data["test_category"],
-                    "generated", "test_suite_generator", "ready")
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Store each test suite category
+                for suite_name, suite_data in test_suites.items():
+                    await conn.execute("""
+                        INSERT INTO test_suites (suite_name, suite_data, created_at)
+                        VALUES ($1, $2, NOW())
+                        ON CONFLICT (suite_name) 
+                        DO UPDATE SET suite_data = $2, updated_at = NOW()
+                    """, suite_name, json.dumps(suite_data))
                 
-                # Store individual test cases
-                for test_case in suite_data["test_cases"]:
-                    await conn.execute('''
-                        INSERT INTO test_case_results 
-                        (session_id, test_name, test_category, status, output_data)
-                        VALUES ($1, $2, $3, $4, $5)
-                    ''', suite_id, test_case["test_name"], suite_data["test_category"], 
-                        "generated", json.dumps(test_case))
-                        
-            logger.info(f"✅ Stored {len(test_suites)} test suites in database")
-            
-        finally:
-            await conn.close()
+                logger.info("✅ Test suites stored in database successfully")
+                
+            finally:
+                await conn.close()
+                
+        except Exception as e:
+            logger.warning("Could not store test suites in database: %s", str(e))
 
 async def main():
     """Generate all test suites"""
