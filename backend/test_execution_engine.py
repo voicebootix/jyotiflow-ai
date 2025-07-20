@@ -411,34 +411,49 @@ class TestExecutionEngine:
         Raises:
             TestExecutionError: If dangerous operations are detected
         """
-        dangerous_nodes = (
-            ast.Import, ast.ImportFrom,  # Restrict dynamic imports
-        )
-        
         dangerous_functions = {
             'eval', 'exec', 'compile', '__import__',
             'open', 'file', 'input', 'raw_input',
             'reload', 'vars', 'locals', 'globals'
         }
         
+        safe_modules = {
+            'asyncio', 'asyncpg', 'uuid', 'json', 'datetime', 'httpx',
+            'secrets', 'string'  # Added for password generation
+        }
+        
         for child in ast.walk(node):
-            # Check for dangerous node types
-            if isinstance(child, dangerous_nodes):
-                if isinstance(child, (ast.Import, ast.ImportFrom)):
-                    # Allow only specific safe imports
-                    safe_modules = {'asyncio', 'asyncpg', 'uuid', 'json', 'datetime', 'httpx'}
-                    if isinstance(child, ast.Import):
-                        for alias in child.names:
-                            if alias.name not in safe_modules:
-                                raise TestExecutionError(f"Unsafe import detected: {alias.name}")
-                    elif isinstance(child, ast.ImportFrom):
-                        if child.module not in safe_modules:
-                            raise TestExecutionError(f"Unsafe module import: {child.module}")
-            
             # Check for dangerous function calls
             if isinstance(child, ast.Call) and isinstance(child.func, ast.Name):
                 if child.func.id in dangerous_functions:
                     raise TestExecutionError(f"Unsafe function call detected: {child.func.id}")
+            
+            # Check for dangerous imports
+            if isinstance(child, ast.Import):
+                for alias in child.names:
+                    if alias.name not in safe_modules:
+                        raise TestExecutionError(f"Unsafe import detected: {alias.name}")
+            
+            if isinstance(child, ast.ImportFrom):
+                if child.module and child.module not in safe_modules:
+                    raise TestExecutionError(f"Unsafe module import: {child.module}")
+            
+            # Check for attribute access to dangerous modules (like os.system)
+            if isinstance(child, ast.Attribute):
+                if isinstance(child.value, ast.Name):
+                    # Block dangerous module usage
+                    dangerous_attrs = {
+                        'os': ['system', 'popen', 'spawn', 'exec', 'remove', 'rmdir'],
+                        'subprocess': ['call', 'run', 'Popen', 'check_output'],
+                        'shutil': ['rmtree', 'move', 'copy'],
+                        'sys': ['exit', 'path']
+                    }
+                    
+                    module_name = child.value.id
+                    attr_name = child.attr
+                    
+                    if module_name in dangerous_attrs and attr_name in dangerous_attrs[module_name]:
+                        raise TestExecutionError(f"Unsafe module operation: {module_name}.{attr_name}")
     
     async def _test_database_connectivity(self) -> Dict[str, Any]:
         """Quick database connectivity test"""
