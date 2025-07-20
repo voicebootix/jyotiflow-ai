@@ -44,10 +44,25 @@ class InstagramService:
                 if not profile_test["success"]:
                     return profile_test
                 
+                # Test 4: Check business account status (CRITICAL for posting capabilities)
+                user_id = profile_test.get("user_info", {}).get("id")
+                business_test = await self._check_business_account(access_token, user_id)
+                if not business_test["success"]:
+                    # Log warning but don't fail validation (business check is informational)
+                    logger.warning(f"Business account check failed: {business_test.get('error')}")
+                    is_business = False
+                    account_type = "PERSONAL"
+                else:
+                    is_business = business_test.get("is_business", False)
+                    account_type = business_test.get("account_type", "PERSONAL")
+                
                 return {
                     "success": True,
                     "message": "Instagram credentials validated successfully. Ready for API calls!",
                     "user_info": profile_test.get("user_info", {}),
+                    "is_business": is_business,
+                    "account_type": account_type,
+                    "posting_enabled": is_business,  # Critical for determining API posting capabilities
                     "token_type": "access_token"
                 }
             else:
