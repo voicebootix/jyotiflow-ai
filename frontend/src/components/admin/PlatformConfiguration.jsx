@@ -151,11 +151,36 @@ const PlatformConfiguration = () => {
       });
       
       const responseData = response.data;
+      
+      // DIAGNOSTIC: Log the actual response for debugging
+      console.log('🔍 SAVE RESPONSE DEBUG:', {
+        platform,
+        httpStatus: response.status,
+        responseData,
+        hasSuccess: responseData?.success,
+        successValue: responseData?.success,
+        message: responseData?.message
+      });
+      
       if (responseData && responseData.success) {
         addNotification('success', `${platform.charAt(0).toUpperCase() + platform.slice(1)} configuration saved successfully!`, platform);
-        await fetchCurrentKeys();
+        
+        // DIAGNOSTIC: Track fetchCurrentKeys success/failure
+        try {
+          await fetchCurrentKeys();
+          console.log('✅ fetchCurrentKeys completed successfully');
+        } catch (fetchError) {
+          console.error('❌ fetchCurrentKeys failed:', fetchError);
+          addNotification('warning', 'Configuration saved but refresh failed. Please reload the page.', platform);
+        }
       } else {
         const errorMessage = responseData?.message || 'Failed to save configuration';
+        console.log('❌ SAVE FAILED - Response Analysis:', {
+          responseData,
+          errorMessage,
+          successField: responseData?.success,
+          hasResponseData: !!responseData
+        });
         addNotification('error', errorMessage, platform, responseData);
       }
     } catch (error) {
