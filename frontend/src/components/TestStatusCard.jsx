@@ -257,6 +257,34 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
                         </div>
                     )}
                     
+                    {/* Social Media Automation Status - BUSINESS CRITICAL */}
+                    {(socialMediaStatus.social_media_engine.available || socialMediaStatus.metrics.campaigns_7d > 0) && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1">
+                                    <Activity className="h-3 w-3" />
+                                    <span className="text-xs font-medium">Social Media Automation</span>
+                                    <Badge className={`text-xs ml-1 ${socialMediaStatus.automation_health.overall_status === 'healthy' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                        {socialMediaStatus.automation_health.overall_status?.toUpperCase() || 'UNKNOWN'}
+                                    </Badge>
+                                </div>
+                                <div className="flex gap-1">
+                                    {socialMediaStatus.social_media_engine.available && (
+                                        <div className="h-2 w-2 bg-green-500 rounded-full" title="Marketing Engine Online" />
+                                    )}
+                                    {socialMediaStatus.social_media_validator.available && (
+                                        <div className="h-2 w-2 bg-blue-500 rounded-full" title="Content Validator Online" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                                <div>Campaigns: {socialMediaStatus.metrics.campaigns_7d}</div>
+                                <div>Posts: {socialMediaStatus.metrics.posts_24h}</div>
+                                <div>Active: {socialMediaStatus.metrics.active_campaigns}</div>
+                            </div>
+                        </div>
+                    )}
+                    
                     {error && (
                         <Alert className="mt-2">
                             <AlertTriangle className="h-4 w-4" />

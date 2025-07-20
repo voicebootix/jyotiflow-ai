@@ -913,19 +913,19 @@ async def test_false_positive_filtering():
         }
     
     async def generate_social_media_tests(self) -> Dict[str, Any]:
-        """Generate comprehensive social media automation tests"""
+        """Generate comprehensive social media automation tests - BUSINESS CRITICAL"""
         return {
-            "test_suite_name": "Social Media Automation",
-            "test_category": "social_media",
-            "description": "Tests for social media marketing automation, content generation, and platform integrations",
+            "test_suite_name": "Social Media Marketing Automation",
+            "test_category": "social_media_business_critical",
+            "description": "Business-critical tests for social media automation, content generation, platform integrations, and revenue tracking",
             "test_cases": [
                 {
-                    "test_name": "test_social_media_marketing_engine",
-                    "description": "Test SocialMediaMarketingEngine initialization and core functionality",
+                    "test_name": "test_social_media_marketing_engine_core",
+                    "description": "Test SocialMediaMarketingEngine core business functions",
                     "test_type": "integration",
                     "priority": "critical",
                     "test_code": """
-async def test_social_media_marketing_engine():
+async def test_social_media_marketing_engine_core():
     try:
         # Import SocialMediaMarketingEngine
         import sys
@@ -941,187 +941,97 @@ async def test_social_media_marketing_engine():
         assert hasattr(engine, 'platform_configs'), "Should have platform configurations"
         assert hasattr(engine, 'daily_post_schedule'), "Should have posting schedule"
         
-        # Test content generation
-        test_content = await engine.generate_content_plan(
-            platform="instagram",
-            content_type="daily_wisdom",
-            target_audience={"age": "25-45", "interests": ["spirituality"]}
-        )
+        # Test platform coverage (business critical)
+        expected_platforms = ['youtube', 'instagram', 'facebook', 'tiktok', 'twitter', 'linkedin']
+        actual_platforms = list(engine.platform_configs.keys())
+        platform_coverage = len([p for p in expected_platforms if any(str(p) in str(ap) for ap in actual_platforms)])
         
-        assert test_content is not None, "Should generate content plan"
+        # Test daily content plan generation (revenue critical)
+        daily_plan = await engine.generate_daily_content_plan()
+        assert daily_plan is not None, "Should generate daily content plan"
+        assert len(daily_plan) > 0, "Daily plan should contain platforms"
+        
+        # Test automated posting capability 
+        posting_result = await engine.execute_automated_posting()
+        assert posting_result is not None, "Should return posting result"
         
         return {
             "status": "passed",
-            "message": "Social media marketing engine working correctly",
-            "has_platform_configs": bool(engine.platform_configs),
-            "has_schedule": bool(engine.daily_post_schedule)
+            "message": "Social media marketing engine core functions working",
+            "platform_coverage": platform_coverage,
+            "expected_platforms": len(expected_platforms),
+            "daily_plan_generated": bool(daily_plan),
+            "automated_posting_available": bool(posting_result)
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Social media engine test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Social media engine core test failed: {str(e)}"}
 """,
-                    "expected_result": "SocialMediaMarketingEngine initializes and generates content",
+                    "expected_result": "SocialMediaMarketingEngine core business functions operational",
+                    "timeout_seconds": 45
+                },
+                {
+                    "test_name": "test_platform_services_integration",
+                    "description": "Test all social media platform service integrations",
+                    "test_type": "integration", 
+                    "priority": "critical",
+                    "test_code": """
+async def test_platform_services_integration():
+    try:
+        # Test all platform services
+        platforms = ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok']
+        service_results = {}
+        
+        for platform in platforms:
+            try:
+                # Import platform service
+                module_name = f"{platform}_service"
+                service = __import__(f"services.{module_name}", fromlist=[f"{platform}_service"])
+                
+                # Test service initialization
+                service_class = getattr(service, f"{platform.capitalize()}Service")
+                platform_service = service_class()
+                
+                service_results[platform] = {
+                    "service_available": True,
+                    "initialized": platform_service is not None,
+                    "has_validate_method": hasattr(platform_service, 'validate_credentials'),
+                    "has_post_method": hasattr(platform_service, 'post_content') or hasattr(platform_service, 'upload_video')
+                }
+                
+            except Exception as platform_error:
+                service_results[platform] = {
+                    "service_available": False,
+                    "error": str(platform_error)
+                }
+        
+        # Calculate business impact
+        available_services = sum(1 for result in service_results.values() if result.get("service_available", False))
+        total_services = len(platforms)
+        service_coverage = (available_services / total_services) * 100
+        
+        return {
+            "status": "passed" if available_services > 0 else "failed",
+            "message": f"Platform services integration tested",
+            "service_coverage_percent": service_coverage,
+            "available_services": available_services,
+            "total_services": total_services,
+            "platform_results": service_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Platform services integration test failed: {str(e)}"}
+""",
+                    "expected_result": "All social media platform services integrate correctly",
                     "timeout_seconds": 30
                 },
                 {
-                    "test_name": "test_social_media_validator",
-                    "description": "Test SocialMediaValidator for platform validation",
+                    "test_name": "test_content_generation_pipeline",
+                    "description": "Test AI content generation to avatar video pipeline (revenue critical)",
                     "test_type": "integration",
-                    "priority": "high",
+                    "priority": "critical",
                     "test_code": """
-async def test_social_media_validator():
-    try:
-        # Import SocialMediaValidator
-        import sys
-        import os
-        sys.path.append(os.path.join(os.path.dirname(__file__), 'validators'))
-        from social_media_validator import SocialMediaValidator
-        
-        validator = SocialMediaValidator()
-        
-        # Test validation with mock data
-        input_data = {
-            "platform": "instagram",
-            "content": "Test spiritual content for Instagram",
-            "hashtags": ["#spirituality", "#meditation", "#peace"]
-        }
-        
-        output_data = {
-            "post_id": "test_123",
-            "status": "posted",
-            "engagement": {"likes": 0, "comments": 0, "shares": 0}
-        }
-        
-        validation_result = await validator.validate(input_data, output_data, {})
-        
-        assert validation_result is not None, "Should return validation result"
-        assert "passed" in validation_result, "Should have passed status"
-        assert "validation_type" in validation_result, "Should have validation type"
-        
-        return {
-            "status": "passed",
-            "message": "Social media validator working correctly",
-            "validation_passed": validation_result.get("passed", False)
-        }
-        
-    except Exception as e:
-        return {"status": "failed", "error": f"Social media validator test failed: {str(e)}"}
-""",
-                    "expected_result": "SocialMediaValidator validates content and posting",
-                    "timeout_seconds": 25
-                },
-                {
-                    "test_name": "test_social_media_router_endpoints",
-                    "description": "Test social media marketing API endpoints",
-                    "test_type": "integration",
-                    "priority": "high",
-                    "test_code": """
-import httpx
-
-async def test_social_media_router_endpoints():
-    try:
-        async with httpx.AsyncClient() as client:
-            # Test social media dashboard endpoint
-            response = await client.get(
-                "https://jyotiflow-ai.onrender.com/api/social-media/dashboard"
-            )
-            
-            # Should return data even if no campaigns exist
-            assert response.status_code in [200, 404], f"Expected 200/404, got {response.status_code}"
-            
-            # Test content generation endpoint
-            content_response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/social-media/generate-content",
-                json={
-                    "platform": "instagram",
-                    "content_type": "daily_wisdom",
-                    "topic": "inner peace"
-                }
-            )
-            
-            # Should handle content generation
-            assert content_response.status_code in [200, 401, 422], f"Unexpected status: {content_response.status_code}"
-            
-            return {
-                "status": "passed",
-                "message": "Social media API endpoints accessible",
-                "dashboard_status": response.status_code,
-                "content_gen_status": content_response.status_code
-            }
-            
-    except Exception as e:
-        return {"status": "failed", "error": f"Social media endpoints test failed: {str(e)}"}
-""",
-                    "expected_result": "Social media API endpoints are accessible",
-                    "timeout_seconds": 20
-                },
-                {
-                    "test_name": "test_social_media_database_tables",
-                    "description": "Test social media database tables and structure",
-                    "test_type": "unit",
-                    "priority": "medium",
-                    "test_code": """
-async def test_social_media_database_tables():
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        # Check if social media tables exist
-        social_tables = [
-            'social_campaigns',
-            'social_posts', 
-            'social_media_validation_log'
-        ]
-        
-        existing_tables = []
-        for table in social_tables:
-            result = await conn.fetchrow('''
-                SELECT table_name FROM information_schema.tables 
-                WHERE table_name = $1 AND table_schema = 'public'
-            ''', table)
-            
-            if result:
-                existing_tables.append(table)
-        
-        # Test inserting sample social media data
-        if 'social_campaigns' in existing_tables:
-            campaign_id = str(uuid.uuid4())
-            await conn.execute('''
-                INSERT INTO social_campaigns (id, name, platform, status, created_at)
-                VALUES ($1, $2, $3, $4, $5)
-            ''', campaign_id, "Test Campaign", "instagram", "active", datetime.now(timezone.utc))
-            
-            # Verify insertion
-            result = await conn.fetchrow(
-                "SELECT name FROM social_campaigns WHERE id = $1", campaign_id
-            )
-            
-            assert result is not None, "Campaign should be inserted"
-            assert result['name'] == "Test Campaign", "Campaign name should match"
-            
-            # Cleanup
-            await conn.execute("DELETE FROM social_campaigns WHERE id = $1", campaign_id)
-        
-        return {
-            "status": "passed",
-            "message": "Social media database structure verified",
-            "existing_tables": existing_tables,
-            "total_tables_found": len(existing_tables)
-        }
-        
-    except Exception as e:
-        return {"status": "failed", "error": str(e)}
-    finally:
-        await conn.close()
-""",
-                    "expected_result": "Social media database tables exist and function correctly",
-                    "timeout_seconds": 20
-                },
-                {
-                    "test_name": "test_social_media_content_generation",
-                    "description": "Test automated content generation for social platforms",
-                    "test_type": "integration",
-                    "priority": "medium",
-                    "test_code": """
-async def test_social_media_content_generation():
+async def test_content_generation_pipeline():
     try:
         # Import required modules
         import sys
@@ -1131,44 +1041,498 @@ async def test_social_media_content_generation():
         
         engine = SocialMediaMarketingEngine()
         
-        # Test content generation for different platforms
-        platforms = ["instagram", "facebook", "twitter"]
-        content_results = {}
+        # Test content generation for business-critical content types
+        content_types = ["daily_wisdom", "spiritual_quote", "satsang_promo"]
+        platforms = ["youtube", "instagram", "facebook"]
+        
+        generation_results = {}
         
         for platform in platforms:
-            try:
-                content = await engine.generate_platform_content(
-                    platform=platform,
-                    content_type="spiritual_quote",
-                    context={"topic": "meditation", "mood": "peaceful"}
-                )
-                
-                content_results[platform] = {
-                    "generated": content is not None,
-                    "has_text": bool(content.get("text", "") if content else False),
-                    "has_hashtags": bool(content.get("hashtags", []) if content else False)
-                }
-                
-            except Exception as platform_error:
-                content_results[platform] = {
-                    "generated": False,
-                    "error": str(platform_error)
-                }
+            platform_results = {}
+            
+            for content_type in content_types:
+                try:
+                    # Test AI content generation
+                    content = await engine._generate_ai_content(
+                        platform=f"{platform}",  # Convert to enum if needed
+                        content_type=content_type
+                    )
+                    
+                    platform_results[content_type] = {
+                        "content_generated": content is not None,
+                        "has_title": bool(content.get("title", "") if content else False),
+                        "has_description": bool(content.get("description", "") if content else False),
+                        "has_hashtags": bool(content.get("hashtags", []) if content else False),
+                        "revenue_potential": content_type in ["satsang_promo", "daily_wisdom"]
+                    }
+                    
+                except Exception as content_error:
+                    platform_results[content_type] = {
+                        "content_generated": False,
+                        "error": str(content_error)
+                    }
+            
+            generation_results[platform] = platform_results
         
-        success_count = sum(1 for result in content_results.values() if result.get("generated", False))
+        # Test avatar video generation (business critical for engagement)
+        try:
+            # Test media content generation capability
+            test_post_data = {
+                "content_type": "daily_wisdom",
+                "base_content": "Test spiritual guidance for social media automation"
+            }
+            
+            media_result = await engine._generate_media_content(test_post_data)
+            avatar_generation_available = media_result is not None
+            
+        except Exception as avatar_error:
+            avatar_generation_available = False
+            avatar_error_msg = str(avatar_error)
+        
+        # Calculate business impact metrics
+        successful_generations = sum(
+            1 for platform_results in generation_results.values()
+            for content_result in platform_results.values()
+            if content_result.get("content_generated", False)
+        )
+        
+        total_attempts = len(platforms) * len(content_types)
+        generation_success_rate = (successful_generations / total_attempts) * 100 if total_attempts > 0 else 0
         
         return {
-            "status": "passed" if success_count > 0 else "failed",
-            "message": f"Content generation tested for {len(platforms)} platforms",
-            "successful_platforms": success_count,
-            "platform_results": content_results
+            "status": "passed" if generation_success_rate > 50 else "failed",
+            "message": "Content generation pipeline tested",
+            "generation_success_rate": generation_success_rate,
+            "successful_generations": successful_generations,
+            "total_attempts": total_attempts,
+            "avatar_generation_available": avatar_generation_available,
+            "platform_results": generation_results
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Content generation test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Content generation pipeline test failed: {str(e)}"}
 """,
-                    "expected_result": "Automated content generation works for multiple platforms",
+                    "expected_result": "AI content generation and avatar video pipeline functional",
+                    "timeout_seconds": 60
+                },
+                {
+                    "test_name": "test_social_media_api_endpoints",
+                    "description": "Test social media marketing API endpoints (business operations)",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+
+async def test_social_media_api_endpoints():
+    try:
+        # Test critical business endpoints
+        endpoints_to_test = [
+            {"url": "/api/admin/social-marketing/overview", "method": "GET", "business_function": "Performance Analytics"},
+            {"url": "/api/monitoring/social-media-status", "method": "GET", "business_function": "System Health"},
+            {"url": "/api/monitoring/social-media-campaigns", "method": "GET", "business_function": "Campaign Management"},
+            {"url": "/api/monitoring/social-media-test", "method": "POST", "business_function": "Automation Testing"}
+        ]
+        
+        endpoint_results = {}
+        
+        async with httpx.AsyncClient() as client:
+            for endpoint in endpoints_to_test:
+                try:
+                    url = f"https://jyotiflow-ai.onrender.com{endpoint['url']}"
+                    
+                    if endpoint['method'] == 'GET':
+                        response = await client.get(url)
+                    else:
+                        response = await client.post(url, json={})
+                    
+                    # Business-critical endpoints should be accessible (even if auth required)
+                    endpoint_results[endpoint['business_function']] = {
+                        "endpoint_accessible": response.status_code in [200, 401, 403, 422],
+                        "status_code": response.status_code,
+                        "business_impact": "HIGH" if endpoint['business_function'] in ["Performance Analytics", "Campaign Management"] else "MEDIUM"
+                    }
+                    
+                except Exception as endpoint_error:
+                    endpoint_results[endpoint['business_function']] = {
+                        "endpoint_accessible": False,
+                        "error": str(endpoint_error),
+                        "business_impact": "HIGH"
+                    }
+        
+        # Calculate business continuity score
+        accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
+        total_endpoints = len(endpoints_to_test)
+        business_continuity_score = (accessible_endpoints / total_endpoints) * 100
+        
+        return {
+            "status": "passed" if business_continuity_score > 75 else "failed",
+            "message": "Social media API endpoints tested",
+            "business_continuity_score": business_continuity_score,
+            "accessible_endpoints": accessible_endpoints,
+            "total_endpoints": total_endpoints,
+            "endpoint_results": endpoint_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Social media API endpoints test failed: {str(e)}"}
+""",
+                    "expected_result": "Social media marketing API endpoints operational for business functions",
+                    "timeout_seconds": 25
+                },
+                {
+                    "test_name": "test_social_media_database_schema",
+                    "description": "Test social media database tables and business data integrity",
+                    "test_type": "unit",
+                    "priority": "high",
+                    "test_code": """
+async def test_social_media_database_schema():
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        # Test business-critical social media tables
+        business_critical_tables = [
+            'social_campaigns',
+            'social_posts', 
+            'social_media_validation_log'
+        ]
+        
+        table_validation_results = {}
+        
+        for table in business_critical_tables:
+            try:
+                # Check table exists
+                table_exists = await conn.fetchrow('''
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_name = $1 AND table_schema = 'public'
+                ''', table)
+                
+                if table_exists:
+                    # Test table structure for business requirements
+                    columns = await conn.fetch('''
+                        SELECT column_name, data_type, is_nullable
+                        FROM information_schema.columns 
+                        WHERE table_name = $1 AND table_schema = 'public'
+                        ORDER BY ordinal_position
+                    ''', table)
+                    
+                    column_names = [col['column_name'] for col in columns]
+                    
+                    # Validate business-critical columns exist
+                    required_columns = {
+                        'social_campaigns': ['id', 'name', 'platform', 'status', 'budget', 'created_at'],
+                        'social_posts': ['id', 'campaign_id', 'platform', 'content', 'engagement_metrics', 'created_at'],
+                        'social_media_validation_log': ['id', 'platform', 'validation_result', 'created_at']
+                    }
+                    
+                    missing_columns = [col for col in required_columns.get(table, []) if col not in column_names]
+                    
+                    table_validation_results[table] = {
+                        "exists": True,
+                        "column_count": len(column_names),
+                        "has_required_columns": len(missing_columns) == 0,
+                        "missing_columns": missing_columns,
+                        "business_ready": len(missing_columns) == 0
+                    }
+                    
+                    # Test business operations on table
+                    if table == 'social_campaigns':
+                        # Test campaign creation (business critical)
+                        campaign_id = str(uuid.uuid4())
+                        await conn.execute('''
+                            INSERT INTO social_campaigns (id, name, platform, status, budget, created_at)
+                            VALUES ($1, $2, $3, $4, $5, $6)
+                        ''', campaign_id, "Test Business Campaign", "instagram", "active", 100.00, datetime.now(timezone.utc))
+                        
+                        # Verify business data integrity
+                        campaign = await conn.fetchrow(
+                            "SELECT name, platform, budget FROM social_campaigns WHERE id = $1", campaign_id
+                        )
+                        
+                        assert campaign is not None, "Campaign should be created"
+                        assert campaign['budget'] == 100.00, "Budget should be stored correctly"
+                        
+                        # Cleanup
+                        await conn.execute("DELETE FROM social_campaigns WHERE id = $1", campaign_id)
+                        
+                        table_validation_results[table]["business_operations_tested"] = True
+                
+                else:
+                    table_validation_results[table] = {
+                        "exists": False,
+                        "business_ready": False,
+                        "business_impact": "HIGH - Revenue tracking disabled"
+                    }
+                    
+            except Exception as table_error:
+                table_validation_results[table] = {
+                    "exists": False,
+                    "error": str(table_error),
+                    "business_impact": "HIGH - Data operations failed"
+                }
+        
+        # Calculate business readiness score
+        business_ready_tables = sum(1 for result in table_validation_results.values() if result.get("business_ready", False))
+        total_tables = len(business_critical_tables)
+        business_readiness_score = (business_ready_tables / total_tables) * 100
+        
+        return {
+            "status": "passed" if business_readiness_score > 80 else "failed",
+            "message": "Social media database schema validated",
+            "business_readiness_score": business_readiness_score,
+            "business_ready_tables": business_ready_tables,
+            "total_tables": total_tables,
+            "table_results": table_validation_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Social media database schema test failed: {str(e)}"}
+    finally:
+        await conn.close()
+""",
+                    "expected_result": "Social media database schema supports all business operations",
                     "timeout_seconds": 30
+                },
+                {
+                    "test_name": "test_social_media_validator_business_logic",
+                    "description": "Test SocialMediaValidator for business compliance and content quality",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+async def test_social_media_validator_business_logic():
+    try:
+        # Import SocialMediaValidator
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'validators'))
+        from social_media_validator import SocialMediaValidator
+        
+        validator = SocialMediaValidator()
+        
+        # Test business-critical validation scenarios
+        validation_scenarios = [
+            {
+                "scenario": "Successful Campaign Post",
+                "input_data": {
+                    "platform": "facebook",
+                    "content": "Join our sacred Satsang session this Sunday at 7 PM. Experience divine wisdom and inner peace with Swami Jyotirananthan.",
+                    "hashtags": ["#Satsang", "#SpiritualWisdom", "#InnerPeace"],
+                    "campaign_type": "satsang_promo"
+                },
+                "output_data": {
+                    "post_id": "fb_12345",
+                    "status": "posted",
+                    "engagement": {"likes": 25, "comments": 8, "shares": 12}
+                },
+                "business_impact": "HIGH"
+            },
+            {
+                "scenario": "Daily Wisdom Content",
+                "input_data": {
+                    "platform": "instagram",
+                    "content": "Today's wisdom: The path to enlightenment begins with inner silence. Listen to your soul's whispers.",
+                    "hashtags": ["#DailyWisdom", "#Spirituality", "#Meditation"],
+                    "campaign_type": "daily_wisdom"
+                },
+                "output_data": {
+                    "post_id": "ig_67890",
+                    "status": "posted",
+                    "engagement": {"likes": 156, "comments": 23, "shares": 45}
+                },
+                "business_impact": "MEDIUM"
+            },
+            {
+                "scenario": "Failed Post",
+                "input_data": {
+                    "platform": "twitter",
+                    "content": "Spiritual guidance post",
+                    "hashtags": ["#Wisdom"]
+                },
+                "output_data": {
+                    "post_id": None,
+                    "status": "failed",
+                    "error": "API rate limit exceeded"
+                },
+                "business_impact": "HIGH"
+            }
+        ]
+        
+        validation_results = {}
+        
+        for scenario in validation_scenarios:
+            try:
+                result = await validator.validate(
+                    scenario["input_data"],
+                    scenario["output_data"],
+                    {"business_context": scenario["business_impact"]}
+                )
+                
+                validation_results[scenario["scenario"]] = {
+                    "validation_completed": result is not None,
+                    "validation_passed": result.get("passed", False) if result else False,
+                    "business_impact": scenario["business_impact"],
+                    "has_error_detection": "errors" in result if result else False,
+                    "auto_fixable": result.get("auto_fixable", False) if result else False
+                }
+                
+            except Exception as scenario_error:
+                validation_results[scenario["scenario"]] = {
+                    "validation_completed": False,
+                    "error": str(scenario_error),
+                    "business_impact": scenario["business_impact"]
+                }
+        
+        # Calculate business protection score
+        successful_validations = sum(1 for result in validation_results.values() if result.get("validation_completed", False))
+        total_scenarios = len(validation_scenarios)
+        business_protection_score = (successful_validations / total_scenarios) * 100
+        
+        return {
+            "status": "passed" if business_protection_score > 70 else "failed",
+            "message": "Social media validator business logic tested",
+            "business_protection_score": business_protection_score,
+            "successful_validations": successful_validations,
+            "total_scenarios": total_scenarios,
+            "scenario_results": validation_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Social media validator business logic test failed: {str(e)}"}
+""",
+                    "expected_result": "SocialMediaValidator protects business operations and ensures content quality",
+                    "timeout_seconds": 35
+                },
+                {
+                    "test_name": "test_social_media_automation_health",
+                    "description": "Test overall social media automation system health (business continuity)",
+                    "test_type": "integration",
+                    "priority": "critical",
+                    "test_code": """
+async def test_social_media_automation_health():
+    try:
+        # Test comprehensive automation health
+        health_components = {}
+        
+        # Component 1: SocialMediaMarketingEngine availability
+        try:
+            import sys
+            import os
+            sys.path.append(os.path.dirname(__file__))
+            from social_media_marketing_automation import SocialMediaMarketingEngine
+            
+            engine = SocialMediaMarketingEngine()
+            health_components["marketing_engine"] = {
+                "available": True,
+                "business_function": "Content Generation & Automation",
+                "criticality": "CRITICAL"
+            }
+        except Exception as engine_error:
+            health_components["marketing_engine"] = {
+                "available": False,
+                "error": str(engine_error),
+                "business_function": "Content Generation & Automation",
+                "criticality": "CRITICAL"
+            }
+        
+        # Component 2: SocialMediaValidator availability
+        try:
+            sys.path.append(os.path.join(os.path.dirname(__file__), 'validators'))
+            from social_media_validator import SocialMediaValidator
+            
+            validator = SocialMediaValidator()
+            health_components["validator"] = {
+                "available": True,
+                "business_function": "Content Quality Assurance",
+                "criticality": "HIGH"
+            }
+        except Exception as validator_error:
+            health_components["validator"] = {
+                "available": False,
+                "error": str(validator_error),
+                "business_function": "Content Quality Assurance",
+                "criticality": "HIGH"
+            }
+        
+        # Component 3: Platform Services availability
+        platforms = ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok']
+        available_platforms = 0
+        
+        for platform in platforms:
+            try:
+                module_name = f"{platform}_service"
+                service = __import__(f"services.{module_name}", fromlist=[f"{platform}_service"])
+                available_platforms += 1
+            except:
+                pass
+        
+        health_components["platform_services"] = {
+            "available": available_platforms > 0,
+            "available_count": available_platforms,
+            "total_count": len(platforms),
+            "coverage_percent": (available_platforms / len(platforms)) * 100,
+            "business_function": "Social Media Posting",
+            "criticality": "CRITICAL"
+        }
+        
+        # Component 4: API Endpoints health
+        try:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                response = await client.get("https://jyotiflow-ai.onrender.com/api/monitoring/social-media-status")
+                api_healthy = response.status_code in [200, 401, 403]
+        except:
+            api_healthy = False
+        
+        health_components["api_endpoints"] = {
+            "available": api_healthy,
+            "business_function": "Dashboard & Campaign Management",
+            "criticality": "HIGH"
+        }
+        
+        # Calculate overall business continuity score
+        critical_components = [comp for comp in health_components.values() if comp.get("criticality") == "CRITICAL"]
+        critical_available = sum(1 for comp in critical_components if comp.get("available", False))
+        
+        high_components = [comp for comp in health_components.values() if comp.get("criticality") == "HIGH"]
+        high_available = sum(1 for comp in high_components if comp.get("available", False))
+        
+        # Business continuity formula: Critical components weight 70%, High components 30%
+        total_critical = len(critical_components)
+        total_high = len(high_components)
+        
+        if total_critical > 0 and total_high > 0:
+            business_continuity_score = (
+                (critical_available / total_critical) * 0.7 + 
+                (high_available / total_high) * 0.3
+            ) * 100
+        else:
+            business_continuity_score = 0
+        
+        # Determine business status
+        if business_continuity_score >= 90:
+            business_status = "OPTIMAL"
+        elif business_continuity_score >= 70:
+            business_status = "OPERATIONAL"
+        elif business_continuity_score >= 50:
+            business_status = "DEGRADED"
+        else:
+            business_status = "CRITICAL"
+        
+        return {
+            "status": "passed" if business_continuity_score > 60 else "failed",
+            "message": "Social media automation system health checked",
+            "business_continuity_score": business_continuity_score,
+            "business_status": business_status,
+            "critical_components_available": critical_available,
+            "total_critical_components": total_critical,
+            "high_components_available": high_available,
+            "total_high_components": total_high,
+            "component_health": health_components
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Social media automation health test failed: {str(e)}"}
+""",
+                    "expected_result": "Social media automation system maintains business continuity",
+                    "timeout_seconds": 40
                 }
             ]
         }

@@ -576,6 +576,147 @@ const TestResultsDashboard = () => {
         );
     };
 
+    const SocialMediaAutomationTab = () => {
+        const [socialMediaData, setSocialMediaData] = useState({
+            summary: {
+                total_posts: 0,
+                total_engagements: 0,
+                total_followers: 0,
+                avg_engagement_rate: 0
+            },
+            recent_posts: []
+        });
+        const [automationLoading, setAutomationLoading] = useState(false);
+
+        useEffect(() => {
+            fetchSocialMediaData();
+        }, []);
+
+        const fetchSocialMediaData = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-automation`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setSocialMediaData(data.data || socialMediaData);
+                }
+            } catch (err) {
+                console.warn('Social media data not available:', err.message);
+            }
+        };
+
+        const triggerAutomation = async () => {
+            setAutomationLoading(true);
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-automate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ automation_type: 'test' })
+                });
+                
+                if (response.ok) {
+                    setTimeout(() => {
+                        fetchSocialMediaData();
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Automation trigger failed:', err);
+            } finally {
+                setAutomationLoading(false);
+            }
+        };
+
+        return (
+            <div className="space-y-6">
+                {/* Social Media Automation Health */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center gap-2">
+                                <Activity className="h-5 w-5" />
+                                Social Media Automation
+                            </CardTitle>
+                            <Button 
+                                size="sm" 
+                                onClick={triggerAutomation}
+                                disabled={automationLoading}
+                            >
+                                {automationLoading ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Play className="h-4 w-4" />
+                                )}
+                                Test Automation
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between p-3 border rounded">
+                                    <div>
+                                        <p className="font-medium">Total Posts</p>
+                                        <p className="text-sm text-gray-600">Automated posts across platforms</p>
+                                    </div>
+                                    <Badge className="bg-blue-100 text-blue-800">{socialMediaData.summary.total_posts}</Badge>
+                                </div>
+                                
+                                <div className="flex items-center justify-between p-3 border rounded">
+                                    <div>
+                                        <p className="font-medium">Total Engagements</p>
+                                        <p className="text-sm text-gray-600">Total interactions on posts</p>
+                                    </div>
+                                    <Badge className="bg-purple-100 text-purple-800">{socialMediaData.summary.total_engagements}</Badge>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                <div className="p-3 bg-green-50 rounded">
+                                    <p className="text-sm font-medium text-green-800">Total Followers</p>
+                                    <p className="text-2xl font-bold text-green-600">{socialMediaData.summary.total_followers}</p>
+                                </div>
+                                
+                                <div className="p-3 bg-yellow-50 rounded">
+                                    <p className="text-sm font-medium text-yellow-800">Avg. Engagement Rate</p>
+                                    <p className="text-2xl font-bold text-yellow-600">{socialMediaData.summary.avg_engagement_rate.toFixed(2)}%</p>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Recent Social Media Posts */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <Download className="h-5 w-5" />
+                            Recent Social Media Posts
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {socialMediaData.recent_posts.length > 0 ? (
+                            <div className="space-y-3">
+                                {socialMediaData.recent_posts.map((post, index) => (
+                                    <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                                        <p className="font-medium">{post.platform}</p>
+                                        <p className="text-sm text-gray-600">{post.content}</p>
+                                        <p className="text-sm text-gray-600">Engagements: {post.engagements}</p>
+                                        <p className="text-sm text-gray-600">Date: {new Date(post.posted_at).toLocaleString()}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 text-gray-500">
+                                <Download className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>No recent social media posts available</p>
+                                <p className="text-sm">Trigger an automation test to see posts</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -608,12 +749,13 @@ const TestResultsDashboard = () => {
             )}
 
             <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                     <TabsTrigger value="coverage">Coverage</TabsTrigger>
                     <TabsTrigger value="performance">Performance</TabsTrigger>
                     <TabsTrigger value="business-logic">Spiritual Content</TabsTrigger>
+                    <TabsTrigger value="social-media">Social Media</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-6">
@@ -699,6 +841,10 @@ const TestResultsDashboard = () => {
 
                 <TabsContent value="business-logic">
                     <BusinessLogicValidationTab />
+                </TabsContent>
+
+                <TabsContent value="social-media">
+                    <SocialMediaAutomationTab />
                 </TabsContent>
             </Tabs>
 
