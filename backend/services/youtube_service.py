@@ -210,30 +210,54 @@ class YouTubeService:
         """
         Resolve YouTube handle/username to Channel ID using search API
         (YouTube API v3 doesn't have direct handle→ID endpoint)
-        Fixed: Separate sessions for each search strategy to prevent resource conflicts
+        Fixed: Enhanced debugging and fallback strategies
         """
         try:
+            # Log the handle being resolved for debugging
+            logger.info(f"🔍 Resolving YouTube handle: @{handle}")
+            
             # Try multiple search strategies in sequence
             search_strategies = [
                 f"@{handle}",           # Original with @
                 handle,                 # Without @ prefix
-                handle.replace("-", " ") if "-" in handle else None  # Spaces instead of dashes
+                handle.replace("-", " ") if "-" in handle else None,  # Spaces instead of dashes
+                handle.replace("-", "").replace("_", "") if "-" in handle or "_" in handle else None  # Remove separators
             ]
             
             for i, search_query in enumerate(search_strategies):
                 if search_query is None:
                     continue
                     
+                logger.info(f"🔍 Search strategy {i+1}: '{search_query}'")
                 result = await self._search_channels_by_query(api_key, search_query, handle, i)
                 if result["success"]:
+                    logger.info(f"✅ Found channel with strategy {i+1}: {result.get('resolved_title')}")
                     return result
+                else:
+                    logger.warning(f"❌ Strategy {i+1} failed: {result.get('error')}")
             
+            # Enhanced error message with debugging info
             return {
                 "success": False,
-                "error": f"No channel found for handle '@{handle}'. Please check the handle or use Channel ID instead."
+                "error": f"No channel found for handle '@{handle}'. Please check the handle or use Channel ID instead.",
+                "debug_info": {
+                    "strategies_tried": [s for s in search_strategies if s is not None],
+                    "suggestions": [
+                        "Verify your YouTube API key is active in Google Cloud Console",
+                        "Check that YouTube Data API v3 is enabled", 
+                        "Ensure your channel is public and not suspended",
+                        "Try using your channel URL instead of Channel ID",
+                        "Make sure your API key has the correct restrictions"
+                    ],
+                    "help_links": [
+                        {"text": "YouTube Data API Setup", "url": "https://developers.google.com/youtube/v3/getting-started"},
+                        {"text": "Find Your Channel ID", "url": "https://support.google.com/youtube/answer/3250431"}
+                    ]
+                }
             }
                         
         except Exception as e:
+            logger.error(f"❌ YouTube handle resolution failed: {e}")
             return {
                 "success": False,
                 "error": f"Handle resolution failed: {str(e)}"
