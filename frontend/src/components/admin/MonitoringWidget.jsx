@@ -15,7 +15,19 @@ const MonitoringWidget = () => {
   const fetchStatus = async () => {
     try {
       const response = await spiritualAPI.request('/api/monitoring/dashboard');
-      setStatus(response);
+      
+      // Handle StandardResponse format - extract data and normalize structure
+      if (response && response.success && response.data) {
+        const normalizedData = {
+          ...response.data,
+          status: response.data.system_health?.system_status || 'unknown',
+          integrations: response.data.system_health?.integration_points || {}
+        };
+        setStatus(normalizedData);
+      } else {
+        // Fallback for direct response format
+        setStatus(response);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch monitoring status:', error);
@@ -82,14 +94,22 @@ const MonitoringWidget = () => {
           <div className="space-y-2">
             {/* Integration Status Summary */}
             <div className="grid grid-cols-2 gap-2 text-sm">
-              {Object.entries(status.integrations || {}).map(([key, data]) => (
-                <div key={key} className="flex items-center justify-between">
-                  <span className="text-gray-600 capitalize">{key.replace('_', ' ')}:</span>
-                  <span className={`font-medium ${data.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
-                    {data.status === 'healthy' ? '✓' : '✗'}
-                  </span>
-                </div>
-              ))}
+              {Object.entries(status.integrations || {}).map(([key, data]) => {
+                // Safety check for data structure
+                if (!data || typeof data !== 'object') {
+                  console.warn(`Invalid integration data for ${key}:`, data);
+                  return null;
+                }
+                
+                return (
+                  <div key={key} className="flex items-center justify-between">
+                    <span className="text-gray-600 capitalize">{key.replace('_', ' ')}:</span>
+                    <span className={`font-medium ${data.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
+                      {data.status === 'healthy' ? '✓' : '✗'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Recent Issues Count */}

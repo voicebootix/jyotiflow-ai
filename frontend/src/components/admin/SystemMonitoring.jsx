@@ -89,7 +89,19 @@ const SystemMonitoring = () => {
   const fetchMonitoringData = async () => {
     try {
       const response = await spiritualAPI.request('/api/monitoring/dashboard');
-      setMonitoringData(response);
+      
+      // Handle StandardResponse format - extract data and normalize structure
+      if (response && response.success && response.data) {
+        const normalizedData = {
+          ...response.data,
+          status: response.data.system_health?.system_status || 'unknown',
+          integrations: response.data.system_health?.integration_points || {}
+        };
+        setMonitoringData(normalizedData);
+      } else {
+        // Fallback for direct response format
+        setMonitoringData(response);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch monitoring data:', error);
@@ -235,6 +247,12 @@ const SystemMonitoring = () => {
         {expandedSections.integrations && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
             {Object.entries(monitoringData?.integrations || {}).map(([key, data]) => {
+              // Safety check for data structure
+              if (!data || typeof data !== 'object') {
+                console.warn(`Invalid integration data for ${key}:`, data);
+                return null;
+              }
+              
               const Icon = integrationIcons[key] || Activity;
               const statusClass = statusColors[data.status] || statusColors.unknown;
               
@@ -246,7 +264,7 @@ const SystemMonitoring = () => {
                       <span className="font-medium capitalize">{key.replace('_', ' ')}</span>
                     </div>
                     <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>
-                      {data.status}
+                      {data.status || 'unknown'}
                     </span>
                   </div>
                   
