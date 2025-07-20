@@ -715,14 +715,10 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # Check if connection is still active
             if websocket.client_state.name != "CONNECTED":
+                logger.info("WebSocket disconnected, ending monitoring")
                 break
                 
             try:
-                # Check if WebSocket is still connected
-                if websocket.client_state.value != 1:  # 1 = CONNECTED
-                    logger.info("WebSocket disconnected, ending monitoring")
-                    break
-                    
                 # Send heartbeat and system status every 5 seconds
                 system_health = await integration_monitor.get_system_health()
                 await websocket.send_json({
