@@ -402,9 +402,185 @@ async def test_spiritual_guidance_endpoint():
         """Generate spiritual services business logic tests"""
         return {
             "test_suite_name": "Spiritual Services Logic",
-            "test_category": "business_logic",
-            "description": "Tests for spiritual guidance, birth charts, and AI responses",
+            "test_category": "business_logic", 
+            "description": "Tests for spiritual guidance, birth charts, AI responses, and business logic validation",
             "test_cases": [
+                {
+                    "test_name": "test_business_logic_validator",
+                    "description": "Test BusinessLogicValidator for spiritual content quality",
+                    "test_type": "integration",
+                    "priority": "critical",
+                    "test_code": """
+async def test_business_logic_validator():
+    try:
+        # Import the actual BusinessLogicValidator
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'monitoring'))
+        from business_validator import BusinessLogicValidator
+        
+        validator = BusinessLogicValidator()
+        
+        # Create test session context
+        session_context = {
+            "spiritual_question": "How can meditation help me find inner peace?",
+            "birth_details": {
+                "date": "1990-01-01",
+                "time": "12:00",
+                "location": "Mumbai, India"
+            },
+            "integration_results": {
+                "rag_knowledge": {
+                    "passed": True,
+                    "actual": {
+                        "knowledge": "Meditation is a sacred practice that brings stillness to the mind and connects us with our inner divine nature. Through regular practice, one experiences deep peace, clarity, and spiritual awakening."
+                    }
+                },
+                "prokerala_data": {
+                    "passed": True,
+                    "actual": {
+                        "planets": [
+                            {"name": "Sun", "position": "Capricorn"},
+                            {"name": "Moon", "position": "Virgo"},
+                            {"name": "Mars", "position": "Scorpio"},
+                            {"name": "Mercury", "position": "Sagittarius"},
+                            {"name": "Jupiter", "position": "Gemini"},
+                            {"name": "Venus", "position": "Aquarius"},
+                            {"name": "Saturn", "position": "Capricorn"}
+                        ],
+                        "nakshatra": {"name": "Uttara Ashadha", "lord": "Sun"}
+                    }
+                },
+                "openai_guidance": {
+                    "passed": True,
+                    "actual": {
+                        "response": "Dear blessed soul, your question about meditation touches the very essence of spiritual practice. As Swamiji, I guide you toward the ancient Tamil tradition of dhyana..."
+                    }
+                }
+            }
+        }
+        
+        # Run business logic validation
+        validation_result = await validator.validate_session(session_context)
+        
+        # Verify validation results
+        assert validation_result is not None, "Validation should return results"
+        assert "validations" in validation_result, "Should contain validations"
+        assert "rag_relevance" in validation_result["validations"], "Should validate RAG relevance"
+        assert "prokerala" in validation_result["validations"], "Should validate Prokerala data"
+        
+        # Check RAG validation specifically
+        rag_validation = validation_result["validations"]["rag_relevance"]
+        assert rag_validation["overall_relevance"] > 0.0, "Should have relevance score"
+        
+        return {
+            "status": "passed", 
+            "message": "Business logic validator working correctly",
+            "validation_scores": {
+                "rag_relevance": rag_validation.get("overall_relevance", 0.0),
+                "overall_valid": validation_result.get("overall_valid", False)
+            }
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Business logic validation failed: {str(e)}"}
+""",
+                    "expected_result": "BusinessLogicValidator validates spiritual content quality",
+                    "timeout_seconds": 30
+                },
+                {
+                    "test_name": "test_spiritual_avatar_engine",
+                    "description": "Test SpiritualAvatarEngine guidance generation",
+                    "test_type": "integration", 
+                    "priority": "high",
+                    "test_code": """
+async def test_spiritual_avatar_engine():
+    try:
+        # Import SpiritualAvatarEngine
+        import sys
+        import os
+        sys.path.append(os.path.dirname(__file__))
+        from enhanced_business_logic import SpiritualAvatarEngine
+        
+        engine = SpiritualAvatarEngine()
+        
+        # Test guidance generation
+        user_query = "I am feeling lost in life. Can you provide spiritual guidance?"
+        birth_details = {
+            "date": "1990-01-01",
+            "time": "12:00", 
+            "location": "Chennai, India"
+        }
+        
+        guidance, avatar_info = await engine.generate_personalized_guidance(
+            context={},
+            user_query=user_query,
+            birth_details=birth_details
+        )
+        
+        # Validate guidance quality
+        assert guidance is not None, "Should generate guidance"
+        assert len(guidance) > 100, "Guidance should be substantial"
+        assert "spiritual" in guidance.lower() or "divine" in guidance.lower(), "Should contain spiritual terms"
+        
+        # Validate avatar info
+        assert avatar_info is not None, "Should generate avatar info"
+        assert "avatar_prompt" in avatar_info, "Should contain avatar prompt"
+        
+        return {
+            "status": "passed",
+            "message": "Spiritual avatar engine working correctly",
+            "guidance_length": len(guidance),
+            "contains_spiritual_terms": "spiritual" in guidance.lower() or "divine" in guidance.lower()
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Spiritual avatar engine failed: {str(e)}"}
+""",
+                    "expected_result": "SpiritualAvatarEngine generates appropriate spiritual guidance",
+                    "timeout_seconds": 30
+                },
+                {
+                    "test_name": "test_monetization_optimizer",
+                    "description": "Test MonetizationOptimizer pricing recommendations", 
+                    "test_type": "integration",
+                    "priority": "medium",
+                    "test_code": """
+async def test_monetization_optimizer():
+    try:
+        # Import MonetizationOptimizer
+        import sys
+        import os
+        sys.path.append(os.path.dirname(__file__))
+        from enhanced_business_logic import MonetizationOptimizer
+        
+        optimizer = MonetizationOptimizer()
+        
+        # Test pricing recommendations
+        recommendations = await optimizer.generate_pricing_recommendations("monthly")
+        
+        # Validate recommendations structure
+        assert recommendations is not None, "Should generate recommendations"
+        assert "current_metrics" in recommendations, "Should contain current metrics"
+        assert "pricing_config" in recommendations, "Should contain pricing config"
+        
+        # Validate pricing structure exists
+        pricing_config = recommendations.get("pricing_config", {})
+        assert "services" in pricing_config or len(pricing_config) > 0, "Should have pricing configuration"
+        
+        return {
+            "status": "passed",
+            "message": "Monetization optimizer working correctly", 
+            "has_recommendations": len(recommendations) > 0,
+            "has_pricing_config": "pricing_config" in recommendations
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Monetization optimizer failed: {str(e)}"}
+""",
+                    "expected_result": "MonetizationOptimizer generates sensible pricing recommendations",
+                    "timeout_seconds": 25
+                },
                 {
                     "test_name": "test_rag_knowledge_retrieval",
                     "description": "Test RAG system spiritual knowledge retrieval",
