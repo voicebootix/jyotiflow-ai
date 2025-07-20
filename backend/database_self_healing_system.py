@@ -1654,7 +1654,7 @@ class DatabaseHealthMonitor:
         unique_pattern_columns = [
             r'.*_id$',  # Columns ending with _id
             r'.*_key$',  # Columns ending with _key
-            r'(?<!status_)code$',  # Columns ending with _code (but not status_code)
+            r'.*_code$',  # Columns ending with _code
             r'^email$',  # Email columns
             r'^username$',  # Username columns
             r'.*_hash$',  # Hash columns
@@ -1941,32 +1941,48 @@ class DatabaseHealthMonitor:
             
             # Index usage
             try:
-                # First try to get column names to debug the issue
-                column_check = await conn.fetchval("""
-                    SELECT column_name 
-                    FROM information_schema.columns 
-                    WHERE table_schema = 'pg_catalog' 
-                    AND table_name = 'pg_stat_user_indexes'
-                    AND column_name LIKE '%table%'
-                    LIMIT 1
+                # Check if the expected column exists
+                has_tablename = await conn.fetchval("""
+                    SELECT EXISTS (
+                        SELECT 1 
+                        FROM information_schema.columns 
+                        WHERE table_schema = 'pg_catalog' 
+                        AND table_name = 'pg_stat_user_indexes'
+                        AND column_name = 'tablename'
+                    )
                 """)
                 
-                # Use the appropriate column name
-                table_column = column_check if column_check else 'tablename'
+                # Use proper query based on column availability
+                if has_tablename:
+                    index_query = """
+                        SELECT 
+                            schemaname,
+                            tablename,
+                            indexname,
+                            idx_scan,
+                            idx_tup_read,
+                            idx_tup_fetch
+                        FROM pg_stat_user_indexes
+                        WHERE idx_scan = 0
+                        AND schemaname = 'public'
+                        LIMIT 10
+                    """
+                else:
+                    # Fallback for systems that might use different column names
+                    index_query = """
+                        SELECT 
+                            schemaname,
+                            indexrelname as tablename,
+                            indexrelname as indexname,
+                            idx_scan,
+                            idx_tup_read,
+                            idx_tup_fetch
+                        FROM pg_stat_user_indexes
+                        WHERE idx_scan = 0
+                        AND schemaname = 'public'
+                        LIMIT 10
+                    """
                 
-                index_query = f"""
-                    SELECT 
-                        schemaname,
-                        {table_column} as tablename,
-                        indexname,
-                        idx_scan,
-                        idx_tup_read,
-                        idx_tup_fetch
-                    FROM pg_stat_user_indexes
-                    WHERE idx_scan = 0
-                    AND schemaname = 'public'
-                    LIMIT 10
-                """
                 unused_indexes = await conn.fetch(index_query)
                 metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
             except Exception as e:
