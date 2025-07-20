@@ -939,12 +939,18 @@ class CodePatternAnalyzer:
         if len(columns) == 0:
             return False
         
-        # Check for suspicious column names
-        suspicious_patterns = [';', '--', '/*', '*/', 'DROP', 'DELETE']
+        # Check for suspicious patterns (but allow semicolons at the end)
+        suspicious_patterns = ['--', '/*', '*/', 'DROP TABLE', 'DELETE FROM', 'TRUNCATE']
         for pattern in suspicious_patterns:
             if pattern in create_sql.upper():
                 logger.warning(f"Suspicious pattern '{pattern}' found in schema")
                 return False
+        
+        # Check for semicolons in the middle of the statement (not at the end)
+        sql_without_final_semicolon = create_sql.rstrip().rstrip(';')
+        if ';' in sql_without_final_semicolon:
+            logger.warning("Suspicious semicolon found in the middle of schema")
+            return False
         
         # Check for reasonable column types
         valid_types = ['INTEGER', 'VARCHAR', 'TEXT', 'BOOLEAN', 'TIMESTAMP', 'DATE', 
