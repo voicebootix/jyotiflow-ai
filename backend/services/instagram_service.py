@@ -321,3 +321,6 @@ class InstagramService:
 
 # Global instance for consistent access pattern (following Facebook service)
 instagram_service = InstagramService() 
+
+# Export list for explicit module imports (core.md: complete API exposure)
+__all__ = ["InstagramService", "instagram_service"] 

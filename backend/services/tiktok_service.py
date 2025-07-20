@@ -201,3 +201,6 @@ class TikTokService:
 
 # Global instance for consistent access pattern (following Facebook service)
 tiktok_service = TikTokService() 
+
+# Export list for explicit module imports (core.md: complete API exposure)
+__all__ = ["TikTokService", "tiktok_service"] 
