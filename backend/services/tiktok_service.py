@@ -44,13 +44,13 @@ class TikTokService:
                 return app_validation
             
             # Both tests passed with proper API scope
-            return {
-                "success": True,
+                return {
+                    "success": True,
                 "message": "TikTok app credentials validated successfully",
                 "access_token": access_token,
                 "token_type": "app_access_token"
             }
-            
+                
         except Exception as e:
             logger.error(f"TikTok validation error: {e}")
             return {
@@ -68,10 +68,10 @@ class TikTokService:
                 "client_secret": client_secret,
                 "grant_type": "client_credentials"
             }
-            
-            headers = {
+        
+        headers = {
                 "Content-Type": "application/x-www-form-urlencoded"
-            }
+                        }
             
             async with aiohttp.ClientSession() as session:
                 async with session.post(url, data=data, headers=headers) as response:
@@ -92,22 +92,22 @@ class TikTokService:
                                     "success": False,
                                     "error": "TikTok API access denied. Check app permissions."
                                 }
-                            else:
-                                return {
-                                    "success": False,
+                    else:
+                        return {
+                            "success": False,
                                     "error": f"TikTok API error: {error_message}"
                                 }
                         
                         access_token = result.get("access_token")
                         if access_token:
-                            return {
-                                "success": True,
+                                        return {
+                                            "success": True,
                                 "message": "Client credentials are valid",
                                 "access_token": access_token
-                            }
-                        else:
-                            return {
-                                "success": False,
+                                        }
+                                    else:
+                                        return {
+                                            "success": False,
                                 "error": "No access token received from TikTok"
                             }
                     
@@ -117,27 +117,27 @@ class TikTokService:
                             "error": "Invalid TikTok client credentials"
                         }
                     elif response.status == 403:
-                        return {
-                            "success": False,
+                                    return {
+                                        "success": False,
                             "error": "TikTok API access forbidden. Check app status."
-                        }
-                    elif response.status == 429:
-                        return {
-                            "success": False,
+                                    }
+                            elif response.status == 429:
+                                    return {
+                                        "success": False,
                             "error": "TikTok API rate limit exceeded. Try again later."
-                        }
-                    else:
-                        error_text = await response.text()
-                        return {
-                            "success": False,
+                                    }
+                            else:
+                                error_text = await response.text()
+                                return {
+                                    "success": False,
                             "error": f"TikTok API returned status {response.status}: {error_text}"
-                        }
+                                }
                         
         except Exception as e:
-            return {
-                "success": False,
+        return {
+            "success": False,
                 "error": f"Failed to test TikTok client credentials: {str(e)}"
-            }
+        }
     
     async def _validate_app_access_token(self, access_token: str) -> Dict:
         """
@@ -149,11 +149,11 @@ class TikTokService:
             # /v2/app/info/ is an app-level endpoint (not user-specific)
             url = f"{self.base_url}/v2/app/info/"
             
-            headers = {
+        headers = {
                 "Authorization": f"Bearer {access_token}",
-                "Content-Type": "application/json"
-            }
-            
+            "Content-Type": "application/json"
+        }
+        
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as response:
                     if response.status == 200:
@@ -189,21 +189,21 @@ class TikTokService:
                             "error": "Bad request - invalid app token format"
                         }
                     elif response.status == 404:
-                        return {
-                            "success": False,
+            return {
+                "success": False,
                             "error": "TikTok app API endpoint not found - check API version"
                         }
                     elif response.status == 429:
-                        return {
-                            "success": False,
+            return {
+                "success": False,
                             "error": "Rate limit exceeded - too many API requests"
                         }
                     elif response.status >= 500:
-                        return {
+            return {
                             "success": False,
                             "error": f"TikTok API server error (status: {response.status})"
-                        }
-                    else:
+            }
+        else:
                         # All non-200 status codes should be treated as failures
                         # Only 200 indicates successful app token validation
                         return {

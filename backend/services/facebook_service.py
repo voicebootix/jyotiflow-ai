@@ -65,14 +65,14 @@ class FacebookService:
                     "user_id": token_test.get("user_id"),
                     "permissions": permissions_test.get("permissions", [])
                 }
-            
+                    
         except Exception as e:
             logger.error(f"Facebook credential validation error: {e}")
             return {
                 "success": False,
                 "error": f"Facebook API validation failed: {str(e)}"
             }
-    
+        
     async def _validate_access_token(self, access_token: str) -> Dict:
         """Validate access token by calling /me endpoint"""
         try:
@@ -85,14 +85,14 @@ class FacebookService:
                 
                 async with session.get(url, params=params) as response:
                     data = await response.json()
-                    
+            
                     if response.status == 200 and "id" in data:
-                        return {
-                            "success": True,
+                return {
+                    "success": True,
                             "message": f"Access token valid for user: {data.get('name', 'Unknown')}",
                             "user_id": data["id"]
-                        }
-                    else:
+                }
+            else:
                         error_msg = data.get("error", {}).get("message", "Invalid access token")
                         return {
                             "success": False,
@@ -119,17 +119,17 @@ class FacebookService:
                     data = await response.json()
                     
                     if response.status == 200 and "access_token" in data:
-                        return {
-                            "success": True,
+                                return {
+                                    "success": True,
                             "message": "App credentials validated successfully",
                             "app_token": data["access_token"]
                         }
                     else:
                         error_msg = data.get("error", {}).get("message", "Invalid app credentials")
-                        return {
-                            "success": False,
+                                                 return {
+                             "success": False,
                             "error": f"App credentials validation failed: {error_msg}"
-                        }
+                         }
         except Exception as e:
             return {
                 "success": False,
@@ -164,11 +164,11 @@ class FacebookService:
                         missing_permissions = [p for p in required_permissions if p not in granted_permissions]
                         
                         if missing_permissions:
-                            return {
-                                "success": False,
+                                return {
+                                    "success": False,
                                 "error": f"Missing required permissions: {', '.join(missing_permissions)}",
                                 "permissions": granted_permissions
-                            }
+                                }
                         else:
                             return {
                                 "success": True,
@@ -200,8 +200,8 @@ class FacebookService:
                     data = await response.json()
                     
                     if response.status == 200 and "data" in data:
-                        return {
-                            "success": True,
+                                return {
+                                    "success": True,
                             "pages": data["data"]
                         }
                     else:
@@ -214,7 +214,7 @@ class FacebookService:
                 "success": False,
                 "error": f"Pages retrieval failed: {str(e)}"
             }
-
+    
     async def _analyze_token_type(self, access_token: str) -> Dict:
         """
         Analyze access token to determine if it's a user token or page token
@@ -224,12 +224,12 @@ class FacebookService:
             async with aiohttp.ClientSession() as session:
                 url = f"{self.graph_url}/me"
                 # Fix: Explicitly request page-specific fields for reliable detection
-                params = {
+        params = {
                     "access_token": access_token,
                     "fields": "id,name,category,about,fan_count,email,first_name,last_name"
-                }
-                
-                async with session.get(url, params=params) as response:
+        }
+        
+                    async with session.get(url, params=params) as response:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
@@ -242,19 +242,19 @@ class FacebookService:
                         has_user_fields = any(field in data for field in user_indicators)
                         
                         if has_page_fields and not has_user_fields:
-                            return {
+                                return {
                                 "is_page_token": True, 
                                 "token_type": "page",
                                 "detection_method": "explicit_page_fields",
                                 "page_name": data.get("name")
-                            }
+                                }
                         elif has_user_fields and not has_page_fields:
-                            return {
+                                return {
                                 "is_page_token": False, 
                                 "token_type": "user",
                                 "detection_method": "explicit_user_fields",
                                 "user_name": data.get("name")
-                            }
+                                }
                         else:
                             # Fallback: If unclear, default to user token for safety
                             logger.warning(f"Ambiguous token type detection. Page fields: {has_page_fields}, User fields: {has_user_fields}")
@@ -272,7 +272,7 @@ class FacebookService:
                             "token_type": "user",
                             "detection_method": "api_error_fallback"
                         }
-                        
+            
         except Exception as e:
             logger.error(f"Token type analysis error: {e}")
             # Default to user token validation if analysis fails
@@ -300,15 +300,15 @@ class FacebookService:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
-                        return {
-                            "success": True,
+            return {
+                "success": True,
                             "message": f"Page access token valid for: {data.get('name', 'Unknown')}",
                             "page_id": data["id"],
                             "page_name": data.get("name"),
                             "category": data.get("category"),
                             "fan_count": data.get("fan_count")
-                        }
-                    else:
+            }
+        else:
                         error_msg = data.get("error", {}).get("message", "Invalid page access token")
                         return {
                             "success": False,

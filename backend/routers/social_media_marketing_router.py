@@ -483,7 +483,7 @@ async def test_platform_connection(
                 }
             else:
                 # Real API validation with consistent global instance import
-                try:
+            try:
                     from services.facebook_service import facebook_service
                     result = await facebook_service.validate_credentials(
                         config.get('app_id'),
@@ -519,7 +519,7 @@ async def test_platform_connection(
                         config.get('api_key'), 
                         config.get('channel_id')
                     )
-                except ImportError:
+            except ImportError:
                     result = {
                         "success": False,
                         "error": "YouTube service not available"
@@ -532,15 +532,15 @@ async def test_platform_connection(
         
         elif platform == 'tiktok':
             # Real TikTok API validation
-            required_fields = get_required_fields(platform)
-            missing_fields = [field for field in required_fields if not config.get(field)]
-            
-            if missing_fields:
-                result = {
-                    "success": False,
-                    "error": f"Missing required fields: {', '.join(missing_fields)}"
-                }
-            else:
+                required_fields = get_required_fields(platform)
+                missing_fields = [field for field in required_fields if not config.get(field)]
+                
+                if missing_fields:
+                    result = {
+                        "success": False,
+                        "error": f"Missing required fields: {', '.join(missing_fields)}"
+                    }
+                else:
                 # Real API validation with consistent global instance
                 try:
                     from services.tiktok_service import tiktok_service
@@ -610,9 +610,9 @@ async def test_platform_connection(
         
         # Enhanced response formatting (core.md & refresh.md: actionable feedback)
         if result.get('success'):
-            return StandardResponse(
+        return StandardResponse(
                 success=True,
-                data=result,
+            data=result,
                 message=f"{platform.capitalize()} connection successful!"
             )
         else:
@@ -629,7 +629,7 @@ async def test_platform_connection(
                 success=False,
                 data=enhanced_error,
                 message=f"{platform.capitalize()} connection failed: {error_message}"
-            )
+        )
         
     except HTTPException:
         raise

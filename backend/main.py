@@ -145,7 +145,7 @@ except ImportError as e:
     print(f"⚠️ Monitoring system not available - ImportError: {e}")
     print("   → Will auto-enable once monitoring dependencies are resolved")
 except Exception as e:
-    MONITORING_AVAILABLE = False
+MONITORING_AVAILABLE = False
     print(f"⚠️ Monitoring system failed to load - Error: {e}")
     print("   → Check monitoring module configuration")
 

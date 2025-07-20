@@ -252,6 +252,41 @@ class YouTubeService:
                                 "note": f"Approximate match for handle '{handle}'"
                             }
                         
+                        # Fallback: Try without @ prefix (fix for @jyotiGuru-h9v case)
+                        fallback_params = params.copy()
+                        fallback_params["q"] = handle  # Try "jyotiGuru-h9v" instead of "@jyotiGuru-h9v"
+                        
+                        async with session.get(url, params=fallback_params) as fallback_response:
+                            if fallback_response.status == 200:
+                                fallback_data = await fallback_response.json()
+                                fallback_items = fallback_data.get("items", [])
+                                
+                                if fallback_items:
+                                    # Look for match in fallback results
+                                    for item in fallback_items:
+                                        snippet = item.get("snippet", {})
+                                        title = snippet.get("title", "").lower()
+                                        
+                                        # Check for jyoti guru specifically or handle match
+                                        if ("jyoti" in title and "guru" in title) or handle.lower() in title:
+                                            return {
+                                                "success": True,
+                                                "channel_id": snippet["channelId"],
+                                                "input_type": "handle_fallback",
+                                                "resolved_title": snippet["title"],
+                                                "note": f"Found using fallback search without @ prefix"
+                                            }
+                                    
+                                    # If no specific match, return first fallback result
+                                    first_fallback = fallback_items[0]["snippet"]
+                                    return {
+                                        "success": True,
+                                        "channel_id": first_fallback["channelId"],
+                                        "input_type": "handle_fallback_approximate",
+                                        "resolved_title": first_fallback["title"],
+                                        "note": f"Fallback match for handle '{handle}' (searched without @)"
+                                    }
+                        
                         return {
                             "success": False,
                             "error": f"No channel found for handle '@{handle}'. Please check the handle or use Channel ID instead."

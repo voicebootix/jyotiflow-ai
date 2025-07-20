@@ -50,7 +50,7 @@ class InstagramService:
                 "user_info": profile_test.get("user_info", {}),
                 "is_business": business_test.get("is_business", False)
             }
-            
+                    
         except Exception as e:
             logger.error(f"Instagram credential validation error: {e}")
             return {
@@ -74,12 +74,12 @@ class InstagramService:
                     data = await response.json()
                     
                     if response.status == 200 and "access_token" in data:
-                        return {
-                            "success": True,
+                return {
+                    "success": True,
                             "message": "Instagram app credentials validated successfully",
                             "app_token": data["access_token"]
-                        }
-                    else:
+                }
+            else:
                         error_msg = data.get("error", {}).get("message", "Invalid app credentials")
                         return {
                             "success": False,
@@ -137,8 +137,8 @@ class InstagramService:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
-                        return {
-                            "success": True,
+                                return {
+                                    "success": True,
                             "message": "User profile retrieved successfully",
                             "user_info": {
                                 "id": data["id"],
@@ -172,12 +172,12 @@ class InstagramService:
                 async with session.get(url, params=params) as response:
                     data = await response.json()
                     
-                    if response.status == 200:
+                        if response.status == 200:
                         account_type = data.get("account_type", "PERSONAL")
                         is_business = account_type in ["BUSINESS", "CREATOR"]
                         
-                        return {
-                            "success": True,
+                                return {
+                                    "success": True,
                             "is_business": is_business,
                             "account_type": account_type,
                             "message": f"Account type: {account_type}" + 
@@ -199,18 +199,18 @@ class InstagramService:
         try:
             async with aiohttp.ClientSession() as session:
                 url = f"{self.graph_url}/me/media"
-                params = {
+        params = {
                     "access_token": access_token,
                     "fields": "id,media_type,media_url,thumbnail_url,permalink,timestamp",
                     "limit": limit
-                }
-                
-                async with session.get(url, params=params) as response:
+        }
+        
+                    async with session.get(url, params=params) as response:
                     data = await response.json()
                     
                     if response.status == 200 and "data" in data:
-                        return {
-                            "success": True,
+                                return {
+                                    "success": True,
                             "media": data["data"],
                             "count": len(data["data"])
                         }
@@ -300,7 +300,7 @@ class InstagramService:
                 if legacy_header:
                     verification_result["error"] = "Using deprecated SHA1 signature. Please upgrade to SHA256."
                     logger.warning("Instagram webhook using deprecated SHA1 signature")
-                else:
+        else:
                     verification_result["error"] = "Missing X-Hub-Signature-256 header"
                 return verification_result
             
