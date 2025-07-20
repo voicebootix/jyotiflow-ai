@@ -7,7 +7,7 @@ ADD COLUMN IF NOT EXISTS actual_value JSONB;
 
 -- 2. Add integration_name column to integration_validations table
 ALTER TABLE integration_validations 
-ADD COLUMN IF NOT EXISTS integration_name VARCHAR(100);
+ADD COLUMN IF NOT EXISTS integration_name VARCHAR(255);
 
 -- 3. Add validation_results column to validation_sessions table
 ALTER TABLE validation_sessions 
