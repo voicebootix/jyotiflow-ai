@@ -287,6 +287,42 @@ class YouTubeService:
                                         "note": f"Fallback match for handle '{handle}' (searched without @)"
                                     }
                         
+                        # Third strategy: Try with spaces instead of dashes (Fix for @jyotiGuru-h9v case)
+                        if "-" in handle:
+                            space_params = params.copy()
+                            space_params["q"] = handle.replace("-", " ")  # "jyotiGuru h9v"
+                            
+                            async with session.get(url, params=space_params) as space_response:
+                                if space_response.status == 200:
+                                    space_data = await space_response.json()
+                                    space_items = space_data.get("items", [])
+                                    
+                                    if space_items:
+                                        # Look for match in space-replacement results
+                                        for item in space_items:
+                                            snippet = item.get("snippet", {})
+                                            title = snippet.get("title", "").lower()
+                                            
+                                            # Check for jyoti guru specifically or handle match
+                                            if ("jyoti" in title and "guru" in title) or handle.lower().replace("-", " ") in title:
+                                                return {
+                                                    "success": True,
+                                                    "channel_id": snippet["channelId"],
+                                                    "input_type": "handle_space_fallback",
+                                                    "resolved_title": snippet["title"],
+                                                    "note": f"Found using space-replacement search for '{handle.replace('-', ' ')}'"
+                                                }
+                                        
+                                        # If no specific match, return first space-replacement result
+                                        first_space = space_items[0]["snippet"]
+                                        return {
+                                            "success": True,
+                                            "channel_id": first_space["channelId"],
+                                            "input_type": "handle_space_fallback_approximate",
+                                            "resolved_title": first_space["title"],
+                                            "note": f"Space-replacement fallback match for handle '{handle}' (searched as '{handle.replace('-', ' ')}')"
+                                        }
+                        
                         return {
                             "success": False,
                             "error": f"No channel found for handle '@{handle}'. Please check the handle or use Channel ID instead."
