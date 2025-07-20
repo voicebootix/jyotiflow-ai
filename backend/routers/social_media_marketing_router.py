@@ -470,13 +470,13 @@ async def update_platform_config(
         logger.error(f"❌ Exception type: {type(e).__name__}")
         logger.error(f"❌ Database pool available: {bool(db.db_pool) if hasattr(db, 'db_pool') else 'No db module'}")
         
-        # Enhanced error details for debugging
+        # Enhanced error details for debugging (FIXED: scope issue)
         error_details = {
             "error_type": type(e).__name__,
             "error_message": str(e),
             "platform": platform,
-            "has_db_module": 'db' in locals(),
-            "has_db_pool": bool(getattr(db, 'db_pool', None)) if 'db' in locals() else False
+            "has_db_module": True,  # db is imported at module level
+            "has_db_pool": bool(hasattr(db, 'db_pool') and getattr(db, 'db_pool', None))
         }
         
         return StandardResponse(
