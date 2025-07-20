@@ -1941,19 +1941,8 @@ class DatabaseHealthMonitor:
             
             # Index usage
             try:
-                # Check if the expected column exists
-                has_tablename = await conn.fetchval("""
-                    SELECT EXISTS (
-                        SELECT 1 
-                        FROM information_schema.columns 
-                        WHERE table_schema = 'pg_catalog' 
-                        AND table_name = 'pg_stat_user_indexes'
-                        AND column_name = 'tablename'
-                    )
-                """)
-                
-                # Use proper query based on column availability
-                if has_tablename:
+                # Try the standard query first
+                try:
                     index_query = """
                         SELECT 
                             schemaname,
@@ -1967,23 +1956,30 @@ class DatabaseHealthMonitor:
                         AND schemaname = 'public'
                         LIMIT 10
                     """
-                else:
-                    # Fallback for systems that use 'relname' for table name
-                    index_query = """
-                        SELECT 
-                            schemaname,
-                            relname as tablename,
-                            indexrelname as indexname,
-                            idx_scan,
-                            idx_tup_read,
-                            idx_tup_fetch
-                        FROM pg_stat_user_indexes
-                        WHERE idx_scan = 0
-                        AND schemaname = 'public'
-                        LIMIT 10
-                    """
+                    unused_indexes = await conn.fetch(index_query)
+                except asyncpg.UndefinedColumnError:
+                    # Fallback for systems with different column names
+                    # Some PostgreSQL versions might use relname/indexrelname
+                    try:
+                        index_query = """
+                            SELECT 
+                                schemaname,
+                                relname as tablename,
+                                indexrelname as indexname,
+                                idx_scan,
+                                idx_tup_read,
+                                idx_tup_fetch
+                            FROM pg_stat_user_indexes
+                            WHERE idx_scan = 0
+                            AND schemaname = 'public'
+                            LIMIT 10
+                        """
+                        unused_indexes = await conn.fetch(index_query)
+                    except Exception:
+                        # If both fail, return empty list
+                        logger.warning("Unable to query pg_stat_user_indexes with known column names")
+                        unused_indexes = []
                 
-                unused_indexes = await conn.fetch(index_query)
                 metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
             except Exception as e:
                 logger.warning(f"Failed to get index usage: {e}")
