@@ -1326,5 +1326,302 @@ async def test_social_media_automation(admin=Depends(get_current_admin_dependenc
             data={}
         )
 
+@router.get("/live-audio-video-status")
+async def get_live_audio_video_status():
+    """Get comprehensive live audio/video system status - BUSINESS CRITICAL"""
+    try:
+        # Check Agora service availability
+        agora_status = {"available": False, "error": None}
+        try:
+            from agora_service import AgoraService
+            agora_service = AgoraService()
+            agora_status = {
+                "available": True,
+                "app_id_configured": bool(getattr(agora_service, 'app_id', None)),
+                "certificate_configured": bool(getattr(agora_service, 'app_certificate', None))
+            }
+        except Exception as agora_error:
+            agora_status = {"available": False, "error": str(agora_error)}
+        
+        # Check LiveChat router availability
+        livechat_router_status = {"available": False, "error": None}
+        try:
+            from routers.livechat import livechat_router
+            livechat_router_status = {"available": True, "endpoints_count": len(livechat_router.routes)}
+        except Exception as router_error:
+            livechat_router_status = {"available": False, "error": str(router_error)}
+        
+        # Check database tables
+        database_status = {"available": False, "tables": {}}
+        try:
+            conn = await asyncpg.connect(DATABASE_URL)
+            
+            tables_to_check = ['live_chat_sessions', 'video_chat_sessions', 'video_chat_recordings', 'video_chat_analytics']
+            for table in tables_to_check:
+                table_exists = await conn.fetchrow('''
+                    SELECT table_name FROM information_schema.tables 
+                    WHERE table_name = $1 AND table_schema = 'public'
+                ''', table)
+                database_status["tables"][table] = bool(table_exists)
+            
+            database_status["available"] = any(database_status["tables"].values())
+            await conn.close()
+            
+        except Exception as db_error:
+            database_status = {"available": False, "error": str(db_error)}
+        
+        # Get recent session metrics
+        session_metrics = {
+            "active_sessions": 0,
+            "sessions_24h": 0,
+            "total_revenue_24h": 0.0,
+            "avg_session_duration": 0.0
+        }
+        
+        try:
+            conn = await asyncpg.connect(DATABASE_URL)
+            
+            # Active sessions
+            if database_status["tables"].get("live_chat_sessions"):
+                active_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM live_chat_sessions WHERE status = 'active'"
+                )
+                session_metrics["active_sessions"] = active_count or 0
+            
+            # Sessions in last 24 hours
+            if database_status["tables"].get("video_chat_sessions"):
+                sessions_24h = await conn.fetchval('''
+                    SELECT COUNT(*) FROM video_chat_sessions 
+                    WHERE start_time >= NOW() - INTERVAL '24 hours'
+                ''')
+                session_metrics["sessions_24h"] = sessions_24h or 0
+                
+                # Revenue in last 24 hours
+                revenue_24h = await conn.fetchval('''
+                    SELECT COALESCE(SUM(cost), 0) FROM video_chat_sessions 
+                    WHERE start_time >= NOW() - INTERVAL '24 hours'
+                ''')
+                session_metrics["total_revenue_24h"] = float(revenue_24h or 0.0)
+            
+            await conn.close()
+            
+        except Exception as metrics_error:
+            print(f"Error fetching session metrics: {metrics_error}")
+        
+        # Check frontend components availability
+        frontend_status = {"available": True, "components": {}}
+        frontend_components = ['LiveChat.jsx', 'InteractiveAudioChat.jsx', 'AgoraVideoCall.jsx']
+        
+        for component in frontend_components:
+            try:
+                import os
+                component_path = os.path.join('frontend', 'src', 'components', component)
+                frontend_status["components"][component] = os.path.exists(component_path)
+            except:
+                frontend_status["components"][component] = False
+        
+        frontend_status["available"] = any(frontend_status["components"].values())
+        
+        # Calculate overall system health
+        critical_systems = [agora_status["available"], livechat_router_status["available"], database_status["available"]]
+        system_health_score = (sum(critical_systems) / len(critical_systems)) * 100
+        
+        if system_health_score >= 90:
+            overall_status = "healthy"
+        elif system_health_score >= 70:
+            overall_status = "degraded"
+        else:
+            overall_status = "critical"
+        
+        return {
+            "success": True,
+            "data": {
+                "overall_status": overall_status,
+                "system_health_score": system_health_score,
+                "agora_service": agora_status,
+                "livechat_router": livechat_router_status,
+                "database": database_status,
+                "frontend_components": frontend_status,
+                "session_metrics": session_metrics,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get live audio/video status: {str(e)}",
+            "data": {
+                "overall_status": "critical",
+                "system_health_score": 0,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+
+@router.get("/live-audio-video-sessions")
+async def get_live_audio_video_sessions():
+    """Get recent live audio/video sessions data"""
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        
+        # Get recent sessions
+        sessions = []
+        try:
+            sessions_data = await conn.fetch('''
+                SELECT session_id, user_id, service_type, status, start_time, end_time, 
+                       duration, cost, agora_channel
+                FROM video_chat_sessions 
+                WHERE start_time >= NOW() - INTERVAL '7 days'
+                ORDER BY start_time DESC
+                LIMIT 20
+            ''')
+            
+            for session in sessions_data:
+                sessions.append({
+                    "session_id": session['session_id'],
+                    "user_id": session['user_id'],
+                    "service_type": session['service_type'],
+                    "status": session['status'],
+                    "start_time": session['start_time'].isoformat() if session['start_time'] else None,
+                    "end_time": session['end_time'].isoformat() if session['end_time'] else None,
+                    "duration": session['duration'],
+                    "cost": float(session['cost']) if session['cost'] else 0.0,
+                    "agora_channel": session['agora_channel']
+                })
+        except Exception as sessions_error:
+            print(f"Error fetching sessions: {sessions_error}")
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "data": {
+                "recent_sessions": sessions,
+                "total_sessions": len(sessions)
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to get live audio/video sessions: {str(e)}",
+            "data": {"recent_sessions": [], "total_sessions": 0}
+        }
+
+@router.post("/live-audio-video-test")
+async def test_live_audio_video_system():
+    """Test live audio/video system functionality"""
+    try:
+        test_results = {}
+        
+        # Test 1: Agora service
+        try:
+            from agora_service import AgoraService
+            agora_service = AgoraService()
+            
+            # Test token generation
+            test_channel = f"test_channel_{uuid.uuid4()}"
+            token_result = await agora_service.generate_token(
+                channel_name=test_channel,
+                uid=str(uuid.uuid4()),
+                role="publisher"
+            )
+            
+            test_results["agora_service"] = {
+                "status": "passed" if token_result and token_result.get("token") else "failed",
+                "token_generated": bool(token_result.get("token") if token_result else False),
+                "test_details": "Token generation test"
+            }
+            
+        except Exception as agora_error:
+            test_results["agora_service"] = {
+                "status": "failed",
+                "error": str(agora_error),
+                "test_details": "Agora service initialization test"
+            }
+        
+        # Test 2: Database operations
+        try:
+            conn = await asyncpg.connect(DATABASE_URL)
+            
+            # Test session creation
+            session_id = str(uuid.uuid4())
+            await conn.execute('''
+                INSERT INTO live_chat_sessions (session_id, user_id, agora_token, status, created_at)
+                VALUES ($1, $2, $3, $4, $5)
+            ''', session_id, "test_user", "test_token", "active", datetime.now(timezone.utc))
+            
+            # Verify and cleanup
+            session = await conn.fetchrow(
+                "SELECT status FROM live_chat_sessions WHERE session_id = $1", session_id
+            )
+            await conn.execute("DELETE FROM live_chat_sessions WHERE session_id = $1", session_id)
+            await conn.close()
+            
+            test_results["database"] = {
+                "status": "passed" if session else "failed",
+                "session_created": bool(session),
+                "test_details": "Session creation and cleanup test"
+            }
+            
+        except Exception as db_error:
+            test_results["database"] = {
+                "status": "failed",
+                "error": str(db_error),
+                "test_details": "Database operations test"
+            }
+        
+        # Test 3: API endpoints
+        try:
+            # Test internal endpoint availability
+            livechat_available = True
+            try:
+                from routers.livechat import livechat_router
+            except:
+                livechat_available = False
+            
+            test_results["api_endpoints"] = {
+                "status": "passed" if livechat_available else "failed",
+                "livechat_router_available": livechat_available,
+                "test_details": "API router availability test"
+            }
+            
+        except Exception as api_error:
+            test_results["api_endpoints"] = {
+                "status": "failed",
+                "error": str(api_error),
+                "test_details": "API endpoints test"
+            }
+        
+        # Calculate overall test result
+        passed_tests = sum(1 for result in test_results.values() if result.get("status") == "passed")
+        total_tests = len(test_results)
+        test_success_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
+        
+        overall_status = "passed" if test_success_rate >= 70 else "failed"
+        
+        return {
+            "success": True,
+            "data": {
+                "overall_status": overall_status,
+                "test_success_rate": test_success_rate,
+                "passed_tests": passed_tests,
+                "total_tests": total_tests,
+                "test_results": test_results,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Failed to test live audio/video system: {str(e)}",
+            "data": {
+                "overall_status": "failed",
+                "test_success_rate": 0,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        }
+
 # Export for use in other modules
 __all__ = ["monitoring_dashboard", "router", "connection_manager"]

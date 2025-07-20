@@ -717,6 +717,130 @@ const TestResultsDashboard = () => {
         );
     };
 
+    const LiveAudioVideoTab = () => {
+        const [liveAudioVideoData, setLiveAudioVideoData] = useState({
+            summary: {
+                total_sessions: 0,
+                active_sessions: 0,
+                avg_latency: 0,
+                success_rate: 0
+            },
+            recent_sessions: []
+        });
+        const [loading, setLoading] = useState(true);
+        const [error, setError] = useState(null);
+
+        useEffect(() => {
+            fetchLiveAudioVideoData();
+            const interval = setInterval(fetchLiveAudioVideoData, 30000); // Refresh every 30 seconds
+            return () => clearInterval(interval);
+        }, []);
+
+        const fetchLiveAudioVideoData = async () => {
+            try {
+                setError(null);
+                const response = await fetch(`${API_BASE_URL}/api/monitoring/live-audio-video-status`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setLiveAudioVideoData(data.data || liveAudioVideoData);
+                } else {
+                    setError('Failed to fetch live audio/video status');
+                }
+            } catch (err) {
+                setError('Failed to fetch live audio/video status');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        return (
+            <div className="space-y-6">
+                {loading ? (
+                    <div className="text-center py-8 text-gray-500">
+                        <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>Loading live audio/video status...</p>
+                    </div>
+                ) : error ? (
+                    <Alert>
+                        <AlertTriangle className="h-4 w-4" />
+                        <AlertDescription>{error}</AlertDescription>
+                    </Alert>
+                ) : (
+                    <>
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Activity className="h-5 w-5" />
+                                    Live Audio/Video Overview
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between p-3 border rounded">
+                                            <div>
+                                                <p className="font-medium">Total Sessions</p>
+                                                <p className="text-sm text-gray-600">Total live audio/video sessions</p>
+                                            </div>
+                                            <Badge className="bg-blue-100 text-blue-800">{liveAudioVideoData.summary.total_sessions}</Badge>
+                                        </div>
+                                        <div className="flex items-center justify-between p-3 border rounded">
+                                            <div>
+                                                <p className="font-medium">Active Sessions</p>
+                                                <p className="text-sm text-gray-600">Currently active audio/video streams</p>
+                                            </div>
+                                            <Badge className="bg-green-100 text-green-800">{liveAudioVideoData.summary.active_sessions}</Badge>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="p-3 bg-purple-50 rounded">
+                                            <p className="text-sm font-medium text-purple-800">Avg. Latency</p>
+                                            <p className="text-2xl font-bold text-purple-600">{liveAudioVideoData.summary.avg_latency.toFixed(2)}ms</p>
+                                        </div>
+                                        <div className="p-3 bg-yellow-50 rounded">
+                                            <p className="text-sm font-medium text-yellow-800">Success Rate</p>
+                                            <p className="text-2xl font-bold text-yellow-600">{liveAudioVideoData.summary.success_rate}%</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Activity className="h-5 w-5" />
+                                    Recent Live Audio/Video Sessions
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {liveAudioVideoData.recent_sessions.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {liveAudioVideoData.recent_sessions.map((session, index) => (
+                                            <div key={index} className="p-3 border rounded-lg bg-gray-50">
+                                                <p className="font-medium">Session {index + 1}</p>
+                                                <p className="text-sm text-gray-600">Type: {session.session_type}</p>
+                                                <p className="text-sm text-gray-600">Started: {new Date(session.started_at).toLocaleString()}</p>
+                                                <p className="text-sm text-gray-600">Duration: {session.duration_seconds}s</p>
+                                                <p className="text-sm text-gray-600">Status: {session.status}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8 text-gray-500">
+                                        <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                        <p>No recent live audio/video sessions available</p>
+                                        <p className="text-sm">Trigger a live audio/video test to see sessions</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </>
+                )}
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -749,13 +873,14 @@ const TestResultsDashboard = () => {
             )}
 
             <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-6">
+                <TabsList className="grid w-full grid-cols-7">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                     <TabsTrigger value="coverage">Coverage</TabsTrigger>
                     <TabsTrigger value="performance">Performance</TabsTrigger>
                     <TabsTrigger value="business-logic">Spiritual Content</TabsTrigger>
                     <TabsTrigger value="social-media">Social Media</TabsTrigger>
+                    <TabsTrigger value="live-audio-video">Live Audio/Video</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-6">
@@ -845,6 +970,10 @@ const TestResultsDashboard = () => {
 
                 <TabsContent value="social-media">
                     <SocialMediaAutomationTab />
+                </TabsContent>
+
+                <TabsContent value="live-audio-video">
+                    <LiveAudioVideoTab />
                 </TabsContent>
             </Tabs>
 

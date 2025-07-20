@@ -13,7 +13,8 @@ import {
     TrendingDown,
     AlertTriangle,
     Play,
-    RefreshCw
+    RefreshCw,
+    Video
 } from 'lucide-react';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
@@ -45,6 +46,19 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
         metrics: { campaigns_7d: 0, posts_24h: 0, active_campaigns: 0 },
         automation_health: { overall_status: 'unknown' }
     });
+    const [liveAudioVideoStatus, setLiveAudioVideoStatus] = useState({
+        overall_status: 'unknown',
+        system_health_score: 0,
+        agora_service: { available: false },
+        livechat_router: { available: false },
+        database: { available: false, tables: {} },
+        frontend_components: { available: false, components: {} },
+        session_metrics: {
+            active_sessions: 0,
+            sessions_24h: 0,
+            total_revenue_24h: 0.0
+        }
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [executingTest, setExecutingTest] = useState(false);
@@ -61,7 +75,8 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             fetchTestStatus(),
             fetchBusinessLogicStatus(),
             fetchSpiritualServicesStatus(),
-            fetchSocialMediaStatus()
+            fetchSocialMediaStatus(),
+            fetchLiveAudioVideoStatus()
         ]);
     };
 
@@ -117,6 +132,18 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             }
         } catch (err) {
             console.warn('Social media status not available:', err.message);
+        }
+    };
+
+    const fetchLiveAudioVideoStatus = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/monitoring/live-audio-video-status`);
+            if (response.ok) {
+                const data = await response.json();
+                setLiveAudioVideoStatus(data.data || liveAudioVideoStatus);
+            }
+        } catch (err) {
+            console.warn('Live audio/video status not available:', err.message);
         }
     };
 
@@ -281,6 +308,37 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
                                 <div>Campaigns: {socialMediaStatus.metrics.campaigns_7d}</div>
                                 <div>Posts: {socialMediaStatus.metrics.posts_24h}</div>
                                 <div>Active: {socialMediaStatus.metrics.active_campaigns}</div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Live Audio/Video Status - REVENUE CRITICAL */}
+                    {(liveAudioVideoStatus.agora_service.available || liveAudioVideoStatus.session_metrics.active_sessions > 0) && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1">
+                                    <Video className="h-3 w-3" />
+                                    <span className="text-xs font-medium">Live Audio/Video</span>
+                                    <Badge className={`text-xs ml-1 ${liveAudioVideoStatus.overall_status === 'healthy' ? 'bg-green-100 text-green-800' : liveAudioVideoStatus.overall_status === 'degraded' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                                        {liveAudioVideoStatus.overall_status?.toUpperCase() || 'UNKNOWN'}
+                                    </Badge>
+                                </div>
+                                <div className="flex gap-1">
+                                    {liveAudioVideoStatus.agora_service.available && (
+                                        <div className="h-2 w-2 bg-green-500 rounded-full" title="Agora Service Online" />
+                                    )}
+                                    {liveAudioVideoStatus.livechat_router.available && (
+                                        <div className="h-2 w-2 bg-blue-500 rounded-full" title="Live Chat Router Online" />
+                                    )}
+                                    {liveAudioVideoStatus.database.available && (
+                                        <div className="h-2 w-2 bg-purple-500 rounded-full" title="Database Ready" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-3 gap-2 text-xs text-gray-600">
+                                <div>Active: {liveAudioVideoStatus.session_metrics.active_sessions}</div>
+                                <div>24h Sessions: {liveAudioVideoStatus.session_metrics.sessions_24h}</div>
+                                <div>Revenue: ${liveAudioVideoStatus.session_metrics.total_revenue_24h.toFixed(0)}</div>
                             </div>
                         </div>
                     )}
