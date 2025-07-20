@@ -20,7 +20,7 @@ WHERE integration_name IS NULL;
 
 -- 5. Add some test data to actual_value for existing records
 UPDATE integration_validations 
-SET actual_value = jsonb_build_object('duration_ms', response_time_ms::text)
+SET actual_value = jsonb_build_object('duration_ms', response_time_ms)
 WHERE actual_value IS NULL AND response_time_ms IS NOT NULL;
 
 -- Verify the changes
