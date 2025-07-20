@@ -140,15 +140,15 @@ def extract_table_from_query(query: str) -> Optional[str]:
     # Comprehensive patterns for different SQL statements
     patterns = [
         # FROM table or FROM schema.table (avoiding subqueries)
-        r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?\s*(?:where|join|inner|left|right|full|cross|natural|,|\s|$)',
+        r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?(?:\s*[,;]|\s+|$)',
         # JOIN table or JOIN schema.table
         r'(?:join|inner\s+join|left\s+join|right\s+join|full\s+join|cross\s+join)\s+(?:(\w+)\.)?(\w+)',
-        # INTO table or INTO schema.table
-        r'into\s+(?:(\w+)\.)?(\w+)\s*[\(\s]',
+        # INTO table or INTO schema.table (now handles semicolons and end of string)
+        r'into\s+(?:(\w+)\.)?(\w+)(?:\s*[\(\s;]|$)',
         # UPDATE table or UPDATE schema.table
         r'update\s+(?:(\w+)\.)?(\w+)\s+set',
-        # DELETE FROM table or DELETE FROM schema.table
-        r'delete\s+from\s+(?:(\w+)\.)?(\w+)',
+        # DELETE FROM table or DELETE FROM schema.table (added semicolon and end of string)
+        r'delete\s+from\s+(?:(\w+)\.)?(\w+)(?:\s*[;]|\s+|$)',
         # CREATE TABLE
         r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)',
         # ALTER TABLE
