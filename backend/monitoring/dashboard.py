@@ -384,7 +384,7 @@ class MonitoringDashboard:
                         COUNT(*) as total_validations,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_validations,
                         CASE 
-                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL) = 0 THEN 0
+                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL END) = 0 THEN 0
                             ELSE AVG((actual_value->>'duration_ms')::INTEGER)
                         END as avg_duration_ms
                     FROM integration_validations
@@ -398,7 +398,7 @@ class MonitoringDashboard:
                         COUNT(*) as total_calls,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls,
                         CASE 
-                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL) = 0 THEN 0
+                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL END) = 0 THEN 0
                             ELSE AVG((actual_value->>'duration_ms')::INTEGER)
                         END as avg_duration_ms
                     FROM integration_validations
@@ -527,8 +527,8 @@ class MonitoringDashboard:
                 # Get quality scores
                 quality_scores = await conn.fetchrow("""
                     SELECT 
-                        AVG((validation_results->>'quality_scores'->>'rag_relevance_score')::float) as avg_rag_score,
-                        AVG((validation_results->>'quality_scores'->>'openai_quality_score')::float) as avg_openai_score
+                        AVG(((validation_results->'quality_scores')->>'rag_relevance_score')::float) as avg_rag_score,
+                        AVG(((validation_results->'quality_scores')->>'openai_quality_score')::float) as avg_openai_score
                     FROM validation_sessions
                     WHERE validation_results IS NOT NULL
                     AND started_at > NOW() - INTERVAL '24 hours'
