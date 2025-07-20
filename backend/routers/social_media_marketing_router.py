@@ -378,12 +378,14 @@ async def update_platform_config(
     admin_user: dict = Depends(get_admin_user)
 ):
     """Save social media platform credentials to database"""
+    # SCOPE FIX: Initialize platform before try block to prevent NameError in exception handler
+    platform = config_update.get('platform', 'unknown') if config_update else 'unknown'
+    
     try:
         import db
         import json
         
         # SURGICAL FIX: Enhanced validation and error handling
-        platform = config_update.get('platform')
         config = config_update.get('config', {})
         
         if not platform:
