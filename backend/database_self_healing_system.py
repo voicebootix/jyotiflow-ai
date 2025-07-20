@@ -1654,12 +1654,21 @@ class DatabaseHealthMonitor:
         unique_pattern_columns = [
             r'.*_id$',  # Columns ending with _id
             r'.*_key$',  # Columns ending with _key
-            r'.*_code$',  # Columns ending with _code
+            r'(?<!status_)code$',  # Columns ending with _code (but not status_code)
             r'^email$',  # Email columns
             r'^username$',  # Username columns
             r'.*_hash$',  # Hash columns
             r'.*_token$',  # Token columns
         ]
+        
+        # Columns that should NOT be checked for uniqueness even if they match patterns
+        exclude_columns = {
+            'status_code',  # HTTP status codes are not unique
+            'error_code',   # Error codes can repeat
+            'country_code', # Country codes can repeat
+            'postal_code',  # Postal codes can repeat
+            'currency_code' # Currency codes can repeat
+        }
         
         logger.info("Checking columns that should be unique based on naming patterns...")
         pattern_check_count = 0
@@ -1678,6 +1687,10 @@ class DatabaseHealthMonitor:
                     for col in unique_by_table.get(table_name, [])
                 )
                 if has_unique:
+                    continue
+                
+                # Skip if column is in exclude list
+                if column_name.lower() in exclude_columns:
                     continue
                 
                 # Check if column matches any unique pattern

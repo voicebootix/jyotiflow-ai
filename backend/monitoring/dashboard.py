@@ -697,6 +697,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 break
                 
             try:
+                # Check if WebSocket is still connected
+                if websocket.client_state.value != 1:  # 1 = CONNECTED
+                    logger.info("WebSocket disconnected, ending monitoring")
+                    break
+                    
                 # Send heartbeat and system status every 5 seconds
                 system_health = await integration_monitor.get_system_health()
                 await websocket.send_json({
@@ -705,7 +710,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             except Exception as send_error:
-                logger.error(f"Error sending WebSocket message: {send_error}")
+                # Don't log error if it's just a disconnection
+                if "1005" not in str(send_error) and "no status received" not in str(send_error):
+                    logger.error(f"Error sending WebSocket message: {send_error}")
                 break
             
             # Wait for 5 seconds
