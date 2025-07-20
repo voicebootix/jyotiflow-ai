@@ -210,63 +210,126 @@ class YouTubeService:
         """
         Resolve YouTube handle/username to Channel ID using search API
         (YouTube API v3 doesn't have direct handle→ID endpoint)
+        Fixed: Separate sessions for each search strategy to prevent resource conflicts
         """
         try:
-            # Search for channels by handle/username
-            url = f"{self.base_url}/search"
-            params = {
-                "part": "snippet",
-                "q": f"@{handle}",
-                "type": "channel",
-                "maxResults": 5,
-                "key": api_key
-            }
+            # Try multiple search strategies in sequence
+            search_strategies = [
+                f"@{handle}",           # Original with @
+                handle,                 # Without @ prefix
+                handle.replace("-", " ") if "-" in handle else None  # Spaces instead of dashes
+            ]
             
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, params=params) as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        items = data.get("items", [])
-                        
-                        # Look for exact handle match
-                        for item in items:
-                            snippet = item.get("snippet", {})
-                            # Check if custom URL matches or title contains the handle
-                            if (handle.lower() in snippet.get("customUrl", "").lower() or 
-                                handle.lower() in snippet.get("title", "").lower()):
-                                return {
-                                    "success": True,
-                                    "channel_id": snippet["channelId"],
-                                    "input_type": "handle",
-                                    "resolved_title": snippet["title"]
-                                }
-                        
-                        # If no exact match, try first result
-                        if items:
-                            first_item = items[0]["snippet"]
-                            return {
-                                "success": True,
-                                "channel_id": first_item["channelId"],
-                                "input_type": "handle_approximate",
-                                "resolved_title": first_item["title"],
-                                "note": f"Approximate match for handle '{handle}'"
-                            }
-                        
-                        return {
-                            "success": False,
-                            "error": f"No channel found for handle '@{handle}'. Please check the handle or use Channel ID instead."
-                        }
-                    else:
-                        return {
-                            "success": False,
-                            "error": f"Failed to resolve handle: HTTP {response.status}"
-                        }
+            for i, search_query in enumerate(search_strategies):
+                if search_query is None:
+                    continue
+                    
+                result = await self._search_channels_by_query(api_key, search_query, handle, i)
+                if result["success"]:
+                    return result
+            
+            return {
+                "success": False,
+                "error": f"No channel found for handle '@{handle}'. Please check the handle or use Channel ID instead."
+            }
                         
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Handle resolution failed: {str(e)}"
             }
+    
+    async def _search_channels_by_query(self, api_key: str, search_query: str, original_handle: str, strategy_index: int) -> Dict:
+        """
+        Search for channels using a specific query
+        Fixed: Uses separate session for each call to prevent resource conflicts
+        """
+        try:
+            url = f"{self.base_url}/search"
+            params = {
+                "part": "snippet",
+                "q": search_query,
+                "type": "channel",
+                "maxResults": 5,
+                "key": api_key
+            }
+            
+            # Use separate session for each search to prevent resource conflicts
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, params=params) as response:
+                    if response.status != 200:
+                        return {
+                            "success": False,
+                            "error": f"Search failed: HTTP {response.status}"
+                        }
+                        
+                    data = await response.json()
+                    items = data.get("items", [])
+                    
+                    if not items:
+                        return {"success": False, "error": "No channels found"}
+                    
+                    # Look for best match using generic matching logic
+                    best_match = self._find_best_channel_match(items, original_handle)
+                    if best_match:
+                        strategy_names = ["handle", "handle_fallback", "handle_space_fallback"]
+                        return {
+                            "success": True,
+                            "channel_id": best_match["channelId"],
+                            "input_type": strategy_names[strategy_index] if strategy_index < len(strategy_names) else "handle_generic",
+                            "resolved_title": best_match["title"],
+                            "note": f"Found using search query: '{search_query}'"
+                        }
+                    
+                    # If no specific match, return first result as approximate
+                    first_item = items[0]["snippet"]
+                    return {
+                        "success": True,
+                        "channel_id": first_item["channelId"],
+                        "input_type": f"handle_approximate_{strategy_index}",
+                        "resolved_title": first_item["title"],
+                        "note": f"Approximate match using search query: '{search_query}'"
+                    }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Search query failed: {str(e)}"
+            }
+    
+    def _find_best_channel_match(self, items: list, original_handle: str) -> Dict:
+        """
+        Find the best matching channel from search results
+        Fixed: Removed hardcoded matching, now uses generic similarity logic
+        """
+        handle_lower = original_handle.lower()
+        
+        for item in items:
+            snippet = item.get("snippet", {})
+            title = snippet.get("title", "").lower()
+            custom_url = snippet.get("customUrl", "").lower()
+            
+            # Generic matching logic (not hardcoded to specific names)
+            if (handle_lower in custom_url or 
+                handle_lower in title or
+                self._calculate_similarity(handle_lower, title) > 0.6):
+                return snippet
+        
+        return None
+    
+    def _calculate_similarity(self, handle: str, title: str) -> float:
+        """
+        Calculate similarity between handle and channel title
+        Simple word-based similarity for better matching
+        """
+        handle_words = set(handle.replace("-", " ").replace("_", " ").split())
+        title_words = set(title.replace("-", " ").replace("_", " ").split())
+        
+        if not handle_words or not title_words:
+            return 0.0
+        
+        common_words = handle_words.intersection(title_words)
+        return len(common_words) / len(handle_words.union(title_words))
     
     async def _resolve_url_to_channel_id(self, api_key: str, url: str) -> Dict:
         """
