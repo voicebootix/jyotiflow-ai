@@ -55,6 +55,35 @@ CRITICAL_TABLES = {
     'followup_templates'       # Follow-up spiritual guidance
 }
 
+# PostgreSQL system schemas and tables to exclude from table detection
+SYSTEM_TABLES = {
+    'information_schema', 'pg_catalog', 'pg_tables', 'pg_user', 
+    'pg_indexes', 'pg_stat_user_indexes', 'pg_stat_statements',
+    'pg_class', 'pg_namespace', 'pg_attribute', 'pg_index',
+    'pg_constraint', 'pg_description', 'pg_proc', 'pg_trigger',
+    'pg_type', 'pg_roles', 'pg_database', 'pg_settings',
+    # Test and temporary tables
+    '__migration_test__', 'self_healing_test', 'test_table',
+    'temp_table', 'tmp_table', 'temporary_table'
+}
+
+# SQL keywords that might be mistaken for table names
+SQL_KEYWORDS = {
+    'if', 'else', 'then', 'when', 'case', 'end', 'and', 'or', 
+    'not', 'null', 'true', 'false', 'exists', 'all', 'any',
+    'some', 'between', 'like', 'in', 'is', 'as', 'on', 'using',
+    'union', 'intersect', 'except', 'order', 'group', 'having',
+    'limit', 'offset', 'for', 'with', 'recursive', 'values',
+    'default', 'current_timestamp', 'current_date', 'current_time'
+}
+
+# Common column names that might appear in FROM clauses
+COMMON_COLUMN_NAMES = {
+    'created_at', 'updated_at', 'deleted_at', 'id', 'name', 
+    'status', 'type', 'value', 'data', 'result', 'count',
+    'sum', 'avg', 'min', 'max', 'total', 'amount'
+}
+
 # SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
 SPIRITUAL_SERVICE_PRIORITIES = {
     'CRITICAL': ['users', 'sessions', 'service_types', 'rag_knowledge_base',
@@ -90,6 +119,65 @@ def quote_ident(identifier: str) -> str:
         raise ValueError(f"Invalid identifier: {identifier}")
     # Quote the identifier
     return '"' + identifier.replace('"', '""') + '"'
+
+
+def extract_table_from_query(query: str) -> Optional[str]:
+    """
+    Extract table name from SQL query with comprehensive filtering.
+    
+    This shared helper method centralizes table extraction logic to avoid duplication.
+    It handles schema.table notation, filters out system tables, SQL keywords, and
+    common column names that might be mistaken for table names.
+    
+    Args:
+        query: SQL query string
+        
+    Returns:
+        Extracted table name if valid, None otherwise
+    """
+    query_lower = query.lower()
+    
+    # Comprehensive patterns for different SQL statements
+    patterns = [
+        # FROM table or FROM schema.table (avoiding subqueries)
+        r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?(?:\s*[,;]|\s+|$)',
+        # JOIN table or JOIN schema.table
+        r'(?:join|inner\s+join|left\s+join|right\s+join|full\s+join|cross\s+join)\s+(?:(\w+)\.)?(\w+)',
+        # INTO table or INTO schema.table (now handles semicolons and end of string)
+        r'into\s+(?:(\w+)\.)?(\w+)(?:\s*[\(\s;]|$)',
+        # UPDATE table or UPDATE schema.table
+        r'update\s+(?:(\w+)\.)?(\w+)\s+set',
+        # DELETE FROM table or DELETE FROM schema.table (added semicolon and end of string)
+        r'delete\s+from\s+(?:(\w+)\.)?(\w+)(?:\s*[;]|\s+|$)',
+        # CREATE TABLE
+        r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)',
+        # ALTER TABLE
+        r'alter\s+table\s+(?:(\w+)\.)?(\w+)',
+        # DROP TABLE
+        r'drop\s+table\s+(?:if\s+exists\s+)?(?:(\w+)\.)?(\w+)'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, query_lower, re.IGNORECASE)
+        if match:
+            # Extract schema and table name
+            # All patterns use (?:(\w+)\.)?(\w+) where group 1 is optional schema, group 2 is table
+            schema = match.group(1)  # Will be None if no schema specified
+            potential_table = match.group(2)  # Always contains the table name
+            
+            # Skip if schema is a system schema
+            if schema and schema in SYSTEM_TABLES:
+                continue
+                
+            # Skip if table is a system table, SQL keyword, or common column name
+            if (potential_table and 
+                potential_table not in SYSTEM_TABLES and 
+                potential_table not in SQL_KEYWORDS and 
+                potential_table not in COMMON_COLUMN_NAMES and
+                re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
+                return potential_table
+    
+    return None
 
 
 def infer_column_type_from_name(column_name: str) -> str:
@@ -477,23 +565,8 @@ class CodePatternAnalyzer:
                     })
             
             def _extract_table_name(self, query: str) -> Optional[str]:
-                """Extract table name from query"""
-                query_lower = query.lower()
-                
-                # Common patterns
-                patterns = [
-                    r'from\s+(\w+)',
-                    r'into\s+(\w+)',
-                    r'update\s+(\w+)',
-                    r'table\s+(\w+)'
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, query_lower)
-                    if match:
-                        return match.group(1)
-                
-                return None
+                """Extract table name from query using shared helper"""
+                return extract_table_from_query(query)
             
             def _get_query_type(self, query: str) -> str:
                 """Get query type (SELECT, INSERT, UPDATE, etc.)"""
@@ -781,15 +854,8 @@ class CodePatternAnalyzer:
     
     def _check_regex_query_issues(self, query: str, line_no: int, line: str, file_path: str):
         """Check query issues when using regex fallback"""
-        query_lower = query.lower()
-        
-        # Extract table name
-        table = None
-        for pattern in [r'from\s+(\w+)', r'into\s+(\w+)', r'update\s+(\w+)']:
-            match = re.search(pattern, query_lower)
-            if match:
-                table = match.group(1)
-                break
+        # Extract table name using shared helper
+        table = extract_table_from_query(query)
         
         if table:
             # Store in query patterns (simplified - no column extraction in regex mode)
