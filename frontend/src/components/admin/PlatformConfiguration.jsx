@@ -194,29 +194,36 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
-      // CRITICAL FIX: Handle StandardResponse format correctly (core.md & refresh.md)
+      // SURGICAL FIX: Robust response format handling (core.md & refresh.md)
       // Backend returns: { success: true, data: {...}, message: "..." }
       // But some responses might be nested: { data: { success: true, ... } }
       const responseData = response.data;
       
-      // Handle both direct StandardResponse and nested response formats
-      let isSuccess, successData, successMessage;
+      // Parse response with proper error detection and data extraction
+      let isSuccess, successData, responseMessage;
       
       if (responseData.success !== undefined) {
         // Direct StandardResponse format: { success: true, data: {...}, message: "..." }
         isSuccess = responseData.success;
         successData = responseData.data;
-        successMessage = responseData.message;
+        responseMessage = responseData.message;
       } else if (responseData.data && responseData.data.success !== undefined) {
         // Nested format: { data: { success: true, ... } }
         isSuccess = responseData.data.success;
-        successData = responseData.data.data;
-        successMessage = responseData.data.message;
+        successData = responseData.data; // ✅ FIXED: Use responseData.data, not responseData.data.data
+        responseMessage = responseData.data.message;
       } else {
-        // Fallback: assume success if no error field
-        isSuccess = !responseData.error;
-        successData = responseData;
-        successMessage = responseData.message || 'Connection test completed';
+        // Comprehensive fallback with proper error detection
+        const hasError = responseData.error || 
+                         (responseData.data && responseData.data.error) ||
+                         responseData.success === false ||
+                         (responseData.data && responseData.data.success === false);
+        
+        isSuccess = !hasError; // ✅ FIXED: Check all possible error locations
+        successData = responseData.data || responseData;
+        responseMessage = responseData.message || 
+                         (responseData.data && responseData.data.message) ||
+                         null; // ✅ FIXED: No misleading default message
       }
       
       setTestResults(prev => ({
@@ -225,19 +232,30 @@ const PlatformConfiguration = () => {
       }));
       
       if (isSuccess) {
-        const finalMessage = successMessage || 'Connection successful!';
+        // ✅ FIXED: Clear success message handling
+        const successMessage = responseMessage || 'Connection successful!';
         
         // Enhanced success feedback (core.md: informative responses)
         if (platform === 'youtube' && successData?.resolved_channel_id) {
-          addNotification('success', `${finalMessage} Channel: ${successData.channel_info?.title || 'Connected'}`, platform, successData);
+          addNotification('success', `${successMessage} Channel: ${successData.channel_info?.title || 'Connected'}`, platform, successData);
         } else if (platform === 'facebook' && successData?.page_name) {
-          addNotification('success', `${finalMessage} Page: ${successData.page_name}`, platform, successData);
+          addNotification('success', `${successMessage} Page: ${successData.page_name}`, platform, successData);
         } else {
-          addNotification('success', finalMessage, platform, successData);
+          addNotification('success', successMessage, platform, successData);
         }
       } else {
-        const errorMessage = successMessage || responseData?.message || 'Connection failed';
-        const errorDetails = responseData?.data?.error || responseData?.error || responseData?.data;
+        // ✅ FIXED: Proper error message extraction with comprehensive fallback
+        const errorMessage = responseMessage ||
+                             responseData?.message ||
+                             (responseData?.data && responseData.data.message) ||
+                             (responseData?.data && responseData.data.error) ||
+                             responseData?.error ||
+                             'Connection failed';
+        
+        const errorDetails = responseData?.data?.error || 
+                           responseData?.error || 
+                           responseData?.data ||
+                           responseData;
         
         // Enhanced error feedback with actionable guidance (refresh.md: helpful errors)
         let guidanceMessage = errorMessage;
