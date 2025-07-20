@@ -190,9 +190,19 @@ const PlatformConfiguration = () => {
       // Enhanced YouTube handle validation (core.md: proactive validation)
       if (platform === 'youtube' && config.channel_id) {
         const handle = config.channel_id.trim();
-        if (handle.includes('@') && !handle.match(/^@[a-zA-Z0-9._-]+$/)) {
-          addNotification('warning', 'Invalid handle format. Use @YourHandle or channel URL', platform);
+        
+        // Comprehensive input format validation (refresh.md: support all documented formats)
+        const isValidHandle = handle.match(/^@[a-zA-Z0-9._-]+$/);
+        const isValidChannelId = handle.match(/^UC[a-zA-Z0-9_-]{22}$/);
+        const isValidURL = handle.match(/^https?:\/\/(www\.)?(youtube\.com|youtu\.be)\/.+/);
+        const isValidFormat = isValidHandle || isValidChannelId || isValidURL;
+        
+        // Only warn for genuinely invalid formats
+        if (!isValidFormat && handle.length > 0) {
+          addNotification('warning', 'Invalid format. Use @YourHandle, channel URL, or Channel ID (UC...)', platform);
         }
+        
+        // Specific guidance for known non-existent test channel
         if (handle === '@jyotiGuru-h9v') {
           addNotification('warning', '⚠️ Testing with @jyotiGuru-h9v (this channel may not exist). Try @SadhguruJV or create your channel first.', platform);
         }
