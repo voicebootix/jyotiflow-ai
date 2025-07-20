@@ -383,10 +383,15 @@ class MonitoringDashboard:
                         COUNT(DISTINCT session_id) as total_sessions,
                         COUNT(*) as total_validations,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_validations,
-                        CASE 
-                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL THEN 1 END) = 0 THEN 0
-                            ELSE AVG((actual_value->>'duration_ms')::INTEGER)::INTEGER
-                        END as avg_duration_ms
+                        COALESCE(
+                            AVG(
+                                CASE 
+                                    WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
+                                    THEN (actual_value->>'duration_ms')::INTEGER 
+                                END
+                            ), 
+                            0
+                        )::INTEGER as avg_duration_ms
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '24 hours'
                 """)
@@ -397,10 +402,15 @@ class MonitoringDashboard:
                         integration_name,
                         COUNT(*) as total_calls,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls,
-                        CASE 
-                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL THEN 1 END) = 0 THEN 0
-                            ELSE AVG((actual_value->>'duration_ms')::INTEGER)::INTEGER
-                        END as avg_duration_ms
+                        COALESCE(
+                            AVG(
+                                CASE 
+                                    WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
+                                    THEN (actual_value->>'duration_ms')::INTEGER 
+                                END
+                            ), 
+                            0
+                        )::INTEGER as avg_duration_ms
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '24 hours'
                     GROUP BY integration_name
