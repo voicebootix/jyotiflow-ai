@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -18,9 +18,14 @@ import {
     Activity,
     Download,
     Filter,
-    Search
+    Search,
+    Database,
+    DollarSign,
+    Users
 } from 'lucide-react';
 import TestStatusCard from './TestStatusCard';
+import ServiceStatusCard from './ServiceStatusCard';
+import AllServicesTab from './AllServicesTab';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
@@ -873,14 +878,15 @@ const TestResultsDashboard = () => {
             )}
 
             <Tabs defaultValue="overview" className="space-y-4">
-                <TabsList className="grid w-full grid-cols-7">
+                <TabsList className="grid w-full grid-cols-8 gap-1 text-xs">
                     <TabsTrigger value="overview">Overview</TabsTrigger>
-                    <TabsTrigger value="history">History</TabsTrigger>
-                    <TabsTrigger value="coverage">Coverage</TabsTrigger>
-                    <TabsTrigger value="performance">Performance</TabsTrigger>
-                    <TabsTrigger value="business-logic">Spiritual Content</TabsTrigger>
+                    <TabsTrigger value="core-services">Core Services</TabsTrigger>
+                    <TabsTrigger value="revenue-critical">Revenue Critical</TabsTrigger>
+                    <TabsTrigger value="user-experience">User Experience</TabsTrigger>
+                    <TabsTrigger value="business-mgmt">Business Mgmt</TabsTrigger>
                     <TabsTrigger value="social-media">Social Media</TabsTrigger>
                     <TabsTrigger value="live-audio-video">Live Audio/Video</TabsTrigger>
+                    <TabsTrigger value="all-services">All Services</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="overview" className="space-y-6">
@@ -974,6 +980,196 @@ const TestResultsDashboard = () => {
 
                 <TabsContent value="live-audio-video">
                     <LiveAudioVideoTab />
+                </TabsContent>
+
+                <TabsContent value="core-services">
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Database className="h-5 w-5" />
+                                    Core Platform Services
+                                </CardTitle>
+                                <CardDescription>
+                                    Database, API, Integration, Security, Performance, and Auto-Healing Services
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <ServiceStatusCard 
+                                        title="Database Tests"
+                                        description="Core database operations and integrity"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="database"
+                                        icon="🗄️"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="API Tests"
+                                        description="REST API endpoint functionality"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="api"
+                                        icon="🔌"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Integration Tests"
+                                        description="End-to-end workflow validation"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="integration"
+                                        icon="🔗"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Performance Tests"
+                                        description="Load and scalability testing"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="performance"
+                                        icon="⚡"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Security Tests"
+                                        description="Vulnerability protection validation"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="security"
+                                        icon="🔒"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Auto-Healing Tests"
+                                        description="Self-recovery mechanism testing"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="auto_healing"
+                                        icon="🔄"
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="revenue-critical">
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <DollarSign className="h-5 w-5" />
+                                    Revenue-Critical Services
+                                </CardTitle>
+                                <CardDescription>
+                                    Credit & Payment Systems, Avatar Generation, and Spiritual Services
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <ServiceStatusCard 
+                                        title="Credit & Payment Tests"
+                                        description="Revenue processing and transactions"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="credit_payment"
+                                        icon="💳"
+                                        priority="critical"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Spiritual Services Tests"
+                                        description="Core business logic and AI services"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="spiritual_services"
+                                        icon="🕉️"
+                                        priority="critical"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Avatar Generation Tests"
+                                        description="Video creation and spiritual avatars"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="avatar_generation"
+                                        icon="🎭"
+                                        priority="high"
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="user-experience">
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Users className="h-5 w-5" />
+                                    User Experience Services
+                                </CardTitle>
+                                <CardDescription>
+                                    User Management, Community, and Notification Services
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <ServiceStatusCard 
+                                        title="User Management Tests"
+                                        description="Authentication and profile management"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="user_management"
+                                        icon="👤"
+                                        priority="critical"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Community Services Tests"
+                                        description="Follow-up systems and user engagement"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="community_services"
+                                        icon="🤝"
+                                        priority="medium"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Notification Services Tests"
+                                        description="Alerts and user communication"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="notification_services"
+                                        icon="🔔"
+                                        priority="medium"
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="business-mgmt">
+                    <div className="space-y-6">
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <BarChart3 className="h-5 w-5" />
+                                    Business Management Services
+                                </CardTitle>
+                                <CardDescription>
+                                    Admin Services and Analytics & Monitoring
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <ServiceStatusCard 
+                                        title="Admin Services Tests"
+                                        description="Dashboard, settings, and management"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="admin_services"
+                                        icon="⚙️"
+                                        priority="high"
+                                    />
+                                    <ServiceStatusCard 
+                                        title="Analytics & Monitoring Tests"
+                                        description="Business intelligence and session tracking"
+                                        endpoint="/api/monitoring/test-execute"
+                                        testType="analytics_monitoring"
+                                        icon="📊"
+                                        priority="high"
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
+
+                <TabsContent value="all-services">
+                    <AllServicesTab />
                 </TabsContent>
             </Tabs>
 
