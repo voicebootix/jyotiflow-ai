@@ -20,7 +20,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict
-import re
 
 # Import timezone fixer to handle database datetime issues
 try:
@@ -1884,7 +1883,6 @@ class DatabaseHealthMonitor:
                 pg_version = await conn.fetchval("SELECT version()")
                 
                 # Extract major version number
-                import re
                 version_match = re.search(r'PostgreSQL (\d+)', pg_version)
                 major_version = int(version_match.group(1)) if version_match else 0
                 
