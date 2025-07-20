@@ -568,15 +568,15 @@ class MonitoringDashboard:
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
-            # Check for high error rates with proper NULL handling
+            # Check for high error rates
             conn = await db_manager.get_connection()
             try:
                 error_rate = await conn.fetchrow("""
                     SELECT 
-                        CASE 
-                            WHEN COUNT(*) = 0 THEN 0
-                            ELSE COUNT(CASE WHEN status = 'failed' THEN 1 END)::float / COUNT(*) * 100
-                        END as error_rate
+                        COALESCE(
+                            COUNT(CASE WHEN status = 'failed' THEN 1 END)::float / 
+                            NULLIF(COUNT(*), 0) * 100, 0
+                        ) as error_rate
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '1 hour'
                 """)
