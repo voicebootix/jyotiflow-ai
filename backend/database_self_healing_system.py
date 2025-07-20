@@ -480,20 +480,77 @@ class CodePatternAnalyzer:
                 """Extract table name from query"""
                 query_lower = query.lower()
                 
-                # Common patterns
+                # PostgreSQL system schemas and tables to exclude
+                system_tables = {
+                    'information_schema', 'pg_catalog', 'pg_tables', 'pg_user', 
+                    'pg_indexes', 'pg_stat_user_indexes', 'pg_stat_statements',
+                    'pg_class', 'pg_namespace', 'pg_attribute', 'pg_index',
+                    'pg_constraint', 'pg_description', 'pg_proc', 'pg_trigger',
+                    'pg_type', 'pg_roles', 'pg_database', 'pg_settings',
+                    # Test and temporary tables
+                    '__migration_test__', 'self_healing_test', 'test_table',
+                    'temp_table', 'tmp_table', 'temporary_table'
+                }
+                
+                # SQL keywords that might be mistaken for table names
+                sql_keywords = {
+                    'if', 'else', 'then', 'when', 'case', 'end', 'and', 'or', 
+                    'not', 'null', 'true', 'false', 'exists', 'all', 'any',
+                    'some', 'between', 'like', 'in', 'is', 'as', 'on', 'using',
+                    'union', 'intersect', 'except', 'order', 'group', 'having',
+                    'limit', 'offset', 'for', 'with', 'recursive', 'values',
+                    'default', 'current_timestamp', 'current_date', 'current_time'
+                }
+                
+                # Common column names that might appear in FROM clauses
+                common_columns = {
+                    'created_at', 'updated_at', 'deleted_at', 'id', 'name', 
+                    'status', 'type', 'value', 'data', 'result', 'count',
+                    'sum', 'avg', 'min', 'max', 'total', 'amount'
+                }
+                
+                # Improved patterns that handle schema.table notation and avoid subqueries
+                table = None
                 patterns = [
-                    r'from\s+(\w+)',
-                    r'into\s+(\w+)',
-                    r'update\s+(\w+)',
-                    r'table\s+(\w+)'
+                    # FROM table or FROM schema.table (avoiding subqueries)
+                    r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?\s*(?:where|join|inner|left|right|full|cross|natural|,|\s|$)',
+                    # JOIN table or JOIN schema.table
+                    r'(?:join|inner\s+join|left\s+join|right\s+join|full\s+join|cross\s+join)\s+(?:(\w+)\.)?(\w+)',
+                    # INTO table or INTO schema.table
+                    r'into\s+(?:(\w+)\.)?(\w+)\s*[\(\s]',
+                    # UPDATE table or UPDATE schema.table
+                    r'update\s+(?:(\w+)\.)?(\w+)\s+set',
+                    # DELETE FROM table or DELETE FROM schema.table
+                    r'delete\s+from\s+(?:(\w+)\.)?(\w+)',
+                    # CREATE TABLE
+                    r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)',
+                    # ALTER TABLE
+                    r'alter\s+table\s+(?:(\w+)\.)?(\w+)',
+                    # DROP TABLE
+                    r'drop\s+table\s+(?:if\s+exists\s+)?(?:(\w+)\.)?(\w+)'
                 ]
                 
                 for pattern in patterns:
-                    match = re.search(pattern, query_lower)
+                    match = re.search(pattern, query_lower, re.IGNORECASE)
                     if match:
-                        return match.group(1)
+                        # Extract schema and table name
+                        schema = match.group(1) if match.lastindex >= 2 else None
+                        potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
+                        
+                        # Skip if schema is a system schema
+                        if schema and schema in system_tables:
+                            continue
+                            
+                        # Skip if table is a system table, SQL keyword, or common column name
+                        if (potential_table and 
+                            potential_table not in system_tables and 
+                            potential_table not in sql_keywords and 
+                            potential_table not in common_columns and
+                            re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
+                            table = potential_table
+                            break
                 
-                return None
+                return table
             
             def _get_query_type(self, query: str) -> str:
                 """Get query type (SELECT, INSERT, UPDATE, etc.)"""
@@ -783,13 +840,63 @@ class CodePatternAnalyzer:
         """Check query issues when using regex fallback"""
         query_lower = query.lower()
         
-        # Extract table name
+        # PostgreSQL system schemas and tables to exclude
+        system_tables = {
+            'information_schema', 'pg_catalog', 'pg_tables', 'pg_user', 
+            'pg_indexes', 'pg_stat_user_indexes', 'pg_stat_statements',
+            'pg_class', 'pg_namespace', 'pg_attribute', 'pg_index',
+            'pg_constraint', 'pg_description', 'pg_proc', 'pg_trigger',
+            'pg_type', 'pg_roles', 'pg_database', 'pg_settings',
+            # Test and temporary tables
+            '__migration_test__', 'self_healing_test', 'test_table',
+            'temp_table', 'tmp_table', 'temporary_table'
+        }
+        
+        # SQL keywords that might be mistaken for table names
+        sql_keywords = {
+            'if', 'else', 'then', 'when', 'case', 'end', 'and', 'or', 
+            'not', 'null', 'true', 'false', 'exists', 'all', 'any',
+            'some', 'between', 'like', 'in', 'is', 'as', 'on', 'using',
+            'union', 'intersect', 'except', 'order', 'group', 'having',
+            'limit', 'offset', 'for', 'with', 'recursive', 'values',
+            'default', 'current_timestamp', 'current_date', 'current_time'
+        }
+        
+        # Common column names that might appear in FROM clauses
+        common_columns = {
+            'created_at', 'updated_at', 'deleted_at', 'id', 'name', 
+            'status', 'type', 'value', 'data', 'result', 'count',
+            'sum', 'avg', 'min', 'max', 'total', 'amount'
+        }
+        
+        # Extract table name with improved patterns
         table = None
-        for pattern in [r'from\s+(\w+)', r'into\s+(\w+)', r'update\s+(\w+)']:
-            match = re.search(pattern, query_lower)
+        patterns = [
+            r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?\s*(?:where|join|inner|left|right|full|cross|natural|,|\s|$)',
+            r'into\s+(?:(\w+)\.)?(\w+)\s*[\(\s]',
+            r'update\s+(?:(\w+)\.)?(\w+)\s+set',
+            r'delete\s+from\s+(?:(\w+)\.)?(\w+)'
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, query_lower, re.IGNORECASE)
             if match:
-                table = match.group(1)
-                break
+                # Extract schema and table name
+                schema = match.group(1) if match.lastindex >= 2 else None
+                potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
+                
+                # Skip if schema is a system schema
+                if schema and schema in system_tables:
+                    continue
+                    
+                # Skip if table is a system table, SQL keyword, or common column name
+                if (potential_table and 
+                    potential_table not in system_tables and 
+                    potential_table not in sql_keywords and 
+                    potential_table not in common_columns and
+                    re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
+                    table = potential_table
+                    break
         
         if table:
             # Store in query patterns (simplified - no column extraction in regex mode)
