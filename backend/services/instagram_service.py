@@ -6,6 +6,8 @@ Following the proven pattern from Facebook service
 
 import aiohttp
 import logging
+import hmac
+import hashlib
 from typing import Dict
 
 logger = logging.getLogger(__name__)
@@ -161,6 +163,131 @@ class InstagramService:
             return {
                 "success": False,
                 "error": f"Profile retrieval failed: {str(e)}"
+            }
+    
+    async def validate_webhook_signature(self, payload: str, signature: str, app_secret: str) -> bool:
+        """
+        Validate Instagram webhook signature (synchronous version)
+        Critical for webhook security
+        """
+        try:
+            expected_signature = hmac.new(
+                app_secret.encode('utf-8'),
+                payload.encode('utf-8'),
+                hashlib.sha256
+            ).hexdigest()
+            return hmac.compare_digest(f"sha256={expected_signature}", signature)
+        except Exception as e:
+            logger.error(f"Webhook signature validation error: {e}")
+            return False
+    
+    async def validate_webhook_signature_async(self, payload: str, signature: str, app_secret: str) -> bool:
+        """
+        Validate Instagram webhook signature (async version)
+        Critical for webhook security
+        """
+        return self.validate_webhook_signature(payload, signature, app_secret)
+    
+    async def verify_webhook_request(self, request_data: Dict, app_secret: str) -> Dict:
+        """
+        Verify Instagram webhook request
+        Critical for webhook handling
+        """
+        try:
+            signature = request_data.get('signature')
+            payload = request_data.get('payload', '')
+            
+            if not signature or not payload:
+                return {
+                    "success": False,
+                    "error": "Missing signature or payload"
+                }
+            
+            is_valid = await self.validate_webhook_signature_async(payload, signature, app_secret)
+            
+            return {
+                "success": is_valid,
+                "message": "Webhook signature valid" if is_valid else "Webhook signature invalid"
+            }
+            
+        except Exception as e:
+            logger.error(f"Webhook verification error: {e}")
+            return {
+                "success": False,
+                "error": f"Webhook verification failed: {str(e)}"
+            }
+    
+    async def get_user_media(self, access_token: str, user_id: str = "me") -> Dict:
+        """
+        Get Instagram user media
+        Critical for media retrieval functionality
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/{user_id}/media"
+                params = {
+                    "access_token": access_token,
+                    "fields": "id,media_type,media_url,permalink,thumbnail_url,timestamp"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200:
+                        return {
+                            "success": True,
+                            "media": data.get("data", []),
+                            "paging": data.get("paging", {})
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Failed to retrieve media")
+                        return {
+                            "success": False,
+                            "error": f"Media retrieval failed: {error_msg}"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Media retrieval failed: {str(e)}"
+            }
+    
+    async def _check_business_account(self, access_token: str, user_id: str = "me") -> Dict:
+        """
+        Check if account is a business account
+        Critical for business account validation
+        """
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/{user_id}"
+                params = {
+                    "access_token": access_token,
+                    "fields": "account_type,id,username"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200:
+                        account_type = data.get("account_type", "PERSONAL")
+                        is_business = account_type in ["BUSINESS", "CREATOR"]
+                        
+                        return {
+                            "success": True,
+                            "is_business": is_business,
+                            "account_type": account_type,
+                            "account_info": data
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "error": "Failed to check business account status"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Business account check failed: {str(e)}"
             }
 
 # Global instance for consistent access pattern (following Facebook service)

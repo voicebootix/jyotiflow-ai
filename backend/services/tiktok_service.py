@@ -144,11 +144,12 @@ class TikTokService:
             async with aiohttp.ClientSession() as session:
                 # Use app info endpoint for validation
                 url = f"{self.base_url}/v2/app/info/"
-                params = {
-                    "access_token": access_token
+                headers = {
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
                 }
                 
-                async with session.get(url, params=params) as response:
+                async with session.get(url, headers=headers) as response:
                     data = await response.json()
                     
                     if response.status == 200:
