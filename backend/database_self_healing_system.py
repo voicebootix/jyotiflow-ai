@@ -74,6 +74,20 @@ ALLOWED_DATA_TYPES = {
     'VARCHAR(255)', 'VARCHAR(50)', 'VARCHAR(100)', 'CHAR(1)', 'NUMERIC(10,2)'
 }
 
+# PostgreSQL system tables and schemas that should NEVER be created or considered missing
+POSTGRESQL_SYSTEM_TABLES = {
+    'information_schema', 'pg_catalog', 'pg_tables', 'pg_indexes', 'pg_user', 
+    'pg_database', 'pg_class', 'pg_attribute', 'pg_constraint', 'pg_namespace',
+    'pg_type', 'pg_proc', 'pg_trigger', 'pg_index', 'pg_views', 'pg_rules',
+    'pg_stat_user_tables', 'pg_stat_activity', 'pg_locks', 'pg_settings'
+}
+
+# Invalid table names that should never be considered real tables
+INVALID_TABLE_NAMES = {
+    'if', 'else', 'then', 'when', 'case', 'select', 'from', 'where', 'join',
+    'created_at', 'updated_at', 'id', 'user_id', 'session_id'  # Column names
+}
+
 def serialize_datetime(obj):
     """JSON serializer for datetime objects"""
     if isinstance(obj, datetime):
@@ -477,7 +491,7 @@ class CodePatternAnalyzer:
                     })
             
             def _extract_table_name(self, query: str) -> Optional[str]:
-                """Extract table name from query"""
+                """Extract table name from query, filtering out PostgreSQL system tables"""
                 query_lower = query.lower()
                 
                 # Common patterns
@@ -491,7 +505,14 @@ class CodePatternAnalyzer:
                 for pattern in patterns:
                     match = re.search(pattern, query_lower)
                     if match:
-                        return match.group(1)
+                        table_name = match.group(1)
+                        
+                        # Filter out PostgreSQL system tables and invalid names
+                        if (table_name in POSTGRESQL_SYSTEM_TABLES or 
+                            table_name in INVALID_TABLE_NAMES):
+                            return None
+                            
+                        return table_name
                 
                 return None
             
@@ -821,6 +842,12 @@ class CodePatternAnalyzer:
         
         # For each table found in query patterns, generate a CREATE TABLE statement
         for table_name, queries in query_patterns.items():
+            # Filter out PostgreSQL system tables and invalid names
+            if (table_name in POSTGRESQL_SYSTEM_TABLES or 
+                table_name in INVALID_TABLE_NAMES):
+                validation_report.append(f"Table '{table_name}' skipped: PostgreSQL system table or invalid name")
+                continue
+                
             # Validation: Require minimum number of queries
             if len(queries) < min_queries:
                 validation_report.append(f"Table '{table_name}' skipped: only {len(queries)} queries found (min: {min_queries})")
@@ -1391,6 +1418,12 @@ class DatabaseHealthMonitor:
         # Check monitoring tables first (these are causing the errors in logs)
         for table_name, create_sql in monitoring_table_schemas.items():
             if table_name not in existing_tables:
+                # Filter out PostgreSQL system tables and invalid names
+                if (table_name in POSTGRESQL_SYSTEM_TABLES or 
+                    table_name in INVALID_TABLE_NAMES):
+                    logger.debug(f"Skipping PostgreSQL system table: {table_name}")
+                    continue
+                    
                 # Check if this table is actually being used in code
                 if table_name in query_patterns:
                     logger.warning(f"🚨 Critical monitoring table '{table_name}' is missing but actively used!")
