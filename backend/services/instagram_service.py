@@ -165,10 +165,11 @@ class InstagramService:
                 "error": f"Profile retrieval failed: {str(e)}"
             }
     
-    async def validate_webhook_signature(self, payload: str, signature: str, app_secret: str) -> bool:
+    def validate_webhook_signature(self, signature: str, payload: str, app_secret: str) -> bool:
         """
-        Validate Instagram webhook signature (synchronous version)
+        Validate Instagram webhook signature (synchronous method)
         Critical for webhook security
+        Fixed: Proper parameter order and synchronous implementation
         """
         try:
             expected_signature = hmac.new(
@@ -181,12 +182,13 @@ class InstagramService:
             logger.error(f"Webhook signature validation error: {e}")
             return False
     
-    async def validate_webhook_signature_async(self, payload: str, signature: str, app_secret: str) -> bool:
+    async def validate_webhook_signature_async(self, signature: str, payload: str, app_secret: str) -> bool:
         """
-        Validate Instagram webhook signature (async version)
+        Validate Instagram webhook signature (async wrapper)
         Critical for webhook security
+        Fixed: Proper parameter order and calls sync method
         """
-        return self.validate_webhook_signature(payload, signature, app_secret)
+        return self.validate_webhook_signature(signature, payload, app_secret)
     
     async def verify_webhook_request(self, request_data: Dict, app_secret: str) -> Dict:
         """
@@ -203,7 +205,7 @@ class InstagramService:
                     "error": "Missing signature or payload"
                 }
             
-            is_valid = await self.validate_webhook_signature_async(payload, signature, app_secret)
+            is_valid = await self.validate_webhook_signature_async(signature, payload, app_secret)
             
             return {
                 "success": is_valid,

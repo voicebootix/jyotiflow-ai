@@ -74,9 +74,14 @@ class TikTokService:
                 }
                 
                 async with session.post(url, data=data, headers=headers) as response:
-                    result = await response.json()
-                    
                     if response.status == 200:
+                        try:
+                            result = await response.json()
+                        except Exception as e:
+                            return {
+                                "success": False,
+                                "error": f"Invalid JSON response from TikTok API: {str(e)}"
+                            }
                         if result.get("error"):
                             error_code = result["error"].get("code")
                             error_message = result["error"].get("message", "Unknown error")
@@ -126,10 +131,14 @@ class TikTokService:
                             "error": "TikTok API rate limit exceeded. Try again later."
                         }
                     else:
-                        error_text = await response.text()
+                        try:
+                            error_data = await response.json()
+                            error_msg = error_data.get("error", {}).get("message", "Unknown error")
+                        except:
+                            error_msg = await response.text()
                         return {
                             "success": False,
-                            "error": f"TikTok API error {response.status}: {error_text}"
+                            "error": f"TikTok API error {response.status}: {error_msg}"
                         }
                         
         except Exception as e:
@@ -150,9 +159,14 @@ class TikTokService:
                 }
                 
                 async with session.get(url, headers=headers) as response:
-                    data = await response.json()
-                    
                     if response.status == 200:
+                        try:
+                            data = await response.json()
+                        except Exception as e:
+                            return {
+                                "success": False,
+                                "error": f"Invalid JSON response from TikTok API: {str(e)}"
+                            }
                         app_info = data.get("data", {})
                         if app_info:
                             return {
@@ -166,7 +180,11 @@ class TikTokService:
                                 "error": "App access token validation failed - no app info"
                             }
                     else:
-                        error_msg = data.get("error", {}).get("message", "Token validation failed")
+                        try:
+                            error_data = await response.json()
+                            error_msg = error_data.get("error", {}).get("message", "Token validation failed")
+                        except:
+                            error_msg = await response.text()
                         return {
                             "success": False,
                             "error": f"App token validation failed: {error_msg}"
