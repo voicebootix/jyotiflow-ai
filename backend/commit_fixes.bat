@@ -3,10 +3,34 @@ echo 🚀 Committing Indentation Fixes (core.md & refresh.md compliant)
 echo ================================================================
 
 echo Adding modified service files...
-git add services/facebook_service.py
-git add services/instagram_service.py  
-git add services/tiktok_service.py
-git add routers/social_media_marketing_router.py
+
+if exist services\facebook_service.py (
+    git add services/facebook_service.py
+    echo ✅ Added services/facebook_service.py
+) else (
+    echo ⚠️ services/facebook_service.py not found, skipping
+)
+
+if exist services\instagram_service.py (
+    git add services/instagram_service.py
+    echo ✅ Added services/instagram_service.py
+) else (
+    echo ⚠️ services/instagram_service.py not found, skipping
+)
+
+if exist services\tiktok_service.py (
+    git add services/tiktok_service.py
+    echo ✅ Added services/tiktok_service.py
+) else (
+    echo ⚠️ services/tiktok_service.py not found, skipping
+)
+
+if exist routers\social_media_marketing_router.py (
+    git add routers/social_media_marketing_router.py
+    echo ✅ Added routers/social_media_marketing_router.py
+) else (
+    echo ⚠️ routers/social_media_marketing_router.py not found, skipping
+)
 
 echo Files added to staging area.
 

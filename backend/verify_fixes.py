@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import ast
-import sys
 
 def check_syntax(filename):
     try:
@@ -28,8 +27,16 @@ files_to_check = [
 print("FINAL SYNTAX VERIFICATION")
 print("=" * 50)
 
+import os
+
 all_good = True
 for filename in files_to_check:
+    # Check if file exists first
+    if not os.path.exists(filename):
+        print(f"❌ {filename}: File not found")
+        all_good = False
+        continue
+    
     success, message = check_syntax(filename)
     
     if success:

@@ -69,20 +69,30 @@ def fix_facebook_service():
     print("✅ Facebook service indentation fixed")
 
 def fix_instagram_service():
-    """Fix Instagram service indentation issues"""
-    print("🔧 Fixing Instagram service indentation...")
+    """
+    Fix Instagram service indentation issues
     
-    with open("services/instagram_service.py", 'r') as f:
-        content = f.read()
+    ⚠️ WARNING: This function is INCOMPLETE!
+    - Detects indentation issues but does not fix them
+    - TODO: Implement actual indentation fixing logic
+    - Currently safe to run but won't make changes
+    """
+    print("⚠️  Instagram service fix is incomplete - detection only")
+    print("🔧 Analyzing Instagram service indentation...")
     
-    # Fix common indentation patterns
-    # Look for missing indented blocks after if statements
+    try:
+        with open("services/instagram_service.py", 'r') as f:
+            content = f.read()
+    except FileNotFoundError:
+        print("❌ Error: services/instagram_service.py not found")
+        return False
+    
+    # TODO: IMPLEMENT ACTUAL FIXES
+    # Currently only detects issues but doesn't fix them
     lines = content.split('\n')
-    fixed_lines = []
+    issues_found = 0
     
     for i, line in enumerate(lines):
-        fixed_lines.append(line)
-        
         # If this line ends with ':' and next line isn't properly indented
         if line.strip().endswith(':') and i < len(lines) - 1:
             next_line = lines[i + 1] if i + 1 < len(lines) else ""
@@ -91,33 +101,46 @@ def fix_instagram_service():
             
             # If next line should be indented but isn't
             if next_line.strip() and next_indent <= current_indent:
-                # Add a pass statement if next line doesn't seem to belong to this block
                 if not any(keyword in next_line for keyword in ['return', 'if', 'else', 'try', 'except', 'finally']):
-                    pass  # Let the existing line structure remain
+                    issues_found += 1
+                    print(f"   📍 Potential indentation issue at line {i+2}")
     
-    content = '\n'.join(fixed_lines)
+    if issues_found > 0:
+        print(f"⚠️  Found {issues_found} potential indentation issues")
+        print("   TODO: Manual review and fix required")
+    else:
+        print("✅ No obvious indentation issues detected")
     
-    with open("services/instagram_service.py", 'w') as f:
-        f.write(content)
-    
-    print("✅ Instagram service indentation fixed")
+    # NOTE: Not writing any changes - function is incomplete
+    return True
 
 def fix_tiktok_service():
-    """Fix TikTok service indentation issues"""
-    print("🔧 Fixing TikTok service indentation...")
+    """
+    Fix TikTok service indentation issues
     
-    with open("services/tiktok_service.py", 'r') as f:
-        content = f.read()
+    ⚠️ WARNING: This function is INCOMPLETE!
+    - Detects try/except block issues but does not fix them
+    - TODO: Implement actual try/except block completion logic
+    - Currently safe to run but won't make changes
+    """
+    print("⚠️  TikTok service fix is incomplete - detection only")
+    print("🔧 Analyzing TikTok service try/except blocks...")
     
-    # Fix try/except block structure issues
-    # Look for try blocks without proper except/finally
+    try:
+        with open("services/tiktok_service.py", 'r') as f:
+            content = f.read()
+    except FileNotFoundError:
+        print("❌ Error: services/tiktok_service.py not found")
+        return False
+    
+    # TODO: IMPLEMENT ACTUAL FIXES
+    # Currently only detects issues but doesn't fix them
     lines = content.split('\n')
-    fixed_lines = []
+    issues_found = 0
     
     i = 0
     while i < len(lines):
         line = lines[i]
-        fixed_lines.append(line)
         
         # If this is a try statement, ensure it has proper except block
         if line.strip().startswith('try:'):
@@ -140,17 +163,20 @@ def fix_tiktok_service():
                         break
                 j += 1
             
-            # If no except block found, this might be the issue
-            # But we'll be conservative and not add one automatically
+            if not has_except:
+                issues_found += 1
+                print(f"   📍 Try block without except/finally at line {i+1}")
         
         i += 1
     
-    content = '\n'.join(fixed_lines)
+    if issues_found > 0:
+        print(f"⚠️  Found {issues_found} try blocks without proper except/finally")
+        print("   TODO: Manual review and fix required")
+    else:
+        print("✅ All try blocks have proper except/finally handlers")
     
-    with open("services/tiktok_service.py", 'w') as f:
-        f.write(content)
-    
-    print("✅ TikTok service indentation fixed")
+    # NOTE: Not writing any changes - function is incomplete
+    return True
 
 def test_all_services():
     """Test all services for syntax errors"""

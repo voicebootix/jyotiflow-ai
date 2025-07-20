@@ -4,12 +4,24 @@
 import sys
 
 def test_file(filename):
+    import os
+    
+    # Check if file exists first
+    if not os.path.exists(filename):
+        return False, f"File not found: {filename}"
+    
     try:
         with open(filename, 'r') as f:
             compile(f.read(), filename, 'exec')
         return True, "OK"
+    except FileNotFoundError:
+        return False, f"File not found: {filename}"
+    except SyntaxError as e:
+        return False, f"SyntaxError: {e.msg} (line {e.lineno})"
+    except IndentationError as e:
+        return False, f"IndentationError: {e.msg} (line {e.lineno})"
     except Exception as e:
-        return False, str(e)
+        return False, f"Other error: {str(e)}"
 
 # Test all files
 files = [

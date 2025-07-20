@@ -10,8 +10,15 @@ def fix_committed_indentation():
     
     print("🔧 Fixing indentation in committed facebook_service.py...")
     
-    with open("services/facebook_service.py", 'r') as f:
-        content = f.read()
+    try:
+        with open("services/facebook_service.py", 'r') as f:
+            content = f.read()
+    except FileNotFoundError:
+        print("❌ Error: services/facebook_service.py not found")
+        return False
+    except IOError as e:
+        print(f"❌ Error reading services/facebook_service.py: {e}")
+        return False
     
     # Fix the specific issue: line 86 return statement
     old_section = '''                    if response.status == 200 and "id" in data:
@@ -30,8 +37,12 @@ def fix_committed_indentation():
     
     content = content.replace(old_section, new_section)
     
-    with open("services/facebook_service.py", 'w') as f:
-        f.write(content)
+    try:
+        with open("services/facebook_service.py", 'w') as f:
+            f.write(content)
+    except IOError as e:
+        print(f"❌ Error writing services/facebook_service.py: {e}")
+        return False
     
     print("✅ Specific indentation issue fixed")
 

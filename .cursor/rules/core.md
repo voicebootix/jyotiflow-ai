@@ -1,3 +1,4 @@
+---
 description: Global behavior rules for all actions
 ---
 
@@ -9,7 +10,8 @@ description: Global behavior rules for all actions
 # ❌ What NOT to Do
 - Do not remove functionality just to eliminate an error.
 - Do not add mock data, placeholders, or temporary patches.
-- Do not duplicate code or simplify logic.
+- Do not duplicate code.
+- Simplify logic only when it improves clarity and maintainability.
 
 # ✅ What TO Do
 - Always ask for confirmation before applying changes.
