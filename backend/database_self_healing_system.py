@@ -23,9 +23,15 @@ from collections import defaultdict
 
 # Import timezone fixer to handle database datetime issues
 try:
-    from utils.timezone_fixer import fix_timezone_issues
+    from database_timezone_fixer import safe_utc_now, normalize_datetime_for_db
 except ImportError:
-    fix_timezone_issues = None
+    # Fallback definitions if file doesn't exist yet
+    def safe_utc_now():
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+    def normalize_datetime_for_db(dt):
+        if isinstance(dt, datetime) and dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        return dt
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
