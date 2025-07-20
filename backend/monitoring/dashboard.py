@@ -661,6 +661,31 @@ class MonitoringDashboard:
 monitoring_dashboard = MonitoringDashboard()
 
 # API Endpoints
+@router.get("/health")
+async def get_monitoring_health():
+    """Public endpoint to get basic monitoring system health (no auth required)"""
+    try:
+        system_health = await integration_monitor.get_system_health()
+        return StandardResponse(
+            status="success",
+            message="Monitoring system health retrieved",
+            data={
+                "monitoring_active": True,
+                "integrations": system_health.get("integrations", {}),
+                "last_check": system_health.get("last_check"),
+                "system_status": system_health.get("system_status", "operational")
+            }
+        )
+    except Exception as e:
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get monitoring health: {str(e)}",
+            data={
+                "monitoring_active": False,
+                "system_status": "error"
+            }
+        )
+
 @router.get("/dashboard")
 async def get_dashboard(admin=Depends(get_current_admin_dependency)):
     """Get monitoring dashboard data for admin interface"""
