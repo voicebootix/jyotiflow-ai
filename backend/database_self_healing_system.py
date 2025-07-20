@@ -23,15 +23,9 @@ from collections import defaultdict
 
 # Import timezone fixer to handle database datetime issues
 try:
-    from database_timezone_fixer import safe_utc_now, normalize_datetime_for_db
+    from utils.timezone_fixer import fix_timezone_issues
 except ImportError:
-    # Fallback definitions if file doesn't exist yet
-    def safe_utc_now():
-        return datetime.now(timezone.utc).replace(tzinfo=None)
-    def normalize_datetime_for_db(dt):
-        if isinstance(dt, datetime) and dt.tzinfo is not None:
-            return dt.replace(tzinfo=None)
-        return dt
+    fix_timezone_issues = None
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -53,6 +47,35 @@ CRITICAL_TABLES = {
     'rag_knowledge_base',      # Spiritual wisdom for AI responses
     'birth_chart_cache',       # Cached astrological calculations
     'followup_templates'       # Follow-up spiritual guidance
+}
+
+# PostgreSQL system schemas and tables to exclude from table detection
+SYSTEM_TABLES = {
+    'information_schema', 'pg_catalog', 'pg_tables', 'pg_user', 
+    'pg_indexes', 'pg_stat_user_indexes', 'pg_stat_statements',
+    'pg_class', 'pg_namespace', 'pg_attribute', 'pg_index',
+    'pg_constraint', 'pg_description', 'pg_proc', 'pg_trigger',
+    'pg_type', 'pg_roles', 'pg_database', 'pg_settings',
+    # Test and temporary tables
+    '__migration_test__', 'self_healing_test', 'test_table',
+    'temp_table', 'tmp_table', 'temporary_table'
+}
+
+# SQL keywords that might be mistaken for table names
+SQL_KEYWORDS = {
+    'if', 'else', 'then', 'when', 'case', 'end', 'and', 'or', 
+    'not', 'null', 'true', 'false', 'exists', 'all', 'any',
+    'some', 'between', 'like', 'in', 'is', 'as', 'on', 'using',
+    'union', 'intersect', 'except', 'order', 'group', 'having',
+    'limit', 'offset', 'for', 'with', 'recursive', 'values',
+    'default', 'current_timestamp', 'current_date', 'current_time'
+}
+
+# Common column names that might appear in FROM clauses
+COMMON_COLUMN_NAMES = {
+    'created_at', 'updated_at', 'deleted_at', 'id', 'name', 
+    'status', 'type', 'value', 'data', 'result', 'count',
+    'sum', 'avg', 'min', 'max', 'total', 'amount'
 }
 
 # SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
@@ -480,35 +503,6 @@ class CodePatternAnalyzer:
                 """Extract table name from query"""
                 query_lower = query.lower()
                 
-                # PostgreSQL system schemas and tables to exclude
-                system_tables = {
-                    'information_schema', 'pg_catalog', 'pg_tables', 'pg_user', 
-                    'pg_indexes', 'pg_stat_user_indexes', 'pg_stat_statements',
-                    'pg_class', 'pg_namespace', 'pg_attribute', 'pg_index',
-                    'pg_constraint', 'pg_description', 'pg_proc', 'pg_trigger',
-                    'pg_type', 'pg_roles', 'pg_database', 'pg_settings',
-                    # Test and temporary tables
-                    '__migration_test__', 'self_healing_test', 'test_table',
-                    'temp_table', 'tmp_table', 'temporary_table'
-                }
-                
-                # SQL keywords that might be mistaken for table names
-                sql_keywords = {
-                    'if', 'else', 'then', 'when', 'case', 'end', 'and', 'or', 
-                    'not', 'null', 'true', 'false', 'exists', 'all', 'any',
-                    'some', 'between', 'like', 'in', 'is', 'as', 'on', 'using',
-                    'union', 'intersect', 'except', 'order', 'group', 'having',
-                    'limit', 'offset', 'for', 'with', 'recursive', 'values',
-                    'default', 'current_timestamp', 'current_date', 'current_time'
-                }
-                
-                # Common column names that might appear in FROM clauses
-                common_columns = {
-                    'created_at', 'updated_at', 'deleted_at', 'id', 'name', 
-                    'status', 'type', 'value', 'data', 'result', 'count',
-                    'sum', 'avg', 'min', 'max', 'total', 'amount'
-                }
-                
                 # Improved patterns that handle schema.table notation and avoid subqueries
                 table = None
                 patterns = [
@@ -538,14 +532,14 @@ class CodePatternAnalyzer:
                         potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
                         
                         # Skip if schema is a system schema
-                        if schema and schema in system_tables:
+                        if schema and schema in SYSTEM_TABLES:
                             continue
                             
                         # Skip if table is a system table, SQL keyword, or common column name
                         if (potential_table and 
-                            potential_table not in system_tables and 
-                            potential_table not in sql_keywords and 
-                            potential_table not in common_columns and
+                            potential_table not in SYSTEM_TABLES and 
+                            potential_table not in SQL_KEYWORDS and 
+                            potential_table not in COMMON_COLUMN_NAMES and
                             re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
                             table = potential_table
                             break
@@ -840,35 +834,6 @@ class CodePatternAnalyzer:
         """Check query issues when using regex fallback"""
         query_lower = query.lower()
         
-        # PostgreSQL system schemas and tables to exclude
-        system_tables = {
-            'information_schema', 'pg_catalog', 'pg_tables', 'pg_user', 
-            'pg_indexes', 'pg_stat_user_indexes', 'pg_stat_statements',
-            'pg_class', 'pg_namespace', 'pg_attribute', 'pg_index',
-            'pg_constraint', 'pg_description', 'pg_proc', 'pg_trigger',
-            'pg_type', 'pg_roles', 'pg_database', 'pg_settings',
-            # Test and temporary tables
-            '__migration_test__', 'self_healing_test', 'test_table',
-            'temp_table', 'tmp_table', 'temporary_table'
-        }
-        
-        # SQL keywords that might be mistaken for table names
-        sql_keywords = {
-            'if', 'else', 'then', 'when', 'case', 'end', 'and', 'or', 
-            'not', 'null', 'true', 'false', 'exists', 'all', 'any',
-            'some', 'between', 'like', 'in', 'is', 'as', 'on', 'using',
-            'union', 'intersect', 'except', 'order', 'group', 'having',
-            'limit', 'offset', 'for', 'with', 'recursive', 'values',
-            'default', 'current_timestamp', 'current_date', 'current_time'
-        }
-        
-        # Common column names that might appear in FROM clauses
-        common_columns = {
-            'created_at', 'updated_at', 'deleted_at', 'id', 'name', 
-            'status', 'type', 'value', 'data', 'result', 'count',
-            'sum', 'avg', 'min', 'max', 'total', 'amount'
-        }
-        
         # Extract table name with improved patterns
         table = None
         patterns = [
@@ -886,14 +851,14 @@ class CodePatternAnalyzer:
                 potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
                 
                 # Skip if schema is a system schema
-                if schema and schema in system_tables:
+                if schema and schema in SYSTEM_TABLES:
                     continue
                     
                 # Skip if table is a system table, SQL keyword, or common column name
                 if (potential_table and 
-                    potential_table not in system_tables and 
-                    potential_table not in sql_keywords and 
-                    potential_table not in common_columns and
+                    potential_table not in SYSTEM_TABLES and 
+                    potential_table not in SQL_KEYWORDS and 
+                    potential_table not in COMMON_COLUMN_NAMES and
                     re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
                     table = potential_table
                     break
