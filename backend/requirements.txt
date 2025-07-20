@@ -7,7 +7,7 @@ uvicorn[standard]==0.24.0
 
 # தமில - Database connectivity
 asyncpg==0.30.0  # Updated PostgreSQL driver (FIXED: Removed duplicate)
-psycopg2-binary==2.9.9
+psycopg2-binary==2.9.10
 
 # தமிழ் - Authentication and security
 PyJWT==2.10.1  # Latest stable version of PyJWT
@@ -58,7 +58,7 @@ aiosmtplib==3.0.1
 aiofiles==23.2.1
 
 # তমিল - Optional: Image processing (for future features)
-Pillow==10.1.0
+Pillow==11.3.0
 
 # তমিল - Optional: PDF generation (for reports)
 reportlab==4.0.7
@@ -67,7 +67,7 @@ reportlab==4.0.7
 openpyxl==3.1.2
 
 # তমিল - Optional: Data analysis
-pandas==2.1.4
+pandas==2.3.1
 numpy==1.26.2
 
 # তমিল - Optional: Timezone handling

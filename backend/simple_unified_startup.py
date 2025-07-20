@@ -25,6 +25,7 @@ async def initialize_jyotiflow_simple():
             database_url,
             min_size=2,
             max_size=10,
+            timeout=15,  # Connection timeout in seconds
             command_timeout=60,
             server_settings={
                 'application_name': 'jyotiflow_clean_system'
