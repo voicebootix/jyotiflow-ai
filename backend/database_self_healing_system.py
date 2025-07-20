@@ -121,6 +121,64 @@ def quote_ident(identifier: str) -> str:
     return '"' + identifier.replace('"', '""') + '"'
 
 
+def extract_table_from_query(query: str) -> Optional[str]:
+    """
+    Extract table name from SQL query with comprehensive filtering.
+    
+    This shared helper method centralizes table extraction logic to avoid duplication.
+    It handles schema.table notation, filters out system tables, SQL keywords, and
+    common column names that might be mistaken for table names.
+    
+    Args:
+        query: SQL query string
+        
+    Returns:
+        Extracted table name if valid, None otherwise
+    """
+    query_lower = query.lower()
+    
+    # Comprehensive patterns for different SQL statements
+    patterns = [
+        # FROM table or FROM schema.table (avoiding subqueries)
+        r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?\s*(?:where|join|inner|left|right|full|cross|natural|,|\s|$)',
+        # JOIN table or JOIN schema.table
+        r'(?:join|inner\s+join|left\s+join|right\s+join|full\s+join|cross\s+join)\s+(?:(\w+)\.)?(\w+)',
+        # INTO table or INTO schema.table
+        r'into\s+(?:(\w+)\.)?(\w+)\s*[\(\s]',
+        # UPDATE table or UPDATE schema.table
+        r'update\s+(?:(\w+)\.)?(\w+)\s+set',
+        # DELETE FROM table or DELETE FROM schema.table
+        r'delete\s+from\s+(?:(\w+)\.)?(\w+)',
+        # CREATE TABLE
+        r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)',
+        # ALTER TABLE
+        r'alter\s+table\s+(?:(\w+)\.)?(\w+)',
+        # DROP TABLE
+        r'drop\s+table\s+(?:if\s+exists\s+)?(?:(\w+)\.)?(\w+)'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, query_lower, re.IGNORECASE)
+        if match:
+            # Extract schema and table name
+            schema = match.group(1) if match.lastindex >= 2 else None
+            potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
+            
+            # Skip if schema is a system schema
+            if schema and schema in SYSTEM_TABLES:
+                continue
+                
+            # Skip if table is a system table, SQL keyword, or common column name
+            if (potential_table and 
+                potential_table not in SYSTEM_TABLES and 
+                potential_table not in SQL_KEYWORDS and 
+                potential_table not in COMMON_COLUMN_NAMES and
+                re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
+                return potential_table
+    
+    return None
+
+
 def infer_column_type_from_name(column_name: str) -> str:
     """Infer column type from naming patterns - standalone function"""
     col_lower = column_name.lower()
@@ -506,51 +564,8 @@ class CodePatternAnalyzer:
                     })
             
             def _extract_table_name(self, query: str) -> Optional[str]:
-                """Extract table name from query"""
-                query_lower = query.lower()
-                
-                # Improved patterns that handle schema.table notation and avoid subqueries
-                table = None
-                patterns = [
-                    # FROM table or FROM schema.table (avoiding subqueries)
-                    r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?\s*(?:where|join|inner|left|right|full|cross|natural|,|\s|$)',
-                    # JOIN table or JOIN schema.table
-                    r'(?:join|inner\s+join|left\s+join|right\s+join|full\s+join|cross\s+join)\s+(?:(\w+)\.)?(\w+)',
-                    # INTO table or INTO schema.table
-                    r'into\s+(?:(\w+)\.)?(\w+)\s*[\(\s]',
-                    # UPDATE table or UPDATE schema.table
-                    r'update\s+(?:(\w+)\.)?(\w+)\s+set',
-                    # DELETE FROM table or DELETE FROM schema.table
-                    r'delete\s+from\s+(?:(\w+)\.)?(\w+)',
-                    # CREATE TABLE
-                    r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)',
-                    # ALTER TABLE
-                    r'alter\s+table\s+(?:(\w+)\.)?(\w+)',
-                    # DROP TABLE
-                    r'drop\s+table\s+(?:if\s+exists\s+)?(?:(\w+)\.)?(\w+)'
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, query_lower, re.IGNORECASE)
-                    if match:
-                        # Extract schema and table name
-                        schema = match.group(1) if match.lastindex >= 2 else None
-                        potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
-                        
-                        # Skip if schema is a system schema
-                        if schema and schema in SYSTEM_TABLES:
-                            continue
-                            
-                        # Skip if table is a system table, SQL keyword, or common column name
-                        if (potential_table and 
-                            potential_table not in SYSTEM_TABLES and 
-                            potential_table not in SQL_KEYWORDS and 
-                            potential_table not in COMMON_COLUMN_NAMES and
-                            re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
-                            table = potential_table
-                            break
-                
-                return table
+                """Extract table name from query using shared helper"""
+                return extract_table_from_query(query)
             
             def _get_query_type(self, query: str) -> str:
                 """Get query type (SELECT, INSERT, UPDATE, etc.)"""
@@ -838,36 +853,8 @@ class CodePatternAnalyzer:
     
     def _check_regex_query_issues(self, query: str, line_no: int, line: str, file_path: str):
         """Check query issues when using regex fallback"""
-        query_lower = query.lower()
-        
-        # Extract table name with improved patterns
-        table = None
-        patterns = [
-            r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?\s*(?:where|join|inner|left|right|full|cross|natural|,|\s|$)',
-            r'into\s+(?:(\w+)\.)?(\w+)\s*[\(\s]',
-            r'update\s+(?:(\w+)\.)?(\w+)\s+set',
-            r'delete\s+from\s+(?:(\w+)\.)?(\w+)'
-        ]
-        
-        for pattern in patterns:
-            match = re.search(pattern, query_lower, re.IGNORECASE)
-            if match:
-                # Extract schema and table name
-                schema = match.group(1) if match.lastindex >= 2 else None
-                potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
-                
-                # Skip if schema is a system schema
-                if schema and schema in SYSTEM_TABLES:
-                    continue
-                    
-                # Skip if table is a system table, SQL keyword, or common column name
-                if (potential_table and 
-                    potential_table not in SYSTEM_TABLES and 
-                    potential_table not in SQL_KEYWORDS and 
-                    potential_table not in COMMON_COLUMN_NAMES and
-                    re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
-                    table = potential_table
-                    break
+        # Extract table name using shared helper
+        table = extract_table_from_query(query)
         
         if table:
             # Store in query patterns (simplified - no column extraction in regex mode)
