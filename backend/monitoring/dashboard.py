@@ -383,7 +383,10 @@ class MonitoringDashboard:
                         COUNT(DISTINCT session_id) as total_sessions,
                         COUNT(*) as total_validations,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_validations,
-                        AVG(CAST(actual_value->>'duration_ms' AS INTEGER)) as avg_duration_ms
+                        CASE 
+                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL) = 0 THEN 0
+                            ELSE AVG((actual_value->>'duration_ms')::INTEGER)
+                        END as avg_duration_ms
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '24 hours'
                 """)
@@ -394,7 +397,10 @@ class MonitoringDashboard:
                         integration_name,
                         COUNT(*) as total_calls,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls,
-                        AVG(CAST(actual_value->>'duration_ms' AS INTEGER)) as avg_duration_ms
+                        CASE 
+                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL) = 0 THEN 0
+                            ELSE AVG((actual_value->>'duration_ms')::INTEGER)
+                        END as avg_duration_ms
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '24 hours'
                     GROUP BY integration_name
@@ -562,13 +568,15 @@ class MonitoringDashboard:
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
-            # Check for high error rates
+            # Check for high error rates with proper NULL handling
             conn = await db_manager.get_connection()
             try:
                 error_rate = await conn.fetchrow("""
                     SELECT 
-                        COUNT(CASE WHEN status = 'failed' THEN 1 END)::float / 
-                        NULLIF(COUNT(*), 0) * 100 as error_rate
+                        CASE 
+                            WHEN COUNT(*) = 0 THEN 0
+                            ELSE COUNT(CASE WHEN status = 'failed' THEN 1 END)::float / COUNT(*) * 100
+                        END as error_rate
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '1 hour'
                 """)
