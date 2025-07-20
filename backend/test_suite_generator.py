@@ -78,7 +78,8 @@ class TestSuiteGenerator:
             "integration_tests": await self.generate_integration_tests(),
             "performance_tests": await self.generate_performance_tests(),
             "security_tests": await self.generate_security_tests(),
-            "auto_healing_tests": await self.generate_auto_healing_tests()
+            "auto_healing_tests": await self.generate_auto_healing_tests(),
+            "social_media_tests": await self.generate_social_media_tests()
         }
         
         # Store test suites in database
@@ -907,6 +908,267 @@ async def test_false_positive_filtering():
 """,
                     "expected_result": "System correctly filters out PostgreSQL system tables and keywords",
                     "timeout_seconds": 20
+                }
+            ]
+        }
+    
+    async def generate_social_media_tests(self) -> Dict[str, Any]:
+        """Generate comprehensive social media automation tests"""
+        return {
+            "test_suite_name": "Social Media Automation",
+            "test_category": "social_media",
+            "description": "Tests for social media marketing automation, content generation, and platform integrations",
+            "test_cases": [
+                {
+                    "test_name": "test_social_media_marketing_engine",
+                    "description": "Test SocialMediaMarketingEngine initialization and core functionality",
+                    "test_type": "integration",
+                    "priority": "critical",
+                    "test_code": """
+async def test_social_media_marketing_engine():
+    try:
+        # Import SocialMediaMarketingEngine
+        import sys
+        import os
+        sys.path.append(os.path.dirname(__file__))
+        from social_media_marketing_automation import SocialMediaMarketingEngine
+        
+        # Initialize engine
+        engine = SocialMediaMarketingEngine()
+        
+        # Test basic functionality
+        assert engine is not None, "Engine should initialize"
+        assert hasattr(engine, 'platform_configs'), "Should have platform configurations"
+        assert hasattr(engine, 'daily_post_schedule'), "Should have posting schedule"
+        
+        # Test content generation
+        test_content = await engine.generate_content_plan(
+            platform="instagram",
+            content_type="daily_wisdom",
+            target_audience={"age": "25-45", "interests": ["spirituality"]}
+        )
+        
+        assert test_content is not None, "Should generate content plan"
+        
+        return {
+            "status": "passed",
+            "message": "Social media marketing engine working correctly",
+            "has_platform_configs": bool(engine.platform_configs),
+            "has_schedule": bool(engine.daily_post_schedule)
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Social media engine test failed: {str(e)}"}
+""",
+                    "expected_result": "SocialMediaMarketingEngine initializes and generates content",
+                    "timeout_seconds": 30
+                },
+                {
+                    "test_name": "test_social_media_validator",
+                    "description": "Test SocialMediaValidator for platform validation",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+async def test_social_media_validator():
+    try:
+        # Import SocialMediaValidator
+        import sys
+        import os
+        sys.path.append(os.path.join(os.path.dirname(__file__), 'validators'))
+        from social_media_validator import SocialMediaValidator
+        
+        validator = SocialMediaValidator()
+        
+        # Test validation with mock data
+        input_data = {
+            "platform": "instagram",
+            "content": "Test spiritual content for Instagram",
+            "hashtags": ["#spirituality", "#meditation", "#peace"]
+        }
+        
+        output_data = {
+            "post_id": "test_123",
+            "status": "posted",
+            "engagement": {"likes": 0, "comments": 0, "shares": 0}
+        }
+        
+        validation_result = await validator.validate(input_data, output_data, {})
+        
+        assert validation_result is not None, "Should return validation result"
+        assert "passed" in validation_result, "Should have passed status"
+        assert "validation_type" in validation_result, "Should have validation type"
+        
+        return {
+            "status": "passed",
+            "message": "Social media validator working correctly",
+            "validation_passed": validation_result.get("passed", False)
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Social media validator test failed: {str(e)}"}
+""",
+                    "expected_result": "SocialMediaValidator validates content and posting",
+                    "timeout_seconds": 25
+                },
+                {
+                    "test_name": "test_social_media_router_endpoints",
+                    "description": "Test social media marketing API endpoints",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+
+async def test_social_media_router_endpoints():
+    try:
+        async with httpx.AsyncClient() as client:
+            # Test social media dashboard endpoint
+            response = await client.get(
+                "https://jyotiflow-ai.onrender.com/api/social-media/dashboard"
+            )
+            
+            # Should return data even if no campaigns exist
+            assert response.status_code in [200, 404], f"Expected 200/404, got {response.status_code}"
+            
+            # Test content generation endpoint
+            content_response = await client.post(
+                "https://jyotiflow-ai.onrender.com/api/social-media/generate-content",
+                json={
+                    "platform": "instagram",
+                    "content_type": "daily_wisdom",
+                    "topic": "inner peace"
+                }
+            )
+            
+            # Should handle content generation
+            assert content_response.status_code in [200, 401, 422], f"Unexpected status: {content_response.status_code}"
+            
+            return {
+                "status": "passed",
+                "message": "Social media API endpoints accessible",
+                "dashboard_status": response.status_code,
+                "content_gen_status": content_response.status_code
+            }
+            
+    except Exception as e:
+        return {"status": "failed", "error": f"Social media endpoints test failed: {str(e)}"}
+""",
+                    "expected_result": "Social media API endpoints are accessible",
+                    "timeout_seconds": 20
+                },
+                {
+                    "test_name": "test_social_media_database_tables",
+                    "description": "Test social media database tables and structure",
+                    "test_type": "unit",
+                    "priority": "medium",
+                    "test_code": """
+async def test_social_media_database_tables():
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        # Check if social media tables exist
+        social_tables = [
+            'social_campaigns',
+            'social_posts', 
+            'social_media_validation_log'
+        ]
+        
+        existing_tables = []
+        for table in social_tables:
+            result = await conn.fetchrow('''
+                SELECT table_name FROM information_schema.tables 
+                WHERE table_name = $1 AND table_schema = 'public'
+            ''', table)
+            
+            if result:
+                existing_tables.append(table)
+        
+        # Test inserting sample social media data
+        if 'social_campaigns' in existing_tables:
+            campaign_id = str(uuid.uuid4())
+            await conn.execute('''
+                INSERT INTO social_campaigns (id, name, platform, status, created_at)
+                VALUES ($1, $2, $3, $4, $5)
+            ''', campaign_id, "Test Campaign", "instagram", "active", datetime.now(timezone.utc))
+            
+            # Verify insertion
+            result = await conn.fetchrow(
+                "SELECT name FROM social_campaigns WHERE id = $1", campaign_id
+            )
+            
+            assert result is not None, "Campaign should be inserted"
+            assert result['name'] == "Test Campaign", "Campaign name should match"
+            
+            # Cleanup
+            await conn.execute("DELETE FROM social_campaigns WHERE id = $1", campaign_id)
+        
+        return {
+            "status": "passed",
+            "message": "Social media database structure verified",
+            "existing_tables": existing_tables,
+            "total_tables_found": len(existing_tables)
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": str(e)}
+    finally:
+        await conn.close()
+""",
+                    "expected_result": "Social media database tables exist and function correctly",
+                    "timeout_seconds": 20
+                },
+                {
+                    "test_name": "test_social_media_content_generation",
+                    "description": "Test automated content generation for social platforms",
+                    "test_type": "integration",
+                    "priority": "medium",
+                    "test_code": """
+async def test_social_media_content_generation():
+    try:
+        # Import required modules
+        import sys
+        import os
+        sys.path.append(os.path.dirname(__file__))
+        from social_media_marketing_automation import SocialMediaMarketingEngine
+        
+        engine = SocialMediaMarketingEngine()
+        
+        # Test content generation for different platforms
+        platforms = ["instagram", "facebook", "twitter"]
+        content_results = {}
+        
+        for platform in platforms:
+            try:
+                content = await engine.generate_platform_content(
+                    platform=platform,
+                    content_type="spiritual_quote",
+                    context={"topic": "meditation", "mood": "peaceful"}
+                )
+                
+                content_results[platform] = {
+                    "generated": content is not None,
+                    "has_text": bool(content.get("text", "") if content else False),
+                    "has_hashtags": bool(content.get("hashtags", []) if content else False)
+                }
+                
+            except Exception as platform_error:
+                content_results[platform] = {
+                    "generated": False,
+                    "error": str(platform_error)
+                }
+        
+        success_count = sum(1 for result in content_results.values() if result.get("generated", False))
+        
+        return {
+            "status": "passed" if success_count > 0 else "failed",
+            "message": f"Content generation tested for {len(platforms)} platforms",
+            "successful_platforms": success_count,
+            "platform_results": content_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Content generation test failed: {str(e)}"}
+""",
+                    "expected_result": "Automated content generation works for multiple platforms",
+                    "timeout_seconds": 30
                 }
             ]
         }

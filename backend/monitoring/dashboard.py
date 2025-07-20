@@ -1108,5 +1108,223 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         connection_manager.disconnect(websocket)
 
+@router.get("/social-media-status")
+async def get_social_media_status():
+    """Get social media automation status and campaign metrics (public endpoint)"""
+    try:
+        from social_media_marketing_automation import SocialMediaMarketingEngine
+        from validators.social_media_validator import SocialMediaValidator
+        
+        # Test SocialMediaMarketingEngine availability
+        social_engine_status = {"available": False, "error": None}
+        try:
+            engine = SocialMediaMarketingEngine()
+            social_engine_status["available"] = True
+        except Exception as e:
+            social_engine_status["error"] = str(e)
+        
+        # Test SocialMediaValidator availability
+        validator_status = {"available": False, "error": None}
+        try:
+            validator = SocialMediaValidator()
+            validator_status["available"] = True
+        except Exception as e:
+            validator_status["error"] = str(e)
+        
+        # Get recent social media metrics
+        conn = await asyncpg.connect(DATABASE_URL)
+        try:
+            # Count recent campaigns
+            recent_campaigns = await conn.fetchval("""
+                SELECT COUNT(*) FROM social_campaigns 
+                WHERE created_at >= NOW() - INTERVAL '7 days'
+            """)
+            
+            # Count recent posts
+            recent_posts = await conn.fetchval("""
+                SELECT COUNT(*) FROM social_posts 
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+            """)
+            
+            # Count social media validation logs
+            recent_validations = await conn.fetchval("""
+                SELECT COUNT(*) FROM social_media_validation_log
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+            """)
+            
+            # Get active campaigns
+            active_campaigns = await conn.fetchval("""
+                SELECT COUNT(*) FROM social_campaigns 
+                WHERE status = 'active'
+            """)
+            
+        except:
+            recent_campaigns = 0
+            recent_posts = 0
+            recent_validations = 0
+            active_campaigns = 0
+        finally:
+            await conn.close()
+        
+        return StandardResponse(
+            status="success",
+            message="Social media status retrieved",
+            data={
+                "social_media_engine": social_engine_status,
+                "social_media_validator": validator_status,
+                "metrics": {
+                    "campaigns_7d": recent_campaigns,
+                    "posts_24h": recent_posts,
+                    "validations_24h": recent_validations,
+                    "active_campaigns": active_campaigns
+                },
+                "automation_health": {
+                    "engine_operational": social_engine_status["available"],
+                    "validator_operational": validator_status["available"],
+                    "overall_status": "healthy" if social_engine_status["available"] and validator_status["available"] else "degraded"
+                },
+                "last_updated": datetime.now(timezone.utc).isoformat()
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to get social media status: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get social media status: {str(e)}",
+            data={}
+        )
+
+@router.get("/social-media-campaigns")
+async def get_social_media_campaigns(admin=Depends(get_current_admin_dependency)):
+    """Get social media campaign performance and analytics"""
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        try:
+            # Get recent campaigns with performance data
+            campaigns = await conn.fetch("""
+                SELECT 
+                    c.id,
+                    c.name,
+                    c.platform,
+                    c.status,
+                    c.budget,
+                    c.created_at,
+                    c.updated_at,
+                    COUNT(p.id) as total_posts,
+                    AVG(CAST(p.engagement_metrics->>'likes' AS INTEGER)) as avg_likes,
+                    AVG(CAST(p.engagement_metrics->>'comments' AS INTEGER)) as avg_comments,
+                    SUM(CAST(p.engagement_metrics->>'reach' AS INTEGER)) as total_reach
+                FROM social_campaigns c
+                LEFT JOIN social_posts p ON c.id = p.campaign_id
+                WHERE c.created_at >= NOW() - INTERVAL '30 days'
+                GROUP BY c.id, c.name, c.platform, c.status, c.budget, c.created_at, c.updated_at
+                ORDER BY c.created_at DESC
+                LIMIT 20
+            """)
+            
+            campaign_data = [dict(campaign) for campaign in campaigns]
+            
+            # Calculate summary metrics
+            total_campaigns = len(campaign_data)
+            active_campaigns = sum(1 for c in campaign_data if c['status'] == 'active')
+            total_reach = sum(c['total_reach'] or 0 for c in campaign_data)
+            
+            return StandardResponse(
+                status="success",
+                message="Social media campaigns retrieved",
+                data={
+                    "campaigns": campaign_data,
+                    "summary": {
+                        "total_campaigns": total_campaigns,
+                        "active_campaigns": active_campaigns,
+                        "total_reach": total_reach,
+                        "avg_engagement": sum(c['avg_likes'] or 0 for c in campaign_data) / max(total_campaigns, 1)
+                    }
+                }
+            )
+        finally:
+            await conn.close()
+    except Exception as e:
+        logger.error(f"Failed to get social media campaigns: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get campaigns: {str(e)}",
+            data={"campaigns": [], "summary": {}}
+        )
+
+@router.post("/social-media-test")
+async def test_social_media_automation(admin=Depends(get_current_admin_dependency)):
+    """Test social media automation functionality"""
+    try:
+        from social_media_marketing_automation import SocialMediaMarketingEngine
+        from validators.social_media_validator import SocialMediaValidator
+        
+        test_results = {}
+        
+        # Test SocialMediaMarketingEngine
+        try:
+            engine = SocialMediaMarketingEngine()
+            
+            # Test content generation
+            test_content = await engine.generate_content_plan(
+                platform="instagram",
+                content_type="daily_wisdom",
+                target_audience={"age": "25-45", "interests": ["spirituality"]}
+            )
+            
+            test_results["marketing_engine"] = {
+                "status": "passed",
+                "content_generated": test_content is not None,
+                "has_platform_configs": bool(engine.platform_configs)
+            }
+        except Exception as e:
+            test_results["marketing_engine"] = {
+                "status": "failed",
+                "error": str(e)
+            }
+        
+        # Test SocialMediaValidator
+        try:
+            validator = SocialMediaValidator()
+            
+            validation_result = await validator.validate(
+                {"platform": "instagram", "content": "Test content"},
+                {"status": "posted", "post_id": "test123"},
+                {}
+            )
+            
+            test_results["validator"] = {
+                "status": "passed",
+                "validation_working": validation_result is not None
+            }
+        except Exception as e:
+            test_results["validator"] = {
+                "status": "failed", 
+                "error": str(e)
+            }
+        
+        # Overall test status
+        overall_status = "passed" if all(
+            result.get("status") == "passed" 
+            for result in test_results.values()
+        ) else "failed"
+        
+        return StandardResponse(
+            status="success",
+            message="Social media automation test completed",
+            data={
+                "overall_status": overall_status,
+                "test_results": test_results,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
+    except Exception as e:
+        logger.error(f"Social media automation test failed: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Test failed: {str(e)}",
+            data={}
+        )
+
 # Export for use in other modules
 __all__ = ["monitoring_dashboard", "router", "connection_manager"]

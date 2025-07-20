@@ -39,6 +39,12 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
         monetization_optimizer: { available: false },
         recent_metrics: { sessions_24h: 0, successful_validations_24h: 0 }
     });
+    const [socialMediaStatus, setSocialMediaStatus] = useState({
+        social_media_engine: { available: false },
+        social_media_validator: { available: false },
+        metrics: { campaigns_7d: 0, posts_24h: 0, active_campaigns: 0 },
+        automation_health: { overall_status: 'unknown' }
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [executingTest, setExecutingTest] = useState(false);
@@ -54,7 +60,8 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
         await Promise.all([
             fetchTestStatus(),
             fetchBusinessLogicStatus(),
-            fetchSpiritualServicesStatus()
+            fetchSpiritualServicesStatus(),
+            fetchSocialMediaStatus()
         ]);
     };
 
@@ -98,6 +105,18 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             }
         } catch (err) {
             console.warn('Spiritual services status not available:', err.message);
+        }
+    };
+
+    const fetchSocialMediaStatus = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-status`);
+            if (response.ok) {
+                const data = await response.json();
+                setSocialMediaStatus(data.data || socialMediaStatus);
+            }
+        } catch (err) {
+            console.warn('Social media status not available:', err.message);
         }
     };
 
