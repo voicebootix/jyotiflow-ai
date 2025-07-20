@@ -374,45 +374,66 @@ class MonitoringDashboard:
             return []
     
     async def _get_integration_statistics(self) -> Dict:
-        """Get integration performance statistics"""
+        """Get integration performance statistics
+        
+        Note: Consider creating a database view for even better maintainability:
+        
+        CREATE OR REPLACE VIEW integration_metrics_24h AS
+        SELECT 
+            session_id,
+            integration_name,
+            status,
+            CASE 
+                WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
+                THEN (actual_value->>'duration_ms')::INTEGER 
+                ELSE NULL
+            END as duration_ms,
+            validation_time
+        FROM integration_validations
+        WHERE validation_time > NOW() - INTERVAL '24 hours';
+        
+        Then queries would simply be:
+        - SELECT ... FROM integration_metrics_24h
+        - SELECT ... FROM integration_metrics_24h GROUP BY integration_name
+        """
         try:
             conn = await db_manager.get_connection()
             try:
-                stats = await conn.fetchrow("""
+                # Use CTE to centralize duration calculation logic
+                integration_stats_query = """
+                    WITH integration_metrics AS (
+                        SELECT 
+                            session_id,
+                            integration_name,
+                            status,
+                            CASE 
+                                WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
+                                THEN (actual_value->>'duration_ms')::INTEGER 
+                                ELSE NULL
+                            END as duration_ms
+                        FROM integration_validations
+                        WHERE validation_time > NOW() - INTERVAL '24 hours'
+                    )
+                """
+                
+                # Overall statistics
+                stats = await conn.fetchrow(integration_stats_query + """
                     SELECT
                         COUNT(DISTINCT session_id) as total_sessions,
                         COUNT(*) as total_validations,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_validations,
-                        COALESCE(
-                            AVG(
-                                CASE 
-                                    WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
-                                    THEN (actual_value->>'duration_ms')::INTEGER 
-                                END
-                            ), 
-                            0
-                        )::INTEGER as avg_duration_ms
-                    FROM integration_validations
-                    WHERE validation_time > NOW() - INTERVAL '24 hours'
+                        COALESCE(AVG(duration_ms), 0)::INTEGER as avg_duration_ms
+                    FROM integration_metrics
                 """)
                 
-                # Get per-integration stats
-                by_integration = await conn.fetch("""
+                # Per-integration statistics
+                by_integration = await conn.fetch(integration_stats_query + """
                     SELECT 
                         integration_name,
                         COUNT(*) as total_calls,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls,
-                        COALESCE(
-                            AVG(
-                                CASE 
-                                    WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
-                                    THEN (actual_value->>'duration_ms')::INTEGER 
-                                END
-                            ), 
-                            0
-                        )::INTEGER as avg_duration_ms
-                    FROM integration_validations
-                    WHERE validation_time > NOW() - INTERVAL '24 hours'
+                        COALESCE(AVG(duration_ms), 0)::INTEGER as avg_duration_ms
+                    FROM integration_metrics
                     GROUP BY integration_name
                 """)
                 
