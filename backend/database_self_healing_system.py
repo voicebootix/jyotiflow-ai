@@ -43,7 +43,7 @@ BACKUP_RETENTION_DAYS = 30
 SCAN_INTERVAL_SECONDS = 300  # 5 minutes
 MAX_FIX_ATTEMPTS = 3
 
-# CRITICAL SPIRITUAL SERVICE TABLES - Enhanced for business context
+# CRITICAL SPIRITUAL SERVICE TABLES - Enhanced for business context and testing
 CRITICAL_TABLES = {
     'users',                    # Customer accounts and credits
     'sessions',                # Spiritual guidance sessions
@@ -52,7 +52,13 @@ CRITICAL_TABLES = {
     'payments',                # Payment processing
     'rag_knowledge_base',      # Spiritual wisdom for AI responses
     'birth_chart_cache',       # Cached astrological calculations
-    'followup_templates'       # Follow-up spiritual guidance
+    'followup_templates',      # Follow-up spiritual guidance
+    # Testing infrastructure tables
+    'test_execution_sessions', # Test session tracking
+    'test_case_results',       # Individual test results
+    'test_coverage_reports',   # Test coverage data
+    'autofix_test_results',    # Auto-fix testing results
+    'test_performance_metrics' # Performance test metrics
 }
 
 # SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
