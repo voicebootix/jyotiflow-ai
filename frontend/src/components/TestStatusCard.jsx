@@ -29,16 +29,34 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
         status: 'unknown',
         auto_fixes_applied: 0
     });
+    const [businessLogicStatus, setBusinessLogicStatus] = useState({
+        success_rate: 0,
+        total_validations: 0,
+        avg_quality_score: 0
+    });
+    const [spiritualServicesStatus, setSpiritualServicesStatus] = useState({
+        spiritual_avatar_engine: { available: false },
+        monetization_optimizer: { available: false },
+        recent_metrics: { sessions_24h: 0, successful_validations_24h: 0 }
+    });
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [executingTest, setExecutingTest] = useState(false);
 
     useEffect(() => {
-        fetchTestStatus();
+        fetchAllStatus();
         // Refresh every 30 seconds
-        const interval = setInterval(fetchTestStatus, 30000);
+        const interval = setInterval(fetchAllStatus, 30000);
         return () => clearInterval(interval);
     }, []);
+
+    const fetchAllStatus = async () => {
+        await Promise.all([
+            fetchTestStatus(),
+            fetchBusinessLogicStatus(),
+            fetchSpiritualServicesStatus()
+        ]);
+    };
 
     const fetchTestStatus = async () => {
         try {
@@ -48,20 +66,38 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
                 const data = await response.json();
                 setTestStatus(data.data || testStatus);
             } else if (response.status === 404) {
-                // Test status endpoint not yet available
-                setTestStatus({
-                    ...testStatus,
-                    status: 'not_available'
-                });
+                setError('Testing infrastructure not yet deployed');
+            } else {
+                setError(`Failed to fetch test status: ${response.status}`);
             }
         } catch (err) {
-            setError('Failed to fetch test status');
-            setTestStatus({
-                ...testStatus,
-                status: 'error'
-            });
+            setError(`Connection error: ${err.message}`);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchBusinessLogicStatus = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validation`);
+            if (response.ok) {
+                const data = await response.json();
+                setBusinessLogicStatus(data.data?.summary || businessLogicStatus);
+            }
+        } catch (err) {
+            console.warn('Business logic status not available:', err.message);
+        }
+    };
+
+    const fetchSpiritualServicesStatus = async () => {
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/monitoring/spiritual-services-status`);
+            if (response.ok) {
+                const data = await response.json();
+                setSpiritualServicesStatus(data.data || spiritualServicesStatus);
+            }
+        } catch (err) {
+            console.warn('Spiritual services status not available:', err.message);
         }
     };
 
@@ -78,7 +114,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             
             if (response.ok) {
                 // Refresh status after execution
-                setTimeout(fetchTestStatus, 2000);
+                setTimeout(fetchAllStatus, 2000);
             }
         } catch (err) {
             setError('Failed to execute tests');
@@ -161,6 +197,46 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
                             </div>
                         </div>
                     </div>
+                    
+                    {/* Business Logic Validation Status */}
+                    {businessLogicStatus.total_validations > 0 && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-1">
+                                    <Activity className="h-3 w-3" />
+                                    <span className="text-xs font-medium">Spiritual Content Quality</span>
+                                </div>
+                                <Badge className={`text-xs ${businessLogicStatus.success_rate > 80 ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                                    {Math.round(businessLogicStatus.success_rate)}%
+                                </Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                <div>Quality Score: {businessLogicStatus.avg_quality_score.toFixed(1)}</div>
+                                <div>Validations: {businessLogicStatus.total_validations}</div>
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Spiritual Services Status */}
+                    {(spiritualServicesStatus.spiritual_avatar_engine.available || spiritualServicesStatus.monetization_optimizer.available) && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium">Spiritual Services</span>
+                                <div className="flex gap-1">
+                                    {spiritualServicesStatus.spiritual_avatar_engine.available && (
+                                        <div className="h-2 w-2 bg-green-500 rounded-full" title="Avatar Engine Online" />
+                                    )}
+                                    {spiritualServicesStatus.monetization_optimizer.available && (
+                                        <div className="h-2 w-2 bg-blue-500 rounded-full" title="Monetization Online" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                                <div>Sessions: {spiritualServicesStatus.recent_metrics.sessions_24h}</div>
+                                <div>Validations: {spiritualServicesStatus.recent_metrics.successful_validations_24h}</div>
+                            </div>
+                        </div>
+                    )}
                     
                     {error && (
                         <Alert className="mt-2">

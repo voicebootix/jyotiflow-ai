@@ -826,30 +826,246 @@ async def get_test_metrics(admin=Depends(get_current_admin_dependency)):
 
 @router.post("/test-execute")
 async def execute_test(request: dict, admin=Depends(get_current_admin_dependency)):
-    """Execute a test suite"""
-    import time
+    """Execute a test suite using our actual test execution engine"""
     try:
+        from test_execution_engine import TestExecutionEngine
+        from test_suite_generator import TestSuiteGenerator
+        
         test_type = request.get("test_type", "unit")
+        test_suite = request.get("test_suite", None)
         environment = request.get("environment", "production")
         triggered_by = request.get("triggered_by", "manual")
         
-        # Mock test execution start - will be replaced with real test runner
+        # Initialize test execution engine
+        engine = TestExecutionEngine()
+        
+        if test_suite:
+            # Execute specific test suite
+            result = await engine.execute_test_suite(test_suite, test_type)
+        else:
+            # Execute all test suites
+            result = await engine.execute_all_test_suites()
+        
         return StandardResponse(
             status="success",
-            message=f"Test execution started: {test_type}",
-            data={
-                "session_id": f"test-{test_type}-{int(time.time())}",
-                "test_type": test_type,
-                "environment": environment,
-                "triggered_by": triggered_by,
-                "status": "running",
-                "estimated_completion": "2-5 minutes"
-            }
+            message=f"Test execution completed: {test_type}",
+            data=result
         )
     except Exception as e:
+        logger.error(f"Test execution failed: {e}")
         return StandardResponse(
             status="error",
             message=f"Failed to execute test: {str(e)}",
+            data={}
+        )
+
+@router.get("/test-suites")
+async def get_available_test_suites(admin=Depends(get_current_admin_dependency)):
+    """Get all available test suites that can be executed"""
+    try:
+        from test_suite_generator import TestSuiteGenerator
+        
+        generator = TestSuiteGenerator()
+        test_suites = await generator.generate_all_test_suites()
+        
+        # Format for UI consumption
+        suite_info = []
+        for suite_name, suite_data in test_suites.items():
+            suite_info.append({
+                "name": suite_name,
+                "display_name": suite_data.get("test_suite_name", suite_name),
+                "category": suite_data.get("test_category", "unknown"),
+                "description": suite_data.get("description", ""),
+                "test_count": len(suite_data.get("test_cases", [])),
+                "test_cases": [
+                    {
+                        "name": test.get("test_name", ""),
+                        "description": test.get("description", ""),
+                        "priority": test.get("priority", "medium"),
+                        "test_type": test.get("test_type", "unit")
+                    }
+                    for test in suite_data.get("test_cases", [])
+                ]
+            })
+        
+        return StandardResponse(
+            status="success",
+            message="Test suites retrieved",
+            data=suite_info
+        )
+    except Exception as e:
+        logger.error(f"Failed to get test suites: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get test suites: {str(e)}",
+            data=[]
+        )
+
+@router.get("/business-logic-validation")
+async def get_business_logic_validation_status(admin=Depends(get_current_admin_dependency)):
+    """Get business logic validation status and recent results"""
+    try:
+        conn = await asyncpg.connect(DATABASE_URL)
+        try:
+            # Get recent business logic validation results
+            recent_validations = await conn.fetch("""
+                SELECT 
+                    session_id,
+                    validation_type,
+                    validation_result,
+                    quality_score,
+                    issues_found,
+                    created_at
+                FROM business_logic_issues 
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                ORDER BY created_at DESC
+                LIMIT 50
+            """)
+            
+            # Calculate summary statistics
+            total_validations = len(recent_validations)
+            passed_validations = sum(1 for v in recent_validations 
+                                   if v['validation_result'] == 'passed')
+            avg_quality_score = sum(v['quality_score'] or 0 for v in recent_validations) / max(total_validations, 1)
+            
+            validation_data = [dict(v) for v in recent_validations]
+            
+            return StandardResponse(
+                status="success",
+                message="Business logic validation status retrieved",
+                data={
+                    "summary": {
+                        "total_validations": total_validations,
+                        "passed_validations": passed_validations,
+                        "success_rate": (passed_validations / max(total_validations, 1)) * 100,
+                        "avg_quality_score": round(avg_quality_score, 2)
+                    },
+                    "recent_validations": validation_data
+                }
+            )
+        finally:
+            await conn.close()
+    except Exception as e:
+        logger.error(f"Failed to get business logic validation status: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get validation status: {str(e)}",
+            data={}
+        )
+
+@router.post("/business-logic-validate")
+async def trigger_business_logic_validation(request: dict, admin=Depends(get_current_admin_dependency)):
+    """Trigger business logic validation for spiritual content"""
+    try:
+        from monitoring.business_validator import BusinessLogicValidator
+        
+        validator = BusinessLogicValidator()
+        
+        # Get validation request parameters
+        session_context = request.get("session_context", {})
+        validation_type = request.get("validation_type", "full")
+        
+        # If no session context provided, create a test context
+        if not session_context:
+            session_context = {
+                "spiritual_question": "How can I find inner peace through meditation?",
+                "birth_details": {
+                    "date": "1990-01-01",
+                    "time": "12:00",
+                    "location": "Mumbai, India"
+                },
+                "integration_results": {
+                    "rag_knowledge": {
+                        "passed": True,
+                        "actual": {
+                            "knowledge": "Meditation is a sacred practice that connects us with divine consciousness."
+                        }
+                    }
+                }
+            }
+        
+        # Run validation
+        validation_result = await validator.validate_session(session_context)
+        
+        return StandardResponse(
+            status="success",
+            message="Business logic validation completed",
+            data={
+                "validation_result": validation_result,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+        )
+    except Exception as e:
+        logger.error(f"Business logic validation failed: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Validation failed: {str(e)}",
+            data={}
+        )
+
+@router.get("/spiritual-services-status")
+async def get_spiritual_services_status():
+    """Get spiritual services health and validation status (public endpoint)"""
+    try:
+        from enhanced_business_logic import SpiritualAvatarEngine, MonetizationOptimizer
+        
+        # Test SpiritualAvatarEngine
+        avatar_status = {"available": False, "error": None}
+        try:
+            engine = SpiritualAvatarEngine()
+            avatar_status["available"] = True
+        except Exception as e:
+            avatar_status["error"] = str(e)
+        
+        # Test MonetizationOptimizer
+        monetization_status = {"available": False, "error": None}
+        try:
+            optimizer = MonetizationOptimizer()
+            monetization_status["available"] = True
+        except Exception as e:
+            monetization_status["error"] = str(e)
+        
+        # Get recent spiritual service metrics
+        conn = await asyncpg.connect(DATABASE_URL)
+        try:
+            # Count recent spiritual sessions
+            recent_sessions = await conn.fetchval("""
+                SELECT COUNT(*) FROM sessions 
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                AND session_type = 'spiritual_guidance'
+            """)
+            
+            # Count successful validations
+            successful_validations = await conn.fetchval("""
+                SELECT COUNT(*) FROM business_logic_issues
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                AND validation_result = 'passed'
+            """)
+            
+        except:
+            recent_sessions = 0
+            successful_validations = 0
+        finally:
+            await conn.close()
+        
+        return StandardResponse(
+            status="success",
+            message="Spiritual services status retrieved",
+            data={
+                "spiritual_avatar_engine": avatar_status,
+                "monetization_optimizer": monetization_status,
+                "recent_metrics": {
+                    "sessions_24h": recent_sessions,
+                    "successful_validations_24h": successful_validations
+                },
+                "last_updated": datetime.now(timezone.utc).isoformat()
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to get spiritual services status: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get spiritual services status: {str(e)}",
             data={}
         )
 

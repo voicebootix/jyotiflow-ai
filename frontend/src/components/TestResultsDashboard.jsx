@@ -374,6 +374,208 @@ const TestResultsDashboard = () => {
         );
     };
 
+    const BusinessLogicValidationTab = () => {
+        const [businessLogicData, setBusinessLogicData] = useState({
+            summary: {
+                total_validations: 0,
+                passed_validations: 0,
+                success_rate: 0,
+                avg_quality_score: 0
+            },
+            recent_validations: []
+        });
+        const [spiritualServices, setSpiritualServices] = useState({
+            spiritual_avatar_engine: { available: false },
+            monetization_optimizer: { available: false },
+            recent_metrics: { sessions_24h: 0, successful_validations_24h: 0 }
+        });
+        const [validationLoading, setValidationLoading] = useState(false);
+
+        useEffect(() => {
+            fetchBusinessLogicData();
+            fetchSpiritualServicesData();
+        }, []);
+
+        const fetchBusinessLogicData = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validation`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setBusinessLogicData(data.data || businessLogicData);
+                }
+            } catch (err) {
+                console.warn('Business logic data not available:', err.message);
+            }
+        };
+
+        const fetchSpiritualServicesData = async () => {
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/monitoring/spiritual-services-status`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setSpiritualServices(data.data || spiritualServices);
+                }
+            } catch (err) {
+                console.warn('Spiritual services data not available:', err.message);
+            }
+        };
+
+        const triggerValidation = async () => {
+            setValidationLoading(true);
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ validation_type: 'test' })
+                });
+                
+                if (response.ok) {
+                    setTimeout(() => {
+                        fetchBusinessLogicData();
+                        fetchSpiritualServicesData();
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Validation trigger failed:', err);
+            } finally {
+                setValidationLoading(false);
+            }
+        };
+
+        return (
+            <div className="space-y-6">
+                {/* Spiritual Services Health */}
+                <Card>
+                    <CardHeader>
+                        <div className="flex items-center justify-between">
+                            <CardTitle className="flex items-center gap-2">
+                                <Activity className="h-5 w-5" />
+                                Spiritual Services Health
+                            </CardTitle>
+                            <Button 
+                                size="sm" 
+                                onClick={triggerValidation}
+                                disabled={validationLoading}
+                            >
+                                {validationLoading ? (
+                                    <RefreshCw className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Play className="h-4 w-4" />
+                                )}
+                                Test Validation
+                            </Button>
+                        </div>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-3">
+                                <div className="flex items-center justify-between p-3 border rounded">
+                                    <div>
+                                        <p className="font-medium">Spiritual Avatar Engine</p>
+                                        <p className="text-sm text-gray-600">Personalized guidance generation</p>
+                                    </div>
+                                    <Badge className={spiritualServices.spiritual_avatar_engine.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                        {spiritualServices.spiritual_avatar_engine.available ? 'Online' : 'Offline'}
+                                    </Badge>
+                                </div>
+                                
+                                <div className="flex items-center justify-between p-3 border rounded">
+                                    <div>
+                                        <p className="font-medium">Monetization Optimizer</p>
+                                        <p className="text-sm text-gray-600">AI-powered pricing recommendations</p>
+                                    </div>
+                                    <Badge className={spiritualServices.monetization_optimizer.available ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                        {spiritualServices.monetization_optimizer.available ? 'Online' : 'Offline'}
+                                    </Badge>
+                                </div>
+                            </div>
+                            
+                            <div className="space-y-3">
+                                <div className="p-3 bg-blue-50 rounded">
+                                    <p className="text-sm font-medium text-blue-800">24h Spiritual Sessions</p>
+                                    <p className="text-2xl font-bold text-blue-600">{spiritualServices.recent_metrics.sessions_24h}</p>
+                                </div>
+                                
+                                <div className="p-3 bg-green-50 rounded">
+                                    <p className="text-sm font-medium text-green-800">Successful Validations</p>
+                                    <p className="text-2xl font-bold text-green-600">{spiritualServices.recent_metrics.successful_validations_24h}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                {/* Business Logic Validation Results */}
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                            <CheckCircle className="h-5 w-5" />
+                            Spiritual Content Quality Validation
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        {businessLogicData.summary.total_validations > 0 ? (
+                            <div className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="text-center p-3 bg-gray-50 rounded">
+                                        <p className="text-sm font-medium">Total Validations</p>
+                                        <p className="text-xl font-bold">{businessLogicData.summary.total_validations}</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-green-50 rounded">
+                                        <p className="text-sm font-medium">Success Rate</p>
+                                        <p className="text-xl font-bold text-green-600">{Math.round(businessLogicData.summary.success_rate)}%</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-blue-50 rounded">
+                                        <p className="text-sm font-medium">Quality Score</p>
+                                        <p className="text-xl font-bold text-blue-600">{businessLogicData.summary.avg_quality_score.toFixed(1)}</p>
+                                    </div>
+                                    <div className="text-center p-3 bg-purple-50 rounded">
+                                        <p className="text-sm font-medium">Passed</p>
+                                        <p className="text-xl font-bold text-purple-600">{businessLogicData.summary.passed_validations}</p>
+                                    </div>
+                                </div>
+                                
+                                {businessLogicData.recent_validations.length > 0 && (
+                                    <div>
+                                        <h4 className="font-medium mb-3">Recent Validation Results</h4>
+                                        <div className="space-y-2">
+                                            {businessLogicData.recent_validations.slice(0, 5).map((validation, index) => (
+                                                <div key={index} className="flex items-center justify-between p-3 border rounded">
+                                                    <div>
+                                                        <p className="font-medium">{validation.validation_type}</p>
+                                                        <p className="text-sm text-gray-600">
+                                                            {new Date(validation.created_at).toLocaleString()}
+                                                        </p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <Badge className={validation.validation_result === 'passed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                                                            {validation.validation_result}
+                                                        </Badge>
+                                                        {validation.quality_score && (
+                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                Score: {validation.quality_score.toFixed(2)}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 text-gray-500">
+                                <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                <p>No business logic validation data available</p>
+                                <p className="text-sm">Trigger a validation test to see results</p>
+                            </div>
+                        )}
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    };
+
     if (loading) {
         return (
             <div className="p-6">
@@ -405,17 +607,59 @@ const TestResultsDashboard = () => {
                 </Alert>
             )}
 
-            <TestMetricsOverview />
-            
-            <TestExecutionPanel />
-
-            <Tabs defaultValue="history" className="space-y-4">
-                <TabsList>
-                    <TabsTrigger value="history">Execution History</TabsTrigger>
-                    <TabsTrigger value="coverage">Coverage Reports</TabsTrigger>
-                    <TabsTrigger value="performance">Performance Metrics</TabsTrigger>
-                    <TabsTrigger value="autofix">Auto-Fix Results</TabsTrigger>
+            <Tabs defaultValue="overview" className="space-y-4">
+                <TabsList className="grid w-full grid-cols-5">
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="history">History</TabsTrigger>
+                    <TabsTrigger value="coverage">Coverage</TabsTrigger>
+                    <TabsTrigger value="performance">Performance</TabsTrigger>
+                    <TabsTrigger value="business-logic">Spiritual Content</TabsTrigger>
                 </TabsList>
+
+                <TabsContent value="overview" className="space-y-6">
+                    <TestStatusCard variant="detailed" className="w-full" />
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <Card>
+                            <CardContent className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium">Total Sessions</p>
+                                        <p className="text-2xl font-bold">{testMetrics.total_sessions}</p>
+                                    </div>
+                                    <TestTube className="h-8 w-8 text-blue-500" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                        
+                        <Card>
+                            <CardContent className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium">Success Rate</p>
+                                        <p className="text-2xl font-bold">{testMetrics.success_rate}%</p>
+                                    </div>
+                                    {testMetrics.success_rate > 80 ? 
+                                        <TrendingUp className="h-8 w-8 text-green-500" /> : 
+                                        <TrendingDown className="h-8 w-8 text-red-500" />
+                                    }
+                                </div>
+                            </CardContent>
+                        </Card>
+                        
+                        <Card>
+                            <CardContent className="p-4">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-sm font-medium">Avg. Execution Time</p>
+                                        <p className="text-2xl font-bold">{testMetrics.avg_execution_time}s</p>
+                                    </div>
+                                    <Clock className="h-8 w-8 text-orange-500" />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </TabsContent>
 
                 <TabsContent value="history">
                     <TestExecutionHistory />
@@ -424,13 +668,14 @@ const TestResultsDashboard = () => {
                 <TabsContent value="coverage">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Test Coverage Reports</CardTitle>
+                            <CardTitle>Test Coverage Report</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-center py-8 text-gray-500">
-                                <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                <p>Coverage reports will be displayed here</p>
-                                <p className="text-sm">Run tests to generate coverage data</p>
+                            <div className="space-y-4">
+                                <div className="text-center py-8 text-gray-500">
+                                    <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                    <p>Coverage reports will be available after test execution</p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -442,28 +687,18 @@ const TestResultsDashboard = () => {
                             <CardTitle>Performance Metrics</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-center py-8 text-gray-500">
-                                <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                <p>Performance metrics will be displayed here</p>
-                                <p className="text-sm">Run performance tests to see metrics</p>
+                            <div className="space-y-4">
+                                <div className="text-center py-8 text-gray-500">
+                                    <Activity className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                                    <p>Performance metrics will be displayed here</p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
                 </TabsContent>
 
-                <TabsContent value="autofix">
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Auto-Fix Test Results</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            <div className="text-center py-8 text-gray-500">
-                                <RefreshCw className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                                <p>Auto-fix test results will be displayed here</p>
-                                <p className="text-sm">Auto-fix actions will generate test validation data</p>
-                            </div>
-                        </CardContent>
-                    </Card>
+                <TabsContent value="business-logic">
+                    <BusinessLogicValidationTab />
                 </TabsContent>
             </Tabs>
 
