@@ -392,12 +392,26 @@ async def update_platform_config(
         if platform not in ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok']:
             raise HTTPException(status_code=400, detail=f"Platform {platform} not supported")
         
-        # SURGICAL FIX: Enhanced database connection handling
+        # ENHANCED DEBUG: Database connection detailed diagnostics
         if not db.db_pool:
-            logger.error("❌ Database pool not available")
+            logger.error("❌ Database pool not available - this is the root cause!")
+            logger.error(f"❌ Database URL: {os.getenv('DATABASE_URL', 'NOT_SET')}")
+            logger.error("❌ Possible causes: PostgreSQL not running, DATABASE_URL incorrect, connection limit reached")
             return StandardResponse(
                 success=False,
-                message="Database not available - configuration cannot be saved"
+                message="Database not available - configuration cannot be saved. Check logs for details.",
+                data={
+                    "debug_info": {
+                        "error": "Database pool not available",
+                        "database_url_set": bool(os.getenv('DATABASE_URL')),
+                        "possible_causes": [
+                            "PostgreSQL server not running",
+                            "DATABASE_URL environment variable incorrect",
+                            "Database connection limit reached",
+                            "Database initialization failed"
+                        ]
+                    }
+                }
             )
         
         # Remove status field before saving
@@ -452,9 +466,22 @@ async def update_platform_config(
         raise
     except Exception as e:
         logger.error(f"❌ Platform config save failed: {e}")
+        logger.error(f"❌ Exception type: {type(e).__name__}")
+        logger.error(f"❌ Database pool available: {bool(db.db_pool) if hasattr(db, 'db_pool') else 'No db module'}")
+        
+        # Enhanced error details for debugging
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "platform": platform,
+            "has_db_module": 'db' in locals(),
+            "has_db_pool": bool(getattr(db, 'db_pool', None)) if 'db' in locals() else False
+        }
+        
         return StandardResponse(
             success=False,
-            message=f"Platform configuration save failed: {str(e)}"
+            message=f"Platform configuration save failed: {str(e)}",
+            data={"debug_info": error_details}
         )
 
 @social_marketing_router.post("/test-connection")
