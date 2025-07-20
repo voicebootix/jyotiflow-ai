@@ -1968,11 +1968,11 @@ class DatabaseHealthMonitor:
                         LIMIT 10
                     """
                 else:
-                    # Fallback for systems that might use different column names
+                    # Fallback for systems that use 'relname' for table name
                     index_query = """
                         SELECT 
                             schemaname,
-                            indexrelname as tablename,
+                            relname as tablename,
                             indexrelname as indexname,
                             idx_scan,
                             idx_tup_read,
