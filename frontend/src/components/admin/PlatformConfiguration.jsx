@@ -187,6 +187,17 @@ const PlatformConfiguration = () => {
         return;
       }
 
+      // Enhanced YouTube handle validation (core.md: proactive validation)
+      if (platform === 'youtube' && config.channel_id) {
+        const handle = config.channel_id.trim();
+        if (handle.includes('@') && !handle.match(/^@[a-zA-Z0-9._-]+$/)) {
+          addNotification('warning', 'Invalid handle format. Use @YourHandle or channel URL', platform);
+        }
+        if (handle === '@jyotiGuru-h9v') {
+          addNotification('warning', '⚠️ Testing with @jyotiGuru-h9v (this channel may not exist). Try @SadhguruJV or create your channel first.', platform);
+        }
+      }
+
       addNotification('info', `Testing ${platform} connection...`, platform);
       
       const response = await enhanced_api.post('/api/admin/social-marketing/test-connection', {
@@ -351,7 +362,7 @@ const PlatformConfiguration = () => {
           type: 'text', 
           required: true,
           placeholder: 'UCxxxxxxxxxxxxxxxxxxx or https://youtube.com/@yourhandle',
-          helpText: 'Your Channel ID, channel URL, or @handle. We\'ll auto-convert URLs and handles.'
+          helpText: 'Your Channel ID, channel URL, or @handle. For testing: @SadhguruJV, @BeerBiceps, or @SaiBabaIsStillAlive'
         }
       ],
       instructions: 'Enable YouTube Data API v3 in Google Cloud Console and create an API key',
