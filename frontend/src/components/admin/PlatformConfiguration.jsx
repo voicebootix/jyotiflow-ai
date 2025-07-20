@@ -194,8 +194,30 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
+      // CRITICAL FIX: Handle StandardResponse format correctly (core.md & refresh.md)
+      // Backend returns: { success: true, data: {...}, message: "..." }
+      // But some responses might be nested: { data: { success: true, ... } }
       const responseData = response.data;
-      const isSuccess = responseData && responseData.success;
+      
+      // Handle both direct StandardResponse and nested response formats
+      let isSuccess, successData, successMessage;
+      
+      if (responseData.success !== undefined) {
+        // Direct StandardResponse format: { success: true, data: {...}, message: "..." }
+        isSuccess = responseData.success;
+        successData = responseData.data;
+        successMessage = responseData.message;
+      } else if (responseData.data && responseData.data.success !== undefined) {
+        // Nested format: { data: { success: true, ... } }
+        isSuccess = responseData.data.success;
+        successData = responseData.data.data;
+        successMessage = responseData.data.message;
+      } else {
+        // Fallback: assume success if no error field
+        isSuccess = !responseData.error;
+        successData = responseData;
+        successMessage = responseData.message || 'Connection test completed';
+      }
       
       setTestResults(prev => ({
         ...prev,
@@ -203,20 +225,19 @@ const PlatformConfiguration = () => {
       }));
       
       if (isSuccess) {
-        const successMessage = responseData?.message || 'Connection successful!';
-        const details = responseData?.data;
+        const finalMessage = successMessage || 'Connection successful!';
         
         // Enhanced success feedback (core.md: informative responses)
-        if (platform === 'youtube' && details?.resolved_channel_id) {
-          addNotification('success', `${successMessage} Channel: ${details.channel_info?.title || 'Connected'}`, platform, details);
-        } else if (platform === 'facebook' && details?.page_name) {
-          addNotification('success', `${successMessage} Page: ${details.page_name}`, platform, details);
+        if (platform === 'youtube' && successData?.resolved_channel_id) {
+          addNotification('success', `${finalMessage} Channel: ${successData.channel_info?.title || 'Connected'}`, platform, successData);
+        } else if (platform === 'facebook' && successData?.page_name) {
+          addNotification('success', `${finalMessage} Page: ${successData.page_name}`, platform, successData);
         } else {
-          addNotification('success', successMessage, platform, details);
+          addNotification('success', finalMessage, platform, successData);
         }
       } else {
-        const errorMessage = responseData?.message || 'Connection failed';
-        const errorDetails = responseData?.data?.error || responseData?.error;
+        const errorMessage = successMessage || responseData?.message || 'Connection failed';
+        const errorDetails = responseData?.data?.error || responseData?.error || responseData?.data;
         
         // Enhanced error feedback with actionable guidance (refresh.md: helpful errors)
         let guidanceMessage = errorMessage;

@@ -164,11 +164,11 @@ class FacebookService:
                         missing_permissions = [p for p in required_permissions if p not in granted_permissions]
                         
                         if missing_permissions:
-                                return {
-                                    "success": False,
+                            return {
+                                "success": False,
                                 "error": f"Missing required permissions: {', '.join(missing_permissions)}",
                                 "permissions": granted_permissions
-                                }
+                            }
                         else:
                             return {
                                 "success": True,
@@ -242,19 +242,19 @@ class FacebookService:
                         has_user_fields = any(field in data for field in user_indicators)
                         
                         if has_page_fields and not has_user_fields:
-                                return {
+                            return {
                                 "is_page_token": True, 
                                 "token_type": "page",
                                 "detection_method": "explicit_page_fields",
                                 "page_name": data.get("name")
-                                }
+                            }
                         elif has_user_fields and not has_page_fields:
-                                return {
+                            return {
                                 "is_page_token": False, 
                                 "token_type": "user",
                                 "detection_method": "explicit_user_fields",
                                 "user_name": data.get("name")
-                                }
+                            }
                         else:
                             # Fallback: If unclear, default to user token for safety
                             logger.warning(f"Ambiguous token type detection. Page fields: {has_page_fields}, User fields: {has_user_fields}")
