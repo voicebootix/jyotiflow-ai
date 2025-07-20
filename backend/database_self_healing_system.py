@@ -10,6 +10,7 @@ import os
 import ast
 import glob
 import json
+import re
 import asyncio
 import asyncpg
 import hashlib
@@ -1882,8 +1883,13 @@ class DatabaseHealthMonitor:
                 # Check PostgreSQL version and adjust column names accordingly
                 pg_version = await conn.fetchval("SELECT version()")
                 
+                # Extract major version number
+                import re
+                version_match = re.search(r'PostgreSQL (\d+)', pg_version)
+                major_version = int(version_match.group(1)) if version_match else 0
+                
                 # PostgreSQL 13+ uses different column names in pg_stat_statements
-                if "PostgreSQL 13" in pg_version or "PostgreSQL 14" in pg_version or "PostgreSQL 15" in pg_version:
+                if major_version >= 13:
                     slow_query = """
                         SELECT 
                             query,
@@ -1918,10 +1924,23 @@ class DatabaseHealthMonitor:
             
             # Index usage
             try:
-                index_query = """
+                # First try to get column names to debug the issue
+                column_check = await conn.fetchval("""
+                    SELECT column_name 
+                    FROM information_schema.columns 
+                    WHERE table_schema = 'pg_catalog' 
+                    AND table_name = 'pg_stat_user_indexes'
+                    AND column_name LIKE '%table%'
+                    LIMIT 1
+                """)
+                
+                # Use the appropriate column name
+                table_column = column_check if column_check else 'tablename'
+                
+                index_query = f"""
                     SELECT 
                         schemaname,
-                        tablename,
+                        {table_column} as tablename,
                         indexname,
                         idx_scan,
                         idx_tup_read,
@@ -1929,6 +1948,7 @@ class DatabaseHealthMonitor:
                     FROM pg_stat_user_indexes
                     WHERE idx_scan = 0
                     AND schemaname = 'public'
+                    LIMIT 10
                 """
                 unused_indexes = await conn.fetch(index_query)
                 metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
