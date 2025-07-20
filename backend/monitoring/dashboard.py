@@ -732,6 +732,127 @@ async def trigger_test(test_type: str, admin=Depends(get_current_admin_dependenc
         data=test_result
     )
 
+# Testing infrastructure endpoints
+@router.get("/test-status")
+async def get_test_status():
+    """Get current test execution status (public endpoint)"""
+    try:
+        # Mock test status data - will be replaced with real implementation
+        return StandardResponse(
+            status="success",
+            message="Test status retrieved",
+            data={
+                "last_execution": "2024-01-15T10:30:00Z",
+                "total_tests": 42,
+                "passed_tests": 38,
+                "failed_tests": 4,
+                "test_coverage": 87.5,
+                "execution_time": 35,
+                "status": "passed",
+                "auto_fixes_applied": 2
+            }
+        )
+    except Exception as e:
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get test status: {str(e)}",
+            data={}
+        )
+
+@router.get("/test-sessions")
+async def get_test_sessions(admin=Depends(get_current_admin_dependency)):
+    """Get test execution sessions history"""
+    try:
+        # Mock test sessions data - will be replaced with real database queries
+        return StandardResponse(
+            status="success",
+            message="Test sessions retrieved",
+            data=[
+                {
+                    "session_id": "test-001",
+                    "test_type": "integration",
+                    "status": "passed",
+                    "started_at": "2024-01-15T10:30:00Z",
+                    "completed_at": "2024-01-15T10:32:15Z",
+                    "execution_time_seconds": 135,
+                    "total_tests": 25,
+                    "passed_tests": 25,
+                    "failed_tests": 0,
+                    "coverage_percentage": 89.2
+                },
+                {
+                    "session_id": "test-002", 
+                    "test_type": "unit",
+                    "status": "partial",
+                    "started_at": "2024-01-15T09:15:00Z",
+                    "completed_at": "2024-01-15T09:16:45Z",
+                    "execution_time_seconds": 105,
+                    "total_tests": 47,
+                    "passed_tests": 43,
+                    "failed_tests": 4,
+                    "coverage_percentage": 85.1
+                }
+            ]
+        )
+    except Exception as e:
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get test sessions: {str(e)}",
+            data=[]
+        )
+
+@router.get("/test-metrics")
+async def get_test_metrics(admin=Depends(get_current_admin_dependency)):
+    """Get test execution metrics and statistics"""
+    try:
+        # Mock test metrics - will be replaced with real calculations
+        return StandardResponse(
+            status="success", 
+            message="Test metrics retrieved",
+            data={
+                "total_sessions": 15,
+                "success_rate": 87.5,
+                "avg_execution_time": 120,
+                "coverage_trend": 2.3,
+                "auto_fixes_applied": 8
+            }
+        )
+    except Exception as e:
+        return StandardResponse(
+            status="error",
+            message=f"Failed to get test metrics: {str(e)}",
+            data={}
+        )
+
+@router.post("/test-execute")
+async def execute_test(request: dict, admin=Depends(get_current_admin_dependency)):
+    """Execute a test suite"""
+    import time
+    try:
+        test_type = request.get("test_type", "unit")
+        environment = request.get("environment", "production")
+        triggered_by = request.get("triggered_by", "manual")
+        
+        # Mock test execution start - will be replaced with real test runner
+        return StandardResponse(
+            status="success",
+            message=f"Test execution started: {test_type}",
+            data={
+                "session_id": f"test-{test_type}-{int(time.time())}",
+                "test_type": test_type,
+                "environment": environment,
+                "triggered_by": triggered_by,
+                "status": "running",
+                "estimated_completion": "2-5 minutes"
+            }
+        )
+    except Exception as e:
+        return StandardResponse(
+            status="error",
+            message=f"Failed to execute test: {str(e)}",
+            data={}
+        )
+
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time monitoring updates"""
