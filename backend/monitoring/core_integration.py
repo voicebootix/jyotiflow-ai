@@ -12,7 +12,7 @@ from fastapi import Request
 # Import monitoring components
 from .integration_monitor import IntegrationMonitor
 from .context_tracker import ContextTracker
-from .business_validator import BusinessValidator
+from .business_validator import BusinessLogicValidator
 
 # Database manager
 try:
@@ -31,7 +31,7 @@ class MonitoringCoreIntegration:
     def __init__(self):
         self.integration_monitor = IntegrationMonitor()
         self.context_tracker = ContextTracker()
-        self.business_validator = BusinessValidator()
+        self.business_validator = BusinessLogicValidator()
         self.initialized = False
         
     async def initialize(self):
