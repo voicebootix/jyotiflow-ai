@@ -378,15 +378,20 @@ class MonitoringDashboard:
         try:
             conn = await db_manager.get_connection()
             try:
+                # Get overall stats
                 stats = await conn.fetchrow("""
                     SELECT
                         COUNT(DISTINCT session_id) as total_sessions,
                         COUNT(*) as total_validations,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_validations,
-                        CASE 
-                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL) = 0 THEN 0
-                            ELSE AVG((actual_value->>'duration_ms')::INTEGER)
-                        END as avg_duration_ms
+                        AVG(
+                            CASE 
+                                WHEN actual_value IS NOT NULL 
+                                AND actual_value->>'duration_ms' IS NOT NULL 
+                                THEN (actual_value->>'duration_ms')::INTEGER 
+                                ELSE 0 
+                            END
+                        ) as avg_duration_ms
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '24 hours'
                 """)
@@ -397,10 +402,14 @@ class MonitoringDashboard:
                         integration_name,
                         COUNT(*) as total_calls,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls,
-                        CASE 
-                            WHEN COUNT(CASE WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL) = 0 THEN 0
-                            ELSE AVG((actual_value->>'duration_ms')::INTEGER)
-                        END as avg_duration_ms
+                        AVG(
+                            CASE 
+                                WHEN actual_value IS NOT NULL 
+                                AND actual_value->>'duration_ms' IS NOT NULL 
+                                THEN (actual_value->>'duration_ms')::INTEGER 
+                                ELSE 0 
+                            END
+                        ) as avg_duration_ms
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '24 hours'
                     GROUP BY integration_name
@@ -508,17 +517,21 @@ class MonitoringDashboard:
                 # Get success rate
                 success_rate = await conn.fetchrow("""
                     SELECT 
-                        COUNT(CASE WHEN overall_status = 'success' THEN 1 END)::float / 
-                        NULLIF(COUNT(*), 0) * 100 as success_rate
+                        CASE 
+                            WHEN COUNT(*) = 0 THEN 0
+                            ELSE COUNT(CASE WHEN overall_status = 'success' THEN 1 END)::float / COUNT(*) * 100
+                        END as success_rate
                     FROM validation_sessions
                     WHERE started_at > NOW() - INTERVAL '24 hours'
                 """)
                 
                 # Get average session duration
                 avg_duration = await conn.fetchrow("""
-                    SELECT AVG(
-                        EXTRACT(EPOCH FROM (completed_at - started_at))
-                    ) as avg_duration_seconds
+                    SELECT 
+                        CASE 
+                            WHEN COUNT(*) = 0 THEN 0
+                            ELSE AVG(EXTRACT(EPOCH FROM (completed_at - started_at)))
+                        END as avg_duration_seconds
                     FROM validation_sessions
                     WHERE completed_at IS NOT NULL
                     AND started_at > NOW() - INTERVAL '24 hours'
@@ -527,10 +540,17 @@ class MonitoringDashboard:
                 # Get quality scores
                 quality_scores = await conn.fetchrow("""
                     SELECT 
-                        AVG((validation_results->>'quality_scores'->>'rag_relevance_score')::float) as avg_rag_score,
-                        AVG((validation_results->>'quality_scores'->>'openai_quality_score')::float) as avg_openai_score
+                        CASE 
+                            WHEN COUNT(*) = 0 THEN 0
+                            ELSE AVG((validation_results->'quality_scores'->>'rag_relevance_score')::float)
+                        END as avg_rag_score,
+                        CASE 
+                            WHEN COUNT(*) = 0 THEN 0
+                            ELSE AVG((validation_results->'quality_scores'->>'openai_quality_score')::float)
+                        END as avg_openai_score
                     FROM validation_sessions
                     WHERE validation_results IS NOT NULL
+                    AND validation_results->'quality_scores' IS NOT NULL
                     AND started_at > NOW() - INTERVAL '24 hours'
                 """)
                 
@@ -568,7 +588,7 @@ class MonitoringDashboard:
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
-            # Check for high error rates with proper NULL handling
+            # Check for high error rates
             conn = await db_manager.get_connection()
             try:
                 error_rate = await conn.fetchrow("""
