@@ -46,7 +46,13 @@ class InstagramService:
                 
                 # Test 4: Check business account status (CRITICAL for posting capabilities)
                 user_id = profile_test.get("user_info", {}).get("id")
-                business_test = await self._check_business_account(access_token, user_id)
+                
+                # Fix: Only pass user_id if not None, otherwise use default "me" parameter
+                if user_id:
+                    business_test = await self._check_business_account(access_token, user_id)
+                else:
+                    # Let default user_id="me" be used when ID is None/missing
+                    business_test = await self._check_business_account(access_token)
                 if not business_test["success"]:
                     # Log warning but don't fail validation (business check is informational)
                     logger.warning(f"Business account check failed: {business_test.get('error')}")
