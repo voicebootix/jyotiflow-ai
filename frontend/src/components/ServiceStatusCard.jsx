@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import PropTypes from 'prop-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +15,18 @@ import {
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
+/**
+ * ServiceStatusCard component for displaying and testing individual service status
+ * 
+ * @param {Object} props - Component props
+ * @param {string} props.title - Service title
+ * @param {string} props.description - Service description
+ * @param {string} props.endpoint - API endpoint for testing
+ * @param {string} props.testType - Type of test to execute
+ * @param {string} props.icon - Icon emoji to display
+ * @param {string} props.priority - Service priority (critical, high, medium, low)
+ * @returns {JSX.Element} ServiceStatusCard component
+ */
 const ServiceStatusCard = ({ 
     title, 
     description, 
@@ -27,6 +40,12 @@ const ServiceStatusCard = ({
     const [lastResult, setLastResult] = useState(null);
     const [error, setError] = useState(null);
 
+    /**
+     * Triggers a test for the service
+     * @async
+     * @function triggerTest
+     * @returns {Promise<void>}
+     */
     const triggerTest = async () => {
         setLoading(true);
         setError(null);
@@ -46,52 +65,64 @@ const ServiceStatusCard = ({
                 setLastResult(data.data || data);
                 setStatus('completed');
             } else {
-                setError(`Test failed with status ${response.status}`);
+                const errorMessage = `Test failed with status ${response.status}`;
+                setError(errorMessage);
                 setStatus('failed');
             }
         } catch (err) {
-            setError(`Test execution failed: ${err.message}`);
+            const errorMessage = `Test execution failed: ${err.message}`;
+            setError(errorMessage);
             setStatus('failed');
         } finally {
             setLoading(false);
         }
     };
 
+    /**
+     * Gets the appropriate status icon based on current status
+     * @returns {JSX.Element} Status icon component
+     */
     const getStatusIcon = () => {
         switch (status) {
             case 'running':
-                return <RefreshCw className="h-4 w-4 animate-spin text-blue-500" />;
+                return <RefreshCw className="h-4 w-4 animate-spin text-blue-500" aria-label="Test running" />;
             case 'completed':
-                return <CheckCircle className="h-4 w-4 text-green-500" />;
+                return <CheckCircle className="h-4 w-4 text-green-500" aria-label="Test completed successfully" />;
             case 'failed':
-                return <XCircle className="h-4 w-4 text-red-500" />;
+                return <XCircle className="h-4 w-4 text-red-500" aria-label="Test failed" />;
             default:
-                return <Clock className="h-4 w-4 text-gray-400" />;
+                return <Clock className="h-4 w-4 text-gray-400" aria-label="Test idle" />;
         }
     };
 
+    /**
+     * Gets the appropriate badge styling based on priority
+     * @returns {JSX.Element} Priority badge component
+     */
     const getStatusBadge = () => {
-        const priorityColor = {
-            critical: 'bg-red-100 text-red-800',
-            high: 'bg-orange-100 text-orange-800',
-            medium: 'bg-yellow-100 text-yellow-800',
-            low: 'bg-gray-100 text-gray-800'
+        const priorityConfig = {
+            critical: { className: 'bg-red-100 text-red-800', label: 'Critical priority' },
+            high: { className: 'bg-orange-100 text-orange-800', label: 'High priority' },
+            medium: { className: 'bg-yellow-100 text-yellow-800', label: 'Medium priority' },
+            low: { className: 'bg-gray-100 text-gray-800', label: 'Low priority' }
         };
 
+        const config = priorityConfig[priority] || priorityConfig.medium;
+
         return (
-            <Badge className={priorityColor[priority]}>
+            <Badge className={config.className} aria-label={config.label}>
                 {priority.toUpperCase()}
             </Badge>
         );
     };
 
     return (
-        <Card className="h-full">
+        <Card className="h-full" role="region" aria-labelledby={`${testType}-title`}>
             <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <span className="text-lg">{icon}</span>
-                        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+                        <span className="text-lg" role="img" aria-label={`${title} icon`}>{icon}</span>
+                        <CardTitle id={`${testType}-title`} className="text-sm font-medium">{title}</CardTitle>
                     </div>
                     <div className="flex items-center gap-2">
                         {getStatusIcon()}
@@ -103,7 +134,7 @@ const ServiceStatusCard = ({
                 <p className="text-xs text-gray-600">{description}</p>
                 
                 {lastResult && (
-                    <div className="text-xs space-y-1">
+                    <div className="text-xs space-y-1" role="region" aria-label="Test results">
                         <div className="flex justify-between">
                             <span>Status:</span>
                             <Badge className={lastResult.status === 'passed' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
@@ -126,7 +157,7 @@ const ServiceStatusCard = ({
                 )}
 
                 {error && (
-                    <Alert className="py-2">
+                    <Alert className="py-2" role="alert">
                         <AlertTriangle className="h-3 w-3" />
                         <AlertDescription className="text-xs">{error}</AlertDescription>
                     </Alert>
@@ -137,17 +168,37 @@ const ServiceStatusCard = ({
                     onClick={triggerTest}
                     disabled={loading}
                     className="w-full text-xs"
+                    aria-label={`Run test for ${title}`}
                 >
                     {loading ? (
-                        <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                        <RefreshCw className="h-3 w-3 animate-spin mr-1" aria-hidden="true" />
                     ) : (
-                        <Play className="h-3 w-3 mr-1" />
+                        <Play className="h-3 w-3 mr-1" aria-hidden="true" />
                     )}
                     {loading ? 'Testing...' : 'Run Test'}
                 </Button>
             </CardContent>
         </Card>
     );
+};
+
+ServiceStatusCard.propTypes = {
+    /** Service title */
+    title: PropTypes.string.isRequired,
+    /** Service description */
+    description: PropTypes.string.isRequired,
+    /** API endpoint for testing */
+    endpoint: PropTypes.string.isRequired,
+    /** Type of test to execute */
+    testType: PropTypes.string.isRequired,
+    /** Icon emoji to display */
+    icon: PropTypes.string.isRequired,
+    /** Service priority level */
+    priority: PropTypes.oneOf(['critical', 'high', 'medium', 'low'])
+};
+
+ServiceStatusCard.defaultProps = {
+    priority: 'medium'
 };
 
 export default ServiceStatusCard;
