@@ -5,6 +5,7 @@ Following the proven pattern from Facebook service
 """
 
 import aiohttp
+import json
 import logging
 from typing import Dict
 
@@ -134,7 +135,8 @@ class TikTokService:
                         try:
                             error_data = await response.json()
                             error_msg = error_data.get("error", {}).get("message", "Unknown error")
-                        except:
+                        except (json.JSONDecodeError, aiohttp.ContentTypeError, Exception) as e:
+                            logger.warning(f"Failed to parse JSON error response: {e}")
                             error_msg = await response.text()
                         return {
                             "success": False,
@@ -183,7 +185,8 @@ class TikTokService:
                         try:
                             error_data = await response.json()
                             error_msg = error_data.get("error", {}).get("message", "Token validation failed")
-                        except:
+                        except (json.JSONDecodeError, aiohttp.ContentTypeError, Exception) as e:
+                            logger.warning(f"Failed to parse JSON error response: {e}")
                             error_msg = await response.text()
                         return {
                             "success": False,

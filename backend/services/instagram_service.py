@@ -177,7 +177,13 @@ class InstagramService:
                 payload.encode('utf-8'),
                 hashlib.sha256
             ).hexdigest()
-            return hmac.compare_digest(f"sha256={expected_signature}", signature)
+            
+            # Support both prefixed and raw hex signatures (core.md: backward compatibility)
+            if signature.startswith("sha256="):
+                return hmac.compare_digest(f"sha256={expected_signature}", signature)
+            else:
+                # Raw hex digest format (backward compatibility)
+                return hmac.compare_digest(expected_signature, signature)
         except Exception as e:
             logger.error(f"Webhook signature validation error: {e}")
             return False
