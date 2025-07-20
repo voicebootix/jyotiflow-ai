@@ -194,8 +194,37 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
+      // SURGICAL FIX: Robust response format handling (core.md & refresh.md)
+      // Backend returns: { success: true, data: {...}, message: "..." }
+      // But some responses might be nested: { data: { success: true, ... } }
       const responseData = response.data;
-      const isSuccess = responseData && responseData.success;
+      
+      // Parse response with proper error detection and data extraction
+      let isSuccess, successData, responseMessage;
+      
+      if (responseData.success !== undefined) {
+        // Direct StandardResponse format: { success: true, data: {...}, message: "..." }
+        isSuccess = responseData.success;
+        successData = responseData.data;
+        responseMessage = responseData.message;
+      } else if (responseData.data && responseData.data.success !== undefined) {
+        // Nested format: { data: { success: true, ... } }
+        isSuccess = responseData.data.success;
+        successData = responseData.data; // ✅ FIXED: Use responseData.data, not responseData.data.data
+        responseMessage = responseData.data.message;
+      } else {
+        // Comprehensive fallback with proper error detection
+        const hasError = responseData.error || 
+                         (responseData.data && responseData.data.error) ||
+                         responseData.success === false ||
+                         (responseData.data && responseData.data.success === false);
+        
+        isSuccess = !hasError; // ✅ FIXED: Check all possible error locations
+        successData = responseData.data || responseData;
+        responseMessage = responseData.message || 
+                         (responseData.data && responseData.data.message) ||
+                         null; // ✅ FIXED: No misleading default message
+      }
       
       setTestResults(prev => ({
         ...prev,
@@ -203,20 +232,30 @@ const PlatformConfiguration = () => {
       }));
       
       if (isSuccess) {
-        const successMessage = responseData?.message || 'Connection successful!';
-        const details = responseData?.data;
+        // ✅ FIXED: Clear success message handling
+        const successMessage = responseMessage || 'Connection successful!';
         
         // Enhanced success feedback (core.md: informative responses)
-        if (platform === 'youtube' && details?.resolved_channel_id) {
-          addNotification('success', `${successMessage} Channel: ${details.channel_info?.title || 'Connected'}`, platform, details);
-        } else if (platform === 'facebook' && details?.page_name) {
-          addNotification('success', `${successMessage} Page: ${details.page_name}`, platform, details);
+        if (platform === 'youtube' && successData?.resolved_channel_id) {
+          addNotification('success', `${successMessage} Channel: ${successData.channel_info?.title || 'Connected'}`, platform, successData);
+        } else if (platform === 'facebook' && successData?.page_name) {
+          addNotification('success', `${successMessage} Page: ${successData.page_name}`, platform, successData);
         } else {
-          addNotification('success', successMessage, platform, details);
+          addNotification('success', successMessage, platform, successData);
         }
       } else {
-        const errorMessage = responseData?.message || 'Connection failed';
-        const errorDetails = responseData?.data?.error || responseData?.error;
+        // ✅ FIXED: Proper error message extraction with comprehensive fallback
+        const errorMessage = responseMessage ||
+                             responseData?.message ||
+                             (responseData?.data && responseData.data.message) ||
+                             (responseData?.data && responseData.data.error) ||
+                             responseData?.error ||
+                             'Connection failed';
+        
+        const errorDetails = responseData?.data?.error || 
+                           responseData?.error || 
+                           responseData?.data ||
+                           responseData;
         
         // Enhanced error feedback with actionable guidance (refresh.md: helpful errors)
         let guidanceMessage = errorMessage;
