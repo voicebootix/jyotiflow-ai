@@ -70,16 +70,16 @@ class TestSuiteGenerator:
         """
         logger.info("🧪 Generating comprehensive test suites...")
         
-        # Core test suites
+        # Core test suites - UPDATED PRIORITY ORDER
         test_suites = {
             "database_tests": await self.generate_database_tests(),
             "api_tests": await self.generate_api_tests(),
             "spiritual_services_tests": await self.generate_spiritual_services_tests(),
+            "social_media_tests": await self.generate_social_media_tests(),  # ELEVATED TO CRITICAL PRIORITY
             "integration_tests": await self.generate_integration_tests(),
             "performance_tests": await self.generate_performance_tests(),
             "security_tests": await self.generate_security_tests(),
-            "auto_healing_tests": await self.generate_auto_healing_tests(),
-            "social_media_tests": await self.generate_social_media_tests()
+            "auto_healing_tests": await self.generate_auto_healing_tests()
         }
         
         # Store test suites in database
