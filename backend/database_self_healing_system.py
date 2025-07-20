@@ -10,6 +10,7 @@ import os
 import ast
 import glob
 import json
+import re
 import asyncio
 import asyncpg
 import hashlib
@@ -19,7 +20,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict
-import re
 
 # Import timezone fixer to handle database datetime issues
 try:
@@ -939,12 +939,18 @@ class CodePatternAnalyzer:
         if len(columns) == 0:
             return False
         
-        # Check for suspicious column names
-        suspicious_patterns = [';', '--', '/*', '*/', 'DROP', 'DELETE']
+        # Check for suspicious patterns (but allow semicolons at the end)
+        suspicious_patterns = ['--', '/*', '*/', 'DROP TABLE', 'DELETE FROM', 'TRUNCATE']
         for pattern in suspicious_patterns:
             if pattern in create_sql.upper():
                 logger.warning(f"Suspicious pattern '{pattern}' found in schema")
                 return False
+        
+        # Check for semicolons in the middle of the statement (not at the end)
+        sql_without_final_semicolon = create_sql.rstrip().rstrip(';')
+        if ';' in sql_without_final_semicolon:
+            logger.warning("Suspicious semicolon found in the middle of schema")
+            return False
         
         # Check for reasonable column types
         valid_types = ['INTEGER', 'VARCHAR', 'TEXT', 'BOOLEAN', 'TIMESTAMP', 'DATE', 
@@ -1655,6 +1661,15 @@ class DatabaseHealthMonitor:
             r'.*_token$',  # Token columns
         ]
         
+        # Columns that should NOT be checked for uniqueness even if they match patterns
+        exclude_columns = {
+            'status_code',  # HTTP status codes are not unique
+            'error_code',   # Error codes can repeat
+            'country_code', # Country codes can repeat
+            'postal_code',  # Postal codes can repeat
+            'currency_code' # Currency codes can repeat
+        }
+        
         logger.info("Checking columns that should be unique based on naming patterns...")
         pattern_check_count = 0
         
@@ -1672,6 +1687,10 @@ class DatabaseHealthMonitor:
                     for col in unique_by_table.get(table_name, [])
                 )
                 if has_unique:
+                    continue
+                
+                # Skip if column is in exclude list
+                if column_name.lower() in exclude_columns:
                     continue
                 
                 # Check if column matches any unique pattern
@@ -1882,8 +1901,12 @@ class DatabaseHealthMonitor:
                 # Check PostgreSQL version and adjust column names accordingly
                 pg_version = await conn.fetchval("SELECT version()")
                 
+                # Extract major version number
+                version_match = re.search(r'PostgreSQL (\d+)', pg_version)
+                major_version = int(version_match.group(1)) if version_match else 0
+                
                 # PostgreSQL 13+ uses different column names in pg_stat_statements
-                if "PostgreSQL 13" in pg_version or "PostgreSQL 14" in pg_version or "PostgreSQL 15" in pg_version:
+                if major_version >= 13:
                     slow_query = """
                         SELECT 
                             query,
@@ -1918,19 +1941,45 @@ class DatabaseHealthMonitor:
             
             # Index usage
             try:
-                index_query = """
-                    SELECT 
-                        schemaname,
-                        tablename,
-                        indexname,
-                        idx_scan,
-                        idx_tup_read,
-                        idx_tup_fetch
-                    FROM pg_stat_user_indexes
-                    WHERE idx_scan = 0
-                    AND schemaname = 'public'
-                """
-                unused_indexes = await conn.fetch(index_query)
+                # Try the standard query first
+                try:
+                    index_query = """
+                        SELECT 
+                            schemaname,
+                            tablename,
+                            indexname,
+                            idx_scan,
+                            idx_tup_read,
+                            idx_tup_fetch
+                        FROM pg_stat_user_indexes
+                        WHERE idx_scan = 0
+                        AND schemaname = 'public'
+                        LIMIT 10
+                    """
+                    unused_indexes = await conn.fetch(index_query)
+                except asyncpg.UndefinedColumnError:
+                    # Fallback for systems with different column names
+                    # Some PostgreSQL versions might use relname/indexrelname
+                    try:
+                        index_query = """
+                            SELECT 
+                                schemaname,
+                                relname as tablename,
+                                indexrelname as indexname,
+                                idx_scan,
+                                idx_tup_read,
+                                idx_tup_fetch
+                            FROM pg_stat_user_indexes
+                            WHERE idx_scan = 0
+                            AND schemaname = 'public'
+                            LIMIT 10
+                        """
+                        unused_indexes = await conn.fetch(index_query)
+                    except Exception:
+                        # If both fail, return empty list
+                        logger.warning("Unable to query pg_stat_user_indexes with known column names")
+                        unused_indexes = []
+                
                 metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
             except Exception as e:
                 logger.warning(f"Failed to get index usage: {e}")
