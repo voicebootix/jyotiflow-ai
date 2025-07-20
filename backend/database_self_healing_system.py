@@ -161,8 +161,9 @@ def extract_table_from_query(query: str) -> Optional[str]:
         match = re.search(pattern, query_lower, re.IGNORECASE)
         if match:
             # Extract schema and table name
-            schema = match.group(1) if match.lastindex >= 2 else None
-            potential_table = match.group(2) if match.lastindex >= 2 else match.group(1)
+            # All patterns use (?:(\w+)\.)?(\w+) where group 1 is optional schema, group 2 is table
+            schema = match.group(1)  # Will be None if no schema specified
+            potential_table = match.group(2)  # Always contains the table name
             
             # Skip if schema is a system schema
             if schema and schema in SYSTEM_TABLES:
