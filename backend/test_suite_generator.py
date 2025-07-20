@@ -12,7 +12,7 @@ import asyncpg
 import secrets
 import string
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 import logging
 
 # Configure logging
@@ -20,6 +20,15 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+
+class TestGenerationError(Exception):
+    """Raised when test suite generation fails."""
+    pass
+
+class DatabaseConnectionError(Exception):
+    """Raised when database connection fails."""
+    pass
 
 def generate_secure_test_password() -> str:
     """
@@ -48,62 +57,54 @@ class TestSuiteGenerator:
     
     def __init__(self):
         self.database_url = DATABASE_URL
+        self.api_base_url = API_BASE_URL
         self.test_suites = {}
+    
+    def get_api_url(self, endpoint: str) -> str:
+        """
+        Get full API URL for testing endpoints.
         
+        Args:
+            endpoint: API endpoint path (e.g., '/api/test')
+            
+        Returns:
+            Full URL for the endpoint
+        """
+        return f"{self.api_base_url}{endpoint}"
+    
     async def generate_all_test_suites(self) -> Dict[str, Any]:
         """
         Generate all test suites for the platform.
         
         Returns:
-            Dict containing all generated test suites organized by category:
-                - database_tests: Core database operation tests
-                - api_tests: REST API endpoint tests  
-                - spiritual_services_tests: Business logic tests
-                - integration_tests: End-to-end workflow tests
-                - performance_tests: Load and performance tests
-                - security_tests: Security validation tests
-                - auto_healing_tests: Self-healing mechanism tests
-                - live_audio_video_tests: Live audio/video functionality tests
-                - social_media_tests: Social media marketing automation tests
-                - avatar_generation_tests: Avatar generation tests
-                - credit_payment_tests: Credit payment tests
-                - user_management_tests: User management tests
-                - admin_services_tests: Admin services tests
-                - community_services_tests: Community services tests
-                - notification_services_tests: Notification services tests
-                - analytics_monitoring_tests: Analytics monitoring tests
-        
+            Dict containing all generated test suites with comprehensive coverage
+            
         Raises:
             DatabaseConnectionError: If unable to connect to database
-            TestGenerationError: If test generation fails
+            TestGenerationError: If test suite generation fails
         """
-        logger.info("🧪 Generating comprehensive test suites...")
-        
-        # Core test suites - UPDATED PRIORITY ORDER
-        test_suites = {
-            "database_tests": await self.generate_database_tests(),
-            "api_tests": await self.generate_api_tests(),
-            "spiritual_services_tests": await self.generate_spiritual_services_tests(),
-            "integration_tests": await self.generate_integration_tests(),
-            "performance_tests": await self.generate_performance_tests(),
-            "security_tests": await self.generate_security_tests(),
-            "auto_healing_tests": await self.generate_auto_healing_tests(),
-            "live_audio_video_tests": await self.generate_live_audio_video_tests(),
-            "social_media_tests": await self.generate_social_media_tests(),
-            "avatar_generation_tests": await self.generate_avatar_generation_tests(),
-            "credit_payment_tests": await self.generate_credit_payment_tests(),
-            "user_management_tests": await self.generate_user_management_tests(),
-            "admin_services_tests": await self.generate_admin_services_tests(),
-            "community_services_tests": await self.generate_community_services_tests(),
-            "notification_services_tests": await self.generate_notification_services_tests(),
-            "analytics_monitoring_tests": await self.generate_analytics_monitoring_tests()
-        }
-        
-        # Store test suites in database
-        await self.store_test_suites(test_suites)
-        
-        logger.info("✅ Generated %d comprehensive test suites", len(test_suites))
-        return test_suites
+        try:
+            return {
+                "database_tests": await self.generate_database_tests(),
+                "api_tests": await self.generate_api_tests(),
+                "spiritual_services_tests": await self.generate_spiritual_services_tests(),
+                "integration_tests": await self.generate_integration_tests(),
+                "performance_tests": await self.generate_performance_tests(),
+                "security_tests": await self.generate_security_tests(),
+                "auto_healing_tests": await self.generate_auto_healing_tests(),
+                "live_audio_video_tests": await self.generate_live_audio_video_tests(),
+                "social_media_tests": await self.generate_social_media_tests(),
+                "avatar_generation_tests": await self.generate_avatar_generation_tests(),
+                "credit_payment_tests": await self.generate_credit_payment_tests(),
+                "user_management_tests": await self.generate_user_management_tests(),
+                "admin_services_tests": await self.generate_admin_services_tests(),
+                "community_services_tests": await self.generate_community_services_tests(),
+                "notification_services_tests": await self.generate_notification_services_tests(),
+                "analytics_monitoring_tests": await self.generate_analytics_monitoring_tests()
+            }
+        except Exception as generation_error:
+            logger.error(f"Failed to generate test suites: {generation_error}")
+            raise TestGenerationError(f"Test suite generation failed: {generation_error}") from generation_error
     
     async def generate_database_tests(self) -> Dict[str, Any]:
         """Generate database-specific tests"""
@@ -1473,12 +1474,12 @@ async def test_social_media_automation_health():
         available_platforms = 0
         
         for platform in platforms:
-            try:
-                module_name = f"{platform}_service"
-                service = __import__(f"services.{module_name}", fromlist=[f"{platform}_service"])
-                available_platforms += 1
-            except:
-                pass
+                            try:
+                    module_name = f"{platform}_service"
+                    service = __import__(f"services.{module_name}", fromlist=[f"{platform}_service"])
+                    available_platforms += 1
+                except (ImportError, AttributeError) as import_error:
+                    logger.debug(f"Platform service {platform} not available: {import_error}")
         
         health_components["platform_services"] = {
             "available": available_platforms > 0,
@@ -2175,13 +2176,14 @@ async def test_live_audio_video_system_health():
             }
         
         # Component 5: API Endpoints health
-        try:
-            import httpx
-            async with httpx.AsyncClient() as client:
-                response = await client.get("https://jyotiflow-ai.onrender.com/api/admin/agora/overview")
-                api_healthy = response.status_code in [200, 401, 403]
-        except:
-            api_healthy = False
+                 try:
+             import httpx
+             async with httpx.AsyncClient() as client:
+                 response = await client.get("https://jyotiflow-ai.onrender.com/api/admin/agora/overview")
+                 api_healthy = response.status_code in [200, 401, 403]
+         except (ImportError, Exception) as api_error:
+             logger.debug(f"API health check failed: {api_error}")
+             api_healthy = False
         
         system_components["api_endpoints"] = {
             "available": api_healthy,
@@ -3053,21 +3055,41 @@ async def test_analytics_monitoring_api_endpoints():
             ]
         }
 
-async def main():
-    """Generate all test suites"""
-    generator = TestSuiteGenerator()
-    test_suites = await generator.generate_all_test_suites()
+async def main() -> Dict[str, Any]:
+    """
+    Generate all test suites for the JyotiFlow AI platform.
     
-    print("\n🧪 COMPREHENSIVE TEST SUITE GENERATION COMPLETE")
-    print("=" * 60)
-    
-    for suite_name, suite_data in test_suites.items():
-        test_count = len(suite_data["test_cases"])
-        print(f"✅ {suite_data['test_suite_name']}: {test_count} tests")
-    
-    total_tests = sum(len(suite["test_cases"]) for suite in test_suites.values())
-    print(f"\n🎯 Total Tests Generated: {total_tests}")
-    print("🚀 Ready for execution via test runner")
+    Returns:
+        Dict containing all generated test suites
+        
+    Raises:
+        TestGenerationError: If test suite generation fails
+        SystemExit: If critical error occurs
+    """
+    try:
+        generator = TestSuiteGenerator()
+        test_suites = await generator.generate_all_test_suites()
+        
+        logger.info("🧪 COMPREHENSIVE TEST SUITE GENERATION COMPLETE")
+        logger.info("=" * 60)
+        
+        total_tests = 0
+        for suite_name, suite_data in test_suites.items():
+            test_count = len(suite_data.get('test_cases', []))
+            logger.info(f"✅ {suite_data['test_suite_name']}: {test_count} tests")
+            total_tests += test_count
+        
+        logger.info(f"🎯 Total Tests Generated: {total_tests}")
+        logger.info("🚀 Ready for execution via test runner")
+        
+        return test_suites
+        
+    except (TestGenerationError, DatabaseConnectionError) as known_error:
+        logger.error(f"Known error during test generation: {known_error}")
+        raise
+    except Exception as unexpected_error:
+        logger.critical(f"Unexpected error during test generation: {unexpected_error}")
+        raise TestGenerationError(f"Unexpected error: {unexpected_error}") from unexpected_error
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    test_suites = asyncio.run(main())
