@@ -196,7 +196,7 @@ async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_de
             success=True,
             data=overview_data,
             message="Marketing overview retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Marketing overview failed: {e}")
@@ -217,7 +217,7 @@ async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_de
             success=True,
             data=fallback_data,
             message="Marketing overview retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.get("/content-calendar")
 async def get_content_calendar(
@@ -240,7 +240,7 @@ async def get_content_calendar(
             success=True,
             data={"calendar": calendar_data},  # SURGICAL FIX: Wrap list in dictionary
             message="Content calendar retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Content calendar fetch failed: {e}")
@@ -270,7 +270,7 @@ async def get_content_calendar(
             success=True,
             data={"calendar": fallback_calendar},
             message="Content calendar retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.get("/campaigns")
 async def get_campaigns(
@@ -286,7 +286,7 @@ async def get_campaigns(
             success=True,
             data={"campaigns": campaigns},  # SURGICAL FIX: Wrap list in dictionary
             message="Campaigns retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Campaigns fetch failed: {e}")
@@ -308,7 +308,7 @@ async def get_campaigns(
             success=True,
             data={"campaigns": fallback_campaigns},
             message="Campaigns retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.get("/platform-config")
 async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
@@ -325,7 +325,7 @@ async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
                 success=True,
                 data=get_empty_platform_config(),
                 message="Platform configuration retrieved (database not available)"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
         async with db.db_pool.acquire() as db_conn:
             configs = {}
@@ -361,7 +361,7 @@ async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
             success=True,
             data=configs,
             message="Platform configuration retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Platform config fetch failed: {e}")
@@ -370,7 +370,7 @@ async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
             success=True,
             data=get_empty_platform_config(),
             message="Platform configuration retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.post("/platform-config")
 async def update_platform_config(

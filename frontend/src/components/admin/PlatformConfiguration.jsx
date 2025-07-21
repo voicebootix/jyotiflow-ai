@@ -167,7 +167,7 @@ const PlatformConfiguration = () => {
         
         // DIAGNOSTIC: Track fetchCurrentKeys success/failure
         try {
-          await fetchCurrentKeys();
+        await fetchCurrentKeys();
           console.log('✅ fetchCurrentKeys completed successfully');
         } catch (fetchError) {
           console.error('❌ fetchCurrentKeys failed:', fetchError);
