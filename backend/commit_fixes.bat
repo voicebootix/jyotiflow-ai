@@ -12,7 +12,7 @@ if exist services\facebook_service.py (
 )
 
 if exist services\instagram_service.py (
-    git add services/instagram_service.py
+    git add services/instagram_service.py  
     echo ✅ Added services/instagram_service.py
 ) else (
     echo ⚠️ services/instagram_service.py not found, skipping

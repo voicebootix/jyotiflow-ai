@@ -138,16 +138,19 @@ print("⚠️ Surgical auth router disabled - using main auth system only")
 try:
     from monitoring.register_monitoring import register_monitoring_system, init_monitoring
     from monitoring.core_integration import get_monitoring_middleware
-    MONITORING_AVAILABLE = True
+    MONITORING_AVAILABLE = True  # ✅ SUCCESS: Monitoring system loaded
     print("✅ Monitoring system loaded successfully")
 except ImportError as e:
+    # ✅ CRITICAL: This assignment MUST stay inside this except block
     MONITORING_AVAILABLE = False
     print(f"⚠️ Monitoring system not available - ImportError: {e}")
     print("   → Will auto-enable once monitoring dependencies are resolved")
 except Exception as e:
+    # ✅ CRITICAL: This assignment MUST stay inside this except block  
     MONITORING_AVAILABLE = False
     print(f"⚠️ Monitoring system failed to load - Error: {e}")
     print("   → Check monitoring module configuration")
+# ✅ IMPORTANT: No MONITORING_AVAILABLE assignments should be outside this try-except block
 
 # Debug router for testing
 try:

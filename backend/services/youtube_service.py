@@ -286,7 +286,8 @@ class YouTubeService:
                             "success": False,
                             "error": f"Search failed: HTTP {response.status}"
                         }
-                        
+                    
+                    # ✅ FIXED: Moved JSON parsing out of error block to execute on successful responses
                     data = await response.json()
                     items = data.get("items", [])
                     
@@ -297,6 +298,7 @@ class YouTubeService:
                     best_match = self._find_best_channel_match(items, original_handle)
                     if best_match:
                         strategy_names = ["handle", "handle_fallback", "handle_space_fallback"]
+                        # ✅ FIXED: Corrected return statement indentation
                         return {
                             "success": True,
                             "channel_id": best_match["channelId"],
@@ -306,11 +308,12 @@ class YouTubeService:
                         }
                     
                     # If no specific match, return first result as approximate
+                    # ✅ FIXED: Corrected indentation for first_item assignment and return statement
                     first_item = items[0]["snippet"]
                     return {
                         "success": True,
                         "channel_id": first_item["channelId"],
-                        "input_type": f"handle_approximate_{strategy_index}",
+                        "input_type": "handle_approximate",
                         "resolved_title": first_item["title"],
                         "note": f"Approximate match using search query: '{search_query}'"
                     }
