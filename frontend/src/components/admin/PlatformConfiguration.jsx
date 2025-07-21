@@ -164,17 +164,7 @@ const PlatformConfiguration = () => {
       
       if (responseData && responseData.success) {
         addNotification('success', `${platform.charAt(0).toUpperCase() + platform.slice(1)} configuration saved successfully!`, platform);
-        
-        // DIAGNOSTIC: Track fetchCurrentKeys success/failure
-        try {
-          await fetchCurrentKeys();  // ✅ FIXED: Proper indentation
-          console.log('✅ fetchCurrentKeys completed successfully');
-        } catch (fetchError) {
-          console.error('❌ fetchCurrentKeys failed:', fetchError);
-          addNotification('warning', 'Configuration saved but refresh failed. Please reload the page.', platform);
-        }
-        
-        setLoading(false); // ✅ CRITICAL FIX: Reset loading state on success
+        setLoading(false); // ✅ Reset loading state on success
       } else {
         const errorMessage = responseData?.message || 'Failed to save configuration';
         console.log('❌ SAVE FAILED - Response Analysis:', {
@@ -184,6 +174,7 @@ const PlatformConfiguration = () => {
           hasResponseData: !!responseData
         });
         addNotification('error', errorMessage, platform, responseData);
+        setLoading(false);
       }
     } catch (error) {
       console.error('Error saving configuration:', error);
@@ -192,8 +183,20 @@ const PlatformConfiguration = () => {
         status: error.response?.status,
         details: error.response?.data
       });
-    } finally {
       setLoading(false);
+    }
+    
+    // ✅ CRITICAL FIX: Separate try-catch for fetchCurrentKeys
+    // This prevents fetchCurrentKeys errors from overriding save success
+    try {
+      await fetchCurrentKeys();
+      console.log('✅ fetchCurrentKeys completed successfully');
+    } catch (fetchError) {
+      console.error('❌ fetchCurrentKeys failed:', fetchError);
+      // Only show warning if save was successful
+      if (responseData?.success) {
+        addNotification('warning', 'Configuration saved but refresh failed. Please reload the page.', platform);
+      }
     }
   };
 
