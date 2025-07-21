@@ -24,6 +24,7 @@ import {
     DollarSign,
     Users
 } from 'lucide-react';
+import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus.js';
 import TestStatusCard from './TestStatusCard';
 import ServiceStatusCard from './ServiceStatusCard';
 import AllServicesTab from './AllServicesTab';
@@ -99,25 +100,7 @@ const TestResultsDashboard = () => {
         }
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'passed': return 'bg-green-100 text-green-800';
-            case 'failed': return 'bg-red-100 text-red-800';
-            case 'running': return 'bg-blue-100 text-blue-800';
-            case 'partial': return 'bg-yellow-100 text-yellow-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
-    };
-
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'passed': return <CheckCircle className="h-4 w-4" />;
-            case 'failed': return <XCircle className="h-4 w-4" />;
-            case 'running': return <Clock className="h-4 w-4" />;
-            case 'partial': return <AlertTriangle className="h-4 w-4" />;
-            default: return <TestTube className="h-4 w-4" />;
-        }
-    };
+    // Status functions now imported from shared utility
 
     const filteredSessions = testSessions.filter(session => {
         if (filter !== 'all' && session.status !== filter) return false;
@@ -175,7 +158,7 @@ const TestResultsDashboard = () => {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                    <Badge className={getStatusColor(session.status)}>
+                                                                            <Badge className={getStatusBadgeColor(session.status)}>
                                         {session.status}
                                     </Badge>
                                     {session.total_tests > 0 && (
@@ -333,7 +316,7 @@ const TestResultsDashboard = () => {
                                 </div>
                                 <div>
                                     <label className="text-sm font-medium">Status</label>
-                                    <Badge className={getStatusColor(selectedSession.status)}>
+                                    <Badge className={getStatusBadgeColor(selectedSession.status)}>
                                         {selectedSession.status}
                                     </Badge>
                                 </div>

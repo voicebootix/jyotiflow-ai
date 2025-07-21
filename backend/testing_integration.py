@@ -322,8 +322,8 @@ class AutoFixTestIntegrator:
             
             # For test tables, try basic operations
             if table_name.startswith("test_") or table_name in ["users", "sessions"]:
-                # Try a simple SELECT count
-                count = await conn.fetchval(f'SELECT COUNT(*) FROM "{table_name}"')
+                # Try a simple SELECT count with safe identifier
+                count = await conn.fetchval('SELECT COUNT(*) FROM ' + str(asyncpg.Identifier(table_name)))
                 
                 test_result.update({
                     "status": "passed",

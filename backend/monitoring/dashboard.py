@@ -5,7 +5,6 @@ Integrates seamlessly with existing admin dashboard UI.
 import json
 import asyncio
 import uuid
-import asyncpg
 import os
 from datetime import datetime, timezone
 from typing import Dict, List
@@ -15,8 +14,7 @@ from db import db_manager
 import logging
 logger = logging.getLogger(__name__)
 
-# Database URL for direct connections
-DATABASE_URL = os.getenv("DATABASE_URL")
+# Database connection managed through db_manager
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional, Dict, Any
 
@@ -322,11 +320,11 @@ class MonitoringDashboard:
                 
                 # Run validations
                 # This would trigger actual API calls in production
-                return {
-                    "success": True,
-                    "test_session_id": test_session_id,
-                    "message": "Validation test initiated"
-                }
+                return StandardResponse(
+                    status="success",
+                    message="Validation test initiated",
+                    data={"test_session_id": test_session_id}
+                )
                 
             elif test_type == "social_media":
                 # Test social media credentials
@@ -336,10 +334,10 @@ class MonitoringDashboard:
                     return test_result
                 else:
                     return StandardResponse(
-            status="error", 
-            message="Social media validator not found",
-            data={}
-        )
+                        status="error", 
+                        message="Social media validator not found",
+                        data={}
+                    )
                     
             else:
                 return StandardResponse(
@@ -755,21 +753,51 @@ async def trigger_test(test_type: str, admin=Depends(get_current_admin_dependenc
 async def get_test_status():
     """Get current test execution status (public endpoint)"""
     try:
-        # Mock test status data - will be replaced with real implementation
-        return StandardResponse(
-            status="success",
-            message="Test status retrieved",
-            data={
-                "last_execution": "2024-01-15T10:30:00Z",
-                "total_tests": 42,
-                "passed_tests": 38,
-                "failed_tests": 4,
-                "test_coverage": 87.5,
-                "execution_time": 35,
-                "status": "passed",
-                "auto_fixes_applied": 2
-            }
-        )
+        conn = await db_manager.get_connection()
+        try:
+            # Get the latest completed test execution
+            latest_execution = await conn.fetchrow("""
+                SELECT completed_at, total_tests, passed_tests, failed_tests, 
+                       coverage_percentage, execution_time_seconds, status
+                FROM test_execution_sessions
+                WHERE status IN ('passed', 'failed', 'partial')
+                ORDER BY completed_at DESC NULLS LAST, started_at DESC
+                LIMIT 1
+            """)
+            
+            if latest_execution:
+                return StandardResponse(
+                    status="success",
+                    message="Test status retrieved",
+                    data={
+                        "last_execution": latest_execution['completed_at'].isoformat() if latest_execution['completed_at'] else None,
+                        "total_tests": latest_execution['total_tests'] or 0,
+                        "passed_tests": latest_execution['passed_tests'] or 0,
+                        "failed_tests": latest_execution['failed_tests'] or 0,
+                        "test_coverage": float(latest_execution['coverage_percentage'] or 0),
+                        "execution_time": latest_execution['execution_time_seconds'] or 0,
+                        "status": latest_execution['status'] or 'unknown',
+                        "auto_fixes_applied": 0  # Set to 0 for now as requested
+                    }
+                )
+            else:
+                # No test executions found
+                return StandardResponse(
+                    status="success", 
+                    message="No test executions found",
+                    data={
+                        "last_execution": None,
+                        "total_tests": 0,
+                        "passed_tests": 0,
+                        "failed_tests": 0,
+                        "test_coverage": 0,
+                        "execution_time": 0,
+                        "status": "not_available",
+                        "auto_fixes_applied": 0
+                    }
+                )
+        finally:
+            await db_manager.release_connection(conn)
     except Exception as e:
         return StandardResponse(
             status="error",
@@ -1415,7 +1443,7 @@ async def get_live_audio_video_status():
         # Check database tables
         database_status = {"available": False, "tables": {}}
         try:
-            conn = await asyncpg.connect(DATABASE_URL)
+            conn = await db_manager.get_connection()
             
             tables_to_check = ['live_chat_sessions', 'video_chat_sessions', 'video_chat_recordings', 'video_chat_analytics']
             for table in tables_to_check:
@@ -1426,7 +1454,7 @@ async def get_live_audio_video_status():
                 database_status["tables"][table] = bool(table_exists)
             
             database_status["available"] = any(database_status["tables"].values())
-            await conn.close()
+            await db_manager.release_connection(conn)
             
         except Exception as db_error:
             database_status = {"available": False, "error": str(db_error)}
@@ -1440,7 +1468,7 @@ async def get_live_audio_video_status():
         }
         
         try:
-            conn = await asyncpg.connect(DATABASE_URL)
+            conn = await db_manager.get_connection()
             
             # Active sessions
             if database_status["tables"].get("live_chat_sessions"):
@@ -1464,7 +1492,7 @@ async def get_live_audio_video_status():
                 ''')
                 session_metrics["total_revenue_24h"] = float(revenue_24h or 0.0)
             
-            await conn.close()
+            await db_manager.release_connection(conn)
             
         except Exception as metrics_error:
             print(f"Error fetching session metrics: {metrics_error}")
@@ -1523,7 +1551,7 @@ async def get_live_audio_video_status():
 async def get_live_audio_video_sessions():
     """Get recent live audio/video sessions data"""
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
+        conn = await db_manager.get_connection()
         
         # Get recent sessions
         sessions = []
@@ -1552,7 +1580,7 @@ async def get_live_audio_video_sessions():
         except Exception as sessions_error:
             print(f"Error fetching sessions: {sessions_error}")
         
-        await conn.close()
+        await db_manager.release_connection(conn)
         
         return {
             "success": True,
@@ -1603,7 +1631,7 @@ async def test_live_audio_video_system():
         
         # Test 2: Database operations
         try:
-            conn = await asyncpg.connect(DATABASE_URL)
+            conn = await db_manager.get_connection()
             
             # Test session creation
             session_id = str(uuid.uuid4())
@@ -1617,7 +1645,7 @@ async def test_live_audio_video_system():
                 "SELECT status FROM live_chat_sessions WHERE session_id = $1", session_id
             )
             await conn.execute("DELETE FROM live_chat_sessions WHERE session_id = $1", session_id)
-            await conn.close()
+            await db_manager.release_connection(conn)
             
             test_results["database"] = {
                 "status": "passed" if session else "failed",
