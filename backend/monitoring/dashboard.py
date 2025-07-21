@@ -4,6 +4,8 @@ Integrates seamlessly with existing admin dashboard UI.
 """
 import json
 import asyncio
+import uuid
+import asyncpg
 from datetime import datetime, timezone
 from typing import Dict, List
 
@@ -1186,8 +1188,7 @@ async def get_social_media_status():
 async def get_social_media_campaigns(admin=Depends(get_current_admin_dependency)):
     """Get social media campaign performance and analytics"""
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        async with db_manager.get_connection() as conn:
             # Get recent campaigns with performance data
             campaigns = await conn.fetch("""
                 SELECT 
@@ -1230,8 +1231,6 @@ async def get_social_media_campaigns(admin=Depends(get_current_admin_dependency)
                     }
                 }
             )
-        finally:
-            await conn.close()
     except Exception as e:
         logger.error(f"Failed to get social media campaigns: {e}")
         return StandardResponse(
