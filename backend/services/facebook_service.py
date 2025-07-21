@@ -5,7 +5,7 @@ Validates Facebook API credentials by making actual Graph API calls
 
 import aiohttp
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -318,6 +318,215 @@ class FacebookService:
             return {
                 "success": False,
                 "error": f"Page access token test failed: {str(e)}"
+            }
+
+    async def post_content(self, content: Dict, media_url: Optional[str] = None) -> Dict:
+        """Post content to Facebook page"""
+        credentials = await self._get_credentials()
+        if not credentials:
+            return {
+                "success": False,
+                "error": "Facebook credentials not configured in admin dashboard."
+            }
+        
+        try:
+            # Prepare post content
+            post_message = content.get('content_text', content.get('description', ''))
+            post_title = content.get('title', '')
+            
+            # Combine title and message
+            if post_title and post_message:
+                full_message = f"{post_title}\n\n{post_message}"
+            else:
+                full_message = post_message or post_title
+            
+            # Add hashtags if provided
+            if content.get('hashtags'):
+                hashtags = ' '.join(content['hashtags'][:10])  # Facebook hashtag limit
+                full_message = f"{full_message}\n\n{hashtags}"
+            
+            # Post to Facebook page
+            if media_url:
+                result = await self._post_with_media(credentials, full_message, media_url)
+            else:
+                result = await self._post_text_only(credentials, full_message)
+            
+            if result.get("success"):
+                logger.info(f"✅ Successfully posted to Facebook: {result.get('post_id')}")
+                return {
+                    "success": True,
+                    "post_id": result.get('post_id'),
+                    "platform": "facebook",
+                    "post_url": result.get('post_url', 'https://facebook.com'),
+                    "content_length": len(full_message)
+                }
+            else:
+                logger.error(f"❌ Facebook posting failed: {result.get('error')}")
+                return result
+                
+        except Exception as e:
+            logger.error(f"❌ Facebook posting exception: {e}")
+            return {
+                "success": False,
+                "error": f"Facebook posting failed: {str(e)}"
+            }
+    
+    async def _get_credentials(self):
+        """Get Facebook credentials from database (platform_settings table)"""
+        if self._credentials_cache:
+            return self._credentials_cache
+            
+        try:
+            import db
+            if not db.db_pool:
+                return None
+                
+            async with db.db_pool.acquire() as db_conn:
+                row = await db_conn.fetchrow(
+                    "SELECT value FROM platform_settings WHERE key = $1",
+                    "facebook_credentials"
+                )
+                if row and row['value']:
+                    import json
+                    credentials = json.loads(row['value']) if isinstance(row['value'], str) else row['value']
+                    self._credentials_cache = credentials
+                    return credentials
+        except Exception as e:
+            logger.error(f"Failed to get Facebook credentials: {e}")
+            
+        return None
+    
+    async def _post_text_only(self, credentials: Dict, message: str) -> Dict:
+        """Post text-only content to Facebook page"""
+        try:
+            page_access_token = credentials.get('page_access_token')
+            if not page_access_token:
+                return {
+                    "success": False,
+                    "error": "Missing page access token in Facebook credentials"
+                }
+            
+            # Get page ID from access token
+            page_info = await self._get_page_info(page_access_token)
+            if not page_info.get("success"):
+                return page_info
+            
+            page_id = page_info.get("page_id")
+            
+            # Post to page feed
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/{page_id}/feed"
+                params = {
+                    "access_token": page_access_token,
+                    "message": message
+                }
+                
+                async with session.post(url, data=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        post_id = data["id"]
+                        return {
+                            "success": True,
+                            "post_id": post_id,
+                            "post_url": f"https://facebook.com/{post_id}",
+                            "page_name": page_info.get("page_name", "Unknown Page")
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Facebook posting failed")
+                        return {
+                            "success": False,
+                            "error": f"Facebook API error: {error_msg}"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Facebook text posting failed: {str(e)}"
+            }
+    
+    async def _post_with_media(self, credentials: Dict, message: str, media_url: str) -> Dict:
+        """Post content with media to Facebook page"""
+        try:
+            page_access_token = credentials.get('page_access_token')
+            if not page_access_token:
+                return {
+                    "success": False,
+                    "error": "Missing page access token in Facebook credentials"
+                }
+            
+            # Get page ID from access token
+            page_info = await self._get_page_info(page_access_token)
+            if not page_info.get("success"):
+                return page_info
+            
+            page_id = page_info.get("page_id")
+            
+            # Post photo/video to page
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/{page_id}/photos"  # For images, use /videos for videos
+                params = {
+                    "access_token": page_access_token,
+                    "url": media_url,  # Facebook can fetch from URL
+                    "caption": message
+                }
+                
+                async with session.post(url, data=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        post_id = data["id"]
+                        return {
+                            "success": True,
+                            "post_id": post_id,
+                            "post_url": f"https://facebook.com/{post_id}",
+                            "page_name": page_info.get("page_name", "Unknown Page"),
+                            "media_type": "photo"
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Facebook media posting failed")
+                        return {
+                            "success": False,
+                            "error": f"Facebook media API error: {error_msg}"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Facebook media posting failed: {str(e)}"
+            }
+    
+    async def _get_page_info(self, page_access_token: str) -> Dict:
+        """Get page information from page access token"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me"
+                params = {
+                    "access_token": page_access_token,
+                    "fields": "id,name,category"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        return {
+                            "success": True,
+                            "page_id": data["id"],
+                            "page_name": data.get("name", "Unknown Page"),
+                            "page_category": data.get("category", "Unknown")
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Page info retrieval failed")
+                        return {
+                            "success": False,
+                            "error": f"Page info error: {error_msg}"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Page info retrieval failed: {str(e)}"
             }
 
 # Global instance for consistent import pattern (refresh.md: consistent architecture)
