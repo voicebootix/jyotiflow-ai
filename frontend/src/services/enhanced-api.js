@@ -30,6 +30,24 @@ class EnhancedAPI {
     try {
       const response = await fetch(url, config);
       
+      // CRITICAL FIX: Handle 401 Unauthorized (token expiry) with auto-redirect
+      if (response.status === 401) {
+        console.error('🔐 Authentication failed - token may have expired');
+        
+        // Clear expired token
+        localStorage.removeItem('jyotiflow_token');
+        localStorage.removeItem('jyotiflow_user');
+        
+        // Redirect to admin login for admin endpoints
+        if (endpoint.includes('/admin/')) {
+          console.log('🔐 Redirecting to admin login due to token expiry');
+          window.location.href = '/login?admin=true&redirect=' + encodeURIComponent(window.location.pathname);
+          return { success: false, message: 'Authentication expired - redirecting to login', status: 401 };
+        }
+        
+        return { success: false, message: 'Authentication expired', status: 401 };
+      }
+      
       if (!response.ok) {
         console.error(`API Error: ${response.status} - ${response.statusText}`);
         return { success: false, message: `Server error: ${response.status}`, status: response.status };
