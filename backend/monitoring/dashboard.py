@@ -703,7 +703,7 @@ async def get_monitoring_health():
         )
 
 @router.get("/dashboard")
-async def get_dashboard(admin=Depends(get_current_admin_dependency)):
+async def get_dashboard(admin: dict = Depends(get_current_admin_dependency)):
     """Get monitoring dashboard data for admin interface"""
     dashboard_data = await monitoring_dashboard.get_dashboard_data()
     return StandardResponse(
@@ -713,7 +713,7 @@ async def get_dashboard(admin=Depends(get_current_admin_dependency)):
     )
 
 @router.get("/session/{session_id}")
-async def get_session_validation(session_id: str, admin=Depends(get_current_admin_dependency)):
+async def get_session_validation(session_id: str, admin: dict = Depends(get_current_admin_dependency)):
     """Get detailed validation report for a specific session"""
     session_details = await monitoring_dashboard.get_session_details(session_id)
     
@@ -727,7 +727,7 @@ async def get_session_validation(session_id: str, admin=Depends(get_current_admi
     )
 
 @router.get("/integration/{integration_point}/health")
-async def get_integration_health(integration_point: str, admin=Depends(get_current_admin_dependency)):
+async def get_integration_health(integration_point: str, admin: dict = Depends(get_current_admin_dependency)):
     """Get detailed health metrics for a specific integration"""
     health_details = await monitoring_dashboard.get_integration_health_details(integration_point)
     
@@ -738,7 +738,7 @@ async def get_integration_health(integration_point: str, admin=Depends(get_curre
     )
 
 @router.post("/test/{test_type}")
-async def trigger_test(test_type: str, admin=Depends(get_current_admin_dependency)):
+async def trigger_test(test_type: str, admin: dict = Depends(get_current_admin_dependency)):
     """Trigger a validation test"""
     test_result = await monitoring_dashboard.trigger_validation_test(test_type)
     
@@ -949,7 +949,7 @@ async def execute_test(request: dict, admin: dict = Depends(get_current_admin_de
         )
 
 @router.get("/test-suites")
-async def get_available_test_suites(admin=Depends(get_current_admin_dependency)):
+async def get_available_test_suites(admin: dict = Depends(get_current_admin_dependency)):
     """Get all available test suites that can be executed"""
     try:
         from test_suite_generator import TestSuiteGenerator
@@ -991,7 +991,7 @@ async def get_available_test_suites(admin=Depends(get_current_admin_dependency))
         )
 
 @router.get("/business-logic-validation")
-async def get_business_logic_validation_status(admin=Depends(get_current_admin_dependency)):
+async def get_business_logic_validation_status(admin: dict = Depends(get_current_admin_dependency)):
     """Get business logic validation status and recent results"""
     try:
         conn = await db_manager.get_connection()
@@ -1043,7 +1043,7 @@ async def get_business_logic_validation_status(admin=Depends(get_current_admin_d
         )
 
 @router.post("/business-logic-validate")
-async def trigger_business_logic_validation(request: dict, admin=Depends(get_current_admin_dependency)):
+async def trigger_business_logic_validation(request: dict, admin: dict = Depends(get_current_admin_dependency)):
     """Trigger business logic validation for spiritual content"""
     try:
         from monitoring.business_validator import BusinessLogicValidator
@@ -1128,11 +1128,11 @@ async def get_spiritual_services_status():
                     SELECT COUNT(*) FROM business_logic_issues
                     WHERE created_at >= NOW() - INTERVAL '24 hours'
                     AND validation_result = 'passed'
-                                 """)
+                """)
                  
-            finally:
-                await db_manager.release_connection(conn)
-        except Exception:
+        finally:
+            await db_manager.release_connection(conn)
+    except Exception:
             recent_sessions = 0
             successful_validations = 0
         
@@ -1223,30 +1223,30 @@ async def get_social_media_status():
         try:
             conn = await db_manager.get_connection()
             try:
-            # Count recent campaigns
-            recent_campaigns = await conn.fetchval("""
-                SELECT COUNT(*) FROM social_campaigns 
-                WHERE created_at >= NOW() - INTERVAL '7 days'
-            """)
-            
-            # Count recent posts
-            recent_posts = await conn.fetchval("""
-                SELECT COUNT(*) FROM social_posts 
-                WHERE created_at >= NOW() - INTERVAL '24 hours'
-            """)
-            
-            # Count social media validation logs
-            recent_validations = await conn.fetchval("""
-                SELECT COUNT(*) FROM social_media_validation_log
-                WHERE created_at >= NOW() - INTERVAL '24 hours'
-            """)
-            
-            # Get active campaigns
-            active_campaigns = await conn.fetchval("""
-                SELECT COUNT(*) FROM social_campaigns 
-                WHERE status = 'active'
-            """)
-            
+                # Count recent campaigns
+                recent_campaigns = await conn.fetchval("""
+                    SELECT COUNT(*) FROM social_campaigns 
+                    WHERE created_at >= NOW() - INTERVAL '7 days'
+                """)
+                
+                # Count recent posts
+                recent_posts = await conn.fetchval("""
+                    SELECT COUNT(*) FROM social_posts 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                """)
+                
+                # Count social media validation logs
+                recent_validations = await conn.fetchval("""
+                    SELECT COUNT(*) FROM social_media_validation_log
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                """)
+                
+                # Get active campaigns
+                active_campaigns = await conn.fetchval("""
+                    SELECT COUNT(*) FROM social_campaigns 
+                    WHERE status = 'active'
+                """)
+                
             finally:
                 await db_manager.release_connection(conn)
         except Exception:
@@ -1284,7 +1284,7 @@ async def get_social_media_status():
         )
 
 @router.get("/social-media-campaigns")
-async def get_social_media_campaigns(admin=Depends(get_current_admin_dependency)):
+async def get_social_media_campaigns(admin: dict = Depends(get_current_admin_dependency)):
     """Get social media campaign performance and analytics"""
     try:
         conn = await db_manager.get_connection()
@@ -1342,7 +1342,7 @@ async def get_social_media_campaigns(admin=Depends(get_current_admin_dependency)
         )
 
 @router.post("/social-media-test")
-async def test_social_media_automation(admin=Depends(get_current_admin_dependency)):
+async def test_social_media_automation(admin: dict = Depends(get_current_admin_dependency)):
     """Test social media automation functionality"""
     try:
         from social_media_marketing_automation import SocialMediaMarketingEngine

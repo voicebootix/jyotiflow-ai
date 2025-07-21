@@ -31,14 +31,6 @@ class TestGenerationError(Exception):
 DATABASE_URL = os.getenv("DATABASE_URL")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
 
-class TestGenerationError(Exception):
-    """Raised when test suite generation fails."""
-    pass
-
-class DatabaseConnectionError(Exception):
-    """Raised when database connection fails."""
-    pass
-
 class TestStorageError(Exception):
     """Raised when test storage fails."""
     pass
