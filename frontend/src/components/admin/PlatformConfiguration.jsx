@@ -104,11 +104,10 @@ const PlatformConfiguration = () => {
 
   const fetchCurrentKeys = async () => {
     try {
-      const response = await enhanced_api.get('/api/admin/social-marketing/platform-config');
-      // SURGICAL FIX: Handle StandardResponse format correctly
-      const responseData = response.data;
-      if (responseData && responseData.success && responseData.data) {
-        setApiKeys(responseData.data);
+      const response = await enhanced_api.getPlatformConfig();
+      // ✅ FIXED: response IS the data, check for success and data properties
+      if (response && response.success && response.data) {
+        setApiKeys(response.data);
       }
     } catch (error) {
       console.error('Error fetching API keys:', error);
@@ -153,12 +152,12 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
-      responseData = response.data; // ✅ Assign to higher scope variable
+      responseData = response; // ✅ FIXED: response IS the data, no .data property
       
       // DIAGNOSTIC: Log the actual response for debugging
       console.log('🔍 SAVE RESPONSE DEBUG:', {
         platform,
-        httpStatus: response.status,
+        responseStructure: Object.keys(response),
         responseData,
         hasSuccess: responseData?.success,
         successValue: responseData?.success,
@@ -249,10 +248,9 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
-      // SURGICAL FIX: Robust response format handling (core.md & refresh.md)
-      // Backend returns: { success: true, data: {...}, message: "..." }
-      // But some responses might be nested: { data: { success: true, ... } }
-      const responseData = response.data;
+      // ✅ FIXED: Response format handling (core.md & refresh.md)
+      // enhanced-api returns the parsed JSON directly: { success: true, data: {...}, message: "..." }
+      const responseData = response;
       
       // Parse response with proper error detection and data extraction
       let isSuccess, successData, responseMessage;
