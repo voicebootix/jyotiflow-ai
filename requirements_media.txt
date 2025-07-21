@@ -1,0 +1,26 @@
+# Media Generation Service Dependencies
+# Install with: pip install -r requirements_media.txt
+
+# Core image generation
+Pillow>=10.0.0              # PIL for image generation and manipulation
+pillow-heif>=0.10.0         # HEIF image format support
+
+# Video generation (future enhancement)
+opencv-python>=4.8.0        # Video processing and generation
+moviepy>=1.0.3              # Video editing and creation
+
+# Storage and CDN
+boto3>=1.28.0               # AWS S3 storage integration
+google-cloud-storage>=2.10.0 # Google Cloud Storage
+cloudinary>=1.34.0          # Cloudinary CDN integration
+
+# File handling
+aiofiles>=23.1.0            # Async file operations
+python-magic>=0.4.27        # File type detection
+
+# Image optimization
+pillow-simd>=9.0.0          # Optimized Pillow for better performance (optional)
+
+# Optional: Advanced text rendering
+# fonttools>=4.40.0         # Advanced font handling
+# freetype-py>=2.4.0        # FreeType font rendering 

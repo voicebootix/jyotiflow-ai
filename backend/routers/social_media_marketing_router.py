@@ -1111,31 +1111,70 @@ async def _execute_real_posting(platform: str, platform_credentials: Dict) -> Di
                 result = await facebook_service.post_content(content_data)
             elif platform == "instagram":
                 from services.instagram_service import instagram_service
-                # ✅ FIXED: Actually call Instagram service instead of hardcoded error
-                # Instagram requires media - use a placeholder for now but call the actual service
+                from services.media_generation_service import media_generation_service
+                # ✅ PRODUCTION-READY: Generate real spiritual quote images
                 try:
-                    # TODO: In production, implement proper media generation/storage
-                    # For now, use placeholder URL to test the actual service call
-                    media_url = "https://via.placeholder.com/1080x1080/4A90E2/FFFFFF?text=Daily+Wisdom"
-                    result = await instagram_service.post_content(content_data, media_url)
+                    # Generate actual spiritual quote image
+                    media_result = await media_generation_service.generate_instagram_image(content_data)
+                    
+                    if media_result.get("success"):
+                        media_url = media_result["media_url"]
+                        logger.info(f"✅ Generated Instagram image: {media_result.get('filename')}")
+                        result = await instagram_service.post_content(content_data, media_url)
+                        
+                        # Add media generation info to result
+                        if result.get("success"):
+                            result["media_generation"] = {
+                                "filename": media_result.get("filename"),
+                                "dimensions": media_result.get("dimensions"),
+                                "fallback_used": media_result.get("fallback_used", False)
+                            }
+                    else:
+                        # Media generation failed, use fallback
+                        logger.warning(f"⚠️ Instagram media generation failed: {media_result.get('error')}")
+                        media_url = media_result.get("media_url")  # Fallback URL
+                        result = await instagram_service.post_content(content_data, media_url)
+                        result["media_generation_warning"] = media_result.get("error")
+                        
                 except Exception as e:
+                    logger.error(f"❌ Instagram media generation/posting failed: {e}")
                     result = {
                         "success": False,
-                        "error": f"Instagram service call failed: {str(e)}"
+                        "error": f"Instagram posting failed: {str(e)}"
                     }
             elif platform == "tiktok":
                 from services.tiktok_service import tiktok_service
-                # ✅ FIXED: Actually call TikTok service instead of hardcoded error
-                # TikTok requires video - use a placeholder for now but call the actual service
+                from services.media_generation_service import media_generation_service
+                # ✅ PRODUCTION-READY: Generate real spiritual quote videos
                 try:
-                    # TODO: In production, implement proper video generation/storage
-                    # For now, use placeholder URL to test the actual service call
-                    media_url = "https://sample-videos.com/zip/10/mp4/SampleVideo_360x240_1mb.mp4"
-                    result = await tiktok_service.post_content(content_data, media_url)
+                    # Generate actual spiritual quote video
+                    media_result = await media_generation_service.generate_tiktok_video(content_data)
+                    
+                    if media_result.get("success"):
+                        media_url = media_result["media_url"]
+                        logger.info(f"✅ Generated TikTok video: {media_result.get('filename')}")
+                        result = await tiktok_service.post_content(content_data, media_url)
+                        
+                        # Add media generation info to result
+                        if result.get("success"):
+                            result["media_generation"] = {
+                                "filename": media_result.get("filename"),
+                                "dimensions": media_result.get("dimensions"),
+                                "note": media_result.get("note"),
+                                "fallback_used": media_result.get("fallback_used", False)
+                            }
+                    else:
+                        # Media generation failed, use fallback
+                        logger.warning(f"⚠️ TikTok media generation failed: {media_result.get('error')}")
+                        media_url = media_result.get("media_url")  # Fallback URL
+                        result = await tiktok_service.post_content(content_data, media_url)
+                        result["media_generation_warning"] = media_result.get("error")
+                        
                 except Exception as e:
+                    logger.error(f"❌ TikTok media generation/posting failed: {e}")
                     result = {
                         "success": False,
-                        "error": f"TikTok service call failed: {str(e)}"
+                        "error": f"TikTok posting failed: {str(e)}"
                     }
             elif platform == "twitter":
                 from services.twitter_service import twitter_service
