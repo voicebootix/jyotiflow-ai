@@ -6,6 +6,7 @@ import json
 import asyncio
 import uuid
 import asyncpg
+import os
 from datetime import datetime, timezone
 from typing import Dict, List
 
@@ -13,6 +14,9 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPExce
 from db import db_manager
 import logging
 logger = logging.getLogger(__name__)
+
+# Database URL for direct connections
+DATABASE_URL = os.getenv("DATABASE_URL")
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional, Dict, Any
 
@@ -905,7 +909,8 @@ async def get_available_test_suites(admin=Depends(get_current_admin_dependency))
 async def get_business_logic_validation_status(admin=Depends(get_current_admin_dependency)):
     """Get business logic validation status and recent results"""
     try:
-        async with db_manager.get_connection() as conn:
+        conn = await db_manager.get_connection()
+        try:
             # Get recent business logic validation results
             recent_validations = await conn.fetch("""
                 SELECT 
@@ -942,6 +947,8 @@ async def get_business_logic_validation_status(admin=Depends(get_current_admin_d
                     "recent_validations": validation_data
                 }
             )
+        finally:
+            await db_manager.release_connection(conn)
     except Exception as e:
         logger.error(f"Failed to get business logic validation status: {e}")
         return StandardResponse(
@@ -1022,7 +1029,8 @@ async def get_spiritual_services_status():
         
         # Get recent spiritual service metrics
         try:
-            async with db_manager.get_connection() as conn:
+            conn = await db_manager.get_connection()
+            try:
                 # Count recent spiritual sessions
                 recent_sessions = await conn.fetchval("""
                     SELECT COUNT(*) FROM sessions 
@@ -1035,8 +1043,10 @@ async def get_spiritual_services_status():
                     SELECT COUNT(*) FROM business_logic_issues
                     WHERE created_at >= NOW() - INTERVAL '24 hours'
                     AND validation_result = 'passed'
-                """)
-                
+                                 """)
+                 
+            finally:
+                await db_manager.release_connection(conn)
         except Exception:
             recent_sessions = 0
             successful_validations = 0
@@ -1125,7 +1135,9 @@ async def get_social_media_status():
             validator_status["error"] = str(e)
         
         # Get recent social media metrics
-        async with db_manager.get_connection() as conn:
+        try:
+            conn = await db_manager.get_connection()
+            try:
             # Count recent campaigns
             recent_campaigns = await conn.fetchval("""
                 SELECT COUNT(*) FROM social_campaigns 
@@ -1150,6 +1162,8 @@ async def get_social_media_status():
                 WHERE status = 'active'
             """)
             
+            finally:
+                await db_manager.release_connection(conn)
         except Exception:
             recent_campaigns = 0
             recent_posts = 0
@@ -1188,7 +1202,8 @@ async def get_social_media_status():
 async def get_social_media_campaigns(admin=Depends(get_current_admin_dependency)):
     """Get social media campaign performance and analytics"""
     try:
-        async with db_manager.get_connection() as conn:
+        conn = await db_manager.get_connection()
+        try:
             # Get recent campaigns with performance data
             campaigns = await conn.fetch("""
                 SELECT 
@@ -1231,6 +1246,8 @@ async def get_social_media_campaigns(admin=Depends(get_current_admin_dependency)
                     }
                 }
             )
+        finally:
+            await db_manager.release_connection(conn)
     except Exception as e:
         logger.error(f"Failed to get social media campaigns: {e}")
         return StandardResponse(
