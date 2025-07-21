@@ -129,6 +129,9 @@ const PlatformConfiguration = () => {
   };
 
   const saveConfiguration = async (platform) => {
+    let responseData; // ✅ SCOPE FIX: Declare in higher scope
+    let saveSuccessful = false; // ✅ Boolean flag for success tracking
+    
     try {
       setLoading(true);
       
@@ -150,7 +153,7 @@ const PlatformConfiguration = () => {
         config: apiKeys[platform]
       });
       
-      const responseData = response.data;
+      responseData = response.data; // ✅ Assign to higher scope variable
       
       // DIAGNOSTIC: Log the actual response for debugging
       console.log('🔍 SAVE RESPONSE DEBUG:', {
@@ -163,6 +166,7 @@ const PlatformConfiguration = () => {
       });
       
       if (responseData && responseData.success) {
+        saveSuccessful = true; // ✅ Track success with boolean flag
         addNotification('success', `${platform.charAt(0).toUpperCase() + platform.slice(1)} configuration saved successfully!`, platform);
         setLoading(false); // ✅ Reset loading state on success
       } else {
@@ -186,15 +190,15 @@ const PlatformConfiguration = () => {
       setLoading(false);
     }
     
-    // ✅ CRITICAL FIX: Separate try-catch for fetchCurrentKeys
+    // ✅ SCOPE FIX: Separate try-catch for fetchCurrentKeys with proper scope
     // This prevents fetchCurrentKeys errors from overriding save success
     try {
       await fetchCurrentKeys();
       console.log('✅ fetchCurrentKeys completed successfully');
     } catch (fetchError) {
       console.error('❌ fetchCurrentKeys failed:', fetchError);
-      // Only show warning if save was successful
-      if (responseData?.success) {
+      // ✅ FIXED: Use boolean flag instead of responseData scope access
+      if (saveSuccessful) {
         addNotification('warning', 'Configuration saved but refresh failed. Please reload the page.', platform);
       }
     }
