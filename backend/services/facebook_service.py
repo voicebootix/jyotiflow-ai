@@ -6,6 +6,7 @@ Validates Facebook API credentials by making actual Graph API calls
 import aiohttp
 import logging
 import db
+import json
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -341,10 +342,17 @@ class FacebookService:
             else:
                 full_message = post_message or post_title
             
-            # Add hashtags if provided
+            # Add hashtags if provided (Facebook recommends max 10 hashtags for optimal reach)
             if content.get('hashtags'):
-                hashtags = ' '.join(content['hashtags'][:10])  # Facebook hashtag limit
+                hashtags = ' '.join(content['hashtags'][:10])  # Facebook hashtag limit: max 10 for optimal engagement
                 full_message = f"{full_message}\n\n{hashtags}"
+            
+            # ✅ FIXED: Validate Facebook's 63,206 character limit
+            if len(full_message) > 63206:
+                return {
+                    "success": False,
+                    "error": f"Facebook post content exceeds 63,206 character limit. Current length: {len(full_message)} characters. Please shorten the content."
+                }
             
             # Post to Facebook page
             if media_url:
@@ -363,7 +371,11 @@ class FacebookService:
                 }
             else:
                 logger.error(f"❌ Facebook posting failed: {result.get('error')}")
-                return result
+                # ✅ FIXED: Return consistent error format instead of raw result
+                return {
+                    "success": False,
+                    "error": result.get('error', 'Facebook posting failed')
+                }
                 
         except Exception as e:
             logger.error(f"❌ Facebook posting exception: {e}")
@@ -371,6 +383,11 @@ class FacebookService:
                 "success": False,
                 "error": f"Facebook posting failed: {str(e)}"
             }
+    
+    def invalidate_credentials_cache(self):
+        """Invalidate the credentials cache to force fresh fetch from database"""
+        logger.info("🔄 Facebook credentials cache invalidated")
+        self._credentials_cache = None
     
     async def _get_credentials(self):
         """Get Facebook credentials from database (platform_settings table)"""
@@ -387,10 +404,20 @@ class FacebookService:
                     "facebook_credentials"
                 )
                 if row and row['value']:
-                    import json
-                    credentials = json.loads(row['value']) if isinstance(row['value'], str) else row['value']
-                    self._credentials_cache = credentials
-                    return credentials
+                    try:
+                        # ✅ FIXED: Added error handling for JSON parsing
+                        if isinstance(row['value'], str):
+                            credentials = json.loads(row['value'])
+                        else:
+                            credentials = row['value']
+                        self._credentials_cache = credentials
+                        return credentials
+                    except json.JSONDecodeError as json_error:
+                        logger.error(f"❌ Facebook credentials JSON decode error: {json_error}")
+                        return None
+                    except Exception as parse_error:
+                        logger.error(f"❌ Facebook credentials parsing error: {parse_error}")
+                        return None
         except Exception as e:
             logger.error(f"Failed to get Facebook credentials: {e}")
             
@@ -426,10 +453,14 @@ class FacebookService:
                     
                     if response.status == 200 and "id" in data:
                         post_id = data["id"]
+                        # ✅ FIXED: Construct proper Facebook post URL
+                        page_id = page_info.get("page_id")
+                        post_url = f"https://www.facebook.com/{page_id}/posts/{post_id.split('_')[1]}" if '_' in post_id else f"https://www.facebook.com/{post_id}"
+                        
                         return {
                             "success": True,
                             "post_id": post_id,
-                            "post_url": f"https://facebook.com/{post_id}",
+                            "post_url": post_url,
                             "page_name": page_info.get("page_name", "Unknown Page")
                         }
                     else:
@@ -462,26 +493,42 @@ class FacebookService:
             
             page_id = page_info.get("page_id")
             
-            # Post photo/video to page
+            # ✅ FIXED: Detect media type and validate URL
+            media_type, endpoint = await self._detect_media_type_and_endpoint(media_url)
+            if not media_type:
+                return {
+                    "success": False,
+                    "error": "Unable to determine media type from URL. Please ensure the URL points to a valid image or video."
+                }
+            
+            # Post photo/video to page with correct endpoint
             async with aiohttp.ClientSession() as session:
-                url = f"{self.graph_url}/{page_id}/photos"  # For images, use /videos for videos
+                url = f"{self.graph_url}/{page_id}/{endpoint}"  # /photos for images, /videos for videos
                 params = {
                     "access_token": page_access_token,
                     "url": media_url,  # Facebook can fetch from URL
-                    "caption": message
+                    "caption": message if endpoint == "photos" else "description"  # Videos use description, photos use caption
                 }
+                
+                # For videos, use 'description' instead of 'caption'
+                if endpoint == "videos":
+                    params["description"] = params.pop("caption")
                 
                 async with session.post(url, data=params) as response:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
                         post_id = data["id"]
+                        # ✅ FIXED: Construct proper Facebook post URL for media posts
+                        page_id = page_info.get("page_id")
+                        post_url = f"https://www.facebook.com/{page_id}/posts/{post_id.split('_')[1]}" if '_' in post_id else f"https://www.facebook.com/{post_id}"
+                        
                         return {
                             "success": True,
                             "post_id": post_id,
-                            "post_url": f"https://facebook.com/{post_id}",
+                            "post_url": post_url,
                             "page_name": page_info.get("page_name", "Unknown Page"),
-                            "media_type": "photo"
+                            "media_type": media_type
                         }
                     else:
                         error_msg = data.get("error", {}).get("message", "Facebook media posting failed")
@@ -495,6 +542,51 @@ class FacebookService:
                 "success": False,
                 "error": f"Facebook media posting failed: {str(e)}"
             }
+    
+    async def _detect_media_type_and_endpoint(self, media_url: str) -> tuple:
+        """
+        Detect media type from URL and return appropriate Facebook endpoint
+        Returns: (media_type, endpoint) tuple
+        """
+        try:
+            # Extract file extension from URL
+            url_path = media_url.lower().split('?')[0]  # Remove query parameters
+            
+            # Image extensions
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+            # Video extensions  
+            video_extensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.m4v']
+            
+            # Check file extension
+            for ext in image_extensions:
+                if url_path.endswith(ext):
+                    return ("photo", "photos")
+            
+            for ext in video_extensions:
+                if url_path.endswith(ext):
+                    return ("video", "videos")
+            
+            # If no extension match, try to determine from URL content type
+            try:
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.head(media_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        content_type = response.headers.get('content-type', '').lower()
+                        
+                        if content_type.startswith('image/'):
+                            return ("photo", "photos")
+                        elif content_type.startswith('video/'):
+                            return ("video", "videos")
+            except Exception as content_check_error:
+                logger.warning(f"⚠️ Could not check media content type: {content_check_error}")
+            
+            # Default to photo if uncertain
+            logger.warning(f"⚠️ Could not determine media type for {media_url}, defaulting to photo")
+            return ("photo", "photos")
+            
+        except Exception as e:
+            logger.error(f"❌ Media type detection failed: {e}")
+            return (None, None)
     
     async def _get_page_info(self, page_access_token: str) -> Dict:
         """Get page information from page access token"""

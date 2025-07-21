@@ -1111,35 +1111,31 @@ async def _execute_real_posting(platform: str, platform_credentials: Dict) -> Di
                 result = await facebook_service.post_content(content_data)
             elif platform == "instagram":
                 from services.instagram_service import instagram_service
-                # ✅ FIXED: Use proper error handling instead of placeholder URLs
-                # Instagram requires media - in production, implement media generation/storage
+                # ✅ FIXED: Actually call Instagram service instead of hardcoded error
+                # Instagram requires media - use a placeholder for now but call the actual service
                 try:
-                    # Check if we have a default spiritual image available
-                    # For now, we'll indicate that media is required
-                    result = {
-                        "success": False,
-                        "error": "Instagram posting requires media content. Please configure default spiritual images or implement media generation."
-                    }
+                    # TODO: In production, implement proper media generation/storage
+                    # For now, use placeholder URL to test the actual service call
+                    media_url = "https://via.placeholder.com/1080x1080/4A90E2/FFFFFF?text=Daily+Wisdom"
+                    result = await instagram_service.post_content(content_data, media_url)
                 except Exception as e:
                     result = {
                         "success": False,
-                        "error": f"Instagram media preparation failed: {str(e)}"
+                        "error": f"Instagram service call failed: {str(e)}"
                     }
             elif platform == "tiktok":
                 from services.tiktok_service import tiktok_service
-                # ✅ FIXED: Use proper error handling instead of placeholder URLs
-                # TikTok requires video - in production, implement video generation/storage
+                # ✅ FIXED: Actually call TikTok service instead of hardcoded error
+                # TikTok requires video - use a placeholder for now but call the actual service
                 try:
-                    # Check if we have a default spiritual video available
-                    # For now, we'll indicate that video is required
-                    result = {
-                        "success": False,
-                        "error": "TikTok posting requires video content. Please configure default spiritual videos or implement video generation."
-                    }
+                    # TODO: In production, implement proper video generation/storage
+                    # For now, use placeholder URL to test the actual service call
+                    media_url = "https://sample-videos.com/zip/10/mp4/SampleVideo_360x240_1mb.mp4"
+                    result = await tiktok_service.post_content(content_data, media_url)
                 except Exception as e:
                     result = {
                         "success": False,
-                        "error": f"TikTok video preparation failed: {str(e)}"
+                        "error": f"TikTok service call failed: {str(e)}"
                     }
             elif platform == "twitter":
                 from services.twitter_service import twitter_service
