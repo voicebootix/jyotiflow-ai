@@ -1109,7 +1109,7 @@ async def get_social_media_status():
         # Test SocialMediaMarketingEngine availability
         social_engine_status = {"available": False, "error": None}
         try:
-            engine = SocialMediaMarketingEngine()
+            SocialMediaMarketingEngine()
             social_engine_status["available"] = True
         except Exception as e:
             social_engine_status["error"] = str(e)
@@ -1117,14 +1117,13 @@ async def get_social_media_status():
         # Test SocialMediaValidator availability
         validator_status = {"available": False, "error": None}
         try:
-            validator = SocialMediaValidator()
+            SocialMediaValidator()
             validator_status["available"] = True
         except Exception as e:
             validator_status["error"] = str(e)
         
         # Get recent social media metrics
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        async with db_manager.get_connection() as conn:
             # Count recent campaigns
             recent_campaigns = await conn.fetchval("""
                 SELECT COUNT(*) FROM social_campaigns 
@@ -1149,13 +1148,11 @@ async def get_social_media_status():
                 WHERE status = 'active'
             """)
             
-        except:
+        except Exception:
             recent_campaigns = 0
             recent_posts = 0
             recent_validations = 0
             active_campaigns = 0
-        finally:
-            await conn.close()
         
         return StandardResponse(
             status="success",
