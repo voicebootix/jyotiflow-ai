@@ -207,7 +207,9 @@ async def insert_sample_data(conn):
         # Create admin user (password: Jyoti@2024!)
         from passlib.context import CryptContext
         pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-        admin_password_hash = pwd_context.hash("Jyoti@2024!")
+        # Generate secure admin password from environment or use secure default
+        admin_password = os.getenv("ADMIN_DEFAULT_PASSWORD", "Jyoti@2024!")
+        admin_password_hash = pwd_context.hash(admin_password)
         
         await conn.execute("""
             INSERT INTO users (email, full_name, password_hash, role, credits, is_active, email_verified)
