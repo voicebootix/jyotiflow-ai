@@ -993,10 +993,8 @@ async def test_false_positive_filtering():
 async def test_social_media_marketing_engine_core():
     try:
         # Import SocialMediaMarketingEngine
-        import sys
-        import os
-        sys.path.append(os.path.dirname(__file__))
-        from social_media_marketing_automation import SocialMediaMarketingEngine
+        if not SOCIAL_MEDIA_ENGINE_AVAILABLE:
+            return {"status": "failed", "error": "SocialMediaMarketingEngine not available"}
         
         # Initialize engine
         engine = SocialMediaMarketingEngine()
@@ -1099,10 +1097,8 @@ async def test_platform_services_integration():
 async def test_content_generation_pipeline():
     try:
         # Import required modules
-        import sys
-        import os
-        sys.path.append(os.path.dirname(__file__))
-        from social_media_marketing_automation import SocialMediaMarketingEngine
+        if not SOCIAL_MEDIA_ENGINE_AVAILABLE:
+            return {"status": "failed", "error": "SocialMediaMarketingEngine not available"}
         
         engine = SocialMediaMarketingEngine()
         
@@ -1365,10 +1361,8 @@ async def test_social_media_database_schema():
 async def test_social_media_validator_business_logic():
     try:
         # Import SocialMediaValidator
-        import sys
-        import os
-        sys.path.append(os.path.join(os.path.dirname(__file__), 'validators'))
-        from social_media_validator import SocialMediaValidator
+        if not SOCIAL_MEDIA_VALIDATOR_AVAILABLE:
+            return {"status": "failed", "error": "SocialMediaValidator not available"}
         
         validator = SocialMediaValidator()
         
@@ -1618,10 +1612,8 @@ async def test_social_media_automation_health():
 async def test_agora_service_integration():
     try:
         # Import Agora service
-        import sys
-        import os
-        sys.path.append(os.path.dirname(__file__))
-        from agora_service import AgoraService
+        if not AGORA_SERVICE_AVAILABLE:
+            return {"status": "failed", "error": "AgoraService not available"}
         
         agora_service = AgoraService()
         
@@ -2467,10 +2459,8 @@ async def test_avatar_database_schema():
 async def test_credit_package_service():
     try:
         # Import CreditPackageService
-        import sys
-        import os
-        sys.path.append(os.path.join(os.path.dirname(__file__), 'services'))
-        from credit_package_service import CreditPackageService
+        if not CREDIT_SERVICE_AVAILABLE:
+            return {"status": "failed", "error": "CreditPackageService not available"}
         
         # Initialize service
         credit_service = CreditPackageService()

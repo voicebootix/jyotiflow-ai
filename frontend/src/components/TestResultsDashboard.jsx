@@ -66,7 +66,7 @@ const TestResultsDashboard = () => {
             const metricsResponse = await fetch(`${API_BASE_URL}/api/monitoring/test-metrics`);
             if (metricsResponse.ok) {
                 const metricsData = await metricsResponse.json();
-                setTestMetrics(metricsData.data || testMetrics);
+                setTestMetrics(prevMetrics => metricsData.data || prevMetrics);
             }
             
         } catch (err) {
@@ -407,7 +407,7 @@ const TestResultsDashboard = () => {
                 const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validation`);
                 if (response.ok) {
                     const data = await response.json();
-                    setBusinessLogicData(data.data || businessLogicData);
+                    setBusinessLogicData(prevData => data.data || prevData);
                 }
             } catch (err) {
                 console.warn('Business logic data not available:', err.message);
@@ -419,7 +419,7 @@ const TestResultsDashboard = () => {
                 const response = await fetch(`${API_BASE_URL}/api/monitoring/spiritual-services-status`);
                 if (response.ok) {
                     const data = await response.json();
-                    setSpiritualServices(data.data || spiritualServices);
+                    setSpiritualServices(prevData => data.data || prevData);
                 }
             } catch (err) {
                 console.warn('Spiritual services data not available:', err.message);
@@ -603,7 +603,7 @@ const TestResultsDashboard = () => {
                 const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-automation`);
                 if (response.ok) {
                     const data = await response.json();
-                    setSocialMediaData(data.data || socialMediaData);
+                    setSocialMediaData(prevData => data.data || prevData);
                 }
             } catch (err) {
                 console.warn('Social media data not available:', err.message);

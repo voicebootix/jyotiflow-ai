@@ -86,7 +86,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             const response = await fetch(`${API_BASE_URL}/api/monitoring/test-status`);
             if (response.ok) {
                 const data = await response.json();
-                setTestStatus(data.data || testStatus);
+                setTestStatus(prevStatus => data.data || prevStatus);
             } else if (response.status === 404) {
                 setError('Testing infrastructure not yet deployed');
             } else {
@@ -104,7 +104,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validation`);
             if (response.ok) {
                 const data = await response.json();
-                setBusinessLogicStatus(data.data?.summary || businessLogicStatus);
+                setBusinessLogicStatus(prevStatus => data.data?.summary || prevStatus);
             }
         } catch (err) {
             console.warn('Business logic status not available:', err.message);
@@ -116,7 +116,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             const response = await fetch(`${API_BASE_URL}/api/monitoring/spiritual-services-status`);
             if (response.ok) {
                 const data = await response.json();
-                setSpiritualServicesStatus(data.data || spiritualServicesStatus);
+                setSpiritualServicesStatus(prevStatus => data.data || prevStatus);
             }
         } catch (err) {
             console.warn('Spiritual services status not available:', err.message);
@@ -128,7 +128,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-status`);
             if (response.ok) {
                 const data = await response.json();
-                setSocialMediaStatus(data.data || socialMediaStatus);
+                setSocialMediaStatus(prevStatus => data.data || prevStatus);
             }
         } catch (err) {
             console.warn('Social media status not available:', err.message);
@@ -140,7 +140,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
             const response = await fetch(`${API_BASE_URL}/api/monitoring/live-audio-video-status`);
             if (response.ok) {
                 const data = await response.json();
-                setLiveAudioVideoStatus(data.data || liveAudioVideoStatus);
+                setLiveAudioVideoStatus(prevStatus => data.data || prevStatus);
             }
         } catch (err) {
             console.warn('Live audio/video status not available:', err.message);
