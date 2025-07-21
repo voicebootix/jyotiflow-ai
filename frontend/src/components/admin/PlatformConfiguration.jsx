@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Key, Eye, EyeOff, Save, TestTube, CheckCircle, AlertCircle, Info, ExternalLink, HelpCircle } from 'lucide-react';
-import enhanced_api from '../../services/enhanced-api';
+import enhanced_api from '../../services/enhanced-api.js';
 
 const PlatformConfiguration = () => {
   const [apiKeys, setApiKeys] = useState({
@@ -148,7 +148,7 @@ const PlatformConfiguration = () => {
         return;
       }
 
-      const response = await enhanced_api.post('/api/admin/social-marketing/platform-config', {
+      const response = await enhanced_api.updatePlatformConfig({
         platform,
         config: apiKeys[platform]
       });
@@ -244,7 +244,7 @@ const PlatformConfiguration = () => {
 
       addNotification('info', `Testing ${platform} connection...`, platform);
       
-      const response = await enhanced_api.post('/api/admin/social-marketing/test-connection', {
+      const response = await enhanced_api.testConnection({
         platform,
         config: apiKeys[platform]
       });
