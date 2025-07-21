@@ -8,6 +8,7 @@ import aiohttp
 import logging
 import hmac
 import hashlib
+import db
 from typing import Dict, Optional
 from datetime import datetime, timezone
 
@@ -380,13 +381,17 @@ class InstagramService:
                 "error": f"Instagram posting failed: {str(e)}"
             }
     
+    def invalidate_credentials_cache(self):
+        """Invalidate the credentials cache to force fresh fetch from database"""
+        logger.info("🔄 Instagram credentials cache invalidated")
+        self._credentials_cache = None
+    
     async def _get_credentials(self):
         """Get Instagram credentials from database (platform_settings table)"""
         if self._credentials_cache:
             return self._credentials_cache
             
         try:
-            import db
             if not db.db_pool:
                 return None
                 

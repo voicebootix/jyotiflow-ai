@@ -7,6 +7,7 @@ Following the proven pattern from Facebook service
 import aiohttp
 import json
 import logging
+import db
 from typing import Dict, Optional
 from datetime import datetime, timezone
 
@@ -263,7 +264,6 @@ class TikTokService:
             return self._credentials_cache
             
         try:
-            import db
             if not db.db_pool:
                 return None
                 

@@ -5,6 +5,7 @@ Validates Facebook API credentials by making actual Graph API calls
 
 import aiohttp
 import logging
+import db
 from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -377,7 +378,6 @@ class FacebookService:
             return self._credentials_cache
             
         try:
-            import db
             if not db.db_pool:
                 return None
                 

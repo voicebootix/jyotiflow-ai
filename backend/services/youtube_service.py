@@ -5,6 +5,7 @@ Validates YouTube API credentials by making actual API calls
 
 import aiohttp
 import logging
+import db
 from typing import Dict, Optional
 from datetime import datetime, timezone
 
@@ -464,7 +465,6 @@ class YouTubeService:
             return self._credentials_cache
             
         try:
-            import db
             if not db.db_pool:
                 return None
                 

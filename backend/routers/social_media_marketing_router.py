@@ -1012,11 +1012,16 @@ async def execute_posting(
                     logger.info(f"🔍 Validating {platform.title()} credentials before posting...")
                     
                     # ✅ REAL POSTING: Call actual platform APIs instead of simulation
-                    posting_result = await self._execute_real_posting(platform, platform_credentials)
+                    posting_result = await _execute_real_posting(platform, platform_credentials)
                     
                     posting_results.append(posting_result)
-                    posted_platforms.append(platform)
-                    logger.info(f"✅ Posted successfully to {platform.title()}")
+                    
+                    # ✅ FIXED: Only log success and add to posted_platforms if posting actually succeeded
+                    if posting_result.get("status") == "success":
+                        posted_platforms.append(platform)
+                        logger.info(f"✅ Posted successfully to {platform.title()}")
+                    else:
+                        logger.error(f"❌ Failed to post to {platform.title()}: {posting_result.get('error', 'Unknown error')}")
                     
                 except KeyError as key_error:
                     logger.error(f"❌ {platform.title()} configuration key error: {key_error}")
@@ -1086,7 +1091,7 @@ async def execute_posting(
 
 # Helper Functions
 
-    async def _execute_real_posting(self, platform: str, platform_credentials: Dict) -> Dict:
+async def _execute_real_posting(platform: str, platform_credentials: Dict) -> Dict:
         """Execute real posting to the specified platform using actual API calls"""
         try:
             # Generate content for the post
@@ -1106,17 +1111,38 @@ async def execute_posting(
                 result = await facebook_service.post_content(content_data)
             elif platform == "instagram":
                 from services.instagram_service import instagram_service
-                # Instagram requires media, so we'll use a placeholder image URL
-                media_url = "https://example.com/spiritual-image.jpg"  # In real implementation, generate/fetch actual image
-                result = await instagram_service.post_content(content_data, media_url)
+                # ✅ FIXED: Use proper error handling instead of placeholder URLs
+                # Instagram requires media - in production, implement media generation/storage
+                try:
+                    # Check if we have a default spiritual image available
+                    # For now, we'll indicate that media is required
+                    result = {
+                        "success": False,
+                        "error": "Instagram posting requires media content. Please configure default spiritual images or implement media generation."
+                    }
+                except Exception as e:
+                    result = {
+                        "success": False,
+                        "error": f"Instagram media preparation failed: {str(e)}"
+                    }
             elif platform == "tiktok":
                 from services.tiktok_service import tiktok_service
-                # TikTok requires video, so we'll use a placeholder video URL
-                media_url = "https://example.com/spiritual-video.mp4"  # In real implementation, generate/fetch actual video
-                result = await tiktok_service.post_content(content_data, media_url)
+                # ✅ FIXED: Use proper error handling instead of placeholder URLs
+                # TikTok requires video - in production, implement video generation/storage
+                try:
+                    # Check if we have a default spiritual video available
+                    # For now, we'll indicate that video is required
+                    result = {
+                        "success": False,
+                        "error": "TikTok posting requires video content. Please configure default spiritual videos or implement video generation."
+                    }
+                except Exception as e:
+                    result = {
+                        "success": False,
+                        "error": f"TikTok video preparation failed: {str(e)}"
+                    }
             elif platform == "twitter":
-                from services.twitter_service import TwitterService
-                twitter_service = TwitterService()
+                from services.twitter_service import twitter_service
                 result = await twitter_service.post_content(content_data)
             else:
                 return {
