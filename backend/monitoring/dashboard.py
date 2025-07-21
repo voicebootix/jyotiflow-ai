@@ -1130,9 +1130,9 @@ async def get_spiritual_services_status():
                     AND validation_result = 'passed'
                 """)
                  
-        finally:
-            await db_manager.release_connection(conn)
-    except Exception:
+            finally:
+                await db_manager.release_connection(conn)
+        except Exception:
             recent_sessions = 0
             successful_validations = 0
         

@@ -44,6 +44,9 @@ const TestExecutionPanel = ({
                         onClick={() => onExecuteTests('unit')}
                         disabled={executingTests}
                         className="w-full"
+                        aria-label="Execute unit tests to validate individual components"
+                        aria-busy={executingTests}
+                        aria-disabled={executingTests}
                     >
                         {executingTests ? (
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -58,6 +61,9 @@ const TestExecutionPanel = ({
                         disabled={executingTests}
                         variant="outline"
                         className="w-full"
+                        aria-label="Execute integration tests to validate component interactions"
+                        aria-busy={executingTests}
+                        aria-disabled={executingTests}
                     >
                         {executingTests ? (
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -72,6 +78,9 @@ const TestExecutionPanel = ({
                         disabled={executingTests}
                         variant="secondary"
                         className="w-full"
+                        aria-label="Execute complete test suite including unit, integration, and end-to-end tests"
+                        aria-busy={executingTests}
+                        aria-disabled={executingTests}
                     >
                         {executingTests ? (
                             <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
@@ -82,7 +91,7 @@ const TestExecutionPanel = ({
                     </Button>
                 </div>
                 
-                <div className="mt-4 flex items-center justify-between">
+                <div id="test-execution-status" className="mt-4 flex items-center justify-between" role="status" aria-live="polite">
                     <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-600">Test Status:</span>
                         <Badge variant={executingTests ? "default" : "secondary"}>
