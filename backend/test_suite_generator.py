@@ -19,6 +19,15 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Custom Exception Classes
+class DatabaseConnectionError(Exception):
+    """Raised when database connection fails"""
+    pass
+
+class TestGenerationError(Exception):
+    """Raised when test generation fails"""
+    pass
+
 DATABASE_URL = os.getenv("DATABASE_URL")
 API_BASE_URL = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
 

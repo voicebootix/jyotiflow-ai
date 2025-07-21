@@ -335,14 +335,26 @@ class MonitoringDashboard:
                     test_result = await social_validator.test_all_platforms()
                     return test_result
                 else:
-                    return {"success": False, "error": "Social media validator not found"}
+                    return StandardResponse(
+            status="error", 
+            message="Social media validator not found",
+            data={}
+        )
                     
             else:
-                return {"success": False, "error": f"Unknown test type: {test_type}"}
+                return StandardResponse(
+                    status="error",
+                    message=f"Unknown test type: {test_type}",
+                    data={}
+                )
                 
         except Exception as e:
             logger.error(f"❌ Failed to trigger validation test: {e}")
-            return {"success": False, "error": str(e)}
+            return StandardResponse(
+                status="error",
+                message=str(e),
+                data={}
+            )
     
     # Private helper methods
     async def _get_recent_sessions(self) -> List[Dict]:
@@ -766,7 +778,7 @@ async def get_test_status():
         )
 
 @router.get("/test-sessions")
-async def get_test_sessions(admin = Depends(get_current_admin_dependency)):
+async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency)):
     """Get test execution sessions history"""
     try:
         # Mock test sessions data - will be replaced with real database queries
@@ -808,21 +820,66 @@ async def get_test_sessions(admin = Depends(get_current_admin_dependency)):
         )
 
 @router.get("/test-metrics")
-async def get_test_metrics(admin = Depends(get_current_admin_dependency)):
+async def get_test_metrics(admin: dict = Depends(get_current_admin_dependency)):
     """Get test execution metrics and statistics"""
     try:
-        # Mock test metrics - will be replaced with real calculations
-        return StandardResponse(
-            status="success", 
-            message="Test metrics retrieved",
-            data={
-                "total_sessions": 15,
-                "success_rate": 87.5,
-                "avg_execution_time": 120,
-                "coverage_trend": 2.3,
-                "auto_fixes_applied": 8
-            }
-        )
+        conn = await db_manager.get_connection()
+        try:
+            # Get total test sessions
+            total_sessions = await conn.fetchval("""
+                SELECT COUNT(*) FROM test_execution_sessions
+            """) or 0
+            
+            # Calculate success rate
+            successful_sessions = await conn.fetchval("""
+                SELECT COUNT(*) FROM test_execution_sessions 
+                WHERE status = 'passed'
+            """) or 0
+            
+            success_rate = (successful_sessions / max(total_sessions, 1)) * 100
+            
+            # Get average execution time
+            avg_execution_time = await conn.fetchval("""
+                SELECT AVG(execution_time_seconds) FROM test_execution_sessions
+                WHERE execution_time_seconds IS NOT NULL
+            """) or 0
+            
+            # Get coverage trend (comparing last 7 days to previous 7 days)
+            recent_coverage = await conn.fetchval("""
+                SELECT AVG(coverage_percentage) FROM test_execution_sessions
+                WHERE started_at >= NOW() - INTERVAL '7 days'
+                AND coverage_percentage IS NOT NULL
+            """) or 0
+            
+            previous_coverage = await conn.fetchval("""
+                SELECT AVG(coverage_percentage) FROM test_execution_sessions
+                WHERE started_at >= NOW() - INTERVAL '14 days'
+                AND started_at < NOW() - INTERVAL '7 days'
+                AND coverage_percentage IS NOT NULL
+            """) or 0
+            
+            coverage_trend = "improving" if recent_coverage > previous_coverage else "declining" if recent_coverage < previous_coverage else "stable"
+            
+            # Get auto-fixes applied
+            auto_fixes_applied = await conn.fetchval("""
+                SELECT COUNT(*) FROM autofix_test_results
+                WHERE fix_applied = true
+                AND created_at >= NOW() - INTERVAL '30 days'
+            """) or 0
+            
+            return StandardResponse(
+                status="success", 
+                message="Test metrics retrieved",
+                data={
+                    "total_sessions": total_sessions,
+                    "success_rate": round(success_rate, 1),
+                    "avg_execution_time": round(avg_execution_time, 1),
+                    "coverage_trend": coverage_trend,
+                    "auto_fixes_applied": auto_fixes_applied
+                }
+            )
+        finally:
+            await db_manager.release_connection(conn)
     except Exception as e:
         return StandardResponse(
             status="error",
@@ -831,7 +888,7 @@ async def get_test_metrics(admin = Depends(get_current_admin_dependency)):
         )
 
 @router.post("/test-execute")
-async def execute_test(request: dict, admin = Depends(get_current_admin_dependency)):
+async def execute_test(request: dict, admin: dict = Depends(get_current_admin_dependency)):
     """Execute a test suite using our actual test execution engine"""
     try:
         from test_execution_engine import TestExecutionEngine
@@ -1604,9 +1661,10 @@ async def test_live_audio_video_system():
         
         overall_status = "passed" if test_success_rate >= 70 else "failed"
         
-        return {
-            "success": True,
-            "data": {
+        return StandardResponse(
+            status="success",
+            message="Live audio/video system test completed",
+            data={
                 "overall_status": overall_status,
                 "test_success_rate": test_success_rate,
                 "passed_tests": passed_tests,
@@ -1614,18 +1672,18 @@ async def test_live_audio_video_system():
                 "test_results": test_results,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-        }
+        )
         
     except Exception as e:
-        return {
-            "success": False,
-            "error": f"Failed to test live audio/video system: {str(e)}",
-            "data": {
+        return StandardResponse(
+            status="error",
+            message=f"Failed to test live audio/video system: {str(e)}",
+            data={
                 "overall_status": "failed",
                 "test_success_rate": 0,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
-        }
+        )
 
 # Export for use in other modules
 __all__ = ["monitoring_dashboard", "router", "connection_manager"]

@@ -748,7 +748,7 @@ const TestResultsDashboard = () => {
                 const response = await fetch(`${API_BASE_URL}/api/monitoring/live-audio-video-status`);
                 if (response.ok) {
                     const data = await response.json();
-                    setLiveAudioVideoData(data.data || liveAudioVideoData);
+                    setLiveAudioVideoData(prevData => data.data || prevData);
                 } else {
                     setError('Failed to fetch live audio/video status');
                 }

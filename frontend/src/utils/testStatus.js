@@ -83,6 +83,33 @@ export const getStatusMessage = (status) => {
 };
 
 /**
+ * Gets the appropriate badge color for test status (with background)
+ * @param {string} status - The test status
+ * @returns {string} CSS classes for badge styling
+ */
+export const getStatusBadgeColor = (status) => {
+    switch (status?.toLowerCase()) {
+        case 'passed':
+        case 'success':
+        case 'completed':
+            return 'text-green-600 bg-green-100';
+        case 'failed':
+        case 'error':
+            return 'text-red-600 bg-red-100';
+        case 'running':
+        case 'in_progress':
+            return 'text-blue-600 bg-blue-100';
+        case 'partial':
+        case 'warning':
+            return 'text-yellow-600 bg-yellow-100';
+        case 'not_available':
+            return 'text-gray-600 bg-gray-100';
+        default:
+            return 'text-gray-600 bg-gray-100';
+    }
+};
+
+/**
  * Gets the appropriate badge color for priority levels
  * @param {string} priority - Priority level ('critical', 'high', 'medium', 'low')
  * @returns {string} CSS classes for badge styling

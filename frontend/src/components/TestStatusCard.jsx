@@ -5,17 +5,14 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { 
     TestTube, 
-    CheckCircle, 
-    XCircle, 
-    Clock, 
     Activity,
     TrendingUp,
     TrendingDown,
-    AlertTriangle,
     Play,
     RefreshCw,
     Video
 } from 'lucide-react';
+import { getStatusColor, getStatusIcon, getStatusBadgeColor } from '../utils/testStatus.js';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
@@ -169,27 +166,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
         }
     };
 
-    const getStatusColor = (status) => {
-        switch (status) {
-            case 'passed': return 'text-green-600 bg-green-100';
-            case 'failed': return 'text-red-600 bg-red-100';
-            case 'running': return 'text-blue-600 bg-blue-100';
-            case 'partial': return 'text-yellow-600 bg-yellow-100';
-            case 'not_available': return 'text-gray-600 bg-gray-100';
-            case 'error': return 'text-red-600 bg-red-100';
-            default: return 'text-gray-600 bg-gray-100';
-        }
-    };
-
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'passed': return <CheckCircle className="h-4 w-4" />;
-            case 'failed': return <XCircle className="h-4 w-4" />;
-            case 'running': return <Clock className="h-4 w-4" />;
-            case 'partial': return <AlertTriangle className="h-4 w-4" />;
-            default: return <TestTube className="h-4 w-4" />;
-        }
-    };
+    // Status functions now imported from shared utility
 
     const calculateSuccessRate = () => {
         if (testStatus.total_tests === 0) return 0;
@@ -223,7 +200,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
                         <div>
                             <div className="flex items-center gap-1 mb-1">
                                 {getStatusIcon(testStatus.status)}
-                                <Badge className={`text-xs ${getStatusColor(testStatus.status)}`}>
+                                <Badge className={`text-xs ${getStatusBadgeColor(testStatus.status)}`}>
                                     {testStatus.status.replace('_', ' ').toUpperCase()}
                                 </Badge>
                             </div>
@@ -402,7 +379,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
                     <div className="space-y-3">
                         <div className="flex justify-between items-center">
                             <span className="text-sm font-medium">Status:</span>
-                            <Badge className={getStatusColor(testStatus.status)}>
+                            <Badge className={getStatusBadgeColor(testStatus.status)}>
                                 {getStatusIcon(testStatus.status)}
                                 <span className="ml-1">{testStatus.status.replace('_', ' ').toUpperCase()}</span>
                             </Badge>
@@ -456,7 +433,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
         <div className={`flex items-center space-x-2 ${className}`}>
             {getStatusIcon(testStatus.status)}
             <span className="text-sm font-medium">Tests:</span>
-            <Badge className={`text-xs ${getStatusColor(testStatus.status)}`}>
+            <Badge className={`text-xs ${getStatusBadgeColor(testStatus.status)}`}>
                 {testStatus.total_tests > 0 
                     ? `${testStatus.passed_tests}/${testStatus.total_tests}`
                     : 'N/A'
