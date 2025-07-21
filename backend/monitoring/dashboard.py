@@ -829,12 +829,9 @@ async def execute_test(request: dict, admin = Depends(get_current_admin_dependen
     """Execute a test suite using our actual test execution engine"""
     try:
         from test_execution_engine import TestExecutionEngine
-        from test_suite_generator import TestSuiteGenerator
         
         test_type = request.get("test_type", "unit")
-        test_suite = request.get("test_suite", None)
         environment = request.get("environment", "production")
-        triggered_by = request.get("triggered_by", "manual")
         
         # Initialize test execution engine
         engine = TestExecutionEngine()
@@ -905,8 +902,7 @@ async def get_available_test_suites(admin=Depends(get_current_admin_dependency))
 async def get_business_logic_validation_status(admin=Depends(get_current_admin_dependency)):
     """Get business logic validation status and recent results"""
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        async with db_manager.get_connection() as conn:
             # Get recent business logic validation results
             recent_validations = await conn.fetch("""
                 SELECT 
@@ -943,8 +939,6 @@ async def get_business_logic_validation_status(admin=Depends(get_current_admin_d
                     "recent_validations": validation_data
                 }
             )
-        finally:
-            await conn.close()
     except Exception as e:
         logger.error(f"Failed to get business logic validation status: {e}")
         return StandardResponse(
@@ -963,8 +957,6 @@ async def trigger_business_logic_validation(request: dict, admin=Depends(get_cur
         
         # Get validation request parameters
         session_context = request.get("session_context", {})
-        validation_type = request.get("validation_type", "full")
-        
         # If no session context provided, create a test context
         if not session_context:
             session_context = {
@@ -1012,7 +1004,7 @@ async def get_spiritual_services_status():
         # Test SpiritualAvatarEngine
         avatar_status = {"available": False, "error": None}
         try:
-            engine = SpiritualAvatarEngine()
+            SpiritualAvatarEngine()
             avatar_status["available"] = True
         except Exception as e:
             avatar_status["error"] = str(e)
@@ -1020,14 +1012,13 @@ async def get_spiritual_services_status():
         # Test MonetizationOptimizer
         monetization_status = {"available": False, "error": None}
         try:
-            optimizer = MonetizationOptimizer()
+            MonetizationOptimizer()
             monetization_status["available"] = True
         except Exception as e:
             monetization_status["error"] = str(e)
         
         # Get recent spiritual service metrics
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        async with db_manager.get_connection() as conn:
             # Count recent spiritual sessions
             recent_sessions = await conn.fetchval("""
                 SELECT COUNT(*) FROM sessions 

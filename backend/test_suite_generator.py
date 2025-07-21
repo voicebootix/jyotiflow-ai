@@ -131,6 +131,8 @@ class TestSuiteGenerator:
             TestGenerationError: If test suite generation fails
         """
         try:
+            logger.info("Starting test suite generation")
+            
             return {
                 "database_tests": await self.generate_database_tests(),
                 "api_tests": await self.generate_api_tests(),
@@ -2761,8 +2763,12 @@ async def test_credit_payment_database_schema():
             finally:
                 await conn.close()
                 
-        except Exception as e:
-            logger.warning("Could not store test suites in database: %s", str(e))
+        except asyncpg.PostgresError as db_error:
+            logger.error(f"Database error storing test suites: {db_error}")
+            raise DatabaseConnectionError(f"Failed to connect to database: {db_error}") from db_error
+        except Exception as storage_error:
+            logger.error(f"Failed to store test suites: {storage_error}")
+            raise TestStorageError(f"Test suite storage failed: {storage_error}") from storage_error
 
     async def generate_user_management_tests(self) -> Dict[str, Any]:
         """Generate user management service tests - USER EXPERIENCE CRITICAL"""
