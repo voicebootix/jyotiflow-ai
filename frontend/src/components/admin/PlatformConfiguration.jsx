@@ -173,6 +173,8 @@ const PlatformConfiguration = () => {
           console.error('❌ fetchCurrentKeys failed:', fetchError);
           addNotification('warning', 'Configuration saved but refresh failed. Please reload the page.', platform);
         }
+        
+        setLoading(false); // ✅ CRITICAL FIX: Reset loading state on success
       } else {
         const errorMessage = responseData?.message || 'Failed to save configuration';
         console.log('❌ SAVE FAILED - Response Analysis:', {
