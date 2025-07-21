@@ -196,7 +196,7 @@ async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_de
             success=True,
             data=overview_data,
             message="Marketing overview retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Marketing overview failed: {e}")
@@ -217,7 +217,7 @@ async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_de
             success=True,
             data=fallback_data,
             message="Marketing overview retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.get("/content-calendar")
 async def get_content_calendar(
@@ -240,7 +240,7 @@ async def get_content_calendar(
             success=True,
             data={"calendar": calendar_data},  # SURGICAL FIX: Wrap list in dictionary
             message="Content calendar retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Content calendar fetch failed: {e}")
@@ -270,7 +270,7 @@ async def get_content_calendar(
             success=True,
             data={"calendar": fallback_calendar},
             message="Content calendar retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.get("/campaigns")
 async def get_campaigns(
@@ -286,7 +286,7 @@ async def get_campaigns(
             success=True,
             data={"campaigns": campaigns},  # SURGICAL FIX: Wrap list in dictionary
             message="Campaigns retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Campaigns fetch failed: {e}")
@@ -308,7 +308,7 @@ async def get_campaigns(
             success=True,
             data={"campaigns": fallback_campaigns},
             message="Campaigns retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.get("/platform-config")
 async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
@@ -325,7 +325,7 @@ async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
                 success=True,
                 data=get_empty_platform_config(),
                 message="Platform configuration retrieved (database not available)"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
         async with db.db_pool.acquire() as db_conn:
             configs = {}
@@ -361,7 +361,7 @@ async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
             success=True,
             data=configs,
             message="Platform configuration retrieved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except Exception as e:
         logger.error(f"❌ Platform config fetch failed: {e}")
@@ -370,7 +370,7 @@ async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
             success=True,
             data=get_empty_platform_config(),
             message="Platform configuration retrieved (fallback data)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.post("/platform-config")
 async def update_platform_config(
@@ -467,7 +467,7 @@ async def update_platform_config(
         return StandardResponse(
             success=True,
             message=f"{platform.capitalize()} configuration saved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except HTTPException:
         raise
@@ -489,7 +489,7 @@ async def update_platform_config(
             success=False,
             message=f"Platform configuration save failed: {str(e)}",
             data={"debug_info": error_details}
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.post("/test-connection")
 async def test_platform_connection(
@@ -648,7 +648,7 @@ async def test_platform_connection(
                 success=True,
                 data=result,
                 message=f"{platform.capitalize()} connection successful!"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         else:
             # Enhanced error response with guidance
             error_message = result.get('error', 'Connection failed')
@@ -663,7 +663,7 @@ async def test_platform_connection(
                 success=False,
                 data=enhanced_error,
                 message=f"{platform.capitalize()} connection failed: {error_message}"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except HTTPException:
         raise
@@ -673,7 +673,7 @@ async def test_platform_connection(
             success=False,
             data={"error": str(e)},
             message=f"Connection test failed: {str(e)}"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.post("/agent-chat")
 async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_admin_user)):
@@ -693,7 +693,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
                     success=True, 
                     data={"message": response_text}, 
                     message="Agent reply"
-                )
+                ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
             except Exception as agent_error:
                 logger.error(f"AI Marketing Director agent error: {agent_error}")
                 # Fallback response
@@ -703,7 +703,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
                     success=True,
                     data={"message": response_text},
                     message="Agent reply (fallback)"
-                )
+                ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         else:
             # Agent not available - provide fallback response
             response_text = f"🤖 **AI Marketing Director:**\n\nI'm currently initializing my analysis systems. Your request about '{request.message[:50]}...' has been noted.\n\nYour spiritual platform is performing well. Detailed analysis will be available shortly."
@@ -712,7 +712,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
                 success=True,
                 data={"message": response_text},
                 message="Agent reply (initializing)"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
             
     except Exception as e:
         logger.error(f"Agent chat failed: {e}")
@@ -723,7 +723,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
             success=True,
             data={"message": fallback_response},
             message="Agent reply (processing)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 # Helper Functions
 def get_required_fields(platform: str) -> List[str]:
