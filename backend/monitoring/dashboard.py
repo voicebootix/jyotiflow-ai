@@ -833,6 +833,7 @@ async def execute_test(request: dict, admin = Depends(get_current_admin_dependen
         from test_execution_engine import TestExecutionEngine
         
         test_type = request.get("test_type", "unit")
+        test_suite = request.get("test_suite", None)
         environment = request.get("environment", "production")
         
         # Initialize test execution engine
@@ -1020,26 +1021,25 @@ async def get_spiritual_services_status():
             monetization_status["error"] = str(e)
         
         # Get recent spiritual service metrics
-        async with db_manager.get_connection() as conn:
-            # Count recent spiritual sessions
-            recent_sessions = await conn.fetchval("""
-                SELECT COUNT(*) FROM sessions 
-                WHERE created_at >= NOW() - INTERVAL '24 hours'
-                AND session_type = 'spiritual_guidance'
-            """)
-            
-            # Count successful validations
-            successful_validations = await conn.fetchval("""
-                SELECT COUNT(*) FROM business_logic_issues
-                WHERE created_at >= NOW() - INTERVAL '24 hours'
-                AND validation_result = 'passed'
-            """)
-            
-        except:
+        try:
+            async with db_manager.get_connection() as conn:
+                # Count recent spiritual sessions
+                recent_sessions = await conn.fetchval("""
+                    SELECT COUNT(*) FROM sessions 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    AND session_type = 'spiritual_guidance'
+                """)
+                
+                # Count successful validations
+                successful_validations = await conn.fetchval("""
+                    SELECT COUNT(*) FROM business_logic_issues
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    AND validation_result = 'passed'
+                """)
+                
+        except Exception:
             recent_sessions = 0
             successful_validations = 0
-        finally:
-            await conn.close()
         
         return StandardResponse(
             status="success",
@@ -1404,7 +1404,7 @@ async def get_live_audio_video_status():
                 import os
                 component_path = os.path.join('frontend', 'src', 'components', component)
                 frontend_status["components"][component] = os.path.exists(component_path)
-            except:
+            except Exception:
                 frontend_status["components"][component] = False
         
         frontend_status["available"] = any(frontend_status["components"].values())
@@ -1564,7 +1564,7 @@ async def test_live_audio_video_system():
             livechat_available = True
             try:
                 from routers.livechat import livechat_router
-            except:
+            except ImportError:
                 livechat_available = False
             
             test_results["api_endpoints"] = {

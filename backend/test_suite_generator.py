@@ -2217,12 +2217,12 @@ async def test_live_audio_video_system_health():
             }
         
         # Component 5: API Endpoints health
-                 try:
-             import httpx
-             async with httpx.AsyncClient() as client:
-                 response = await client.get("https://jyotiflow-ai.onrender.com/api/admin/agora/overview")
-                 api_healthy = response.status_code in [200, 401, 403]
-         except (ImportError, Exception) as api_error:
+        try:
+            import httpx
+            async with httpx.AsyncClient() as client:
+                response = await client.get("https://jyotiflow-ai.onrender.com/api/admin/agora/overview")
+                api_healthy = response.status_code in [200, 401, 403]
+        except (ImportError, Exception) as api_error:
              logger.debug(f"API health check failed: {api_error}")
              api_healthy = False
         
