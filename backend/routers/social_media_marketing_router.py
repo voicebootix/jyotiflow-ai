@@ -673,7 +673,7 @@ async def test_platform_connection(
             success=False,
             data={"error": str(e)},
             message=f"Connection test failed: {str(e)}"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.post("/agent-chat")
 async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_admin_user)):
@@ -723,7 +723,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
             success=True,
             data={"message": fallback_response},
             message="Agent reply (processing)"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 # Helper Functions
 def get_required_fields(platform: str) -> List[str]:
