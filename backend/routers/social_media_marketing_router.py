@@ -467,7 +467,7 @@ async def update_platform_config(
         return StandardResponse(
             success=True,
             message=f"{platform.capitalize()} configuration saved successfully"
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except HTTPException:
         raise
@@ -489,7 +489,7 @@ async def update_platform_config(
             success=False,
             message=f"Platform configuration save failed: {str(e)}",
             data={"debug_info": error_details}
-        )
+        ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.post("/test-connection")
 async def test_platform_connection(
@@ -648,7 +648,7 @@ async def test_platform_connection(
                 success=True,
                 data=result,
                 message=f"{platform.capitalize()} connection successful!"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         else:
             # Enhanced error response with guidance
             error_message = result.get('error', 'Connection failed')
@@ -663,7 +663,7 @@ async def test_platform_connection(
                 success=False,
                 data=enhanced_error,
                 message=f"{platform.capitalize()} connection failed: {error_message}"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         
     except HTTPException:
         raise
@@ -693,7 +693,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
                     success=True, 
                     data={"message": response_text}, 
                     message="Agent reply"
-                )
+                ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
             except Exception as agent_error:
                 logger.error(f"AI Marketing Director agent error: {agent_error}")
                 # Fallback response
@@ -703,7 +703,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
                     success=True,
                     data={"message": response_text},
                     message="Agent reply (fallback)"
-                )
+                ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
         else:
             # Agent not available - provide fallback response
             response_text = f"🤖 **AI Marketing Director:**\n\nI'm currently initializing my analysis systems. Your request about '{request.message[:50]}...' has been noted.\n\nYour spiritual platform is performing well. Detailed analysis will be available shortly."
@@ -712,7 +712,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
                 success=True,
                 data={"message": response_text},
                 message="Agent reply (initializing)"
-            )
+            ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
             
     except Exception as e:
         logger.error(f"Agent chat failed: {e}")
