@@ -10,6 +10,7 @@ import os
 import ast
 import glob
 import json
+import re
 import asyncio
 import asyncpg
 import hashlib
@@ -19,7 +20,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
 from collections import defaultdict
-import re
 
 # Import timezone fixer to handle database datetime issues
 try:
@@ -53,6 +53,35 @@ CRITICAL_TABLES = {
     'rag_knowledge_base',      # Spiritual wisdom for AI responses
     'birth_chart_cache',       # Cached astrological calculations
     'followup_templates'       # Follow-up spiritual guidance
+}
+
+# PostgreSQL system schemas and tables to exclude from table detection
+SYSTEM_TABLES = {
+    'information_schema', 'pg_catalog', 'pg_tables', 'pg_user', 
+    'pg_indexes', 'pg_stat_user_indexes', 'pg_stat_statements',
+    'pg_class', 'pg_namespace', 'pg_attribute', 'pg_index',
+    'pg_constraint', 'pg_description', 'pg_proc', 'pg_trigger',
+    'pg_type', 'pg_roles', 'pg_database', 'pg_settings',
+    # Test and temporary tables
+    '__migration_test__', 'self_healing_test', 'test_table',
+    'temp_table', 'tmp_table', 'temporary_table'
+}
+
+# SQL keywords that might be mistaken for table names
+SQL_KEYWORDS = {
+    'if', 'else', 'then', 'when', 'case', 'end', 'and', 'or', 
+    'not', 'null', 'true', 'false', 'exists', 'all', 'any',
+    'some', 'between', 'like', 'in', 'is', 'as', 'on', 'using',
+    'union', 'intersect', 'except', 'order', 'group', 'having',
+    'limit', 'offset', 'for', 'with', 'recursive', 'values',
+    'default', 'current_timestamp', 'current_date', 'current_time'
+}
+
+# Common column names that might appear in FROM clauses
+COMMON_COLUMN_NAMES = {
+    'created_at', 'updated_at', 'deleted_at', 'id', 'name', 
+    'status', 'type', 'value', 'data', 'result', 'count',
+    'sum', 'avg', 'min', 'max', 'total', 'amount'
 }
 
 # SPIRITUAL SERVICE PRIORITIES - Business-critical vs non-critical
@@ -90,6 +119,65 @@ def quote_ident(identifier: str) -> str:
         raise ValueError(f"Invalid identifier: {identifier}")
     # Quote the identifier
     return '"' + identifier.replace('"', '""') + '"'
+
+
+def extract_table_from_query(query: str) -> Optional[str]:
+    """
+    Extract table name from SQL query with comprehensive filtering.
+    
+    This shared helper method centralizes table extraction logic to avoid duplication.
+    It handles schema.table notation, filters out system tables, SQL keywords, and
+    common column names that might be mistaken for table names.
+    
+    Args:
+        query: SQL query string
+        
+    Returns:
+        Extracted table name if valid, None otherwise
+    """
+    query_lower = query.lower()
+    
+    # Comprehensive patterns for different SQL statements
+    patterns = [
+        # FROM table or FROM schema.table (avoiding subqueries)
+        r'from\s+(?![\(\s]*select)(?:(\w+)\.)?(\w+)(?:\s+(?:as\s+)?\w+)?(?:\s*[,;]|\s+|$)',
+        # JOIN table or JOIN schema.table
+        r'(?:join|inner\s+join|left\s+join|right\s+join|full\s+join|cross\s+join)\s+(?:(\w+)\.)?(\w+)',
+        # INTO table or INTO schema.table (now handles semicolons and end of string)
+        r'into\s+(?:(\w+)\.)?(\w+)(?:\s*[\(\s;]|$)',
+        # UPDATE table or UPDATE schema.table
+        r'update\s+(?:(\w+)\.)?(\w+)\s+set',
+        # DELETE FROM table or DELETE FROM schema.table (added semicolon and end of string)
+        r'delete\s+from\s+(?:(\w+)\.)?(\w+)(?:\s*[;]|\s+|$)',
+        # CREATE TABLE
+        r'create\s+table\s+(?:if\s+not\s+exists\s+)?(?:(\w+)\.)?(\w+)',
+        # ALTER TABLE
+        r'alter\s+table\s+(?:(\w+)\.)?(\w+)',
+        # DROP TABLE
+        r'drop\s+table\s+(?:if\s+exists\s+)?(?:(\w+)\.)?(\w+)'
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, query_lower, re.IGNORECASE)
+        if match:
+            # Extract schema and table name
+            # All patterns use (?:(\w+)\.)?(\w+) where group 1 is optional schema, group 2 is table
+            schema = match.group(1)  # Will be None if no schema specified
+            potential_table = match.group(2)  # Always contains the table name
+            
+            # Skip if schema is a system schema
+            if schema and schema in SYSTEM_TABLES:
+                continue
+                
+            # Skip if table is a system table, SQL keyword, or common column name
+            if (potential_table and 
+                potential_table not in SYSTEM_TABLES and 
+                potential_table not in SQL_KEYWORDS and 
+                potential_table not in COMMON_COLUMN_NAMES and
+                re.match(r'^[a-zA-Z][a-zA-Z0-9_]*$', potential_table)):
+                return potential_table
+    
+    return None
 
 
 def infer_column_type_from_name(column_name: str) -> str:
@@ -477,23 +565,8 @@ class CodePatternAnalyzer:
                     })
             
             def _extract_table_name(self, query: str) -> Optional[str]:
-                """Extract table name from query"""
-                query_lower = query.lower()
-                
-                # Common patterns
-                patterns = [
-                    r'from\s+(\w+)',
-                    r'into\s+(\w+)',
-                    r'update\s+(\w+)',
-                    r'table\s+(\w+)'
-                ]
-                
-                for pattern in patterns:
-                    match = re.search(pattern, query_lower)
-                    if match:
-                        return match.group(1)
-                
-                return None
+                """Extract table name from query using shared helper"""
+                return extract_table_from_query(query)
             
             def _get_query_type(self, query: str) -> str:
                 """Get query type (SELECT, INSERT, UPDATE, etc.)"""
@@ -781,15 +854,8 @@ class CodePatternAnalyzer:
     
     def _check_regex_query_issues(self, query: str, line_no: int, line: str, file_path: str):
         """Check query issues when using regex fallback"""
-        query_lower = query.lower()
-        
-        # Extract table name
-        table = None
-        for pattern in [r'from\s+(\w+)', r'into\s+(\w+)', r'update\s+(\w+)']:
-            match = re.search(pattern, query_lower)
-            if match:
-                table = match.group(1)
-                break
+        # Extract table name using shared helper
+        table = extract_table_from_query(query)
         
         if table:
             # Store in query patterns (simplified - no column extraction in regex mode)
@@ -939,12 +1005,18 @@ class CodePatternAnalyzer:
         if len(columns) == 0:
             return False
         
-        # Check for suspicious column names
-        suspicious_patterns = [';', '--', '/*', '*/', 'DROP', 'DELETE']
+        # Check for suspicious patterns (but allow semicolons at the end)
+        suspicious_patterns = ['--', '/*', '*/', 'DROP TABLE', 'DELETE FROM', 'TRUNCATE']
         for pattern in suspicious_patterns:
             if pattern in create_sql.upper():
                 logger.warning(f"Suspicious pattern '{pattern}' found in schema")
                 return False
+        
+        # Check for semicolons in the middle of the statement (not at the end)
+        sql_without_final_semicolon = create_sql.rstrip().rstrip(';')
+        if ';' in sql_without_final_semicolon:
+            logger.warning("Suspicious semicolon found in the middle of schema")
+            return False
         
         # Check for reasonable column types
         valid_types = ['INTEGER', 'VARCHAR', 'TEXT', 'BOOLEAN', 'TIMESTAMP', 'DATE', 
@@ -1655,6 +1727,15 @@ class DatabaseHealthMonitor:
             r'.*_token$',  # Token columns
         ]
         
+        # Columns that should NOT be checked for uniqueness even if they match patterns
+        exclude_columns = {
+            'status_code',  # HTTP status codes are not unique
+            'error_code',   # Error codes can repeat
+            'country_code', # Country codes can repeat
+            'postal_code',  # Postal codes can repeat
+            'currency_code' # Currency codes can repeat
+        }
+        
         logger.info("Checking columns that should be unique based on naming patterns...")
         pattern_check_count = 0
         
@@ -1672,6 +1753,10 @@ class DatabaseHealthMonitor:
                     for col in unique_by_table.get(table_name, [])
                 )
                 if has_unique:
+                    continue
+                
+                # Skip if column is in exclude list
+                if column_name.lower() in exclude_columns:
                     continue
                 
                 # Check if column matches any unique pattern
@@ -1882,8 +1967,12 @@ class DatabaseHealthMonitor:
                 # Check PostgreSQL version and adjust column names accordingly
                 pg_version = await conn.fetchval("SELECT version()")
                 
+                # Extract major version number
+                version_match = re.search(r'PostgreSQL (\d+)', pg_version)
+                major_version = int(version_match.group(1)) if version_match else 0
+                
                 # PostgreSQL 13+ uses different column names in pg_stat_statements
-                if "PostgreSQL 13" in pg_version or "PostgreSQL 14" in pg_version or "PostgreSQL 15" in pg_version:
+                if major_version >= 13:
                     slow_query = """
                         SELECT 
                             query,
@@ -1918,19 +2007,45 @@ class DatabaseHealthMonitor:
             
             # Index usage
             try:
-                index_query = """
-                    SELECT 
-                        schemaname,
-                        tablename,
-                        indexname,
-                        idx_scan,
-                        idx_tup_read,
-                        idx_tup_fetch
-                    FROM pg_stat_user_indexes
-                    WHERE idx_scan = 0
-                    AND schemaname = 'public'
-                """
-                unused_indexes = await conn.fetch(index_query)
+                # Try the standard query first
+                try:
+                    index_query = """
+                        SELECT 
+                            schemaname,
+                            tablename,
+                            indexname,
+                            idx_scan,
+                            idx_tup_read,
+                            idx_tup_fetch
+                        FROM pg_stat_user_indexes
+                        WHERE idx_scan = 0
+                        AND schemaname = 'public'
+                        LIMIT 10
+                    """
+                    unused_indexes = await conn.fetch(index_query)
+                except asyncpg.UndefinedColumnError:
+                    # Fallback for systems with different column names
+                    # Some PostgreSQL versions might use relname/indexrelname
+                    try:
+                        index_query = """
+                            SELECT 
+                                schemaname,
+                                relname as tablename,
+                                indexrelname as indexname,
+                                idx_scan,
+                                idx_tup_read,
+                                idx_tup_fetch
+                            FROM pg_stat_user_indexes
+                            WHERE idx_scan = 0
+                            AND schemaname = 'public'
+                            LIMIT 10
+                        """
+                        unused_indexes = await conn.fetch(index_query)
+                    except Exception:
+                        # If both fail, return empty list
+                        logger.warning("Unable to query pg_stat_user_indexes with known column names")
+                        unused_indexes = []
+                
                 metrics['unused_indexes'] = [dict(row) for row in unused_indexes]
             except Exception as e:
                 logger.warning(f"Failed to get index usage: {e}")

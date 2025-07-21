@@ -374,29 +374,66 @@ class MonitoringDashboard:
             return []
     
     async def _get_integration_statistics(self) -> Dict:
-        """Get integration performance statistics"""
+        """Get integration performance statistics
+        
+        Note: Consider creating a database view for even better maintainability:
+        
+        CREATE OR REPLACE VIEW integration_metrics_24h AS
+        SELECT 
+            session_id,
+            integration_name,
+            status,
+            CASE 
+                WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
+                THEN (actual_value->>'duration_ms')::INTEGER 
+                ELSE NULL
+            END as duration_ms,
+            validation_time
+        FROM integration_validations
+        WHERE validation_time > NOW() - INTERVAL '24 hours';
+        
+        Then queries would simply be:
+        - SELECT ... FROM integration_metrics_24h
+        - SELECT ... FROM integration_metrics_24h GROUP BY integration_name
+        """
         try:
             conn = await db_manager.get_connection()
             try:
-                stats = await conn.fetchrow("""
+                # Use CTE to centralize duration calculation logic
+                integration_stats_query = """
+                    WITH integration_metrics AS (
+                        SELECT 
+                            session_id,
+                            integration_name,
+                            status,
+                            CASE 
+                                WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
+                                THEN (actual_value->>'duration_ms')::INTEGER 
+                                ELSE NULL
+                            END as duration_ms
+                        FROM integration_validations
+                        WHERE validation_time > NOW() - INTERVAL '24 hours'
+                    )
+                """
+                
+                # Overall statistics
+                stats = await conn.fetchrow(integration_stats_query + """
                     SELECT
                         COUNT(DISTINCT session_id) as total_sessions,
                         COUNT(*) as total_validations,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_validations,
-                        AVG(CAST(actual_value->>'duration_ms' AS INTEGER)) as avg_duration_ms
-                    FROM integration_validations
-                    WHERE validation_time > NOW() - INTERVAL '24 hours'
+                        COALESCE(AVG(duration_ms), 0)::INTEGER as avg_duration_ms
+                    FROM integration_metrics
                 """)
                 
-                # Get per-integration stats
-                by_integration = await conn.fetch("""
+                # Per-integration statistics
+                by_integration = await conn.fetch(integration_stats_query + """
                     SELECT 
                         integration_name,
                         COUNT(*) as total_calls,
                         SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls,
-                        AVG(CAST(actual_value->>'duration_ms' AS INTEGER)) as avg_duration_ms
-                    FROM integration_validations
-                    WHERE validation_time > NOW() - INTERVAL '24 hours'
+                        COALESCE(AVG(duration_ms), 0)::INTEGER as avg_duration_ms
+                    FROM integration_metrics
                     GROUP BY integration_name
                 """)
                 
@@ -521,8 +558,8 @@ class MonitoringDashboard:
                 # Get quality scores
                 quality_scores = await conn.fetchrow("""
                     SELECT 
-                        AVG((validation_results->>'quality_scores'->>'rag_relevance_score')::float) as avg_rag_score,
-                        AVG((validation_results->>'quality_scores'->>'openai_quality_score')::float) as avg_openai_score
+                        AVG(((validation_results->'quality_scores')->>'rag_relevance_score')::float) as avg_rag_score,
+                        AVG(((validation_results->'quality_scores')->>'openai_quality_score')::float) as avg_openai_score
                     FROM validation_sessions
                     WHERE validation_results IS NOT NULL
                     AND started_at > NOW() - INTERVAL '24 hours'
@@ -562,13 +599,15 @@ class MonitoringDashboard:
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             
-            # Check for high error rates
+            # Check for high error rates with proper NULL handling
             conn = await db_manager.get_connection()
             try:
                 error_rate = await conn.fetchrow("""
                     SELECT 
-                        COUNT(CASE WHEN status = 'failed' THEN 1 END)::float / 
-                        NULLIF(COUNT(*), 0) * 100 as error_rate
+                        CASE 
+                            WHEN COUNT(*) = 0 THEN 0
+                            ELSE COUNT(CASE WHEN status = 'failed' THEN 1 END)::float / COUNT(*) * 100
+                        END as error_rate
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '1 hour'
                 """)
@@ -676,6 +715,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # Check if connection is still active
             if websocket.client_state.name != "CONNECTED":
+                logger.info("WebSocket disconnected, ending monitoring")
                 break
                 
             try:
@@ -687,7 +727,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
             except Exception as send_error:
-                logger.error(f"Error sending WebSocket message: {send_error}")
+                # Don't log error if it's just a disconnection
+                if "1005" not in str(send_error) and "no status received" not in str(send_error):
+                    logger.error(f"Error sending WebSocket message: {send_error}")
                 break
             
             # Wait for 5 seconds

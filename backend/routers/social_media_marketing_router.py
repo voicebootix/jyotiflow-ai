@@ -378,14 +378,18 @@ async def update_platform_config(
     admin_user: dict = Depends(get_admin_user)
 ):
     """Save social media platform credentials to database"""
-    # SCOPE FIX: Initialize platform before try block to prevent NameError in exception handler
-    platform = config_update.get('platform', 'unknown') if config_update else 'unknown'
+    # SCOPE FIXES: Initialize variables before try block to prevent NameError in exception handler
+    db = None  # Initialize db to prevent NameError in exception handler
     
     try:
-        import db
+        import db  # Import db inside try but with fallback in exception handler
         import json
         
-        # SURGICAL FIX: Enhanced validation and error handling
+        # VALIDATION FIX: Check config_update first, then extract platform properly
+        if not config_update:
+            raise HTTPException(status_code=400, detail="Request body is required")
+            
+        platform = config_update.get('platform', '').strip()
         config = config_update.get('config', {})
         
         if not platform:
@@ -470,15 +474,15 @@ async def update_platform_config(
     except Exception as e:
         logger.error(f"❌ Platform config save failed: {e}")
         logger.error(f"❌ Exception type: {type(e).__name__}")
-        logger.error(f"❌ Database pool available: {bool(db.db_pool) if hasattr(db, 'db_pool') else 'No db module'}")
+        logger.error(f"❌ Database pool available: {bool(db.db_pool) if db and hasattr(db, 'db_pool') else 'No db module'}")
         
-        # Enhanced error details for debugging (FIXED: scope issue)
+        # Enhanced error details for debugging (FIXED: scope and validation issues)
         error_details = {
             "error_type": type(e).__name__,
             "error_message": str(e),
-            "platform": platform,
-            "has_db_module": True,  # db is imported at module level
-            "has_db_pool": bool(hasattr(db, 'db_pool') and getattr(db, 'db_pool', None))
+            "platform": platform if 'platform' in locals() else 'undefined',
+            "has_db_module": bool(db),  # db may be None if import failed
+            "has_db_pool": bool(db and hasattr(db, 'db_pool') and getattr(db, 'db_pool', None))
         }
         
         return StandardResponse(
