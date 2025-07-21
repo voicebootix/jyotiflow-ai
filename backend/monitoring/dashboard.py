@@ -742,11 +742,8 @@ async def trigger_test(test_type: str, admin: dict = Depends(get_current_admin_d
     """Trigger a validation test"""
     test_result = await monitoring_dashboard.trigger_validation_test(test_type)
     
-    return StandardResponse(
-        status="success" if test_result.get("success", False) else "error",
-        message=test_result.get("message", "Test triggered"),
-        data=test_result
-    )
+    # trigger_validation_test now returns a StandardResponse object, so return it directly
+    return test_result
 
 # Testing infrastructure endpoints
 @router.get("/test-status")
