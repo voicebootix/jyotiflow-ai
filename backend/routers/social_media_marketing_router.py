@@ -9,6 +9,7 @@ SURGICAL FIX: Enhanced error handling for platform configuration save/test opera
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -377,12 +378,18 @@ async def update_platform_config(
     admin_user: dict = Depends(get_admin_user)
 ):
     """Save social media platform credentials to database"""
+    # SCOPE FIXES: Initialize variables before try block to prevent NameError in exception handler
+    db = None  # Initialize db to prevent NameError in exception handler
+    
     try:
-        import db
+        import db  # Import db inside try but with fallback in exception handler
         import json
         
-        # SURGICAL FIX: Enhanced validation and error handling
-        platform = config_update.get('platform')
+        # VALIDATION FIX: Check config_update first, then extract platform properly
+        if not config_update:
+            raise HTTPException(status_code=400, detail="Request body is required")
+            
+        platform = config_update.get('platform', '').strip()
         config = config_update.get('config', {})
         
         if not platform:
@@ -392,12 +399,26 @@ async def update_platform_config(
         if platform not in ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok']:
             raise HTTPException(status_code=400, detail=f"Platform {platform} not supported")
         
-        # SURGICAL FIX: Enhanced database connection handling
+        # ENHANCED DEBUG: Database connection detailed diagnostics
         if not db.db_pool:
-            logger.error("❌ Database pool not available")
+            logger.error("❌ Database pool not available - this is the root cause!")
+            logger.error(f"❌ Database URL: {os.getenv('DATABASE_URL', 'NOT_SET')}")
+            logger.error("❌ Possible causes: PostgreSQL not running, DATABASE_URL incorrect, connection limit reached")
             return StandardResponse(
                 success=False,
-                message="Database not available - configuration cannot be saved"
+                message="Database not available - configuration cannot be saved. Check logs for details.",
+                data={
+                    "debug_info": {
+                        "error": "Database pool not available",
+                        "database_url_set": bool(os.getenv('DATABASE_URL')),
+                        "possible_causes": [
+                            "PostgreSQL server not running",
+                            "DATABASE_URL environment variable incorrect",
+                            "Database connection limit reached",
+                            "Database initialization failed"
+                        ]
+                    }
+                }
             )
         
         # Remove status field before saving
@@ -452,9 +473,22 @@ async def update_platform_config(
         raise
     except Exception as e:
         logger.error(f"❌ Platform config save failed: {e}")
+        logger.error(f"❌ Exception type: {type(e).__name__}")
+        logger.error(f"❌ Database pool available: {bool(db.db_pool) if db and hasattr(db, 'db_pool') else 'No db module'}")
+        
+        # Enhanced error details for debugging (FIXED: scope and validation issues)
+        error_details = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "platform": platform if 'platform' in locals() else 'undefined',
+            "has_db_module": bool(db),  # db may be None if import failed
+            "has_db_pool": bool(db and hasattr(db, 'db_pool') and getattr(db, 'db_pool', None))
+        }
+        
         return StandardResponse(
             success=False,
-            message=f"Platform configuration save failed: {str(e)}"
+            message=f"Platform configuration save failed: {str(e)}",
+            data={"debug_info": error_details}
         )
 
 @social_marketing_router.post("/test-connection")
