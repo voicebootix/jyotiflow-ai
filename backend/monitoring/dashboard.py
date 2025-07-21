@@ -760,7 +760,7 @@ async def get_test_status():
         )
 
 @router.get("/test-sessions")
-async def get_test_sessions(admin=Depends(get_current_admin_dependency)):
+async def get_test_sessions(admin = Depends(get_current_admin_dependency)):
     """Get test execution sessions history"""
     try:
         # Mock test sessions data - will be replaced with real database queries
@@ -802,7 +802,7 @@ async def get_test_sessions(admin=Depends(get_current_admin_dependency)):
         )
 
 @router.get("/test-metrics")
-async def get_test_metrics(admin=Depends(get_current_admin_dependency)):
+async def get_test_metrics(admin = Depends(get_current_admin_dependency)):
     """Get test execution metrics and statistics"""
     try:
         # Mock test metrics - will be replaced with real calculations
@@ -825,7 +825,7 @@ async def get_test_metrics(admin=Depends(get_current_admin_dependency)):
         )
 
 @router.post("/test-execute")
-async def execute_test(request: dict, admin=Depends(get_current_admin_dependency)):
+async def execute_test(request: dict, admin = Depends(get_current_admin_dependency)):
     """Execute a test suite using our actual test execution engine"""
     try:
         from test_execution_engine import TestExecutionEngine

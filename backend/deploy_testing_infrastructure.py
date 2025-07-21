@@ -53,7 +53,7 @@ class TestingInfrastructureDeployer:
         """Execute the testing infrastructure SQL script"""
         try:
             # Read the SQL file
-            with open('create_testing_tables.sql', 'r') as f:
+            with open('create_testing_tables.sql', 'r', encoding='utf-8') as f:
                 sql_script = f.read()
             
             # Split into individual statements
@@ -115,12 +115,12 @@ class TestingInfrastructureDeployer:
             self.log_info("Verifying table creation...")
             
             for table in testing_tables:
-                exists = await conn.fetchval(f"""
+                exists = await conn.fetchval("""
                     SELECT EXISTS(
                         SELECT 1 FROM information_schema.tables 
-                        WHERE table_name = '{table}'
+                        WHERE table_name = $1
                     )
-                """)
+                """, table)
                 
                 if exists:
                     self.log_success(f"✅ Table '{table}' created successfully")
@@ -197,7 +197,7 @@ class TestingInfrastructureDeployer:
                 "log_entries": self.deployment_log
             }
             
-            with open('testing_infrastructure_deployment.log', 'w') as f:
+            with open('testing_infrastructure_deployment.log', 'w', encoding='utf-8') as f:
                 json.dump(log_data, f, indent=2)
                 
             print(f"Deployment log saved to: testing_infrastructure_deployment.log")

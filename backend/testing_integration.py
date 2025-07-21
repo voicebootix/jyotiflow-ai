@@ -368,10 +368,10 @@ class AutoFixTestIntegrator:
             
             for table in monitoring_tables:
                 try:
-                    await conn.fetchval(f'SELECT COUNT(*) FROM "{table}" LIMIT 1')
+                    await conn.fetchval('SELECT COUNT(*) FROM {} LIMIT 1'.format(asyncpg.Identifier(table)))
                     accessible_tables.append(table)
-                except:
-                    pass
+                except (asyncpg.PostgresError, Exception) as e:
+                    logger.debug(f"Table {table} not accessible: {e}")
             
             if len(accessible_tables) > 0:
                 test_result.update({

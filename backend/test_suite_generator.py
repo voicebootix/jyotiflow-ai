@@ -12,7 +12,7 @@ import asyncpg
 import secrets
 import string
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, Any, Union
 import logging
 
 # Configure logging
@@ -29,6 +29,53 @@ class TestGenerationError(Exception):
 class DatabaseConnectionError(Exception):
     """Raised when database connection fails."""
     pass
+
+class TestStorageError(Exception):
+    """Raised when test storage fails."""
+    pass
+
+# Try to import monitoring and service modules with error handling
+try:
+    from monitoring.dashboard import monitoring_dashboard
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+    logger.debug("Monitoring dashboard not available")
+
+try:
+    from social_media_marketing_automation import SocialMediaMarketingEngine
+    SOCIAL_MEDIA_ENGINE_AVAILABLE = True
+except ImportError:
+    SOCIAL_MEDIA_ENGINE_AVAILABLE = False
+    logger.debug("Social media marketing engine not available")
+
+try:
+    from agora_service import AgoraService
+    AGORA_SERVICE_AVAILABLE = True
+except ImportError:
+    AGORA_SERVICE_AVAILABLE = False
+    logger.debug("Agora service not available")
+
+try:
+    from database_self_healing_system import DatabaseSelfHealingSystem
+    HEALING_SYSTEM_AVAILABLE = True
+except ImportError:
+    HEALING_SYSTEM_AVAILABLE = False
+    logger.debug("Database self-healing system not available")
+
+try:
+    from validators.social_media_validator import SocialMediaValidator
+    SOCIAL_MEDIA_VALIDATOR_AVAILABLE = True
+except ImportError:
+    SOCIAL_MEDIA_VALIDATOR_AVAILABLE = False
+    logger.debug("Social media validator not available")
+
+try:
+    from services.credit_package_service import CreditPackageService
+    CREDIT_SERVICE_AVAILABLE = True
+except ImportError:
+    CREDIT_SERVICE_AVAILABLE = False
+    logger.debug("Credit package service not available")
 
 def generate_secure_test_password() -> str:
     """
@@ -433,10 +480,10 @@ async def test_spiritual_guidance_endpoint():
 async def test_business_logic_validator():
     try:
         # Import the actual BusinessLogicValidator
-        import sys
-        import os
-        sys.path.append(os.path.join(os.path.dirname(__file__), 'monitoring'))
-        from business_validator import BusinessLogicValidator
+        try:
+            from monitoring.business_validator import BusinessLogicValidator
+        except ImportError:
+            return {"status": "failed", "error": "BusinessLogicValidator not available"}
         
         validator = BusinessLogicValidator()
         
@@ -516,10 +563,10 @@ async def test_business_logic_validator():
 async def test_spiritual_avatar_engine():
     try:
         # Import SpiritualAvatarEngine
-        import sys
-        import os
-        sys.path.append(os.path.dirname(__file__))
-        from enhanced_business_logic import SpiritualAvatarEngine
+        try:
+            from enhanced_business_logic import SpiritualAvatarEngine
+        except ImportError:
+            return {"status": "failed", "error": "SpiritualAvatarEngine not available"}
         
         engine = SpiritualAvatarEngine()
         

@@ -7,7 +7,6 @@ Creates a dummy table with intentional issues to test the auto-fix system
 import asyncio
 import asyncpg
 import os
-from datetime import datetime
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 

@@ -585,18 +585,6 @@ class CodePatternAnalyzer:
                     })
             
             def _extract_table_name(self, query: str) -> Optional[str]:
-<<<<<<< HEAD
-                """Extract table name from query, filtering out PostgreSQL system tables"""
-                query_lower = query.lower()
-                
-                # Common patterns
-                patterns = [
-                    r'from\s+(\w+)',
-                    r'into\s+(\w+)',
-                    r'update\s+(\w+)',
-                    r'table\s+(\w+)'
-                ]
-                
                 """Extract table name from query using shared helper"""
                 return extract_table_from_query(query)
             
