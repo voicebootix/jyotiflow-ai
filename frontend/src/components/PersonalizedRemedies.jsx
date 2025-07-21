@@ -3,23 +3,189 @@
  * Displays customized spiritual remedies based on astrological analysis
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Sparkles, Heart, Gem, HandHeart, MapPin, 
   Clock, BookOpen, Volume2, Star, Info, 
   Calendar, CheckCircle, Play, Pause
 } from 'lucide-react';
+import spiritualAPI from '../lib/api';
 
-const PersonalizedRemedies = ({ remedies }) => {
+const PersonalizedRemedies = ({ remedies: propsRemedies }) => {
   const [activeTab, setActiveTab] = useState('mantras');
   const [playingMantra, setPlayingMantra] = useState(null);
   const [completedRemedies, setCompletedRemedies] = useState([]);
+  const [remedies, setRemedies] = useState(propsRemedies);
+  const [loading, setLoading] = useState(!propsRemedies);
+  const [error, setError] = useState('');
+  const [birthDetails, setBirthDetails] = useState({
+    birth_date: '',
+    birth_time: '',
+    birth_location: ''
+  });
+  const [showBirthForm, setShowBirthForm] = useState(false);
+
+  useEffect(() => {
+    // If remedies are provided as props, use them
+    if (propsRemedies) {
+      setRemedies(propsRemedies);
+      setLoading(false);
+      return;
+    }
+
+    // Otherwise, try to load from user profile or show form
+    loadUserRemedies();
+  }, [propsRemedies]);
+
+  const loadUserRemedies = async () => {
+    try {
+      setLoading(true);
+      setError('');
+
+      // Check if user is authenticated
+      if (!spiritualAPI.isAuthenticated()) {
+        setShowBirthForm(true);
+        setLoading(false);
+        return;
+      }
+
+      // Try to get user profile first to see if we have birth details
+      const profileResponse = await spiritualAPI.getUserProfile();
+      if (profileResponse.success && profileResponse.data?.birth_details) {
+        // Generate remedies using profile data
+        const remediesResponse = await generateRemedies(profileResponse.data.birth_details);
+        if (remediesResponse.success) {
+          setRemedies(remediesResponse.data);
+        } else {
+          setError('Unable to generate remedies. Please try again.');
+        }
+      } else {
+        // Show form to collect birth details
+        setShowBirthForm(true);
+      }
+    } catch (error) {
+      console.error('Error loading remedies:', error);
+      setError('Failed to load remedies. Please try again.');
+      setShowBirthForm(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const generateRemedies = async (birthDetailsData) => {
+    try {
+      const response = await spiritualAPI.getPersonalizedRemedies(birthDetailsData);
+      return response;
+    } catch (error) {
+      console.error('Error generating remedies:', error);
+      return { success: false, message: error.message };
+    }
+  };
+
+  const handleBirthFormSubmit = async (e) => {
+    e.preventDefault();
+    if (!birthDetails.birth_date || !birthDetails.birth_time || !birthDetails.birth_location) {
+      setError('Please fill in all birth details.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    const remediesResponse = await generateRemedies(birthDetails);
+    if (remediesResponse.success) {
+      setRemedies(remediesResponse.data);
+      setShowBirthForm(false);
+    } else {
+      setError(remediesResponse.message || 'Failed to generate remedies.');
+    }
+    setLoading(false);
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 px-4">
+        <div className="max-w-md mx-auto text-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto mb-4"></div>
+          <p className="text-white">Preparing your personalized remedies...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showBirthForm) {
+    return (
+      <div className="min-h-screen pt-20 px-4">
+        <div className="max-w-md mx-auto p-6 bg-gradient-to-br from-purple-900/50 to-blue-900/50 rounded-lg border border-purple-500">
+          <h3 className="text-xl font-bold text-white mb-4 text-center flex items-center justify-center">
+            <Sparkles className="w-5 h-5 mr-2" />
+            Generate Your Personalized Remedies
+          </h3>
+        
+        <form onSubmit={handleBirthFormSubmit} className="space-y-4">
+          <div>
+            <label className="block text-purple-300 text-sm font-medium mb-1">Birth Date</label>
+            <input
+              type="date"
+              value={birthDetails.birth_date}
+              onChange={(e) => setBirthDetails(prev => ({ ...prev, birth_date: e.target.value }))}
+              className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-purple-300 text-sm font-medium mb-1">Birth Time</label>
+            <input
+              type="time"
+              value={birthDetails.birth_time}
+              onChange={(e) => setBirthDetails(prev => ({ ...prev, birth_time: e.target.value }))}
+              className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              required
+            />
+          </div>
+          
+          <div>
+            <label className="block text-purple-300 text-sm font-medium mb-1">Birth Location</label>
+            <input
+              type="text"
+              value={birthDetails.birth_location}
+              onChange={(e) => setBirthDetails(prev => ({ ...prev, birth_location: e.target.value }))}
+              placeholder="City, Country"
+              className="w-full px-3 py-2 bg-gray-800 text-white rounded-lg border border-gray-600 focus:border-purple-500 focus:outline-none"
+              required
+            />
+          </div>
+          
+          {error && (
+            <p className="text-red-400 text-sm">{error}</p>
+          )}
+          
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Generating...' : 'Generate Remedies'}
+          </button>
+        </form>
+        </div>
+      </div>
+    );
+  }
 
   if (!remedies) {
     return (
-      <div className="text-center py-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-yellow-500 mx-auto mb-4"></div>
-        <p className="text-white">Preparing your personalized remedies...</p>
+      <div className="min-h-screen pt-20 px-4">
+        <div className="max-w-md mx-auto text-center py-8">
+          <p className="text-white mb-4">No remedies available. Please try generating them again.</p>
+          <button
+            onClick={() => setShowBirthForm(true)}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Generate Remedies
+          </button>
+        </div>
       </div>
     );
   }
@@ -406,11 +572,12 @@ const PersonalizedRemedies = ({ remedies }) => {
   ];
 
   return (
-    <div className="w-full">
-      <h3 className="text-2xl font-bold text-white mb-6 text-center flex items-center justify-center">
-        <Sparkles className="w-6 h-6 mr-2" />
-        Your Personalized Remedies
-      </h3>
+    <div className="min-h-screen pt-20 px-4">
+      <div className="max-w-6xl mx-auto">
+        <h3 className="text-2xl font-bold text-white mb-6 text-center flex items-center justify-center">
+          <Sparkles className="w-6 h-6 mr-2" />
+          Your Personalized Remedies
+        </h3>
       
       {/* General Guidance */}
       {general_guidance && (
@@ -467,6 +634,7 @@ const PersonalizedRemedies = ({ remedies }) => {
           </p>
         </div>
       )}
+      </div>
     </div>
   );
 };
