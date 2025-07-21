@@ -287,9 +287,9 @@ class YouTubeService:
                             "error": f"Search failed: HTTP {response.status}"
                         }
                         
-                    data = await response.json()
-                    items = data.get("items", [])
-                    
+                        data = await response.json()
+                        items = data.get("items", [])
+                        
                     if not items:
                         return {"success": False, "error": "No channels found"}
                     
@@ -297,8 +297,8 @@ class YouTubeService:
                     best_match = self._find_best_channel_match(items, original_handle)
                     if best_match:
                         strategy_names = ["handle", "handle_fallback", "handle_space_fallback"]
-                        return {
-                            "success": True,
+                                return {
+                                    "success": True,
                             "channel_id": best_match["channelId"],
                             "input_type": strategy_names[strategy_index] if strategy_index < len(strategy_names) else "handle_generic",
                             "resolved_title": best_match["title"],
@@ -306,14 +306,14 @@ class YouTubeService:
                         }
                     
                     # If no specific match, return first result as approximate
-                    first_item = items[0]["snippet"]
-                    return {
-                        "success": True,
-                        "channel_id": first_item["channelId"],
+                            first_item = items[0]["snippet"]
+                            return {
+                                "success": True,
+                                "channel_id": first_item["channelId"],
                         "input_type": f"handle_approximate_{strategy_index}",
-                        "resolved_title": first_item["title"],
+                                "resolved_title": first_item["title"],
                         "note": f"Approximate match using search query: '{search_query}'"
-                    }
+                        }
                         
         except Exception as e:
             return {

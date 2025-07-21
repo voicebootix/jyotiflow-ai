@@ -1,0 +1,5 @@
+[33m3b6315c8[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m Merge pull request #183 from voicebootix/feature/fix-social-media-save-javascript-error
+[33m65b1339c[m[33m ([m[1;31morigin/feature/fix-social-media-save-javascript-error[m[33m, [m[1;32mfeature/fix-social-media-save-javascript-error[m[33m)[m fix: correct documentation - real issue was missing closing brace, not indentation
+[33md2dfa11b[m feat: document JavaScript syntax error fix for social media save
+[33mc48521f9[m[33m ([m[1;31morigin/fix/javascript-syntax-error-social-media-save[m[33m, [m[1;32mfix/javascript-syntax-error-social-media-save[m[33m)[m 🚨 CRITICAL FIX: JavaScript syntax error causing social media save failures
+[33m23c564c7[m 🚨 CRITICAL FIX: platform_settings table schema mismatch - complete solution
