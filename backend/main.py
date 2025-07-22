@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import asyncpg
 from datetime import datetime
@@ -543,6 +544,12 @@ if ENV_DEBUG_ROUTER_AVAILABLE:
 # Removed duplicate registration to avoid conflicts
 
 print("🚀 All routers registered successfully!")
+
+# --- Static File Serving ---
+# Mount a directory to serve static files (e.g., uploaded images)
+# This should correspond to the 'upload_dir' in the router.
+# The path "/static" will be the URL prefix.
+app.mount("/static", StaticFiles(directory="backend/static_uploads"), name="static")
 
 # Register monitoring system - Enhanced error handling with automatic recovery
 if MONITORING_AVAILABLE:

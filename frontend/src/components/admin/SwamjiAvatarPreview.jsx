@@ -70,10 +70,18 @@ const SwamjiAvatarPreview = () => {
     formData.append('swamiji_image', file);
 
     try {
-      const response = await enhanced_api.post('/api/admin/social-marketing/upload-swamiji-image', formData);
-      if (response.data.success) {
+      // Use the dedicated upload function
+      const response = await enhanced_api.uploadSwamjiImage(formData);
+      
+      // REFRESH.MD: Check nested properties safely to avoid runtime errors
+      if (response && response.success && response.data?.image_url) {
         setUploadedImage(response.data.image_url);
         alert('✅ Swamiji photo uploaded successfully!');
+      } else {
+        // Provide more specific feedback
+        const errorMessage = response?.message || 'Unknown error occurred';
+        console.error('Error uploading image:', errorMessage);
+        alert(`❌ Failed to upload image: ${errorMessage}`);
       }
     } catch (error) {
       console.error('Error uploading image:', error);
