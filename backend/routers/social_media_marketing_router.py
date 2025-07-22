@@ -10,6 +10,7 @@ import asyncio
 import json
 import logging
 import os
+import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
@@ -843,11 +844,15 @@ async def generate_avatar_preview(
     try:
         logger.info(f"🎨 Starting REAL avatar preview generation for style: {request.style}")
         
+        # CORE.MD & REFRESH.MD: Generate a unique session ID for each preview
+        # to prevent primary key violations in the database.
+        preview_session_id = f"preview_{uuid.uuid4().hex}"
+
         # CORE.MD: Call the actual, evidence-based implementation
         # REFRESH.MD: Corrected the method call to generate_complete_avatar_video
         # and provided mock parameters as this is a preview context.
         generation_result = await avatar_engine.generate_complete_avatar_video(
-            session_id="preview_session_123",
+            session_id=preview_session_id,
             user_email="admin_preview@jyotiflow.ai",
             guidance_text=request.sample_text,
             service_type="avatar_preview",
