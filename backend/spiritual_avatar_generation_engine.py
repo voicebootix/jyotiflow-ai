@@ -90,47 +90,111 @@ class SwamjiAvatarGenerationEngine:
             
             logger.info(f"🎭 Starting avatar generation for session {session_id}")
             
-            # Step 1: Generate voice audio with ElevenLabs
-            logger.info("🎵 Generating voice audio...")
-            voice_result = await self._generate_voice_audio(
-                guidance_text, voice_tone, session_id
-            )
+            avatar_style_config = self._get_avatar_style_config(avatar_style)
+            source_image_url = avatar_style_config.get("source_url")
+            if not source_image_url:
+                return {"success": False, "error": f"Source image URL not found for style '{avatar_style}'"}
+
+            # CORE.MD: Restore text-to-speech fallback logic.
+            # Use audio_url if present, otherwise fall back to generating audio from text.
+            if audio_url:
+                logger.info(f"🎵 Using provided audio URL: {audio_url}")
+                script = {
+                    "type": "audio",
+                    "audio_url": audio_url
+                }
+            else:
+                logger.info(f"🎵 Generating voice audio for text: '{guidance_text[:30]}...'")
+                script = {
+                    "type": "text",
+                    "input": guidance_text,
+                    "provider": {
+                        "type": "elevenlabs",
+                        "voice_id": self.settings.elevenlabs_voice_id or "onelab-voice-id"
+                    }
+                }
             
-            if not voice_result["success"]:
-                raise Exception(f"Voice generation failed: {voice_result['error']}")
+            # Get the default expressions for a talk
+            default_expressions_response = await self._get_d_id_default_expressions()
+            if not default_expressions_response.get("success"):
+                return {"success": False, "error": "Could not retrieve D-ID default expressions."}
             
-            # Step 2: Generate video with D-ID
-            logger.info("🎬 Generating avatar video...")
-            video_result = await self._generate_avatar_video(
-                guidance_text, voice_result["audio_url"], avatar_style, session_id
-            )
+            # REFRESH.MD: Add validation to prevent KeyError/TypeError before accessing nested keys.
+            default_data = default_expressions_response.get("data", {})
+            if not isinstance(default_data, dict):
+                default_data = {}
             
-            if not video_result["success"]:
-                raise Exception(f"Video generation failed: {video_result['error']}")
-            
-            # Step 3: Store generation record
-            generation_time = time.time() - generation_start_time
-            await self._store_avatar_session(
-                session_id, user_email, guidance_text, avatar_style, voice_tone,
-                video_result["video_url"], voice_result["audio_url"],
-                video_duration, voice_result["cost"], video_result["cost"],
-                generation_time
-            )
-            
-            logger.info(f"✅ Avatar generation completed in {generation_time:.2f}s")
-            
-            return {
-                "success": True,
-                "video_url": video_result["video_url"],
-                "audio_url": voice_result["audio_url"],
-                "duration_seconds": video_duration,
-                "generation_time": generation_time,
-                "total_cost": voice_result["cost"] + video_result["cost"],
-                "voice_cost": voice_result["cost"],
-                "video_cost": video_result["cost"],
-                "quality": "high"
+            default_expressions = default_data.get("expressions", [])
+            if not isinstance(default_expressions, list):
+                default_expressions = []
+
+            avatar_expressions = avatar_style_config.get("expressions", [])
+            if not isinstance(avatar_expressions, list):
+                avatar_expressions = []
+
+            final_expressions = default_expressions + avatar_expressions
+
+            body = {
+                "script": script,
+                "source_url": source_image_url,
+                "driver_expression": {
+                    "expressions": final_expressions,
+                    "transition_frames": 20
+                },
+                "config": {
+                    "result_format": "mp4",
+                    "stitch": True,
+                },
+                "user_data": f'{{"session_id": "{session_id}", "user_email": "{user_email}"}}'
             }
             
+            logger.info("🎬 Generating avatar video...")
+            # Make the API call to D-ID
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{self.d_id_base_url}/talks",
+                    json=body,
+                    headers={
+                        "accept": "application/json",
+                        "content-type": "application/json",
+                        "authorization": f"Basic {self.settings.d_id_api_key}"
+                    }
+                ) as response:
+                    response_data = await response.json()
+                    if response.status in [200, 201]:
+                        # Video generation started successfully
+                        talk_id = response_data["id"]
+                        logger.info(f"🎬 Video generation started. Talk ID: {talk_id}")
+                        
+                        # Poll for completion
+                        video_url = await self._poll_d_id_completion(talk_id)
+                        
+                        if video_url:
+                            # Calculate cost (D-ID pricing: ~$0.12/minute)
+                            estimated_minutes = len(text) / 150
+                            cost = estimated_minutes * 0.12
+                            
+                            return {
+                                "success": True,
+                                "video_url": video_url,
+                                "talk_id": talk_id,
+                                "cost": cost
+                            }
+                        else:
+                            return {
+                                "success": False,
+                                "error": "Video generation timeout",
+                                "cost": 0
+                            }
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"D-ID API error: {response.status} - {error_text}")
+                        return {
+                            "success": False,
+                            "error": f"D-ID API error: {response.status}",
+                            "cost": 0
+                        }
+        
         except Exception as e:
             logger.error(f"❌ Avatar generation failed: {e}")
             return {
@@ -213,7 +277,32 @@ class SwamjiAvatarGenerationEngine:
                 "error": str(e),
                 "cost": 0
             }
-    
+
+    async def _get_d_id_default_expressions(self) -> Dict[str, Any]:
+        """
+        Fetches the default expressions from D-ID API.
+        REFRESH.MD: Implemented this missing method to prevent AttributeError.
+        """
+        url = f"{self.d_id_base_url}/expressions"
+        headers = {
+            "accept": "application/json",
+            "authorization": f"Basic {self.settings.d_id_api_key}"
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, headers=headers) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        logger.info("Successfully fetched D-ID default expressions.")
+                        return {"success": True, "data": data}
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Failed to get D-ID default expressions. Status: {response.status}, Response: {error_text}")
+                        return {"success": False, "error": f"D-ID API error: {response.status}"}
+        except Exception as e:
+            logger.error(f"Exception while fetching D-ID default expressions: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
     async def _generate_avatar_video(
         self,
         text: str,
@@ -226,23 +315,38 @@ class SwamjiAvatarGenerationEngine:
             # Prepare avatar configuration
             avatar_config = self._get_avatar_config(avatar_style)
             
-            # Prepare request payload
-            payload = {
-                "source_url": avatar_config["presenter_image"],
+            # Get the default expressions for a talk
+            default_expressions_response = await self._get_d_id_default_expressions()
+            if not default_expressions_response.get("success"):
+                return {"success": False, "error": "Could not retrieve D-ID default expressions."}
+            
+            default_data = default_expressions_response.get("data", {})
+            if not isinstance(default_data, dict):
+                default_data = {}
+            
+            default_expressions = default_data.get("expressions", [])
+            if not isinstance(default_expressions, list):
+                default_expressions = []
+
+            avatar_expressions = avatar_config.get("expressions", [])
+            if not isinstance(avatar_expressions, list):
+                avatar_expressions = []
+
+            final_expressions = default_expressions + avatar_expressions
+
+            body = {
                 "script": {
-                    "type": "text",
-                    "subtitles": "false",
-                    "provider": {
-                        "type": "microsoft",
-                        "voice_id": "en-US-JennyNeural"
-                    },
-                    "input": text
+                    "type": "audio",
+                    "audio_url": audio_url
+                },
+                "source_url": avatar_config["presenter_image"],
+                "driver_expression": {
+                    "expressions": final_expressions,
+                    "transition_frames": 20
                 },
                 "config": {
-                    "fluent": "false",
-                    "pad_audio": "0.0",
+                    "result_format": "mp4",
                     "stitch": True,
-                    "result_format": "mp4"
                 },
                 "presenter_id": self.swamiji_presenter_id,
                 "background": {
@@ -253,7 +357,7 @@ class SwamjiAvatarGenerationEngine:
             
             # If we have custom audio, use it
             if audio_url and Path(audio_url).exists():
-                payload["script"] = {
+                body["script"] = {
                     "type": "audio",
                     "audio_url": audio_url
                 }
@@ -268,7 +372,7 @@ class SwamjiAvatarGenerationEngine:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{self.d_id_base_url}/talks",
-                    json=payload,
+                    json=body,
                     headers=headers
                 ) as response:
                     
