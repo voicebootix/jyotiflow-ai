@@ -24,7 +24,7 @@ import {
     DollarSign,
     Users
 } from 'lucide-react';
-import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus.js';
+import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus.jsx';
 import TestStatusCard from './TestStatusCard';
 import ServiceStatusCard from './ServiceStatusCard';
 import AllServicesTab from './AllServicesTab';
