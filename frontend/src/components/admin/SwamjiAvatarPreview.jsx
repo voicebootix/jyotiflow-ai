@@ -74,7 +74,7 @@ const SwamjiAvatarPreview = () => {
       const response = await enhanced_api.uploadSwamjiImage(formData);
       
       // REFRESH.MD: Check nested properties safely to avoid runtime errors
-      if (response && response.data && response.data.image_url) {
+      if (response && response.success && response.data?.image_url) {
         setUploadedImage(response.data.image_url);
         alert('✅ Swamiji photo uploaded successfully!');
       } else {
