@@ -732,17 +732,21 @@ async def upload_swamiji_image(
 ):
     """Upload Swamiji's photo for avatar generation"""
     try:
-        # Define the path to save the uploaded image
-        # Use a publicly accessible directory if you have one, e.g., 'frontend/public/uploads'
-        # For Render deployment, use a temporary directory or persistent disk if available
-        
-        # CORE.MD: Use Path for robust path manipulation
-        upload_dir = Path("frontend/public/uploads/avatars")
+        # CORE.MD: Use Path for robust path manipulation. Decouple from frontend.
+        # REFRESH.MD: Handle production environments where backend/frontend are separate.
+        upload_dir = Path("backend/static_uploads/avatars")
         upload_dir.mkdir(parents=True, exist_ok=True)
         
+        # REFRESH.MD: Handle case where filename might be None.
+        if swamiji_image.filename is None:
+            raise HTTPException(status_code=400, detail="No filename provided in upload.")
+
         # Generate a safe filename
         # REFRESH.MD: Avoid security risks like path traversal
         file_extension = Path(swamiji_image.filename).suffix
+        if not file_extension:
+             file_extension = ".jpg" # Default extension
+
         # Use a unique and predictable name for easy retrieval
         file_name = f"swamiji_base_avatar{file_extension}"
         file_path = upload_dir / file_name
@@ -754,21 +758,25 @@ async def upload_swamiji_image(
         logger.info(f"✅ Swamiji's photo saved to: {file_path}")
         
         # Construct the URL to be returned to the frontend
-        # This URL must be accessible from the user's browser
-        image_url = f"/uploads/avatars/{file_name}"
+        # The /static prefix should be handled by a StaticFiles mount in main.py
+        image_url = f"/static/avatars/{file_name}"
         
-        return {
-            "success": True,
-            "data": {"image_url": image_url},
-            "message": "Swamiji's photo uploaded successfully"
-        }
+        # CORE.MD: Use consistent response format
+        return StandardResponse(
+            success=True,
+            data={"image_url": image_url},
+            message="Swamiji's photo uploaded successfully"
+        ).dict()
 
+    except HTTPException:
+        raise # Re-raise HTTP exceptions directly
     except Exception as e:
-        logger.error(f"❌ Swamiji photo upload failed: {e}")
+        logger.error(f"❌ Swamiji photo upload failed: {e}", exc_info=True)
+        # REFRESH.MD: Preserve original error context with "from e"
         raise HTTPException(
             status_code=500, 
-            detail=f"Image upload failed: {str(e)}"
-        )
+            detail=f"Image upload failed due to an internal server error."
+        ) from e
 
 
 # Helper Functions
@@ -1266,12 +1274,14 @@ async def _execute_real_posting(platform: str, platform_credentials: Dict) -> Di
                 "error": f"Service import failed: {str(import_error)}",
                 "posted_at": datetime.now(timezone.utc).isoformat()
             }
-        except Exception as posting_error:
-            logger.error(f"❌ Real posting failed for {platform}: {posting_error}")
+        except Exception as e:
+            logger.error(f"❌ Real posting failed for {platform}: {e}", exc_info=True)
+            # REFRESH.MD: Preserve original error context with "from e"
+            # Return a consistent error structure
             return {
                 "platform": platform,
                 "status": "error",
-                "error": f"Real posting failed: {str(posting_error)}",
+                "error": f"An unexpected error occurred during posting: {type(e).__name__}",
                 "posted_at": datetime.now(timezone.utc).isoformat()
             }
 
