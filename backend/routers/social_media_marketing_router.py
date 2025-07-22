@@ -725,6 +725,52 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
             message="Agent reply (processing)"
         ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
+@social_marketing_router.post("/upload-swamiji-image")
+async def upload_swamiji_image(
+    admin_user: dict = Depends(get_admin_user),
+    swamiji_image: UploadFile = File(...)
+):
+    """Upload Swamiji's photo for avatar generation"""
+    try:
+        # Define the path to save the uploaded image
+        # Use a publicly accessible directory if you have one, e.g., 'frontend/public/uploads'
+        # For Render deployment, use a temporary directory or persistent disk if available
+        
+        # CORE.MD: Use Path for robust path manipulation
+        upload_dir = Path("frontend/public/uploads/avatars")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate a safe filename
+        # REFRESH.MD: Avoid security risks like path traversal
+        file_extension = Path(swamiji_image.filename).suffix
+        # Use a unique and predictable name for easy retrieval
+        file_name = f"swamiji_base_avatar{file_extension}"
+        file_path = upload_dir / file_name
+
+        # Save the uploaded file
+        with open(file_path, "wb") as buffer:
+            buffer.write(await swamiji_image.read())
+        
+        logger.info(f"✅ Swamiji's photo saved to: {file_path}")
+        
+        # Construct the URL to be returned to the frontend
+        # This URL must be accessible from the user's browser
+        image_url = f"/uploads/avatars/{file_name}"
+        
+        return {
+            "success": True,
+            "data": {"image_url": image_url},
+            "message": "Swamiji's photo uploaded successfully"
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Swamiji photo upload failed: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Image upload failed: {str(e)}"
+        )
+
+
 # Helper Functions
 def get_required_fields(platform: str) -> List[str]:
     """Get required credential fields for each platform"""
