@@ -128,7 +128,7 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
     const fetchLiveAudioVideoStatus = async () => {
         try {
             const response = await spiritualAPI.get('/api/monitoring/live-audio-video-status');
-            if (response && response.success) {
+            if (response?.status === 'success') {
                 setLiveAudioVideoStatus(prevStatus => response.data || prevStatus);
             }
         } catch (err) {

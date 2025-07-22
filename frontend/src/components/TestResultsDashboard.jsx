@@ -709,7 +709,7 @@ const TestResultsDashboard = () => {
             try {
                 setError(null);
                 const response = await spiritualAPI.get('/api/monitoring/live-audio-video-status');
-                if (response && response.success) {
+                if (response?.status === 'success') {
                     setLiveAudioVideoData(prevData => response.data || prevData);
                 } else {
                     setError('Failed to fetch live audio/video status');

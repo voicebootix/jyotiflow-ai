@@ -1582,6 +1582,43 @@ async def get_live_audio_video_status():
         }
 
 
+def _extract_agora_channel_from_session_data(session_data):
+    """
+    Parse session_data JSON string to extract agora_channel field.
+    Returns the agora_channel string or None if parsing fails or field is missing.
+    
+    Args:
+        session_data: JSON string or dict containing session information
+        
+    Returns:
+        str or None: The agora channel identifier if found, otherwise None
+    """
+    if not session_data:
+        return None
+    
+    try:
+        # Handle both string and dict inputs
+        if isinstance(session_data, str):
+            import json
+            parsed_data = json.loads(session_data)
+        elif isinstance(session_data, dict):
+            parsed_data = session_data
+        else:
+            return None
+        
+        # Try different possible field names for agora channel
+        possible_fields = ['agora_channel', 'channel_name', 'channel', 'agora_channel_name']
+        for field in possible_fields:
+            if field in parsed_data and isinstance(parsed_data[field], str):
+                return parsed_data[field]
+        
+        return None
+        
+    except (json.JSONDecodeError, TypeError, AttributeError, KeyError) as e:
+        # Log the error for debugging but don't break the application
+        logger.debug(f"Failed to parse session_data for agora_channel: {e}")
+        return None
+
 @router.get("/live-audio-video-sessions")
 async def get_live_audio_video_sessions():
     """Get recent live audio/video sessions data"""
@@ -1614,7 +1651,7 @@ async def get_live_audio_video_sessions():
                     "end_time": session['end_time'].isoformat() if session['end_time'] else None,
                     "duration": session['duration_minutes'],
                     "cost": float(session['credits_used'] * 0.1) if session['credits_used'] else 0.0,
-                    "agora_channel": session.get('agora_channel')
+                    "agora_channel": session.get('agora_channel') or self._extract_agora_channel_from_session_data(session.get('session_data'))
                 })
         except Exception as sessions_error:
             print(f"Error fetching sessions: {sessions_error}")
