@@ -226,23 +226,28 @@ class SwamjiAvatarGenerationEngine:
             # Prepare avatar configuration
             avatar_config = self._get_avatar_config(avatar_style)
             
-            # Prepare request payload
-            payload = {
-                "source_url": avatar_config["presenter_image"],
+            # Get the default expressions for a talk
+            default_expressions_response = self._get_d_id_default_expressions()
+            if not default_expressions_response.get("success"):
+                return {"success": False, "error": "Could not retrieve D-ID default expressions."}
+            
+            default_expressions = default_expressions_response.get("data", {}).get("expressions", [])
+            custom_expressions = avatar_config.get("expressions", [])
+            final_expressions = default_expressions + custom_expressions
+
+            body = {
                 "script": {
-                    "type": "text",
-                    "subtitles": "false",
-                    "provider": {
-                        "type": "microsoft",
-                        "voice_id": "en-US-JennyNeural"
-                    },
-                    "input": text
+                    "type": "audio",
+                    "audio_url": audio_url
+                },
+                "source_url": avatar_config["presenter_image"],
+                "driver_expression": {
+                    "expressions": final_expressions,
+                    "transition_frames": 20
                 },
                 "config": {
-                    "fluent": "false",
-                    "pad_audio": "0.0",
+                    "result_format": "mp4",
                     "stitch": True,
-                    "result_format": "mp4"
                 },
                 "presenter_id": self.swamiji_presenter_id,
                 "background": {
@@ -253,7 +258,7 @@ class SwamjiAvatarGenerationEngine:
             
             # If we have custom audio, use it
             if audio_url and Path(audio_url).exists():
-                payload["script"] = {
+                body["script"] = {
                     "type": "audio",
                     "audio_url": audio_url
                 }
@@ -268,7 +273,7 @@ class SwamjiAvatarGenerationEngine:
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{self.d_id_base_url}/talks",
-                    json=payload,
+                    json=body,
                     headers=headers
                 ) as response:
                     
