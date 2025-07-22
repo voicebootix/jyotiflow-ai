@@ -7,6 +7,7 @@ import asyncpg
 from datetime import datetime
 import os
 import asyncio
+from pathlib import Path
 
 # Sentry initialization - Enhanced version with comprehensive integrations
 import sentry_sdk
@@ -532,10 +533,12 @@ if ENV_DEBUG_ROUTER_AVAILABLE:
 print("🚀 All routers registered successfully!")
 
 # --- Static File Serving ---
-# Mount a directory to serve static files (e.g., uploaded images)
-# This should correspond to the 'upload_dir' in the router.
-# The path "/static" will be the URL prefix.
-app.mount("/static", StaticFiles(directory="backend/static_uploads"), name="static")
+# CORE.MD & REFRESH.MD: Proactively create the static directory to prevent startup errors
+static_dir = Path("backend/static_uploads")
+static_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+print(f"✅ Static files directory '{static_dir}' is ready and mounted.")
+
 
 # Register monitoring system - Enhanced error handling with automatic recovery
 if MONITORING_AVAILABLE:
