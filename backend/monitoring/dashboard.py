@@ -807,17 +807,8 @@ async def get_test_status():
 async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency)):
     """Get test execution sessions history"""
     try:
-        # Get database URL from environment
-        database_url = os.getenv("DATABASE_URL")
-        if not database_url:
-            return StandardResponse(
-                status="error",
-                message="Database configuration not available",
-                data=[]
-            )
-        
-        # Connect to database and fetch real test sessions
-        conn = await asyncpg.connect(database_url)
+        # Use db_manager connection pooling like other endpoints
+        conn = await db_manager.get_connection()
         try:
             # Check if test_execution_sessions table exists
             table_exists = await conn.fetchval("""
@@ -887,7 +878,7 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
             )
             
         finally:
-            await conn.close()
+            await db_manager.release_connection(conn)
             
     except asyncpg.PostgresConnectionError as e:
         logger.error(f"Database connection error: {e}")
