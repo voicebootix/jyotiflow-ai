@@ -80,7 +80,7 @@ const TestMetricsOverview = ({ testMetrics, loading }) => {
                         </div>
                         <div className="flex items-center">
                             {(() => {
-                                const trend = testMetrics.coverage_trend;
+                                const trend = testMetrics.auto_fixes_trend || testMetrics.auto_fix_trend;
                                 if (trend === 'improving') {
                                     return <TrendingUp className="h-8 w-8 text-green-600" />;
                                 } else if (trend === 'declining') {
@@ -88,7 +88,7 @@ const TestMetricsOverview = ({ testMetrics, loading }) => {
                                 } else if (trend === 'stable') {
                                     return <Activity className="h-8 w-8 text-blue-600" />;
                                 } else {
-                                    // Default for unexpected or null values
+                                    // Default for unexpected or null values - use neutral icon for auto-fixes
                                     return <Activity className="h-8 w-8 text-gray-600" />;
                                 }
                             })()}

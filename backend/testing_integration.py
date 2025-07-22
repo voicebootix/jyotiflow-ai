@@ -332,10 +332,31 @@ class AutoFixTestIntegrator:
                 """, table_name)
                 
                 if table_exists:
-                    # Use parameterized query with safe table name validation
-                    # Since table existence is already validated, use safe quoted identifier
-                    quoted_table = f'"{table_name}"'  # Safely quote the validated table name
-                    count = await conn.fetchval(f'SELECT COUNT(*) FROM {quoted_table}')
+                    # Safe approach: validate table name against whitelist and escape properly
+                    # Only allow known safe table patterns for testing
+                    safe_table_patterns = [
+                        'users', 'sessions', 'test_', 'health_check_', 'validation_',
+                        'test_execution_sessions', 'test_case_results'
+                    ]
+                    
+                    is_safe_table = any(
+                        table_name == pattern or table_name.startswith(pattern) 
+                        for pattern in safe_table_patterns
+                    )
+                    
+                    if is_safe_table:
+                        # Use PostgreSQL identifier quoting after validation
+                        import re
+                        # Additional validation: ensure table name contains only safe characters
+                        if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+                            escaped_table = f'"{table_name}"'
+                            count = await conn.fetchval(f'SELECT COUNT(*) FROM {escaped_table}')
+                        else:
+                            logger.warning(f"Table name contains unsafe characters: {table_name}")
+                            count = 0
+                    else:
+                        logger.warning(f"Table name not in safe patterns: {table_name}")
+                        count = 0
                 
                 test_result.update({
                     "status": "passed",
@@ -389,10 +410,28 @@ class AutoFixTestIntegrator:
                     """, table)
                     
                     if table_exists:
-                        # Use parameterized query with safe table name validation
-                        # Since table existence is already validated, use safe quoted identifier
-                        quoted_table = f'"{table}"'  # Safely quote the validated table name
-                        await conn.fetchval(f'SELECT COUNT(*) FROM {quoted_table} LIMIT 1')
+                        # Safe approach: validate table name against whitelist and escape properly
+                        safe_table_patterns = [
+                            'users', 'sessions', 'test_', 'health_check_', 'validation_',
+                            'test_execution_sessions', 'test_case_results'
+                        ]
+                        
+                        is_safe_table = any(
+                            table == pattern or table.startswith(pattern) 
+                            for pattern in safe_table_patterns
+                        )
+                        
+                        if is_safe_table:
+                            # Use PostgreSQL identifier quoting after validation
+                            import re
+                            # Additional validation: ensure table name contains only safe characters
+                            if re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table):
+                                escaped_table = f'"{table}"'
+                                await conn.fetchval(f'SELECT COUNT(*) FROM {escaped_table} LIMIT 1')
+                            else:
+                                logger.warning(f"Table name contains unsafe characters: {table}")
+                        else:
+                            logger.warning(f"Table name not in safe patterns: {table}")
                         accessible_tables.append(table)
                 except (asyncpg.PostgresError, Exception) as e:
                     logger.debug(f"Table {table} not accessible: {e}")
