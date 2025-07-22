@@ -185,6 +185,15 @@ except ImportError:
     HEALTH_ROUTER_AVAILABLE = False
     print("⚠️ Health monitoring router not available")
 
+# Integration monitoring router
+try:
+    from monitoring.dashboard import router as monitoring_router
+    MONITORING_ROUTER_AVAILABLE = True
+    print("✅ Integration monitoring router available")
+except ImportError:
+    MONITORING_ROUTER_AVAILABLE = False
+    print("⚠️ Integration monitoring router not available")
+
 # Import database initialization
 from init_database import initialize_jyotiflow_database
 
@@ -513,6 +522,11 @@ if LIVECHAT_AVAILABLE:
 if HEALTH_ROUTER_AVAILABLE:
     app.include_router(health_router)
     print("✅ Health monitoring router registered - monitoring endpoints available")
+
+# Integration monitoring router registration
+if MONITORING_ROUTER_AVAILABLE:
+    app.include_router(monitoring_router)
+    print("✅ Integration monitoring router registered - /api/monitoring endpoints available")
 
 # Debug router for testing AI Marketing Director
 if DEBUG_ROUTER_AVAILABLE:

@@ -43,7 +43,7 @@ BACKUP_RETENTION_DAYS = 30
 SCAN_INTERVAL_SECONDS = 300  # 5 minutes
 MAX_FIX_ATTEMPTS = 3
 
-# CRITICAL SPIRITUAL SERVICE TABLES - Enhanced for business context
+# CRITICAL SPIRITUAL SERVICE TABLES - Enhanced for business context and testing
 CRITICAL_TABLES = {
     'users',                    # Customer accounts and credits
     'sessions',                # Spiritual guidance sessions
@@ -52,7 +52,13 @@ CRITICAL_TABLES = {
     'payments',                # Payment processing
     'rag_knowledge_base',      # Spiritual wisdom for AI responses
     'birth_chart_cache',       # Cached astrological calculations
-    'followup_templates'       # Follow-up spiritual guidance
+    'followup_templates',      # Follow-up spiritual guidance
+    # Testing infrastructure tables
+    'test_execution_sessions', # Test session tracking
+    'test_case_results',       # Individual test results
+    'test_coverage_reports',   # Test coverage data
+    'autofix_test_results',    # Auto-fix testing results
+    'test_performance_metrics' # Performance test metrics
 }
 
 # PostgreSQL system schemas and tables to exclude from table detection
@@ -101,6 +107,20 @@ ALLOWED_DATA_TYPES = {
     'TEXT', 'VARCHAR', 'CHAR', 'BOOLEAN', 'DATE', 'TIME', 'TIMESTAMP', 'TIMESTAMPTZ',
     'UUID', 'JSON', 'JSONB', 'ARRAY', 'BYTEA', 'INTERVAL', 'MONEY', 'INET', 'CIDR',
     'VARCHAR(255)', 'VARCHAR(50)', 'VARCHAR(100)', 'CHAR(1)', 'NUMERIC(10,2)'
+}
+
+# PostgreSQL system tables and schemas that should NEVER be created or considered missing
+POSTGRESQL_SYSTEM_TABLES = {
+    'information_schema', 'pg_catalog', 'pg_tables', 'pg_indexes', 'pg_user', 
+    'pg_database', 'pg_class', 'pg_attribute', 'pg_constraint', 'pg_namespace',
+    'pg_type', 'pg_proc', 'pg_trigger', 'pg_index', 'pg_views', 'pg_rules',
+    'pg_stat_user_tables', 'pg_stat_activity', 'pg_locks', 'pg_settings'
+}
+
+# Invalid table names that should never be considered real tables
+INVALID_TABLE_NAMES = {
+    'if', 'else', 'then', 'when', 'case', 'select', 'from', 'where', 'join',
+    'created_at', 'updated_at', 'id', 'user_id', 'session_id'  # Column names
 }
 
 def serialize_datetime(obj):
@@ -887,6 +907,12 @@ class CodePatternAnalyzer:
         
         # For each table found in query patterns, generate a CREATE TABLE statement
         for table_name, queries in query_patterns.items():
+            # Filter out PostgreSQL system tables and invalid names
+            if (table_name in POSTGRESQL_SYSTEM_TABLES or 
+                table_name in INVALID_TABLE_NAMES):
+                validation_report.append(f"Table '{table_name}' skipped: PostgreSQL system table or invalid name")
+                continue
+                
             # Validation: Require minimum number of queries
             if len(queries) < min_queries:
                 validation_report.append(f"Table '{table_name}' skipped: only {len(queries)} queries found (min: {min_queries})")
@@ -1457,6 +1483,12 @@ class DatabaseHealthMonitor:
         # Check monitoring tables first (these are causing the errors in logs)
         for table_name, create_sql in monitoring_table_schemas.items():
             if table_name not in existing_tables:
+                # Filter out PostgreSQL system tables and invalid names
+                if (table_name in POSTGRESQL_SYSTEM_TABLES or 
+                    table_name in INVALID_TABLE_NAMES):
+                    logger.debug(f"Skipping PostgreSQL system table: {table_name}")
+                    continue
+                    
                 # Check if this table is actually being used in code
                 if table_name in query_patterns:
                     logger.warning(f"🚨 Critical monitoring table '{table_name}' is missing but actively used!")
