@@ -1651,7 +1651,7 @@ async def get_live_audio_video_sessions():
                     "end_time": session['end_time'].isoformat() if session['end_time'] else None,
                     "duration": session['duration_minutes'],
                     "cost": float(session['credits_used'] * 0.1) if session['credits_used'] else 0.0,
-                    "agora_channel": session.get('agora_channel') or self._extract_agora_channel_from_session_data(session.get('session_data'))
+                    "agora_channel": session.get('agora_channel') or _extract_agora_channel_from_session_data(session.get('session_data'))
                 })
         except Exception as sessions_error:
             print(f"Error fetching sessions: {sessions_error}")
