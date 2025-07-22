@@ -28,8 +28,7 @@ import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus';
 import TestStatusCard from './TestStatusCard';
 import ServiceStatusCard from './ServiceStatusCard';
 import AllServicesTab from './AllServicesTab';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+import spiritualAPI from '../lib/api';
 
 const TestResultsDashboard = () => {
     const [testSessions, setTestSessions] = useState([]);
@@ -57,17 +56,15 @@ const TestResultsDashboard = () => {
             setError(null);
             
             // Fetch test sessions
-            const sessionsResponse = await fetch(`${API_BASE_URL}/api/monitoring/test-sessions`);
-            if (sessionsResponse.ok) {
-                const sessionsData = await sessionsResponse.json();
-                setTestSessions(sessionsData.data || []);
+            const sessionsResponse = await spiritualAPI.get('/api/monitoring/test-sessions');
+            if (sessionsResponse && sessionsResponse.status === 'success') {
+                setTestSessions(sessionsResponse.data || []);
             }
             
             // Fetch test metrics
-            const metricsResponse = await fetch(`${API_BASE_URL}/api/monitoring/test-metrics`);
-            if (metricsResponse.ok) {
-                const metricsData = await metricsResponse.json();
-                setTestMetrics(prevMetrics => metricsData.data || prevMetrics);
+            const metricsResponse = await spiritualAPI.get('/api/monitoring/test-metrics');
+            if (metricsResponse && metricsResponse.status === 'success') {
+                setTestMetrics(prevMetrics => metricsResponse.data || prevMetrics);
             }
             
         } catch (err) {
@@ -79,19 +76,13 @@ const TestResultsDashboard = () => {
 
     const executeNewTest = async (testType) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/monitoring/test-execute`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
-                    test_type: testType,
-                    environment: 'production',
-                    triggered_by: 'manual'
-                })
+            const response = await spiritualAPI.post('/api/monitoring/test-execute', { 
+                test_type: testType,
+                environment: 'production',
+                triggered_by: 'manual'
             });
             
-            if (response.ok) {
+            if (response && response.status === 'success') {
                 // Refresh data after starting test
                 setTimeout(fetchTestData, 2000);
             }
@@ -387,10 +378,9 @@ const TestResultsDashboard = () => {
 
         const fetchBusinessLogicData = async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validation`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setBusinessLogicData(prevData => data.data || prevData);
+                const response = await spiritualAPI.get('/api/monitoring/business-logic-validation');
+                if (response && response.status === 'success') {
+                    setBusinessLogicData(prevData => response.data || prevData);
                 }
             } catch (err) {
                 console.warn('Business logic data not available:', err.message);
@@ -399,10 +389,9 @@ const TestResultsDashboard = () => {
 
         const fetchSpiritualServicesData = async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/monitoring/spiritual-services-status`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setSpiritualServices(prevData => data.data || prevData);
+                const response = await spiritualAPI.get('/api/monitoring/spiritual-services-status');
+                if (response && response.status === 'success') {
+                    setSpiritualServices(prevData => response.data || prevData);
                 }
             } catch (err) {
                 console.warn('Spiritual services data not available:', err.message);
@@ -412,13 +401,9 @@ const TestResultsDashboard = () => {
         const triggerValidation = async () => {
             setValidationLoading(true);
             try {
-                const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ validation_type: 'test' })
-                });
+                const response = await spiritualAPI.post('/api/monitoring/business-logic-validate', { validation_type: 'test' });
                 
-                if (response.ok) {
+                if (response && response.status === 'success') {
                     setTimeout(() => {
                         fetchBusinessLogicData();
                         fetchSpiritualServicesData();
@@ -583,10 +568,9 @@ const TestResultsDashboard = () => {
 
         const fetchSocialMediaData = async () => {
             try {
-                const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-automation`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setSocialMediaData(prevData => data.data || prevData);
+                const response = await spiritualAPI.get('/api/monitoring/social-media-status');
+                if (response && response.status === 'success') {
+                    setSocialMediaData(prevData => response.data || prevData);
                 }
             } catch (err) {
                 console.warn('Social media data not available:', err.message);
@@ -596,13 +580,9 @@ const TestResultsDashboard = () => {
         const triggerAutomation = async () => {
             setAutomationLoading(true);
             try {
-                const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-automate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ automation_type: 'test' })
-                });
+                const response = await spiritualAPI.post('/api/monitoring/social-media-test', { automation_type: 'test' });
                 
-                if (response.ok) {
+                if (response && response.status === 'success') {
                     setTimeout(() => {
                         fetchSocialMediaData();
                     }, 2000);
@@ -728,10 +708,9 @@ const TestResultsDashboard = () => {
         const fetchLiveAudioVideoData = async () => {
             try {
                 setError(null);
-                const response = await fetch(`${API_BASE_URL}/api/monitoring/live-audio-video-status`);
-                if (response.ok) {
-                    const data = await response.json();
-                    setLiveAudioVideoData(prevData => data.data || prevData);
+                const response = await spiritualAPI.get('/api/monitoring/live-audio-video-status');
+                if (response && response.success) {
+                    setLiveAudioVideoData(prevData => response.data || prevData);
                 } else {
                     setError('Failed to fetch live audio/video status');
                 }
