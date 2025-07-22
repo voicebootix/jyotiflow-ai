@@ -50,15 +50,17 @@ const SwamjiAvatarPreview = () => {
 
   const fetchCurrentConfiguration = async () => {
     try {
-      const response = await enhanced_api.get('/api/admin/social-marketing/swamiji-avatar-config');
-      if (response.data.success) {
-        setApprovedConfig(response.data.data);
-        if (response.data.data.image_url) {
-          setUploadedImage(response.data.data.image_url);
-        }
+      const response = await enhanced_api.getSwamjiAvatarConfig();
+      if (response.success && response.data?.image_url) {
+        setApprovedConfig(response.data);
+        setUploadedImage(response.data.image_url);
+      } else {
+        // If no config is found, ensure we don't show a broken image
+        setUploadedImage(null);
       }
     } catch (error) {
       console.error('Error fetching avatar config:', error);
+      setUploadedImage(null);
     }
   };
 

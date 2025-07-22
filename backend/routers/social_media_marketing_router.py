@@ -13,7 +13,7 @@ import os
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile, Body
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile, Body, Request
 from pydantic import BaseModel, Field
 
 from deps import get_current_user, get_admin_user, get_current_admin_dependency
@@ -727,6 +727,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
 
 @social_marketing_router.post("/upload-swamiji-image")
 async def upload_swamiji_image(
+    request: Request,
     admin_user: dict = Depends(get_admin_user),
     swamiji_image: UploadFile = File(...)
 ):
@@ -757,9 +758,10 @@ async def upload_swamiji_image(
         
         logger.info(f"✅ Swamiji's photo saved to: {file_path}")
         
-        # Construct the URL to be returned to the frontend
-        # The /static prefix should be handled by a StaticFiles mount in main.py
-        image_url = f"/static/avatars/{file_name}"
+        # CORE.MD & REFRESH.MD: Construct an absolute URL for the frontend
+        # This ensures the frontend can load the image regardless of where it's deployed.
+        base_url = str(request.base_url)
+        image_url = f"{base_url}static/avatars/{file_name}"
         
         # CORE.MD: Use consistent response format
         return StandardResponse(
@@ -777,6 +779,19 @@ async def upload_swamiji_image(
             status_code=500, 
             detail=f"Image upload failed due to an internal server error."
         ) from e
+
+@social_marketing_router.get("/swamiji-avatar-config")
+async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
+    """Get the current Swamiji avatar configuration"""
+    # This is a placeholder. In a real application, you would fetch this
+    # from a database (e.g., the platform_settings table).
+    # For now, we return a response indicating no config is found,
+    # which resolves the 404 error and allows the frontend to load correctly.
+    return StandardResponse(
+        success=True,
+        data=None, # No configuration found yet
+        message="Avatar configuration not found."
+    ).dict()
 
 
 # Helper Functions

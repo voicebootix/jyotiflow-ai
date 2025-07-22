@@ -159,8 +159,8 @@ class EnhancedAPI {
   }
 
   // Avatar Methods
-  async getSwamjiAvatarConfig() {
-    return this.get('/api/admin/social-marketing/swamji-avatar-config');
+  getSwamjiAvatarConfig() {
+    return this.get('/api/admin/social-marketing/swamiji-avatar-config');
   }
 
   async uploadSwamjiImage(formData) {
