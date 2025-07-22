@@ -30,6 +30,9 @@ import ProductForm from './components/admin/ProductForm';
 // Import debug component
 import AdminRoleTest from './components/AdminRoleTest';
 
+// Import testing dashboard
+import TestResultsDashboard from './components/TestResultsDashboard';
+
 // Import API client
 import spiritualAPI from './lib/api';
 
@@ -127,6 +130,13 @@ function App() {
               <Route path="/admin/products/edit/:id" element={
                 <ProtectedRoute requireAdmin={true}>
                   <ProductForm />
+                </ProtectedRoute>
+              } />
+              
+              {/* Testing Dashboard Route */}
+              <Route path="/admin/testing" element={
+                <ProtectedRoute requireAdmin={true}>
+                  <TestResultsDashboard />
                 </ProtectedRoute>
               } />
               

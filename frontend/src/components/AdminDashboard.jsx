@@ -17,6 +17,7 @@ import SocialMediaMarketing from './admin/SocialMediaMarketing';
 import FollowUpManagement from './admin/FollowUpManagement';
 import SystemMonitoring from './admin/SystemMonitoring';
 import DatabaseHealthMonitor from './DatabaseHealthMonitor';
+import TestResultsDashboard from './TestResultsDashboard';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -100,6 +101,7 @@ const AdminDashboard = () => {
     { key: 'notifications', label: 'Notifications' },
     { key: 'creditPackages', label: 'Credit Packages' },
     { key: 'followup', label: 'Follow-ups' },
+    { key: 'testing', label: '🧪 Testing Dashboard' },
     { key: 'monitoring', label: '🔍 System Monitor' },
     { key: 'databaseHealth', label: '🏥 Database Health' },
   ];
@@ -249,6 +251,7 @@ const AdminDashboard = () => {
         {activeTab === 'creditPackages' && <CreditPackages />}
         {activeTab === 'socialMarketing' && <SocialMediaMarketing />}
         {activeTab === 'followup' && <FollowUpManagement />}
+        {activeTab === 'testing' && <TestResultsDashboard />}
         {activeTab === 'monitoring' && <SystemMonitoring />}
         {activeTab === 'databaseHealth' && <DatabaseHealthMonitor />}
       </div>
