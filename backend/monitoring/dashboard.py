@@ -1478,7 +1478,7 @@ async def get_live_audio_video_status():
         try:
             conn = await db_manager.get_connection()
             
-            tables_to_check = ['live_chat_sessions', 'video_chat_sessions', 'video_chat_recordings', 'video_chat_analytics']
+            tables_to_check = ['live_chat_sessions', 'sessions', 'session_participants', 'user_sessions']
             for table in tables_to_check:
                 table_exists = await conn.fetchrow('''
                     SELECT table_name FROM information_schema.tables 
@@ -1510,20 +1510,21 @@ async def get_live_audio_video_status():
                 )
                 session_metrics["active_sessions"] = active_count or 0
             
-            # Sessions in last 24 hours
-            if database_status["tables"].get("video_chat_sessions"):
-                sessions_24h = await conn.fetchval('''
-                    SELECT COUNT(*) FROM video_chat_sessions 
-                    WHERE start_time >= NOW() - INTERVAL '24 hours'
-                ''')
-                session_metrics["sessions_24h"] = sessions_24h or 0
-                
-                # Revenue in last 24 hours
-                revenue_24h = await conn.fetchval('''
-                    SELECT COALESCE(SUM(cost), 0) FROM video_chat_sessions 
-                    WHERE start_time >= NOW() - INTERVAL '24 hours'
-                ''')
-                session_metrics["total_revenue_24h"] = float(revenue_24h or 0.0)
+            # Sessions in last 24 hours - use sessions table with correct column names
+            sessions_24h = await conn.fetchval('''
+                SELECT COUNT(*) FROM sessions 
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                AND (service_type LIKE '%video%' OR service_type LIKE '%chat%')
+            ''')
+            session_metrics["sessions_24h"] = sessions_24h or 0
+            
+            # Revenue in last 24 hours - calculate from credits_used
+            revenue_24h = await conn.fetchval('''
+                SELECT COALESCE(SUM(credits_used * 0.1), 0) FROM sessions 
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                AND (service_type LIKE '%video%' OR service_type LIKE '%chat%')
+            ''')
+            session_metrics["total_revenue_24h"] = float(revenue_24h or 0.0)
             
             await db_manager.release_connection(conn)
             
@@ -1590,25 +1591,26 @@ async def get_live_audio_video_sessions():
         sessions = []
         try:
             sessions_data = await conn.fetch('''
-                SELECT session_id, user_id, service_type, status, start_time, end_time, 
-                       duration, cost, agora_channel
-                FROM video_chat_sessions 
-                WHERE start_time >= NOW() - INTERVAL '7 days'
-                ORDER BY start_time DESC
+                SELECT id as session_id, user_id, service_type, status, created_at as start_time, 
+                       updated_at as end_time, duration_minutes, credits_used, session_data
+                FROM sessions 
+                WHERE created_at >= NOW() - INTERVAL '7 days'
+                AND (service_type LIKE '%video%' OR service_type LIKE '%chat%')
+                ORDER BY created_at DESC
                 LIMIT 20
             ''')
             
             for session in sessions_data:
                 sessions.append({
-                    "session_id": session['session_id'],
+                    "session_id": str(session['session_id']),
                     "user_id": session['user_id'],
                     "service_type": session['service_type'],
                     "status": session['status'],
                     "start_time": session['start_time'].isoformat() if session['start_time'] else None,
                     "end_time": session['end_time'].isoformat() if session['end_time'] else None,
-                    "duration": session['duration'],
-                    "cost": float(session['cost']) if session['cost'] else 0.0,
-                    "agora_channel": session['agora_channel']
+                    "duration": session['duration_minutes'],
+                    "cost": float(session['credits_used'] * 0.1) if session['credits_used'] else 0.0,
+                    "agora_channel": session.get('session_data', '{}')
                 })
         except Exception as sessions_error:
             print(f"Error fetching sessions: {sessions_error}")
