@@ -565,6 +565,22 @@ const spiritualAPI = {
     return this.get('/api/spiritual/enhanced/system-health');
   },
 
+  // ===== PERSONALIZED REMEDIES =====
+  
+  async getPersonalizedRemedies(birthDetails, preferences = {}) {
+    return this.post('/api/spiritual/enhanced/personalized-remedies', {
+      birth_details: birthDetails,
+      current_issues: preferences.current_issues || ['general_wellbeing'],
+      preferences: {
+        include_mantras: true,
+        include_gemstones: true,
+        include_charity: true,
+        include_temple_worship: true,
+        ...preferences
+      }
+    });
+  },
+
 
 };
 

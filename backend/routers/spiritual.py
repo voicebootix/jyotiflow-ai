@@ -1093,4 +1093,8 @@ async def generate_birth_chart_for_user(request: Request):
         raise HTTPException(status_code=500, detail="Database connection error") from e
     except Exception as e:
         logger.error(f"Unexpected error generating birth chart for user: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate birth chart") from e 
+        raise HTTPException(status_code=500, detail="Failed to generate birth chart") from e
+
+
+# Note: Personalized remedies endpoint has been moved to enhanced_spiritual_guidance_router.py
+# to avoid duplication and provide more advanced functionality 

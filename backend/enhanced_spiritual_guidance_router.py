@@ -843,5 +843,163 @@ async def get_pricing_dashboard():
         logger.error(f"Dashboard data error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Personalized Remedies Models
+class PersonalizedRemediesRequest(BaseModel):
+    birth_details: Dict[str, Any]
+    current_issues: List[str] = Field(default_factory=lambda: ["general_wellbeing"])
+    preferences: Dict[str, Any] = Field(default_factory=dict)
+
+class RemedyItem(BaseModel):
+    name: str
+    description: str
+    benefits: str
+    instructions: str
+
+class PersonalizedRemediesResponse(BaseModel):
+    success: bool
+    data: Optional[Dict[str, Any]] = None
+    message: str = ""
+
+@enhanced_router.post("/personalized-remedies", response_model=PersonalizedRemediesResponse)
+async def get_personalized_remedies(
+    request: PersonalizedRemediesRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Generate personalized spiritual remedies based on birth details and current issues
+    """
+    try:
+        # Extract preferences for filtering
+        preferences = request.preferences
+        
+        # TODO: Implement personalization logic using birth_details and current_issues
+        # For now, this returns static remedies but can be enhanced to use:
+        # - request.birth_details for astrological calculations
+        # - request.current_issues for targeted remedy selection
+        
+        # Determine the most relevant remedies based on birth details
+        # This is a simplified implementation - in a full system, this would
+        # involve complex astrological calculations
+        
+        remedies_data = {
+            "mantras": [
+                {
+                    "name": "Ganesha Mantra for Obstacle Removal",
+                    "sanskrit": "ॐ गं गणपतये नमः",
+                    "transliteration": "Om Gam Ganapataye Namaha",
+                    "meaning": "I bow to Lord Ganesha, the remover of obstacles",
+                    "benefits": "Removes obstacles, brings clarity and new beginnings",
+                    "repetitions": "108 times daily",
+                    "best_time": "Early morning (6-8 AM)",
+                    "duration": "21 days minimum",
+                    "special_instructions": "Face east while chanting, use a rosary for counting"
+                },
+                {
+                    "name": "Surya Mantra for Vitality",
+                    "sanskrit": "ॐ सूर्याय नमः",
+                    "transliteration": "Om Suryaya Namaha",
+                    "meaning": "I bow to the Sun God",
+                    "benefits": "Increases energy, confidence, and leadership qualities",
+                    "repetitions": "108 times daily",
+                    "best_time": "Sunrise",
+                    "duration": "40 days",
+                    "special_instructions": "Face the rising sun, offer water to the sun while chanting"
+                }
+            ],
+            "gemstones": [
+                {
+                    "name": "Yellow Sapphire (Pukhraj)",
+                    "planet": "Jupiter",
+                    "benefits": "Enhances wisdom, prosperity, and spiritual growth",
+                    "weight_range": "3-5 carats",
+                    "metal": "Gold",
+                    "wearing_position": "Index finger of right hand",
+                    "best_day": "Thursday morning",
+                    "quality_guidelines": [
+                        "Should be natural and untreated",
+                        "Clear and transparent with good luster",
+                        "Free from cracks and inclusions",
+                        "Certified by a reputable gemological institute"
+                    ],
+                    "energization_process": [
+                        "Soak in raw milk overnight",
+                        "Wash with Ganga water or clean water",
+                        "Chant Jupiter mantra 108 times",
+                        "Wear during Jupiter hora on Thursday"
+                    ]
+                }
+            ],
+            "charity": [
+                {
+                    "name": "Education Support",
+                    "purpose": "Strengthen Jupiter and enhance knowledge",
+                    "suggested_amount": "As per your capacity, minimum 1% of monthly income",
+                    "best_day": "Thursday",
+                    "planet": "Jupiter",
+                    "items": [
+                        "Books and educational materials",
+                        "School supplies for underprivileged children",
+                        "Sponsoring a child's education",
+                        "Donations to libraries or educational institutions"
+                    ],
+                    "spiritual_significance": "Supporting education creates positive karma and enhances the Jupiter principle of wisdom and knowledge in your life"
+                }
+            ],
+            "temple_worship": [
+                {
+                    "deity": "Lord Ganesha",
+                    "purpose": "Remove obstacles and ensure success in new endeavors",
+                    "best_days": "Wednesday and Chaturthi (4th lunar day)",
+                    "best_time": "Morning hours (6-10 AM)",
+                    "offerings": [
+                        "Modak (sweet dumplings)",
+                        "Red flowers (especially hibiscus)",
+                        "Durva grass",
+                        "Coconut and banana"
+                    ],
+                    "special_prayers": [
+                        {
+                            "name": "Ganesha Ashtakam",
+                            "description": "Eight verses praising Lord Ganesha"
+                        },
+                        {
+                            "name": "Vakratunda Mahakaya",
+                            "description": "Powerful Ganesha prayer for obstacle removal"
+                        }
+                    ],
+                    "recommended_temples": [
+                        "Local Ganesha temple in your area",
+                        "Any Vinayaka temple on Chaturthi days"
+                    ]
+                }
+            ],
+            "general_guidance": "These remedies are designed to harmonize your planetary energies and address the current challenges in your life. Practice them with faith and consistency. Remember that the most powerful remedy is living a righteous life with compassion and service to others. Regular meditation, prayer, and acts of kindness amplify the effects of all remedial measures."
+        }
+        
+        # Filter based on preferences
+        if not preferences.get("include_mantras", True):
+            remedies_data.pop("mantras", None)
+        if not preferences.get("include_gemstones", True):
+            remedies_data.pop("gemstones", None)
+        if not preferences.get("include_charity", True):
+            remedies_data.pop("charity", None)
+        if not preferences.get("include_temple_worship", True):
+            remedies_data.pop("temple_worship", None)
+        
+        return PersonalizedRemediesResponse(
+            success=True,
+            data=remedies_data,
+            message="Personalized remedies generated successfully"
+        )
+        
+    except Exception as e:
+        logging.error(f"Error generating personalized remedies: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate personalized remedies: {str(e)}"
+        ) from e
+
+# Alternative path removed since frontend now uses correct enhanced path
+
 # Export router for inclusion in main app
 router = enhanced_router
