@@ -844,10 +844,14 @@ async def generate_avatar_preview(
         logger.info(f"🎨 Starting REAL avatar preview generation for style: {request.style}")
         
         # CORE.MD: Call the actual, evidence-based implementation
-        generation_result = await avatar_engine.generate_swamiji_video(
-            text=request.sample_text,
-            style=request.style,
-            # In a real scenario, you might pass more context
+        # REFRESH.MD: Corrected the method call to generate_complete_avatar_video
+        # and provided mock parameters as this is a preview context.
+        generation_result = await avatar_engine.generate_complete_avatar_video(
+            session_id="preview_session_123",
+            user_email="admin_preview@jyotiflow.ai",
+            guidance_text=request.sample_text,
+            service_type="avatar_preview",
+            avatar_style=request.style
         )
 
         if generation_result.get("success"):
