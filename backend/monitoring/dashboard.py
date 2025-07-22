@@ -8,7 +8,7 @@ import asyncpg
 import uuid
 import os
 from datetime import datetime, timezone
-from typing import Dict, List, Union
+from typing import Dict, List, Union, Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from db import db_manager
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # Database connection managed through db_manager
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, Dict, Any, Union
+from typing import Optional, Dict, Any, Union, List
 
 class StandardResponse(BaseModel):
     status: str
