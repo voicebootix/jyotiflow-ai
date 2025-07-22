@@ -782,17 +782,48 @@ async def upload_swamiji_image(
         ) from e
 
 @social_marketing_router.get("/swamiji-avatar-config")
-async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
-    """Get the current Swamiji avatar configuration"""
-    # This is a placeholder. In a real application, you would fetch this
-    # from a database (e.g., the platform_settings table).
-    # For now, we return a response indicating no config is found,
-    # which resolves the 404 error and allows the frontend to load correctly.
-    return StandardResponse(
-        success=True,
-        data=None, # No configuration found yet
-        message="Avatar configuration not found."
-    ).dict()
+async def get_swamiji_avatar_config(request: Request, admin_user: dict = Depends(get_admin_user)):
+    """
+    Get the current Swamiji avatar configuration.
+    REFRESH.MD: This now checks the filesystem for a saved avatar image,
+    making the frontend state persistent across page reloads.
+    """
+    try:
+        upload_dir = Path("backend/static_uploads/avatars")
+        avatar_file = None
+        
+        # CORE.MD: Check for multiple common image extensions for robustness
+        for ext in ['.jpg', '.jpeg', '.png', '.webp']:
+            potential_file = upload_dir / f"swamiji_base_avatar{ext}"
+            if potential_file.exists():
+                avatar_file = potential_file
+                break
+        
+        if avatar_file:
+            # If an image is found, construct its absolute URL
+            base_url = str(request.base_url).rstrip('/')
+            image_url = f"{base_url}/static/avatars/{avatar_file.name}"
+            
+            return StandardResponse(
+                success=True,
+                data={"image_url": image_url},
+                message="Avatar configuration retrieved successfully."
+            ).dict()
+        else:
+            # If no image is found, return as not configured
+            return StandardResponse(
+                success=True,
+                data=None, # No configuration found
+                message="Avatar configuration not found."
+            ).dict()
+
+    except Exception as e:
+        logger.error(f"❌ Error fetching avatar config: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve avatar configuration."
+        ) from e
+
 
 @social_marketing_router.post("/generate-avatar-preview")
 async def generate_avatar_preview(
