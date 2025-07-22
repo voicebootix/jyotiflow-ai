@@ -8,7 +8,7 @@ import asyncpg
 import uuid
 import os
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from db import db_manager
@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 # Database connection managed through db_manager
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union
 
 class StandardResponse(BaseModel):
     status: str
     message: str
-    data: Dict[str, Any] = Field(default_factory=dict)
+    data: Union[Dict[str, Any], List[Any]] = Field(default_factory=dict)
     success: bool = Field(default=True, description="Backward compatibility field")
     
     @model_validator(mode='after')
@@ -1029,14 +1029,36 @@ async def get_business_logic_validation_status(admin: dict = Depends(get_current
     try:
         conn = await db_manager.get_connection()
         try:
-            # Get recent business logic validation results
+            # Check if business_logic_issues table exists and get recent results
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS(
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_name = 'business_logic_issues' AND table_schema = 'public'
+                )
+            """)
+            
+            if not table_exists:
+                # Return empty data if table doesn't exist yet
+                return StandardResponse(
+                    status="success",
+                    message="Business logic validation table not yet created",
+                    data={
+                        "summary": {
+                            "total_validations": 0,
+                            "passed_validations": 0,
+                            "success_rate": 0,
+                            "avg_quality_score": 0
+                        },
+                        "recent_validations": []
+                    }
+                )
+            
+            # Get recent business logic validation results (without validation_type for now)
             recent_validations = await conn.fetch("""
                 SELECT 
                     session_id,
-                    validation_type,
-                    validation_result,
-                    quality_score,
-                    issues_found,
+                    issue_description as validation_result,
+                    severity_score as quality_score,
                     created_at
                 FROM business_logic_issues 
                 WHERE created_at >= NOW() - INTERVAL '24 hours'
@@ -1047,7 +1069,7 @@ async def get_business_logic_validation_status(admin: dict = Depends(get_current
             # Calculate summary statistics
             total_validations = len(recent_validations)
             passed_validations = sum(1 for v in recent_validations 
-                                   if v['validation_result'] == 'passed')
+                                   if v['validation_result'] and 'success' in str(v['validation_result']).lower())
             avg_quality_score = sum(v['quality_score'] or 0 for v in recent_validations) / max(total_validations, 1)
             
             validation_data = [dict(v) for v in recent_validations]
