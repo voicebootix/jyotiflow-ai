@@ -568,7 +568,7 @@ const spiritualAPI = {
   // ===== PERSONALIZED REMEDIES =====
   
   async getPersonalizedRemedies(birthDetails, preferences = {}) {
-    return this.post('/spiritual/personalized-remedies', {
+    return this.post('/api/spiritual/enhanced/personalized-remedies', {
       birth_details: birthDetails,
       current_issues: preferences.current_issues || ['general_wellbeing'],
       preferences: {

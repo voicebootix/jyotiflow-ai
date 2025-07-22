@@ -869,10 +869,13 @@ async def get_personalized_remedies(
     Generate personalized spiritual remedies based on birth details and current issues
     """
     try:
-        # Extract birth details
-        birth_details = request.birth_details
-        current_issues = request.current_issues
+        # Extract preferences for filtering
         preferences = request.preferences
+        
+        # TODO: Implement personalization logic using birth_details and current_issues
+        # For now, this returns static remedies but can be enhanced to use:
+        # - request.birth_details for astrological calculations
+        # - request.current_issues for targeted remedy selection
         
         # Determine the most relevant remedies based on birth details
         # This is a simplified implementation - in a full system, this would
@@ -994,18 +997,9 @@ async def get_personalized_remedies(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate personalized remedies: {str(e)}"
-        )
+        ) from e
 
-# Also add the endpoint to the main spiritual router for compatibility
-@enhanced_router.post("/spiritual/personalized-remedies", response_model=PersonalizedRemediesResponse)
-async def get_personalized_remedies_alt_path(
-    request: PersonalizedRemediesRequest,
-    background_tasks: BackgroundTasks
-):
-    """
-    Alternative path for personalized remedies (for frontend compatibility)
-    """
-    return await get_personalized_remedies(request, background_tasks)
+# Alternative path removed since frontend now uses correct enhanced path
 
 # Export router for inclusion in main app
 router = enhanced_router

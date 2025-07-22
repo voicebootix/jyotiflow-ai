@@ -82,10 +82,57 @@ const PersonalizedRemedies = ({ remedies: propsRemedies }) => {
     }
   };
 
+  const validateBirthDetails = (details) => {
+    const errors = [];
+
+    // Validate birth date
+    if (!details.birth_date) {
+      errors.push('Birth date is required.');
+    } else {
+      const date = new Date(details.birth_date);
+      const now = new Date();
+      if (isNaN(date.getTime())) {
+        errors.push('Please enter a valid birth date.');
+      } else if (date > now) {
+        errors.push('Birth date cannot be in the future.');
+      } else if (date < new Date('1900-01-01')) {
+        errors.push('Birth date cannot be before 1900.');
+      }
+    }
+
+    // Validate birth time
+    if (!details.birth_time) {
+      errors.push('Birth time is required.');
+    } else {
+      const timeRegex = /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/;
+      if (!timeRegex.test(details.birth_time)) {
+        errors.push('Please enter a valid time in HH:MM format.');
+      }
+    }
+
+    // Validate birth location
+    if (!details.birth_location) {
+      errors.push('Birth location is required.');
+    } else {
+      const location = details.birth_location.trim();
+      if (location.length < 2) {
+        errors.push('Birth location must be at least 2 characters long.');
+      } else if (location.length > 100) {
+        errors.push('Birth location must be less than 100 characters.');
+      } else if (!/^[a-zA-Z\s,.-]+$/.test(location)) {
+        errors.push('Birth location contains invalid characters. Use only letters, spaces, commas, periods, and hyphens.');
+      }
+    }
+
+    return errors;
+  };
+
   const handleBirthFormSubmit = async (e) => {
     e.preventDefault();
-    if (!birthDetails.birth_date || !birthDetails.birth_time || !birthDetails.birth_location) {
-      setError('Please fill in all birth details.');
+    
+    const validationErrors = validateBirthDetails(birthDetails);
+    if (validationErrors.length > 0) {
+      setError(validationErrors.join(' '));
       return;
     }
 
