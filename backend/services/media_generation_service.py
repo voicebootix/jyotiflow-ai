@@ -151,7 +151,9 @@ class MediaGenerationService:
                 title_font = ImageFont.truetype("arial.ttf", 60)
                 quote_font = ImageFont.truetype("arial.ttf", 40)
                 hashtag_font = ImageFont.truetype("arial.ttf", 30)
-            except:
+            except (IOError, OSError) as e:
+                # ✅ FIXED: Catch specific font loading exceptions instead of bare except
+                logger.debug(f"Custom font loading failed: {e}. Using default fonts.")
                 title_font = ImageFont.load_default()
                 quote_font = ImageFont.load_default()
                 hashtag_font = ImageFont.load_default()
@@ -211,7 +213,9 @@ class MediaGenerationService:
                 title_font = ImageFont.truetype("arial.ttf", 80)
                 quote_font = ImageFont.truetype("arial.ttf", 50)
                 video_font = ImageFont.truetype("arial.ttf", 35)
-            except:
+            except (IOError, OSError) as e:
+                # ✅ FIXED: Catch specific font loading exceptions instead of bare except
+                logger.debug(f"Custom font loading failed for video: {e}. Using default fonts.")
                 title_font = ImageFont.load_default()
                 quote_font = ImageFont.load_default()
                 video_font = ImageFont.load_default()
@@ -263,18 +267,13 @@ class MediaGenerationService:
     async def _generate_image_fallback(self, params: Dict, filename: str) -> Dict:
         """Fallback image generation without PIL"""
         try:
-            # Create simple HTML canvas-based image (base64 encoded)
-            # This is a basic fallback - in production, use PIL or external service
+            # TODO: Future implementation - HTML-to-image conversion for advanced fallback
+            # When implemented, this would convert HTML canvas to actual image using libraries like:
+            # - html2image, playwright, or selenium for server-side rendering
+            # - Base64 encoded image generation from HTML canvas
+            # For now, using direct placeholder URL approach for reliability
             
-            canvas_html = f"""
-            <canvas width="{params['width']}" height="{params['height']}" style="background: rgb{params['background_color']};">
-                <text x="50%" y="100" text-anchor="middle" fill="white" font-size="60">{params['title']}</text>
-                <text x="50%" y="300" text-anchor="middle" fill="white" font-size="40">{params['quote'][:100]}...</text>
-                <text x="50%" y="950" text-anchor="middle" fill="white" font-size="30">{params['hashtags']}</text>
-            </canvas>
-            """
-            
-            # In production, this would generate actual image
+            # In production, this would generate actual image from HTML canvas
             # For now, return a reliable placeholder URL
             fallback_url = "https://via.placeholder.com/1080x1080/4A90E2/FFFFFF?text=Daily+Wisdom"
             

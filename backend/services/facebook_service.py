@@ -507,12 +507,13 @@ class FacebookService:
                 params = {
                     "access_token": page_access_token,
                     "url": media_url,  # Facebook can fetch from URL
-                    "caption": message if endpoint == "photos" else "description"  # Videos use description, photos use caption
                 }
                 
-                # For videos, use 'description' instead of 'caption'
-                if endpoint == "videos":
-                    params["description"] = params.pop("caption")
+                # ✅ FIXED: Set correct parameter for photos vs videos
+                if endpoint == "photos":
+                    params["caption"] = message  # Photos use caption parameter
+                else:  # videos
+                    params["description"] = message  # Videos use description parameter
                 
                 async with session.post(url, data=params) as response:
                     data = await response.json()
