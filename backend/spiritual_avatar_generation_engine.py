@@ -51,6 +51,12 @@ class SwamjiAvatarGenerationEngine:
         self.max_concurrent_generations = 3
         self.current_generations = 0
         
+        # CORE.MD & REFRESH.MD: Proactive dependency checks at initialization
+        if not self.settings.d_id_api_key or "your-d-id-api-key" in self.settings.d_id_api_key:
+            logger.warning("D-ID API key is not configured. Avatar generation will fail.")
+        if not self.settings.elevenlabs_api_key or "your-elevenlabs-api-key" in self.settings.elevenlabs_api_key:
+            logger.warning("ElevenLabs API key is not configured. Avatar generation will fail.")
+
         logger.info("🎭 Swamiji Avatar Generation Engine initialized")
     
     async def generate_complete_avatar_video(
