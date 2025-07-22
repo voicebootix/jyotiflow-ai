@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus.jsx';
+import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus';
 
 const SessionDetailModal = ({ session, onClose, isOpen }) => {
     const modalRef = useRef(null);

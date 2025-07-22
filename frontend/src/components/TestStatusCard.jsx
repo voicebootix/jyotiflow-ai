@@ -12,7 +12,7 @@ import {
     RefreshCw,
     Video
 } from 'lucide-react';
-import { getStatusColor, getStatusIcon, getStatusBadgeColor } from '../utils/testStatus.jsx';
+import { getStatusColor, getStatusIcon, getStatusBadgeColor } from '../utils/testStatus';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
