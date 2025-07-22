@@ -794,6 +794,41 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_admin_user)):
         message="Avatar configuration not found."
     ).dict()
 
+@social_marketing_router.post("/generate-avatar-preview")
+async def generate_avatar_preview(
+    request: AvatarPreviewRequest,
+    admin_user: dict = Depends(get_admin_user)
+):
+    """Generate a preview of the Swamiji avatar with a given style."""
+    try:
+        # CORE.MD & REFRESH.MD: This is a placeholder for the actual AI/ML model call.
+        # In a real implementation, this would trigger a job to generate a video.
+        # For now, we simulate a successful generation after a short delay.
+        logger.info(f"🎨 Simulating avatar preview generation for style: {request.style}")
+        await asyncio.sleep(3) # Simulate processing time
+
+        # Return a mock preview object
+        mock_preview = {
+            "video_url": "https://storage.googleapis.com/jyotiflow-public-assets/swamiji-preview-placeholder.mp4",
+            "thumbnail_url": "https://storage.googleapis.com/jyotiflow-public-assets/swamiji-preview-thumbnail.jpg",
+            "duration": "12s",
+            "quality": "HD",
+            "style": request.style
+        }
+
+        return StandardResponse(
+            success=True,
+            data={"preview": mock_preview},
+            message=f"Avatar preview for '{request.style}' style generated successfully."
+        ).dict()
+
+    except Exception as e:
+        logger.error(f"❌ Avatar preview generation failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Preview generation failed: {str(e)}"
+        ) from e
+
 
 # Helper Functions
 def get_required_fields(platform: str) -> List[str]:
