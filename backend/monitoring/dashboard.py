@@ -1581,6 +1581,7 @@ async def get_live_audio_video_status():
             }
         }
 
+
 @router.get("/live-audio-video-sessions")
 async def get_live_audio_video_sessions():
     """Get recent live audio/video sessions data"""
@@ -1591,12 +1592,15 @@ async def get_live_audio_video_sessions():
         sessions = []
         try:
             sessions_data = await conn.fetch('''
-                SELECT id as session_id, user_id, service_type, status, created_at as start_time, 
-                       updated_at as end_time, duration_minutes, credits_used, session_data
-                FROM sessions 
-                WHERE created_at >= NOW() - INTERVAL '7 days'
-                AND (service_type LIKE '%video%' OR service_type LIKE '%chat%')
-                ORDER BY created_at DESC
+                SELECT s.id as session_id, s.user_id, s.service_type, s.status, 
+                       s.created_at as start_time, s.updated_at as end_time, 
+                       s.duration_minutes, s.credits_used, s.session_data,
+                       lcs.channel_name as agora_channel
+                FROM sessions s
+                LEFT JOIN live_chat_sessions lcs ON s.id::text = lcs.session_id
+                WHERE s.created_at >= NOW() - INTERVAL '7 days'
+                AND (s.service_type LIKE '%video%' OR s.service_type LIKE '%chat%')
+                ORDER BY s.created_at DESC
                 LIMIT 20
             ''')
             
@@ -1610,7 +1614,7 @@ async def get_live_audio_video_sessions():
                     "end_time": session['end_time'].isoformat() if session['end_time'] else None,
                     "duration": session['duration_minutes'],
                     "cost": float(session['credits_used'] * 0.1) if session['credits_used'] else 0.0,
-                    "agora_channel": session.get('session_data', '{}')
+                    "agora_channel": session.get('agora_channel')
                 })
         except Exception as sessions_error:
             print(f"Error fetching sessions: {sessions_error}")
