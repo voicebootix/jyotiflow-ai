@@ -5,8 +5,6 @@ import httpx
 import openai
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime, timedelta, timezone
-from pydantic import BaseModel, Field
-from typing import Dict, Any, List, Optional
 from services.birth_chart_cache_service import BirthChartCacheService
 import uuid
 import logging
