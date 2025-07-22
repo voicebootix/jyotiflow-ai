@@ -99,12 +99,12 @@ const SwamjiAvatarPreview = () => {
 
     try {
       setIsGenerating(true);
-      const response = await enhanced_api.post('/api/admin/social-marketing/generate-avatar-preview', {
+      const response = await enhanced_api.generateAvatarPreview({
         style: style,
         sample_text: "Namaste, beloved souls. Welcome to this divine spiritual guidance. May peace and wisdom be with you always. Om Namah Shivaya."
       });
 
-      if (response.data.success) {
+      if (response.success && response.data?.preview) {
         setAvatarPreviews(prev => ({
           ...prev,
           [style]: response.data.preview
@@ -144,14 +144,14 @@ const SwamjiAvatarPreview = () => {
     }
 
     try {
-      const response = await enhanced_api.post('/api/admin/social-marketing/approve-swamiji-avatar', {
+      const response = await enhanced_api.approveSwamjiAvatar({
         image_url: uploadedImage,
         previews: avatarPreviews,
         approved_styles: Object.keys(avatarPreviews),
         default_style: selectedStyle
       });
 
-      if (response.data.success) {
+      if (response.success) {
         setApprovedConfig(response.data.configuration);
         alert('✅ Swamiji avatar configuration approved! All future content will use this appearance.');
       }
