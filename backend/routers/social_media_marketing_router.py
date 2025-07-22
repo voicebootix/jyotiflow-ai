@@ -857,7 +857,7 @@ async def generate_avatar_preview(
         if generation_result.get("success"):
             return StandardResponse(
                 success=True,
-                data={"preview": generation_result.get("data")},
+                data={"preview": generation_result},
                 message=f"Avatar preview for '{request.style}' style generated successfully."
             ).dict()
         else:
