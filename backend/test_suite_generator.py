@@ -134,24 +134,124 @@ class TestSuiteGenerator:
         try:
             logger.info("Starting test suite generation")
             
-            return {
-                "database_tests": await self.generate_database_tests(),
-                "api_tests": await self.generate_api_tests(),
-                "spiritual_services_tests": await self.generate_spiritual_services_tests(),
-                "integration_tests": await self.generate_integration_tests(),
-                "performance_tests": await self.generate_performance_tests(),
-                "security_tests": await self.generate_security_tests(),
-                "auto_healing_tests": await self.generate_auto_healing_tests(),
-                "live_audio_video_tests": await self.generate_live_audio_video_tests(),
-                "social_media_tests": await self.generate_social_media_tests(),
-                "avatar_generation_tests": await self.generate_avatar_generation_tests(),
-                "credit_payment_tests": await self.generate_credit_payment_tests(),
-                "user_management_tests": await self.generate_user_management_tests(),
-                "admin_services_tests": await self.generate_admin_services_tests(),
-                "community_services_tests": await self.generate_community_services_tests(),
-                "notification_services_tests": await self.generate_notification_services_tests(),
-                "analytics_monitoring_tests": await self.generate_analytics_monitoring_tests()
-            }
+            # Test database connection first
+            try:
+                if hasattr(self, 'database_url') and self.database_url:
+                    conn = await asyncpg.connect(self.database_url)
+                    await conn.execute("SELECT 1")
+                    await conn.close()
+                    logger.info("Database connection verified")
+            except (asyncpg.PostgresConnectionError, asyncpg.PostgresError) as db_error:
+                logger.error(f"Database connection failed: {db_error}")
+                raise DatabaseConnectionError(f"Unable to connect to database: {db_error}") from db_error
+            except Exception as conn_error:
+                logger.error(f"Unexpected database connection error: {conn_error}")
+                raise DatabaseConnectionError(f"Database connection error: {conn_error}") from conn_error
+            
+            # Generate all test suites with proper error handling
+            test_suites = {}
+            
+            try:
+                test_suites["database_tests"] = await self.generate_database_tests()
+            except Exception as e:
+                logger.warning(f"Database tests generation failed: {e}")
+                test_suites["database_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["api_tests"] = await self.generate_api_tests()
+            except Exception as e:
+                logger.warning(f"API tests generation failed: {e}")
+                test_suites["api_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["spiritual_services_tests"] = await self.generate_spiritual_services_tests()
+            except Exception as e:
+                logger.warning(f"Spiritual services tests generation failed: {e}")
+                test_suites["spiritual_services_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["integration_tests"] = await self.generate_integration_tests()
+            except Exception as e:
+                logger.warning(f"Integration tests generation failed: {e}")
+                test_suites["integration_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["performance_tests"] = await self.generate_performance_tests()
+            except Exception as e:
+                logger.warning(f"Performance tests generation failed: {e}")
+                test_suites["performance_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["security_tests"] = await self.generate_security_tests()
+            except Exception as e:
+                logger.warning(f"Security tests generation failed: {e}")
+                test_suites["security_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["auto_healing_tests"] = await self.generate_auto_healing_tests()
+            except Exception as e:
+                logger.warning(f"Auto healing tests generation failed: {e}")
+                test_suites["auto_healing_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["live_audio_video_tests"] = await self.generate_live_audio_video_tests()
+            except Exception as e:
+                logger.warning(f"Live audio/video tests generation failed: {e}")
+                test_suites["live_audio_video_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["social_media_tests"] = await self.generate_social_media_tests()
+            except Exception as e:
+                logger.warning(f"Social media tests generation failed: {e}")
+                test_suites["social_media_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["avatar_generation_tests"] = await self.generate_avatar_generation_tests()
+            except Exception as e:
+                logger.warning(f"Avatar generation tests failed: {e}")
+                test_suites["avatar_generation_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["credit_payment_tests"] = await self.generate_credit_payment_tests()
+            except Exception as e:
+                logger.warning(f"Credit payment tests generation failed: {e}")
+                test_suites["credit_payment_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["user_management_tests"] = await self.generate_user_management_tests()
+            except Exception as e:
+                logger.warning(f"User management tests generation failed: {e}")
+                test_suites["user_management_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["admin_services_tests"] = await self.generate_admin_services_tests()
+            except Exception as e:
+                logger.warning(f"Admin services tests generation failed: {e}")
+                test_suites["admin_services_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["community_services_tests"] = await self.generate_community_services_tests()
+            except Exception as e:
+                logger.warning(f"Community services tests generation failed: {e}")
+                test_suites["community_services_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["notification_services_tests"] = await self.generate_notification_services_tests()
+            except Exception as e:
+                logger.warning(f"Notification services tests generation failed: {e}")
+                test_suites["notification_services_tests"] = {"error": str(e)}
+            
+            try:
+                test_suites["analytics_monitoring_tests"] = await self.generate_analytics_monitoring_tests()
+            except Exception as e:
+                logger.warning(f"Analytics monitoring tests generation failed: {e}")
+                test_suites["analytics_monitoring_tests"] = {"error": str(e)}
+            
+            logger.info("Test suite generation completed")
+            return test_suites
+            
+        except DatabaseConnectionError:
+            raise  # Re-raise database connection errors
         except Exception as generation_error:
             logger.error(f"Failed to generate test suites: {generation_error}")
             raise TestGenerationError(f"Test suite generation failed: {generation_error}") from generation_error

@@ -22,19 +22,21 @@ const TestExecutionHistory = ({
                     <span>Test Execution History</span>
                     <div className="flex gap-2">
                         <div className="relative">
-                            <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                            <Search className="h-4 w-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" aria-hidden="true" />
                             <input
                                 type="text"
                                 placeholder="Search tests..."
                                 value={searchTerm}
                                 onChange={(e) => onSearchChange(e.target.value)}
                                 className="pl-9 pr-4 py-2 border rounded-md text-sm"
+                                aria-label="Search test execution history"
                             />
                         </div>
                         <select
                             value={filter}
                             onChange={(e) => onFilterChange(e.target.value)}
                             className="px-3 py-2 border rounded-md text-sm"
+                            aria-label="Filter test results by status"
                         >
                             <option value="all">All Tests</option>
                             <option value="passed">Passed</option>
@@ -52,10 +54,18 @@ const TestExecutionHistory = ({
                         </div>
                     ) : (
                         filteredSessions.map((session) => (
-                            <div
+                            <button
                                 key={session.session_id}
-                                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 cursor-pointer"
+                                className="w-full flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-left"
                                 onClick={() => onSessionSelect(session)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        onSessionSelect(session);
+                                    }
+                                }}
+                                aria-label={`View details for ${session.test_type} test session from ${new Date(session.started_at).toLocaleString()}, status: ${session.status}`}
+                                role="button"
                             >
                                 <div className="flex items-center gap-3">
                                     {getStatusIcon(session.status)}
@@ -76,7 +86,7 @@ const TestExecutionHistory = ({
                                         </span>
                                     )}
                                 </div>
-                            </div>
+                            </button>
                         ))
                     )}
                 </div>

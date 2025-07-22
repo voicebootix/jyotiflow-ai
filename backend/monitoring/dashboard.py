@@ -920,7 +920,6 @@ async def execute_test(request: dict, admin: dict = Depends(get_current_admin_de
         
         test_type = request.get("test_type", "unit")
         test_suite = request.get("test_suite", None)
-        environment = request.get("environment", "production")
         
         # Initialize test execution engine
         engine = TestExecutionEngine()

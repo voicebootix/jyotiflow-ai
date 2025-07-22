@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -7,14 +7,69 @@ import { X } from 'lucide-react';
 import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus.js';
 
 const SessionDetailModal = ({ session, onClose, isOpen }) => {
+    const modalRef = useRef(null);
+    const firstFocusableRef = useRef(null);
+    const lastFocusableRef = useRef(null);
+
+    // Focus trap and escape key handling
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const handleEscape = (event) => {
+            if (event.key === 'Escape') {
+                onClose();
+            }
+        };
+
+        const handleTabKey = (event) => {
+            if (event.key !== 'Tab') return;
+
+            if (event.shiftKey) {
+                // Shift + Tab
+                if (document.activeElement === firstFocusableRef.current) {
+                    event.preventDefault();
+                    lastFocusableRef.current?.focus();
+                }
+            } else {
+                // Tab
+                if (document.activeElement === lastFocusableRef.current) {
+                    event.preventDefault();
+                    firstFocusableRef.current?.focus();
+                }
+            }
+        };
+
+        document.addEventListener('keydown', handleEscape);
+        document.addEventListener('keydown', handleTabKey);
+
+        // Focus the first focusable element when modal opens
+        setTimeout(() => {
+            firstFocusableRef.current?.focus();
+        }, 100);
+
+        return () => {
+            document.removeEventListener('keydown', handleEscape);
+            document.removeEventListener('keydown', handleTabKey);
+        };
+    }, [isOpen, onClose]);
+
     if (!isOpen || !session) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <Card className="max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto">
+        <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="modal-title"
+        >
+            <Card 
+                ref={modalRef}
+                className="max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto"
+            >
                 <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>Test Session Details</CardTitle>
+                    <CardTitle id="modal-title">Test Session Details</CardTitle>
                     <Button
+                        ref={firstFocusableRef}
                         variant="ghost"
                         size="sm"
                         onClick={onClose}
@@ -51,11 +106,11 @@ const SessionDetailModal = ({ session, onClose, isOpen }) => {
                         </div>
                         <div>
                             <label className="text-sm font-medium">Passed Tests</label>
-                            <p className="text-sm text-gray-600 text-green-600">{session.passed_tests || 0}</p>
+                            <p className="text-sm text-green-600">{session.passed_tests || 0}</p>
                         </div>
                         <div>
                             <label className="text-sm font-medium">Failed Tests</label>
-                            <p className="text-sm text-gray-600 text-red-600">{session.failed_tests || 0}</p>
+                            <p className="text-sm text-red-600">{session.failed_tests || 0}</p>
                         </div>
                         <div>
                             <label className="text-sm font-medium">Execution Time</label>
@@ -65,7 +120,7 @@ const SessionDetailModal = ({ session, onClose, isOpen }) => {
                         </div>
                     </div>
                     
-                    {session.coverage_percentage && (
+                    {session.coverage_percentage != null && (
                         <div>
                             <label className="text-sm font-medium">Test Coverage</label>
                             <div className="flex items-center gap-2 mt-1">
@@ -73,10 +128,17 @@ const SessionDetailModal = ({ session, onClose, isOpen }) => {
                                     <div
                                         className="bg-blue-600 h-2 rounded-full"
                                         style={{ width: `${session.coverage_percentage}%` }}
+                                        role="progressbar"
+                                        aria-valuenow={session.coverage_percentage}
+                                        aria-valuemin="0"
+                                        aria-valuemax="100"
+                                        aria-label={`Test coverage: ${session.coverage_percentage}%`}
                                     ></div>
                                 </div>
                                 <span className="text-sm text-gray-600">
-                                    {session.coverage_percentage.toFixed(1)}%
+                                    {typeof session.coverage_percentage === 'number' 
+                                        ? session.coverage_percentage.toFixed(1) 
+                                        : session.coverage_percentage}%
                                 </span>
                             </div>
                         </div>
@@ -104,7 +166,7 @@ const SessionDetailModal = ({ session, onClose, isOpen }) => {
                     )}
 
                     <div className="flex justify-end pt-4">
-                        <Button onClick={onClose}>Close</Button>
+                        <Button ref={lastFocusableRef} onClick={onClose}>Close</Button>
                     </div>
                 </CardContent>
             </Card>

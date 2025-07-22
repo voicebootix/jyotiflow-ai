@@ -322,8 +322,18 @@ class AutoFixTestIntegrator:
             
             # For test tables, try basic operations
             if table_name.startswith("test_") or table_name in ["users", "sessions"]:
-                # Try a simple SELECT count with safe identifier
-                count = await conn.fetchval('SELECT COUNT(*) FROM ' + str(asyncpg.Identifier(table_name)))
+                # Try a simple SELECT count with validated table name
+                # First validate table exists for safety
+                table_exists = await conn.fetchval("""
+                    SELECT EXISTS(
+                        SELECT 1 FROM information_schema.tables 
+                        WHERE table_name = $1 AND table_schema = 'public'
+                    )
+                """, table_name)
+                
+                if table_exists:
+                    # Use validated table name in query (safe after validation)
+                    count = await conn.fetchval(f'SELECT COUNT(*) FROM {table_name}')
                 
                 test_result.update({
                     "status": "passed",
@@ -368,8 +378,18 @@ class AutoFixTestIntegrator:
             
             for table in monitoring_tables:
                 try:
-                    await conn.fetchval('SELECT COUNT(*) FROM {} LIMIT 1'.format(asyncpg.Identifier(table)))
-                    accessible_tables.append(table)
+                    # Validate table exists first, then use safe query
+                    table_exists = await conn.fetchval("""
+                        SELECT EXISTS(
+                            SELECT 1 FROM information_schema.tables 
+                            WHERE table_name = $1 AND table_schema = 'public'
+                        )
+                    """, table)
+                    
+                    if table_exists:
+                        # Use validated table name in query (safe after validation)
+                        await conn.fetchval(f'SELECT COUNT(*) FROM {table} LIMIT 1')
+                        accessible_tables.append(table)
                 except (asyncpg.PostgresError, Exception) as e:
                     logger.debug(f"Table {table} not accessible: {e}")
             
