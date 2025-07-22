@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Filter, Search } from 'lucide-react';
-import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus.js';
+import { getStatusBadgeColor, getStatusIcon } from '../utils/testStatus';
 
 const TestExecutionHistory = ({ 
     testSessions, 
