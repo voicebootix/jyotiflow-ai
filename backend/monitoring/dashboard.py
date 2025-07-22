@@ -60,28 +60,7 @@ class LegacyStandardResponse(BaseModel):
             data=response.data
         )
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-
-# Import proper admin authentication
-try:
-    from deps import get_current_admin_dependency
-except ImportError:
-    # If deps module is not available, create a secure fallback
-    from fastapi import Depends
-    
-    security = HTTPBearer()
-    
-    async def verify_bearer_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-        """Verify bearer token and return admin user"""
-        # In a real implementation, you would verify the token here
-        # For now, we just reject all requests
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Admin authentication required. Please configure proper authentication.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    # Alias for consistency with the imported version
-    get_current_admin_dependency = verify_bearer_token
+from deps import get_current_admin_dependency
 
 from .integration_monitor import integration_monitor, IntegrationStatus
 from .business_validator import BusinessLogicValidator
@@ -1499,7 +1478,7 @@ async def get_live_audio_video_status():
         try:
             conn = await db_manager.get_connection()
             
-            tables_to_check = ['live_chat_sessions', 'video_chat_sessions', 'video_chat_recordings', 'video_chat_analytics']
+            tables_to_check = ['live_chat_sessions', 'sessions', 'session_participants', 'user_sessions']
             for table in tables_to_check:
                 table_exists = await conn.fetchrow('''
                     SELECT table_name FROM information_schema.tables 
@@ -1531,20 +1510,21 @@ async def get_live_audio_video_status():
                 )
                 session_metrics["active_sessions"] = active_count or 0
             
-            # Sessions in last 24 hours
-            if database_status["tables"].get("video_chat_sessions"):
-                sessions_24h = await conn.fetchval('''
-                    SELECT COUNT(*) FROM video_chat_sessions 
-                    WHERE start_time >= NOW() - INTERVAL '24 hours'
-                ''')
-                session_metrics["sessions_24h"] = sessions_24h or 0
-                
-                # Revenue in last 24 hours
-                revenue_24h = await conn.fetchval('''
-                    SELECT COALESCE(SUM(cost), 0) FROM video_chat_sessions 
-                    WHERE start_time >= NOW() - INTERVAL '24 hours'
-                ''')
-                session_metrics["total_revenue_24h"] = float(revenue_24h or 0.0)
+            # Sessions in last 24 hours - use sessions table with correct column names
+            sessions_24h = await conn.fetchval('''
+                SELECT COUNT(*) FROM sessions 
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                AND (service_type LIKE '%video%' OR service_type LIKE '%chat%')
+            ''')
+            session_metrics["sessions_24h"] = sessions_24h or 0
+            
+            # Revenue in last 24 hours - calculate from credits_used
+            revenue_24h = await conn.fetchval('''
+                SELECT COALESCE(SUM(credits_used * 0.1), 0) FROM sessions 
+                WHERE created_at >= NOW() - INTERVAL '24 hours'
+                AND (service_type LIKE '%video%' OR service_type LIKE '%chat%')
+            ''')
+            session_metrics["total_revenue_24h"] = float(revenue_24h or 0.0)
             
             await db_manager.release_connection(conn)
             
@@ -1601,6 +1581,44 @@ async def get_live_audio_video_status():
             }
         }
 
+
+def _extract_agora_channel_from_session_data(session_data):
+    """
+    Parse session_data JSON string to extract agora_channel field.
+    Returns the agora_channel string or None if parsing fails or field is missing.
+    
+    Args:
+        session_data: JSON string or dict containing session information
+        
+    Returns:
+        str or None: The agora channel identifier if found, otherwise None
+    """
+    if not session_data:
+        return None
+    
+    try:
+        # Handle both string and dict inputs
+        if isinstance(session_data, str):
+            import json
+            parsed_data = json.loads(session_data)
+        elif isinstance(session_data, dict):
+            parsed_data = session_data
+        else:
+            return None
+        
+        # Try different possible field names for agora channel
+        possible_fields = ['agora_channel', 'channel_name', 'channel', 'agora_channel_name']
+        for field in possible_fields:
+            if field in parsed_data and isinstance(parsed_data[field], str):
+                return parsed_data[field]
+        
+        return None
+        
+    except (json.JSONDecodeError, TypeError, AttributeError, KeyError) as e:
+        # Log the error for debugging but don't break the application
+        logger.debug(f"Failed to parse session_data for agora_channel: {e}")
+        return None
+
 @router.get("/live-audio-video-sessions")
 async def get_live_audio_video_sessions():
     """Get recent live audio/video sessions data"""
@@ -1611,25 +1629,29 @@ async def get_live_audio_video_sessions():
         sessions = []
         try:
             sessions_data = await conn.fetch('''
-                SELECT session_id, user_id, service_type, status, start_time, end_time, 
-                       duration, cost, agora_channel
-                FROM video_chat_sessions 
-                WHERE start_time >= NOW() - INTERVAL '7 days'
-                ORDER BY start_time DESC
+                SELECT s.id as session_id, s.user_id, s.service_type, s.status, 
+                       s.created_at as start_time, s.updated_at as end_time, 
+                       s.duration_minutes, s.credits_used, s.session_data,
+                       lcs.channel_name as agora_channel
+                FROM sessions s
+                LEFT JOIN live_chat_sessions lcs ON s.id::text = lcs.session_id
+                WHERE s.created_at >= NOW() - INTERVAL '7 days'
+                AND (s.service_type LIKE '%video%' OR s.service_type LIKE '%chat%')
+                ORDER BY s.created_at DESC
                 LIMIT 20
             ''')
             
             for session in sessions_data:
                 sessions.append({
-                    "session_id": session['session_id'],
+                    "session_id": str(session['session_id']),
                     "user_id": session['user_id'],
                     "service_type": session['service_type'],
                     "status": session['status'],
                     "start_time": session['start_time'].isoformat() if session['start_time'] else None,
                     "end_time": session['end_time'].isoformat() if session['end_time'] else None,
-                    "duration": session['duration'],
-                    "cost": float(session['cost']) if session['cost'] else 0.0,
-                    "agora_channel": session['agora_channel']
+                    "duration": session['duration_minutes'],
+                    "cost": float(session['credits_used'] * 0.1) if session['credits_used'] else 0.0,
+                    "agora_channel": session.get('agora_channel') or _extract_agora_channel_from_session_data(session.get('session_data'))
                 })
         except Exception as sessions_error:
             print(f"Error fetching sessions: {sessions_error}")

@@ -13,8 +13,7 @@ import {
     Video
 } from 'lucide-react';
 import { getStatusColor, getStatusIcon, getStatusBadgeColor } from '../utils/testStatus';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+import spiritualAPI from '../lib/api';
 
 const TestStatusCard = ({ variant = 'summary', className = '' }) => {
     const [testStatus, setTestStatus] = useState({
@@ -80,14 +79,11 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
     const fetchTestStatus = async () => {
         try {
             setError(null);
-            const response = await fetch(`${API_BASE_URL}/api/monitoring/test-status`);
-            if (response.ok) {
-                const data = await response.json();
-                setTestStatus(prevStatus => data.data || prevStatus);
-            } else if (response.status === 404) {
-                setError('Testing infrastructure not yet deployed');
+            const response = await spiritualAPI.get('/api/monitoring/test-status');
+            if (response && response.status === 'success') {
+                setTestStatus(prevStatus => response.data || prevStatus);
             } else {
-                setError(`Failed to fetch test status: ${response.status}`);
+                setError(`Failed to fetch test status: ${response?.message || 'Unknown error'}`);
             }
         } catch (err) {
             setError(`Connection error: ${err.message}`);
@@ -98,10 +94,9 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
 
     const fetchBusinessLogicStatus = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/monitoring/business-logic-validation`);
-            if (response.ok) {
-                const data = await response.json();
-                setBusinessLogicStatus(prevStatus => data.data?.summary || prevStatus);
+            const response = await spiritualAPI.get('/api/monitoring/business-logic-validation');
+            if (response && response.status === 'success') {
+                setBusinessLogicStatus(prevStatus => response.data?.summary || prevStatus);
             }
         } catch (err) {
             console.warn('Business logic status not available:', err.message);
@@ -110,10 +105,9 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
 
     const fetchSpiritualServicesStatus = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/monitoring/spiritual-services-status`);
-            if (response.ok) {
-                const data = await response.json();
-                setSpiritualServicesStatus(prevStatus => data.data || prevStatus);
+            const response = await spiritualAPI.get('/api/monitoring/spiritual-services-status');
+            if (response && response.status === 'success') {
+                setSpiritualServicesStatus(prevStatus => response.data || prevStatus);
             }
         } catch (err) {
             console.warn('Spiritual services status not available:', err.message);
@@ -122,10 +116,9 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
 
     const fetchSocialMediaStatus = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/monitoring/social-media-status`);
-            if (response.ok) {
-                const data = await response.json();
-                setSocialMediaStatus(prevStatus => data.data || prevStatus);
+            const response = await spiritualAPI.get('/api/monitoring/social-media-status');
+            if (response && response.status === 'success') {
+                setSocialMediaStatus(prevStatus => response.data || prevStatus);
             }
         } catch (err) {
             console.warn('Social media status not available:', err.message);
@@ -134,10 +127,9 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
 
     const fetchLiveAudioVideoStatus = async () => {
         try {
-            const response = await fetch(`${API_BASE_URL}/api/monitoring/live-audio-video-status`);
-            if (response.ok) {
-                const data = await response.json();
-                setLiveAudioVideoStatus(prevStatus => data.data || prevStatus);
+            const response = await spiritualAPI.get('/api/monitoring/live-audio-video-status');
+            if (response?.status === 'success') {
+                setLiveAudioVideoStatus(prevStatus => response.data || prevStatus);
             }
         } catch (err) {
             console.warn('Live audio/video status not available:', err.message);
@@ -147,17 +139,13 @@ const TestStatusCard = ({ variant = 'summary', className = '' }) => {
     const executeTests = async (testType = 'quick') => {
         setExecutingTest(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/api/monitoring/test-execute`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ test_type: testType })
-            });
+            const response = await spiritualAPI.post('/api/monitoring/test-execute', { test_type: testType });
             
-            if (response.ok) {
+            if (response && response.status === 'success') {
                 // Refresh status after execution
                 setTimeout(fetchAllStatus, 2000);
+            } else {
+                setError(`Failed to execute tests: ${response?.message || 'Unknown error'}`);
             }
         } catch (err) {
             setError('Failed to execute tests');

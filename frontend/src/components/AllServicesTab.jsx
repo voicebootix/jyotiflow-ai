@@ -13,9 +13,8 @@ import {
     Activity,
     Target
 } from 'lucide-react';
+import spiritualAPI from '../lib/api';
 import ServiceStatusCard from './ServiceStatusCard';
-
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
 
 /**
  * Configuration for all services organized by category
@@ -97,24 +96,17 @@ const AllServicesTab = () => {
             for (const category of ALL_SERVICES_CONFIG) {
                 for (const service of category.services) {
                     try {
-                        const response = await fetch(`${API_BASE_URL}/api/monitoring/test-execute`, {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                            },
-                            body: JSON.stringify({ test_type: service.testType })
-                        });
+                        const response = await spiritualAPI.post('/api/monitoring/test-execute', { test_type: service.testType });
 
-                        if (response.ok) {
-                            const data = await response.json();
+                        if (response && response.status === 'success') {
                             results[service.testType] = {
                                 status: 'passed',
-                                data: data.data || data
+                                data: response.data || response
                             };
                         } else {
                             results[service.testType] = {
                                 status: 'failed',
-                                error: `HTTP ${response.status}`
+                                error: response?.message || 'Unknown error'
                             };
                         }
                     } catch (serviceError) {
