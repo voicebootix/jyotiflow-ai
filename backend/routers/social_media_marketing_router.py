@@ -1011,20 +1011,17 @@ async def execute_posting(
                     # ✅ IMPROVED: Add credential validation before posting
                     logger.info(f"🔍 Validating {platform.title()} credentials before posting...")
                     
-                    # Simulate posting (in real implementation, this would call actual APIs)
-                    # TODO: Replace with real API calls using platform_credentials
-                    posting_result = {
-                        "platform": platform,
-                        "status": "success",
-                        "content_posted": f"Daily wisdom posted to {platform.title()}",
-                        "engagement_prediction": "8.5%" if platform == "youtube" else "7.2%",
-                        "posted_at": datetime.now(timezone.utc).isoformat(),
-                        "credentials_validated": True  # ✅ IMPROVED: Include validation status
-                    }
+                    # ✅ REAL POSTING: Call actual platform APIs instead of simulation
+                    posting_result = await _execute_real_posting(platform, platform_credentials)
                     
                     posting_results.append(posting_result)
-                    posted_platforms.append(platform)
-                    logger.info(f"✅ Posted successfully to {platform.title()}")
+                    
+                    # ✅ FIXED: Only log success and add to posted_platforms if posting actually succeeded
+                    if posting_result.get("status") == "success":
+                        posted_platforms.append(platform)
+                        logger.info(f"✅ Posted successfully to {platform.title()}")
+                    else:
+                        logger.error(f"❌ Failed to post to {platform.title()}: {posting_result.get('error', 'Unknown error')}")
                     
                 except KeyError as key_error:
                     logger.error(f"❌ {platform.title()} configuration key error: {key_error}")
@@ -1093,4 +1090,142 @@ async def execute_posting(
         ).dict()
 
 # Helper Functions
+
+async def _execute_real_posting(platform: str, platform_credentials: Dict) -> Dict:
+        """Execute real posting to the specified platform using actual API calls"""
+        try:
+            # Generate content for the post
+            content_data = {
+                "title": "✨ Daily Wisdom from Swamiji",
+                "content_text": "🙏 Namaste, beloved souls. In the silence of meditation, we find the answers our hearts seek. Let today be filled with peace, love, and divine grace. Om Namah Shivaya! 🕉️",
+                "description": "Daily spiritual wisdom to illuminate your path and bring peace to your heart.",
+                "hashtags": ["#DailyWisdom", "#Meditation", "#Spirituality", "#OmNamahShivaya", "#Peace", "#Love", "#Mindfulness", "#Swamiji"]
+            }
+            
+            # Call the appropriate service based on platform
+            if platform == "youtube":
+                from services.youtube_service import youtube_service
+                result = await youtube_service.post_content(content_data)
+            elif platform == "facebook":
+                from services.facebook_service import facebook_service
+                result = await facebook_service.post_content(content_data)
+            elif platform == "instagram":
+                from services.instagram_service import instagram_service
+                from services.media_generation_service import media_generation_service
+                # ✅ PRODUCTION-READY: Generate real spiritual quote images
+                try:
+                    # Generate actual spiritual quote image
+                    media_result = await media_generation_service.generate_instagram_image(content_data)
+                    
+                    if media_result.get("success"):
+                        media_url = media_result["media_url"]
+                        logger.info(f"✅ Generated Instagram image: {media_result.get('filename')}")
+                        result = await instagram_service.post_content(content_data, media_url)
+                        
+                        # Add media generation info to result
+                        if result.get("success"):
+                            result["media_generation"] = {
+                                "filename": media_result.get("filename"),
+                                "dimensions": media_result.get("dimensions"),
+                                "fallback_used": media_result.get("fallback_used", False)
+                            }
+                    else:
+                        # Media generation failed, use fallback
+                        logger.warning(f"⚠️ Instagram media generation failed: {media_result.get('error')}")
+                        media_url = media_result.get("media_url")  # Fallback URL
+                        result = await instagram_service.post_content(content_data, media_url)
+                        result["media_generation_warning"] = media_result.get("error")
+                        
+                except Exception as e:
+                    logger.error(f"❌ Instagram media generation/posting failed: {e}")
+                    result = {
+                        "success": False,
+                        "error": f"Instagram posting failed: {str(e)}"
+                    }
+            elif platform == "tiktok":
+                from services.tiktok_service import tiktok_service
+                from services.media_generation_service import media_generation_service
+                # ✅ PRODUCTION-READY: Generate real spiritual quote videos
+                try:
+                    # Generate actual spiritual quote video
+                    media_result = await media_generation_service.generate_tiktok_video(content_data)
+                    
+                    if media_result.get("success"):
+                        media_url = media_result["media_url"]
+                        logger.info(f"✅ Generated TikTok video: {media_result.get('filename')}")
+                        result = await tiktok_service.post_content(content_data, media_url)
+                        
+                        # Add media generation info to result
+                        if result.get("success"):
+                            result["media_generation"] = {
+                                "filename": media_result.get("filename"),
+                                "dimensions": media_result.get("dimensions"),
+                                "note": media_result.get("note"),
+                                "fallback_used": media_result.get("fallback_used", False)
+                            }
+                    else:
+                        # Media generation failed, use fallback
+                        logger.warning(f"⚠️ TikTok media generation failed: {media_result.get('error')}")
+                        media_url = media_result.get("media_url")  # Fallback URL
+                        result = await tiktok_service.post_content(content_data, media_url)
+                        result["media_generation_warning"] = media_result.get("error")
+                        
+                except Exception as e:
+                    logger.error(f"❌ TikTok media generation/posting failed: {e}")
+                    result = {
+                        "success": False,
+                        "error": f"TikTok posting failed: {str(e)}"
+                    }
+            elif platform == "twitter":
+                from services.twitter_service import twitter_service
+                result = await twitter_service.post_content(content_data)
+            else:
+                return {
+                    "platform": platform,
+                    "status": "error",
+                    "error": f"Unsupported platform: {platform}",
+                    "posted_at": datetime.now(timezone.utc).isoformat()
+                }
+            
+            # Transform the service result to match expected format
+            if result.get("success"):
+                return {
+                    "platform": platform,
+                    "status": "success",
+                    "content_posted": f"Daily wisdom posted to {platform.title()}",
+                    "engagement_prediction": "8.5%" if platform == "youtube" else "7.2%",
+                    "posted_at": datetime.now(timezone.utc).isoformat(),
+                    "credentials_validated": True,
+                    "post_id": result.get("post_id"),
+                    "post_url": result.get("post_url"),
+                    "real_posting": True,  # ✅ Flag to indicate this was real posting
+                    "service_response": result  # ✅ Include full service response for debugging
+                }
+            else:
+                return {
+                    "platform": platform,
+                    "status": "error",
+                    "error": result.get("error", "Unknown posting error"),
+                    "posted_at": datetime.now(timezone.utc).isoformat(),
+                    "credentials_validated": False,
+                    "real_posting": True,
+                    "service_response": result
+                }
+                
+        except ImportError as import_error:
+            logger.error(f"❌ Failed to import {platform} service: {import_error}")
+            return {
+                "platform": platform,
+                "status": "error",
+                "error": f"Service import failed: {str(import_error)}",
+                "posted_at": datetime.now(timezone.utc).isoformat()
+            }
+        except Exception as posting_error:
+            logger.error(f"❌ Real posting failed for {platform}: {posting_error}")
+            return {
+                "platform": platform,
+                "status": "error",
+                "error": f"Real posting failed: {str(posting_error)}",
+                "posted_at": datetime.now(timezone.utc).isoformat()
+            }
 

@@ -5,7 +5,9 @@ Validates Facebook API credentials by making actual Graph API calls
 
 import aiohttp
 import logging
-from typing import Dict
+import db
+import json
+from typing import Dict, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -318,6 +320,306 @@ class FacebookService:
             return {
                 "success": False,
                 "error": f"Page access token test failed: {str(e)}"
+            }
+
+    async def post_content(self, content: Dict, media_url: Optional[str] = None) -> Dict:
+        """Post content to Facebook page"""
+        credentials = await self._get_credentials()
+        if not credentials:
+            return {
+                "success": False,
+                "error": "Facebook credentials not configured in admin dashboard."
+            }
+        
+        try:
+            # Prepare post content
+            post_message = content.get('content_text', content.get('description', ''))
+            post_title = content.get('title', '')
+            
+            # Combine title and message
+            if post_title and post_message:
+                full_message = f"{post_title}\n\n{post_message}"
+            else:
+                full_message = post_message or post_title
+            
+            # Add hashtags if provided (Facebook recommends max 10 hashtags for optimal reach)
+            if content.get('hashtags'):
+                hashtags = ' '.join(content['hashtags'][:10])  # Facebook hashtag limit: max 10 for optimal engagement
+                full_message = f"{full_message}\n\n{hashtags}"
+            
+            # ✅ FIXED: Validate Facebook's 63,206 character limit
+            if len(full_message) > 63206:
+                return {
+                    "success": False,
+                    "error": f"Facebook post content exceeds 63,206 character limit. Current length: {len(full_message)} characters. Please shorten the content."
+                }
+            
+            # Post to Facebook page
+            if media_url:
+                result = await self._post_with_media(credentials, full_message, media_url)
+            else:
+                result = await self._post_text_only(credentials, full_message)
+            
+            if result.get("success"):
+                logger.info(f"✅ Successfully posted to Facebook: {result.get('post_id')}")
+                return {
+                    "success": True,
+                    "post_id": result.get('post_id'),
+                    "platform": "facebook",
+                    "post_url": result.get('post_url', 'https://facebook.com'),
+                    "content_length": len(full_message)
+                }
+            else:
+                logger.error(f"❌ Facebook posting failed: {result.get('error')}")
+                # ✅ FIXED: Return consistent error format instead of raw result
+                return {
+                    "success": False,
+                    "error": result.get('error', 'Facebook posting failed')
+                }
+                
+        except Exception as e:
+            logger.error(f"❌ Facebook posting exception: {e}")
+            return {
+                "success": False,
+                "error": f"Facebook posting failed: {str(e)}"
+            }
+    
+    def invalidate_credentials_cache(self):
+        """Invalidate the credentials cache to force fresh fetch from database"""
+        logger.info("🔄 Facebook credentials cache invalidated")
+        self._credentials_cache = None
+    
+    async def _get_credentials(self):
+        """Get Facebook credentials from database (platform_settings table)"""
+        if self._credentials_cache:
+            return self._credentials_cache
+            
+        try:
+            if not db.db_pool:
+                return None
+                
+            async with db.db_pool.acquire() as db_conn:
+                row = await db_conn.fetchrow(
+                    "SELECT value FROM platform_settings WHERE key = $1",
+                    "facebook_credentials"
+                )
+                if row and row['value']:
+                    try:
+                        # ✅ FIXED: Added error handling for JSON parsing
+                        if isinstance(row['value'], str):
+                            credentials = json.loads(row['value'])
+                        else:
+                            credentials = row['value']
+                        self._credentials_cache = credentials
+                        return credentials
+                    except json.JSONDecodeError as json_error:
+                        logger.error(f"❌ Facebook credentials JSON decode error: {json_error}")
+                        return None
+                    except Exception as parse_error:
+                        logger.error(f"❌ Facebook credentials parsing error: {parse_error}")
+                        return None
+        except Exception as e:
+            logger.error(f"Failed to get Facebook credentials: {e}")
+            
+        return None
+    
+    async def _post_text_only(self, credentials: Dict, message: str) -> Dict:
+        """Post text-only content to Facebook page"""
+        try:
+            page_access_token = credentials.get('page_access_token')
+            if not page_access_token:
+                return {
+                    "success": False,
+                    "error": "Missing page access token in Facebook credentials"
+                }
+            
+            # Get page ID from access token
+            page_info = await self._get_page_info(page_access_token)
+            if not page_info.get("success"):
+                return page_info
+            
+            page_id = page_info.get("page_id")
+            
+            # Post to page feed
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/{page_id}/feed"
+                params = {
+                    "access_token": page_access_token,
+                    "message": message
+                }
+                
+                async with session.post(url, data=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        post_id = data["id"]
+                        # ✅ FIXED: Construct proper Facebook post URL
+                        page_id = page_info.get("page_id")
+                        post_url = f"https://www.facebook.com/{page_id}/posts/{post_id.split('_')[1]}" if '_' in post_id else f"https://www.facebook.com/{post_id}"
+                        
+                        return {
+                            "success": True,
+                            "post_id": post_id,
+                            "post_url": post_url,
+                            "page_name": page_info.get("page_name", "Unknown Page")
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Facebook posting failed")
+                        return {
+                            "success": False,
+                            "error": f"Facebook API error: {error_msg}"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Facebook text posting failed: {str(e)}"
+            }
+    
+    async def _post_with_media(self, credentials: Dict, message: str, media_url: str) -> Dict:
+        """Post content with media to Facebook page"""
+        try:
+            page_access_token = credentials.get('page_access_token')
+            if not page_access_token:
+                return {
+                    "success": False,
+                    "error": "Missing page access token in Facebook credentials"
+                }
+            
+            # Get page ID from access token
+            page_info = await self._get_page_info(page_access_token)
+            if not page_info.get("success"):
+                return page_info
+            
+            page_id = page_info.get("page_id")
+            
+            # ✅ FIXED: Detect media type and validate URL
+            media_type, endpoint = await self._detect_media_type_and_endpoint(media_url)
+            if not media_type:
+                return {
+                    "success": False,
+                    "error": "Unable to determine media type from URL. Please ensure the URL points to a valid image or video."
+                }
+            
+            # Post photo/video to page with correct endpoint
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/{page_id}/{endpoint}"  # /photos for images, /videos for videos
+                params = {
+                    "access_token": page_access_token,
+                    "url": media_url,  # Facebook can fetch from URL
+                }
+                
+                # ✅ FIXED: Set correct parameter for photos vs videos
+                if endpoint == "photos":
+                    params["caption"] = message  # Photos use caption parameter
+                else:  # videos
+                    params["description"] = message  # Videos use description parameter
+                
+                async with session.post(url, data=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        post_id = data["id"]
+                        # ✅ FIXED: Construct proper Facebook post URL for media posts
+                        page_id = page_info.get("page_id")
+                        post_url = f"https://www.facebook.com/{page_id}/posts/{post_id.split('_')[1]}" if '_' in post_id else f"https://www.facebook.com/{post_id}"
+                        
+                        return {
+                            "success": True,
+                            "post_id": post_id,
+                            "post_url": post_url,
+                            "page_name": page_info.get("page_name", "Unknown Page"),
+                            "media_type": media_type
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Facebook media posting failed")
+                        return {
+                            "success": False,
+                            "error": f"Facebook media API error: {error_msg}"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Facebook media posting failed: {str(e)}"
+            }
+    
+    async def _detect_media_type_and_endpoint(self, media_url: str) -> tuple:
+        """
+        Detect media type from URL and return appropriate Facebook endpoint
+        Returns: (media_type, endpoint) tuple
+        """
+        try:
+            # Extract file extension from URL
+            url_path = media_url.lower().split('?')[0]  # Remove query parameters
+            
+            # Image extensions
+            image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
+            # Video extensions  
+            video_extensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.m4v']
+            
+            # Check file extension
+            for ext in image_extensions:
+                if url_path.endswith(ext):
+                    return ("photo", "photos")
+            
+            for ext in video_extensions:
+                if url_path.endswith(ext):
+                    return ("video", "videos")
+            
+            # If no extension match, try to determine from URL content type
+            try:
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.head(media_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                        content_type = response.headers.get('content-type', '').lower()
+                        
+                        if content_type.startswith('image/'):
+                            return ("photo", "photos")
+                        elif content_type.startswith('video/'):
+                            return ("video", "videos")
+            except Exception as content_check_error:
+                logger.warning(f"⚠️ Could not check media content type: {content_check_error}")
+            
+            # Default to photo if uncertain
+            logger.warning(f"⚠️ Could not determine media type for {media_url}, defaulting to photo")
+            return ("photo", "photos")
+            
+        except Exception as e:
+            logger.error(f"❌ Media type detection failed: {e}")
+            return (None, None)
+    
+    async def _get_page_info(self, page_access_token: str) -> Dict:
+        """Get page information from page access token"""
+        try:
+            async with aiohttp.ClientSession() as session:
+                url = f"{self.graph_url}/me"
+                params = {
+                    "access_token": page_access_token,
+                    "fields": "id,name,category"
+                }
+                
+                async with session.get(url, params=params) as response:
+                    data = await response.json()
+                    
+                    if response.status == 200 and "id" in data:
+                        return {
+                            "success": True,
+                            "page_id": data["id"],
+                            "page_name": data.get("name", "Unknown Page"),
+                            "page_category": data.get("category", "Unknown")
+                        }
+                    else:
+                        error_msg = data.get("error", {}).get("message", "Page info retrieval failed")
+                        return {
+                            "success": False,
+                            "error": f"Page info error: {error_msg}"
+                        }
+                        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Page info retrieval failed: {str(e)}"
             }
 
 # Global instance for consistent import pattern (refresh.md: consistent architecture)
