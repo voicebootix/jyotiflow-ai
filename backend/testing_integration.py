@@ -332,8 +332,8 @@ class AutoFixTestIntegrator:
                 """, table_name)
                 
                 if table_exists:
-                    # Use validated table name in query (safe after validation)
-                    count = await conn.fetchval(f'SELECT COUNT(*) FROM {table_name}')
+                    # Use asyncpg.Identifier for safe SQL identifier quoting
+                    count = await conn.fetchval('SELECT COUNT(*) FROM ' + str(asyncpg.Identifier(table_name)))
                 
                 test_result.update({
                     "status": "passed",
@@ -387,8 +387,8 @@ class AutoFixTestIntegrator:
                     """, table)
                     
                     if table_exists:
-                        # Use validated table name in query (safe after validation)
-                        await conn.fetchval(f'SELECT COUNT(*) FROM {table} LIMIT 1')
+                        # Use asyncpg.Identifier for safe SQL identifier quoting
+                        await conn.fetchval('SELECT COUNT(*) FROM ' + str(asyncpg.Identifier(table)) + ' LIMIT 1')
                         accessible_tables.append(table)
                 except (asyncpg.PostgresError, Exception) as e:
                     logger.debug(f"Table {table} not accessible: {e}")

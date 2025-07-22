@@ -4,6 +4,7 @@ Integrates seamlessly with existing admin dashboard UI.
 """
 import json
 import asyncio
+import asyncpg
 import uuid
 import os
 from datetime import datetime, timezone
@@ -806,38 +807,104 @@ async def get_test_status():
 async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency)):
     """Get test execution sessions history"""
     try:
-        # Mock test sessions data - will be replaced with real database queries
-        return StandardResponse(
-            status="success",
-            message="Test sessions retrieved",
-            data=[
-                {
-                    "session_id": "test-001",
-                    "test_type": "integration",
-                    "status": "passed",
-                    "started_at": "2024-01-15T10:30:00Z",
-                    "completed_at": "2024-01-15T10:32:15Z",
-                    "execution_time_seconds": 135,
-                    "total_tests": 25,
-                    "passed_tests": 25,
-                    "failed_tests": 0,
-                    "coverage_percentage": 89.2
-                },
-                {
-                    "session_id": "test-002", 
-                    "test_type": "unit",
-                    "status": "partial",
-                    "started_at": "2024-01-15T09:15:00Z",
-                    "completed_at": "2024-01-15T09:16:45Z",
-                    "execution_time_seconds": 105,
-                    "total_tests": 47,
-                    "passed_tests": 43,
-                    "failed_tests": 4,
-                    "coverage_percentage": 85.1
+        # Get database URL from environment
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return StandardResponse(
+                status="error",
+                message="Database configuration not available",
+                data=[]
+            )
+        
+        # Connect to database and fetch real test sessions
+        conn = await asyncpg.connect(database_url)
+        try:
+            # Check if test_execution_sessions table exists
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS(
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_name = 'test_execution_sessions' AND table_schema = 'public'
+                )
+            """)
+            
+            if not table_exists:
+                # Return empty data if table doesn't exist yet
+                return StandardResponse(
+                    status="success",
+                    message="Test sessions table not yet created",
+                    data=[]
+                )
+            
+            # Fetch recent test sessions (last 50, ordered by most recent)
+            sessions = await conn.fetch("""
+                SELECT 
+                    session_id,
+                    test_type,
+                    test_category,
+                    environment,
+                    started_at,
+                    completed_at,
+                    status,
+                    total_tests,
+                    passed_tests,
+                    failed_tests,
+                    skipped_tests,
+                    coverage_percentage,
+                    execution_time_seconds,
+                    triggered_by,
+                    created_at
+                FROM test_execution_sessions
+                ORDER BY started_at DESC
+                LIMIT 50
+            """)
+            
+            # Format sessions for API response
+            formatted_sessions = []
+            for session in sessions:
+                formatted_session = {
+                    "session_id": str(session['session_id']),
+                    "test_type": session['test_type'],
+                    "test_category": session['test_category'],
+                    "environment": session['environment'],
+                    "status": session['status'],
+                    "started_at": session['started_at'].isoformat() if session['started_at'] else None,
+                    "completed_at": session['completed_at'].isoformat() if session['completed_at'] else None,
+                    "execution_time_seconds": session['execution_time_seconds'],
+                    "total_tests": session['total_tests'] or 0,
+                    "passed_tests": session['passed_tests'] or 0,
+                    "failed_tests": session['failed_tests'] or 0,
+                    "skipped_tests": session['skipped_tests'] or 0,
+                    "coverage_percentage": float(session['coverage_percentage']) if session['coverage_percentage'] else None,
+                    "triggered_by": session['triggered_by'],
+                    "created_at": session['created_at'].isoformat() if session['created_at'] else None
                 }
-            ]
+                formatted_sessions.append(formatted_session)
+            
+            return StandardResponse(
+                status="success",
+                message=f"Retrieved {len(formatted_sessions)} test sessions",
+                data=formatted_sessions
+            )
+            
+        finally:
+            await conn.close()
+            
+    except asyncpg.PostgresConnectionError as e:
+        logger.error(f"Database connection error: {e}")
+        return StandardResponse(
+            status="error",
+            message="Database connection failed",
+            data=[]
+        )
+    except asyncpg.PostgresError as e:
+        logger.error(f"Database query error: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Database query failed: {str(e)}",
+            data=[]
         )
     except Exception as e:
+        logger.error(f"Unexpected error getting test sessions: {e}")
         return StandardResponse(
             status="error",
             message=f"Failed to get test sessions: {str(e)}",
