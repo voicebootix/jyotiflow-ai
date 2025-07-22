@@ -758,10 +758,11 @@ async def upload_swamiji_image(
         
         logger.info(f"✅ Swamiji's photo saved to: {file_path}")
         
-        # CORE.MD & REFRESH.MD: Construct an absolute URL for the frontend
-        # This ensures the frontend can load the image regardless of where it's deployed.
-        base_url = str(request.base_url)
-        image_url = f"{base_url}static/avatars/{file_name}"
+        # CORE.MD & REFRESH.MD: Construct a robust and absolute URL for the frontend.
+        # This ensures the frontend can load the image regardless of proxy configurations
+        # or whether request.base_url has a trailing slash.
+        base_url = str(request.base_url).rstrip('/')
+        image_url = f"{base_url}/static/avatars/{file_name}"
         
         # CORE.MD: Use consistent response format
         return StandardResponse(
