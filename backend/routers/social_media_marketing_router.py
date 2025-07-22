@@ -32,8 +32,10 @@ except ImportError:
 
 try:
     from spiritual_avatar_generation_engine import avatar_engine
+    AVATAR_ENGINE_AVAILABLE = True
 except ImportError:
     avatar_engine = None
+    AVATAR_ENGINE_AVAILABLE = False
 
 # REAL AI Marketing Director with OpenAI integration - FIXED MODEL NAME
 from real_ai_marketing_director import real_ai_marketing_director as ai_marketing_director
@@ -831,27 +833,36 @@ async def generate_avatar_preview(
     admin_user: dict = Depends(get_admin_user)
 ):
     """Generate a preview of the Swamiji avatar with a given style."""
+    # REFRESH.MD: Check for dependencies before executing complex logic
+    if not AVATAR_ENGINE_AVAILABLE:
+        raise HTTPException(
+            status_code=501,
+            detail="Avatar Generation Engine is not available. Please check server configuration."
+        )
+    
     try:
-        # CORE.MD & REFRESH.MD: This is a placeholder for the actual AI/ML model call.
-        # In a real implementation, this would trigger a job to generate a video.
-        # For now, we simulate a successful generation after a short delay.
-        logger.info(f"🎨 Simulating avatar preview generation for style: {request.style}")
-        await asyncio.sleep(3) # Simulate processing time
+        logger.info(f"🎨 Starting REAL avatar preview generation for style: {request.style}")
+        
+        # CORE.MD: Call the actual, evidence-based implementation
+        generation_result = await avatar_engine.generate_swamiji_video(
+            text=request.sample_text,
+            style=request.style,
+            # In a real scenario, you might pass more context
+        )
 
-        # Return a mock preview object
-        mock_preview = {
-            "video_url": "https://storage.googleapis.com/jyotiflow-public-assets/swamiji-preview-placeholder.mp4",
-            "thumbnail_url": "https://storage.googleapis.com/jyotiflow-public-assets/swamiji-preview-thumbnail.jpg",
-            "duration": "12s",
-            "quality": "HD",
-            "style": request.style
-        }
-
-        return StandardResponse(
-            success=True,
-            data={"preview": mock_preview},
-            message=f"Avatar preview for '{request.style}' style generated successfully."
-        ).dict()
+        if generation_result.get("success"):
+            return StandardResponse(
+                success=True,
+                data={"preview": generation_result.get("data")},
+                message=f"Avatar preview for '{request.style}' style generated successfully."
+            ).dict()
+        else:
+            # Pass the error from the engine to the frontend
+            error_message = generation_result.get("error", "Unknown error during generation.")
+            raise HTTPException(
+                status_code=500,
+                detail=error_message
+            )
 
     except Exception as e:
         logger.error(f"❌ Avatar preview generation failed: {e}", exc_info=True)
