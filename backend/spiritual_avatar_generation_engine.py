@@ -31,9 +31,18 @@ class SwamjiAvatarGenerationEngine:
     Real D-ID + ElevenLabs Integration
     """
     
-    def __init__(self):
+    def __init__(self, settings: AppSettings, db_session_manager: DatabaseManager):
         self.settings = settings
-        self.db = db_manager
+        self.db_session_manager = db_session_manager
+        self.d_id_base_url = "https://api.d-id.com"
+        
+        # REFRESH.MD: Restore concurrency control attributes.
+        self.max_concurrent_generations = getattr(self.settings, 'avatar_max_concurrent_generations', 5)
+        self.current_generations = 0
+        self.max_video_duration = getattr(self.settings, 'avatar_max_video_duration', 300)
+        
+        if not self.settings.d_id_api_key or "your-did-api-key" in self.settings.d_id_api_key:
+            logger.warning("D-ID API key is not configured.")
         
         # Swamiji Avatar Configuration
         self.swamiji_presenter_id = "amy-jcu8YUbZbKt8EXOlXG7je"  # D-ID presenter ID
@@ -74,8 +83,22 @@ class SwamjiAvatarGenerationEngine:
         """
         Orchestrates the full avatar generation process.
         """
+        # CORE.MD: Restore input validation.
+        if not guidance_text or len(guidance_text.strip()) < 10:
+            return {"success": False, "error": "Guidance text must be at least 10 characters long."}
+        if video_duration > self.max_video_duration:
+            return {"success": False, "error": f"Video duration cannot exceed {self.max_video_duration} seconds."}
+
+        # CORE.MD: Restore concurrency limiting.
+        if self.current_generations >= self.max_concurrent_generations:
+            logger.warning("Max concurrent avatar generations reached. Request queued/rejected.")
+            return {"success": False, "error": "Maximum concurrent generations reached. Please try again later."}
+
         generation_start_time = time.time()
         try:
+            self.current_generations += 1
+            logger.info(f"🎭 Starting avatar generation for session {session_id}. Current generations: {self.current_generations}")
+
             video_result = await self._generate_avatar_video(
                 guidance_text=guidance_text,
                 avatar_style=avatar_style,
@@ -112,6 +135,10 @@ class SwamjiAvatarGenerationEngine:
         except Exception as e:
             logger.error(f"Avatar generation process failed for session {session_id}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
+        finally:
+            # REFRESH.MD: Ensure concurrency counter is always decremented.
+            self.current_generations -= 1
+            logger.info(f"Avatar generation process finished for session {session_id}. Current generations: {self.current_generations}")
 
     async def _generate_avatar_video(
         self,
@@ -265,10 +292,10 @@ class SwamjiAvatarGenerationEngine:
     
     def _get_avatar_style_config(self, avatar_style: str) -> Dict[str, Any]:
         style_configs = {
-            # CORE.MD: Replace placeholder test URLs with a valid generic D-ID image URL.
-            "traditional": {"source_url": "https://cdn.d-id.com/images/amy-jL0MeD3d.jpeg", "expressions": []},
-            "modern": {"source_url": "https://cdn.d-id.com/images/amy-jL0MeD3d.jpeg", "expressions": []},
-            "default": {"source_url": "https://cdn.d-id.com/images/amy-jL0MeD3d.jpeg", "expressions": []}
+            # CORE.MD: Update with unique and valid source URLs for visual variety.
+            "traditional": {"source_url": "https://clips-presenters.d-id.com/jane/image.jpeg", "expressions": []},
+            "modern": {"source_url": "https://clips-presenters.d-id.com/christopher/image.jpeg", "expressions": []},
+            "default": {"source_url": "https://clips-presenters.d-id.com/amy/image.jpeg", "expressions": []}
         }
         return style_configs.get(avatar_style, style_configs["default"])
 
