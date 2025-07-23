@@ -21,8 +21,6 @@ import time
 import threading
 
 from fastapi import Depends
-from core_foundation_enhanced import settings, db_manager
-from enhanced_business_logic import SpiritualAvatarEngine, AvatarGenerationContext, AvatarEmotion
 from ..schemas.avatar import AvatarSessionCreate, AvatarSession
 from app_settings import AppSettings
 from ..database.database_manager import DatabaseManager
