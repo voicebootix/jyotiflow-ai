@@ -2850,14 +2850,46 @@ async def test_credit_payment_database_schema():
         try:
             conn = await asyncpg.connect(self.database_url)
             try:
-                # Store each test suite category
+                # Store each test suite as a session with generated test cases
                 for suite_name, suite_data in test_suites.items():
-                    await conn.execute("""
-                        INSERT INTO test_suites (suite_name, suite_data, created_at)
-                        VALUES ($1, $2, NOW())
-                        ON CONFLICT (suite_name) 
-                        DO UPDATE SET suite_data = $2, updated_at = NOW()
-                    """, suite_name, json.dumps(suite_data))
+                    if isinstance(suite_data, dict) and 'test_category' in suite_data:
+                        # Create a test execution session for this suite
+                        session_id = str(uuid.uuid4())
+                        await conn.execute("""
+                            INSERT INTO test_execution_sessions (
+                                session_id, test_type, test_category, environment,
+                                started_at, status, triggered_by, created_at
+                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                            ON CONFLICT (session_id) DO NOTHING
+                        """, 
+                        session_id,
+                        suite_name,
+                        suite_data['test_category'],
+                        "production",
+                        datetime.now(timezone.utc),
+                        "generated",
+                        "test_suite_generator",
+                        datetime.now(timezone.utc)
+                        )
+                        
+                        # Store individual test cases for this suite
+                        test_cases = suite_data.get('test_cases', [])
+                        for test_case in test_cases:
+                            if isinstance(test_case, dict):
+                                await conn.execute("""
+                                    INSERT INTO test_case_results (
+                                        session_id, test_name, test_category, status,
+                                        test_data, output_data, created_at
+                                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                                """,
+                                session_id,
+                                test_case.get('test_name', 'unnamed_test'),
+                                test_case.get('test_category', suite_data['test_category']),
+                                "generated",
+                                json.dumps(test_case),
+                                json.dumps(test_case),
+                                datetime.now(timezone.utc)
+                                )
                 
                 logger.info("✅ Test suites stored in database successfully")
                 
