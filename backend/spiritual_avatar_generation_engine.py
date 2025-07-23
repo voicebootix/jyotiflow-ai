@@ -22,7 +22,6 @@ import time
 from core_foundation_enhanced import settings, db_manager
 from enhanced_business_logic import SpiritualAvatarEngine, AvatarGenerationContext, AvatarEmotion
 from ..schemas.avatar import AvatarSessionCreate, AvatarSession
-from ..database.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -174,8 +173,12 @@ class SwamjiAvatarGenerationEngine:
                         video_url = await self._poll_d_id_completion(talk_id)
                         
                         if video_url:
-                            estimated_minutes = len(guidance_text) / 150
-                            cost = estimated_minutes * 0.12
+                            # REFRESH.MD: Use configurable pricing values with fallbacks
+                            words_per_minute = getattr(self.settings, 'avatar_words_per_minute', 150)
+                            cost_per_minute = getattr(self.settings, 'avatar_video_cost_per_minute', 0.12)
+                            
+                            estimated_minutes = len(guidance_text) / words_per_minute
+                            cost = estimated_minutes * cost_per_minute
                             return {"success": True, "video_url": video_url, "talk_id": talk_id, "cost": cost}
                         else:
                             return {"success": False, "error": "Video generation timeout", "cost": 0}
@@ -183,13 +186,19 @@ class SwamjiAvatarGenerationEngine:
                         error_text = await response.text()
                         return {"success": False, "error": f"D-ID API error: {response.status} - {error_text}", "cost": 0}
         except Exception as e:
+            logger.error(f"Exception during D-ID video generation: {e}", exc_info=True)
             return {"success": False, "error": str(e), "cost": 0}
 
     async def _poll_d_id_completion(self, talk_id: str, timeout: int = 300) -> Optional[str]:
         start_time = time.time()
+        first_check = True
         while time.time() - start_time < timeout:
             try:
-                await asyncio.sleep(10)
+                # CORE.MD: Avoid initial sleep to get faster response for completed jobs.
+                if not first_check:
+                    await asyncio.sleep(10)
+                first_check = False
+
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
                         f"{self.d_id_base_url}/talks/{talk_id}",
@@ -197,12 +206,24 @@ class SwamjiAvatarGenerationEngine:
                     ) as response:
                         if response.status == 200:
                             data = await response.json()
-                            if data.get("status") == "done":
+                            status = data.get("status")
+                            if status == "done":
+                                logger.info(f"✅ D-ID Talk {talk_id} completed successfully.")
                                 return data.get("result_url")
-                            elif data.get("status") == "error":
+                            elif status in ("created", "started"):
+                                logger.info(f"D-ID Talk {talk_id} is still in progress with status: {status}")
+                                continue
+                            elif status == "error":
+                                logger.error(f"D-ID Talk {talk_id} failed with error: {data.get('error')}")
                                 return None
-            except Exception:
+                        else:
+                             logger.warning(f"Polling D-ID: Status {response.status}")
+
+            except Exception as e:
+                # REFRESH.MD: Log suppressed exceptions for better debugging.
+                logger.error(f"Error polling D-ID for talk {talk_id}: {e}", exc_info=True)
                 continue
+        logger.error(f"D-ID generation timeout after {timeout} seconds for talk {talk_id}")
         return None
 
     def _get_voice_settings(self, voice_tone: str) -> Dict[str, float]:
@@ -244,9 +265,10 @@ class SwamjiAvatarGenerationEngine:
     
     def _get_avatar_style_config(self, avatar_style: str) -> Dict[str, Any]:
         style_configs = {
-            "traditional": {"source_url": "https://d-id-talks-prod.s3.us-west-2.amazonaws.com/auth/google-oauth2%7C103333333333333333333/tlk_123456789/image.jpeg", "expressions": []},
-            "modern": {"source_url": "https://d-id-talks-prod.s3.us-west-2.amazonaws.com/auth/google-oauth2%7C103333333333333333333/tlk_123456789/image.jpeg", "expressions": []},
-            "default": {"source_url": "https://d-id-talks-prod.s3.us-west-2.amazonaws.com/auth/google-oauth2%7C103333333333333333333/tlk_123456789/image.jpeg", "expressions": []}
+            # CORE.MD: Replace placeholder test URLs with a valid generic D-ID image URL.
+            "traditional": {"source_url": "https://cdn.d-id.com/images/amy-jL0MeD3d.jpeg", "expressions": []},
+            "modern": {"source_url": "https://cdn.d-id.com/images/amy-jL0MeD3d.jpeg", "expressions": []},
+            "default": {"source_url": "https://cdn.d-id.com/images/amy-jL0MeD3d.jpeg", "expressions": []}
         }
         return style_configs.get(avatar_style, style_configs["default"])
 
@@ -258,19 +280,28 @@ class SwamjiAvatarGenerationEngine:
         voice_tone: str, video_url: Optional[str], audio_url: Optional[str],
         duration_seconds: int, voice_cost: float, video_cost: float, generation_time: float
     ):
-        async with self.db.get_connection() as session:
+        # CORE.MD: Fix database type mismatch by using raw SQL insert.
+        query = """
+            INSERT INTO avatar_sessions (
+                session_id, user_email, guidance_text, avatar_style, voice_tone, 
+                video_url, audio_url, duration_seconds, voice_cost, video_cost, 
+                total_cost, generation_time, status, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        """
+        now = datetime.now(timezone.utc)
+        total_cost = voice_cost + video_cost
+        
+        async with self.db.get_connection() as connection:
             try:
-                new_session = AvatarSession(
-                    session_id=session_id, user_email=user_email, guidance_text=guidance_text,
-                    avatar_style=avatar_style, voice_tone=voice_tone, video_url=video_url,
-                    audio_url=audio_url, duration_seconds=duration_seconds, voice_cost=voice_cost,
-                    video_cost=video_cost, total_cost=voice_cost + video_cost,
-                    generation_time=generation_time, status='completed'
+                await connection.execute(
+                    query, session_id, user_email, guidance_text, avatar_style, voice_tone,
+                    video_url, audio_url, duration_seconds, voice_cost, video_cost,
+                    total_cost, generation_time, 'completed', now, now
                 )
-                session.add(new_session)
-                await session.commit()
+                logger.info(f"✅ Avatar session {session_id} stored successfully.")
             except Exception as e:
-                await session.rollback()
+                # REFRESH.MD: Log the exception details before re-raising.
+                logger.error(f"❌ Failed to store avatar session {session_id}: {e}", exc_info=True)
                 raise
     
     async def get_avatar_generation_status(self, session_id: str) -> Dict[str, Any]:
