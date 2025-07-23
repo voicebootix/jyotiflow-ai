@@ -50,7 +50,7 @@ class SpiritualAvatarGenerationEngine:
             logger.warning("D-ID API key is not configured.")
         if not self.settings.elevenlabs_api_key or "your-elevenlabs-api-key" in self.settings.elevenlabs_api_key:
             logger.warning("ElevenLabs API key is not configured.")
-
+        
         # Swamiji Avatar Configuration
         # self.swamiji_presenter_id = "amy-jcu8YUbZbKt8EXOlXG7je"  # D-ID presenter ID
         
@@ -72,7 +72,7 @@ class SpiritualAvatarGenerationEngine:
             logger.warning("D-ID API key is not configured. Avatar generation will fail.")
         if not self.settings.elevenlabs_api_key or "your-elevenlabs-api-key" in self.settings.elevenlabs_api_key:
             logger.warning("ElevenLabs API key is not configured. Avatar generation will fail.")
-
+        
         logger.info("🎭 Swamiji Avatar Generation Engine initialized")
     
     async def generate_complete_avatar_video(
@@ -94,12 +94,12 @@ class SpiritualAvatarGenerationEngine:
             return {"success": False, "error": "Guidance text must be at least 10 characters long."}
         if video_duration > self.max_video_duration:
             return {"success": False, "error": f"Video duration cannot exceed {self.max_video_duration} seconds."}
-
+            
         # CORE.MD: Restore concurrency limiting.
         if self.current_generations >= self.max_concurrent_generations:
             logger.warning("Max concurrent avatar generations reached. Request queued/rejected.")
             return {"success": False, "error": "Maximum concurrent generations reached. Please try again later."}
-
+            
         generation_start_time = time.time()
         try:
             self.current_generations += 1
@@ -145,6 +145,51 @@ class SpiritualAvatarGenerationEngine:
             # REFRESH.MD: Ensure concurrency counter is always decremented.
             self.current_generations -= 1
             logger.info(f"Avatar generation process finished for session {session_id}. Current generations: {self.current_generations}")
+
+    async def generate_avatar_preview_lightweight(
+        self,
+        guidance_text: str,
+        avatar_style: str = "default",
+        voice_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Generates a lightweight, short preview video without database operations.
+        This is optimized for quick feedback in the admin dashboard.
+        """
+        logger.info(f"Generating lightweight preview for style: {avatar_style}")
+        try:
+            # Use a simplified, non-persistent session ID for previews
+            session_id = f"preview_{uuid.uuid4().hex}"
+            
+            # CORE.MD: Restore input validation for previews as well.
+            if not guidance_text or len(guidance_text.strip()) < 5:
+                return {"success": False, "error": "Preview text must be at least 5 characters long."}
+
+            # REFRESH.MD: Call the internal video generation with a short, fixed duration
+            # and bypass the full session storage and cost tracking logic.
+            video_result = await self._generate_avatar_video(
+                guidance_text=guidance_text,
+                avatar_style=avatar_style,
+                session_id=session_id, # Pass for logging/user_data
+                user_email="admin_preview@jyotiflow.ai" # Use a placeholder email
+            )
+
+            if video_result.get("success"):
+                logger.info(f"✅ Lightweight preview generated successfully for style {avatar_style}.")
+                return {
+                    "success": True,
+                    "video_url": video_result.get("video_url"),
+                    "style": avatar_style
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Preview generation failed: {video_result.get('error', 'Unknown error')}",
+                    "style": avatar_style
+                }
+        except Exception as e:
+            logger.error(f"Lightweight preview generation failed: {e}", exc_info=True)
+            return {"success": False, "error": str(e), "style": avatar_style}
 
     async def _generate_avatar_video(
         self,
@@ -252,14 +297,14 @@ class SpiritualAvatarGenerationEngine:
                                 return None
                         else:
                              logger.warning(f"Polling D-ID: Status {response.status}")
-
+                            
             except Exception as e:
                 # REFRESH.MD: Log suppressed exceptions for better debugging.
                 logger.error(f"Error polling D-ID for talk {talk_id}: {e}", exc_info=True)
                 continue
         logger.error(f"D-ID generation timeout after {timeout} seconds for talk {talk_id}")
         return None
-
+    
     def _get_voice_settings(self, voice_tone: str) -> Dict[str, float]:
         """Get voice settings based on tone"""
         settings_map = {
@@ -308,7 +353,7 @@ class SpiritualAvatarGenerationEngine:
 
     async def _get_d_id_default_expressions(self) -> Dict[str, Any]:
         return {"success": True, "data": {"expressions": []}}
-
+    
     async def _store_avatar_session(
         self, session_id: str, user_email: str, guidance_text: str, avatar_style: str,
         voice_tone: str, video_url: Optional[str], audio_url: Optional[str],
@@ -368,28 +413,28 @@ class SpiritualAvatarGenerationEngine:
         This is typically a one-time setup operation.
         """
         source_url = "https://your-image-hosting.com/swamiji-presenter-image.jpeg"
+            
+            headers = {
+                "Authorization": f"Basic {self.settings.d_id_api_key}",
+                "Content-Type": "application/json"
+            }
+            
+            payload = {
+                "source_url": source_url,
+                "name": "Swamiji"
+            }
         
-        headers = {
-            "Authorization": f"Basic {self.settings.d_id_api_key}",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "source_url": source_url,
-            "name": "Swamiji"
-        }
-        
-        async with aiohttp.ClientSession() as session:
-            async with session.post(f"{self.d_id_base_url}/presenters", json=payload, headers=headers) as response:
-                if response.status == 201:
-                    presenter_data = await response.json()
-                    self.swamiji_presenter_id = presenter_data["id"]
-                    logger.info(f"✅ Swamiji presenter created with ID: {self.swamiji_presenter_id}")
-                    return {"success": True, "presenter_id": self.swamiji_presenter_id}
-                else:
-                    error_text = await response.text()
-                    logger.error(f"Failed to create Swamiji presenter: {response.status} - {error_text}")
-                    return {"success": False, "error": f"D-ID API error: {response.status}"}
+            async with aiohttp.ClientSession() as session:
+                async with session.post(f"{self.d_id_base_url}/presenters", json=payload, headers=headers) as response:
+                    if response.status == 201:
+                        presenter_data = await response.json()
+                        self.swamiji_presenter_id = presenter_data["id"]
+                        logger.info(f"✅ Swamiji presenter created with ID: {self.swamiji_presenter_id}")
+                        return {"success": True, "presenter_id": self.swamiji_presenter_id}
+                    else:
+                        error_text = await response.text()
+                        logger.error(f"Failed to create Swamiji presenter: {response.status} - {error_text}")
+                        return {"success": False, "error": f"D-ID API error: {response.status}"}
     
     async def test_avatar_services(self) -> Dict[str, Any]:
         """Test both D-ID and ElevenLabs connectivity"""

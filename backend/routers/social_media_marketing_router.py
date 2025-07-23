@@ -12,16 +12,14 @@ import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported.
 from ..auth.auth_helpers import get_current_admin_user
-from ..core.dependencies import get_app_settings
 from ..schemas.response import StandardResponse
 from ..schemas.social_media import (
     Campaign,
     ContentCalendarItem,
-    GenerateAllAvatarPreviewsRequest,
     GenerateAvatarPreviewRequest,
     MarketingAsset,
     MarketingAssetCreate,
@@ -40,6 +38,12 @@ social_marketing_router = APIRouter(
     prefix="/api/admin/social-marketing",
     tags=["Social Media Marketing", "Admin"]
 )
+
+# REFRESH.MD: Define the missing schema directly in the router for clarity and to resolve the import issue.
+class GenerateAllAvatarPreviewsRequest(BaseModel):
+    text: str = Field(..., description="The text content for the avatar previews.")
+    voice_id: str = Field(..., description="The ID of the voice to be used for generation.")
+
 
 # REFRESH.MD: Centralize available styles to avoid magic strings and promote maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
@@ -161,13 +165,17 @@ async def generate_avatar_preview(
 ):
     """Generates a single avatar preview for a selected style."""
     try:
-        # REFRESH.MD: Call the correct, existing method on the engine.
-        result = await avatar_engine.generate_one_style(
-            text=request.text,
-            style=request.style,
+        # REFRESH.MD: Call the new lightweight preview method to save resources.
+        result = await avatar_engine.generate_avatar_preview_lightweight(
+            guidance_text=request.text,
+            avatar_style=request.style,
             voice_id=request.voice_id
         )
-        return StandardResponse(success=True, message="Avatar preview generated.", data=result)
+        if result.get("success"):
+            return StandardResponse(success=True, message="Avatar preview generated.", data=result)
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate preview."))
+            
     except Exception as e:
         logger.error(f"Avatar preview generation failed for style {request.style}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating preview: {e}") from e
@@ -175,7 +183,7 @@ async def generate_avatar_preview(
 
 @social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse)
 async def generate_all_avatar_previews(
-    request: GenerateAvatarPreviewRequest, # REFRESH.MD: Use the existing, correct schema that has all needed fields.
+    request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(get_current_admin_user),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
@@ -183,13 +191,11 @@ async def generate_all_avatar_previews(
     try:
         results = []
         for style in AVAILABLE_AVATAR_STYLES:
-            # CORE.MD: Indentation fixed. Call the correct engine method.
-            style_result = await avatar_engine.generate_complete_avatar_video(
-                session_id=f"preview_all_{style}", # Use a consistent session ID format
-                user_email=admin_user.get("email", "admin_preview@jyotiflow.ai"),
+            # REFRESH.MD: Call the new lightweight preview method to save resources.
+            style_result = await avatar_engine.generate_avatar_preview_lightweight(
                 guidance_text=request.text,
-                service_type="avatar_preview_all",
-                avatar_style=style
+                avatar_style=style,
+                voice_id=request.voice_id
             )
             results.append(style_result)
         return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})
