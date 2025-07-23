@@ -292,99 +292,7 @@ class TestExecutionEngine:
                 "execution_time_ms": execution_time
             }
     
-    async def _execute_file_based_test(self, file_path: str, test_case: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a file-based test by running a simple validation"""
-        try:
-            # For now, implement simple validation tests based on test name
-            test_name = test_case.get('test_name', '')
-            
-            # Basic validation tests that don't require file execution
-            if 'database_connection' in test_name:
-                return await self._validate_database_connection()
-            elif 'jwt_token' in test_name:
-                return await self._validate_jwt_functionality()
-            elif 'api_endpoints' in test_name:
-                return await self._validate_api_endpoints()
-            elif 'monitoring' in test_name:
-                return await self._validate_monitoring_system()
-            elif 'spiritual' in test_name:
-                return await self._validate_spiritual_services()
-            elif 'self_healing' in test_name:
-                return await self._validate_self_healing()
-            else:
-                # Default validation for unknown tests
-                return {
-                    "status": "passed",
-                    "message": f"Test {test_name} validation passed (basic check)",
-                    "details": "Performed basic system validation"
-                }
-                
-        except Exception as e:
-            return {
-                "status": "failed", 
-                "error": f"File-based test execution failed: {str(e)}",
-                "details": traceback.format_exc()
-            }
-    
-    async def _validate_database_connection(self) -> Dict[str, Any]:
-        """Validate database connectivity"""
-        try:
-            if not self.database_url:
-                return {"status": "failed", "error": "No database URL configured"}
-                
-            conn = await asyncpg.connect(self.database_url)
-            result = await conn.fetchval("SELECT 1")
-            await conn.close()
-            
-            if result == 1:
-                return {"status": "passed", "message": "Database connection successful"}
-            else:
-                return {"status": "failed", "error": "Database query returned unexpected result"}
-                
-        except Exception as e:
-            return {"status": "failed", "error": f"Database connection failed: {str(e)}"}
-    
-    async def _validate_jwt_functionality(self) -> Dict[str, Any]:
-        """Validate JWT token functionality"""
-        try:
-            # Simple check - see if JWT secret exists
-            import os
-            jwt_secret = os.getenv("JWT_SECRET")
-            if jwt_secret:
-                return {"status": "passed", "message": "JWT configuration validated"}
-            else:
-                return {"status": "failed", "error": "JWT_SECRET not configured"}
-        except Exception as e:
-            return {"status": "failed", "error": f"JWT validation failed: {str(e)}"}
-    
-    async def _validate_api_endpoints(self) -> Dict[str, Any]:
-        """Validate API endpoints functionality"""
-        try:
-            # Simple validation - check if FastAPI app exists
-            return {"status": "passed", "message": "API endpoints validation passed"}
-        except Exception as e:
-            return {"status": "failed", "error": f"API validation failed: {str(e)}"}
-    
-    async def _validate_monitoring_system(self) -> Dict[str, Any]:
-        """Validate monitoring system"""
-        try:
-            return {"status": "passed", "message": "Monitoring system validation passed"}
-        except Exception as e:
-            return {"status": "failed", "error": f"Monitoring validation failed: {str(e)}"}
-    
-    async def _validate_spiritual_services(self) -> Dict[str, Any]:
-        """Validate spiritual services"""
-        try:
-            return {"status": "passed", "message": "Spiritual services validation passed"}
-        except Exception as e:
-            return {"status": "failed", "error": f"Spiritual services validation failed: {str(e)}"}
-    
-    async def _validate_self_healing(self) -> Dict[str, Any]:
-        """Validate self-healing system"""
-        try:
-            return {"status": "passed", "message": "Self-healing system validation passed"}
-        except Exception as e:
-            return {"status": "failed", "error": f"Self-healing validation failed: {str(e)}"}
+
     
     async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any]) -> Union[Dict[str, Any], Any]:
         """
@@ -693,10 +601,6 @@ class TestExecutionEngine:
                     test_data = json.loads(row['test_data']) if row['test_data'] else {}
                     if not test_data and row['output_data']:
                         test_data = json.loads(row['output_data'])
-                    
-                    # Ensure test_code exists
-                    if 'test_code' not in test_data and 'test_name' in test_data:
-                        test_data['test_code'] = self._generate_basic_test_code(test_data)
                     
                     test_cases.append({
                         'test_name': row['test_name'],
