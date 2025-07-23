@@ -301,7 +301,8 @@ app = FastAPI(
 )
 
 # --- CORS Middleware (English & Tamil) ---
-# எப்போதும் frontend deploy domain-ஐ allow செய்ய வேண்டும் (CORS fix)
+# REFRESH.MD: Restore dynamic CORS origins for different environments while ensuring
+# the production frontend is always allowed. This is a more robust and secure approach.
 ALWAYS_ALLOW_ORIGINS = ["https://jyotiflow-ai-frontend.onrender.com"]
 
 def get_cors_origins():
@@ -311,63 +312,33 @@ def get_cors_origins():
     if app_env == "production":
         cors_origins = os.getenv(
             "CORS_ORIGINS", 
-            "https://jyotiflow.ai,https://www.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com"
+            "https://jyotiflow.ai,https://www.jyotiflow.ai"
         ).split(",")
     elif app_env == "staging":
         cors_origins = os.getenv(
             "CORS_ORIGINS",
-            "https://staging.jyotiflow.ai,https://dev.jyotiflow.ai,https://jyotiflow-ai-frontend.onrender.com,http://localhost:3000,http://localhost:5173"
+            "https://staging.jyotiflow.ai,http://localhost:3000,http://localhost:5173"
         ).split(",")
-    else:
+    else: # development
         cors_origins = os.getenv(
             "CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:5173,http://localhost:8080,http://127.0.0.1:3000,http://127.0.0.1:5173,https://jyotiflow-ai-frontend.onrender.com"
+            "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"
         ).split(",")
-    # எப்போதும் frontend deploy domain-ஐ சேர்க்கவும்
+    
+    # Ensure production frontend URL is always included
     for origin in ALWAYS_ALLOW_ORIGINS:
         if origin not in cors_origins:
             cors_origins.append(origin)
+            
     return [origin.strip() for origin in cors_origins if origin.strip()]
 
-def get_cors_methods():
-    """Get allowed CORS methods based on environment"""
-    app_env = os.getenv("APP_ENV", "development").lower()
-    
-    if app_env == "production":
-        # Production: Only allow necessary methods
-        return ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-    else:
-        # Development/Staging: Allow all methods for flexibility
-        return ["*"]
-
-def get_cors_headers():
-    """Get allowed CORS headers based on environment"""
-    app_env = os.getenv("APP_ENV", "development").lower()
-    
-    if app_env == "production":
-        # Production: Only allow necessary headers
-        return [
-            "Accept",
-            "Accept-Language",
-            "Content-Language",
-            "Content-Type",
-            "Authorization",
-            "X-Requested-With",
-            "X-CSRF-Token",
-            "Cache-Control"
-        ]
-    else:
-        # Development/Staging: Allow all headers for flexibility
-        return ["*"]
-
-# Add CORS middleware with simplified configuration for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_cors_origins(),  # Use proper domain-specific origins
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],  # Expose all headers to the client
+    expose_headers=["*"],  # REFRESH.MD: Restore expose_headers to allow frontend access to custom headers.
 )
 
 # --- Global Exception Handler ---
@@ -498,6 +469,11 @@ app.include_router(admin_settings.router)
 app.include_router(admin_overview.router)
 app.include_router(admin_integrations.router)
 
+# CORE.MD: Group all marketing-related routers together for clarity.
+if SOCIAL_MEDIA_AVAILABLE:
+    app.include_router(social_marketing_router)
+    print("✅ Social media marketing router registered")
+
 # Enhanced spiritual guidance router
 if ENHANCED_ROUTER_AVAILABLE:
     app.include_router(enhanced_spiritual_router)
@@ -512,9 +488,10 @@ if AVATAR_GENERATION_AVAILABLE:
     app.include_router(avatar_generation_router)
     print("✅ Avatar generation router registered")
 
-if SOCIAL_MEDIA_AVAILABLE:
-    app.include_router(social_marketing_router)
-    print("✅ Social media marketing router registered")
+# This was moved up to be with the other admin routers
+# if SOCIAL_MEDIA_AVAILABLE:
+#     app.include_router(social_marketing_router)
+#     print("✅ Social media marketing router registered")
 
 if LIVECHAT_AVAILABLE:
     app.include_router(livechat_router)
