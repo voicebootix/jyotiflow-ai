@@ -38,17 +38,20 @@ class SwamjiAvatarGenerationEngine:
         self.db = db_session_manager
         self.d_id_base_url = "https://api.d-id.com"
         
+        # REFRESH.MD: Consolidate all configuration assignments into the constructor.
         self.max_concurrent_generations = getattr(self.settings, 'avatar_max_concurrent_generations', 5)
         self.current_generations = 0
         self.max_video_duration = getattr(self.settings, 'avatar_max_video_duration', 300)
-        # REFRESH.MD: Initialize swamiji_voice_id in the constructor.
         self.swamiji_voice_id = getattr(self.settings, 'elevenlabs_voice_id', 'onelab-voice-id')
+        self.swamiji_presenter_id = "amy-jcu8YUbZbKt8EXOlXG7je"
         
         if not self.settings.d_id_api_key or "your-did-api-key" in self.settings.d_id_api_key:
             logger.warning("D-ID API key is not configured.")
-        
+        if not self.settings.elevenlabs_api_key or "your-elevenlabs-api-key" in self.settings.elevenlabs_api_key:
+            logger.warning("ElevenLabs API key is not configured.")
+
         # Swamiji Avatar Configuration
-        self.swamiji_presenter_id = "amy-jcu8YUbZbKt8EXOlXG7je"  # D-ID presenter ID
+        # self.swamiji_presenter_id = "amy-jcu8YUbZbKt8EXOlXG7je"  # D-ID presenter ID
         
         # API Endpoints
         self.d_id_base_url = "https://api.d-id.com"
@@ -341,70 +344,51 @@ class SwamjiAvatarGenerationEngine:
         """
         Retrieves the status of an avatar generation task from the database.
         """
-        query = "SELECT status, video_url FROM avatar_sessions WHERE session_id = $1"
-        async with self.db.get_connection() as connection:
-            try:
-                row = await connection.fetchrow(query, session_id)
-                if row:
-                    return {"success": True, "status": row['status'], "video_url": row['video_url']}
-                else:
-                    return {"success": False, "error": "Session not found."}
-            except Exception as e:
-                logger.error(f"Error fetching avatar status for session {session_id}: {e}", exc_info=True)
-                return {"success": False, "error": "Database error."}
+        # CORE.MD: Fix column name mismatch and standardize connection management.
+        query = "SELECT generation_status, video_url FROM avatar_sessions WHERE session_id = $1"
+        connection = None
+        try:
+            connection = await self.db.get_connection()
+            row = await connection.fetchrow(query, session_id)
+            if row:
+                return {"success": True, "status": row['generation_status'], "video_url": row['video_url']}
+            else:
+                return {"success": False, "error": "Session not found."}
+        except Exception as e:
+            logger.error(f"Error fetching avatar status for session {session_id}: {e}", exc_info=True)
+            return {"success": False, "error": "Database error."}
+        finally:
+            if connection:
+                await self.db.release_connection(connection)
     
     async def create_swamiji_presenter(self) -> Dict[str, Any]:
-        """Create or update Swamiji presenter in D-ID"""
-        try:
-            # This would typically involve uploading a photo of Swamiji
-            # For now, we'll use a default presenter and customize it
-            
-            payload = {
-                "name": "Swami Jyotirananthan",
-                "description": "Tamil spiritual master and divine guide",
-                "image_url": "https://create-images-results.d-id.com/DefaultPresenters/amy/image.jpeg",
-                "voice_id": self.swamiji_voice_id,
-                "background_color": "#8B4513"
-            }
-            
-            headers = {
-                "Authorization": f"Basic {self.settings.d_id_api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.d_id_base_url}/presenters",
-                    json=payload,
-                    headers=headers
-                ) as response:
-                    
-                    if response.status == 201:
-                        result = await response.json()
-                        self.swamiji_presenter_id = result["id"]
-                        
-                        logger.info(f"✅ Swamiji presenter created: {self.swamiji_presenter_id}")
-                        return {
-                            "success": True,
-                            "presenter_id": self.swamiji_presenter_id,
-                            "message": "Swamiji presenter created successfully"
-                        }
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Presenter creation error: {response.status} - {error_text}")
-                        return {
-                            "success": False,
-                            "error": f"Presenter creation failed: {response.status}",
-                            "message": "Using default presenter"
-                        }
+        """
+        Creates a new D-ID presenter for Swamiji using a source image URL.
+        This is typically a one-time setup operation.
+        """
+        source_url = "https://your-image-hosting.com/swamiji-presenter-image.jpeg"
         
-        except Exception as e:
-            logger.error(f"Presenter creation exception: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "message": "Using default presenter"
-            }
+        headers = {
+            "Authorization": f"Basic {self.settings.d_id_api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "source_url": source_url,
+            "name": "Swamiji"
+        }
+        
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{self.d_id_base_url}/presenters", json=payload, headers=headers) as response:
+                if response.status == 201:
+                    presenter_data = await response.json()
+                    self.swamiji_presenter_id = presenter_data["id"]
+                    logger.info(f"✅ Swamiji presenter created with ID: {self.swamiji_presenter_id}")
+                    return {"success": True, "presenter_id": self.swamiji_presenter_id}
+                else:
+                    error_text = await response.text()
+                    logger.error(f"Failed to create Swamiji presenter: {response.status} - {error_text}")
+                    return {"success": False, "error": f"D-ID API error: {response.status}"}
     
     async def test_avatar_services(self) -> Dict[str, Any]:
         """Test both D-ID and ElevenLabs connectivity"""
