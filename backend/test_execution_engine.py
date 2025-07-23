@@ -292,6 +292,165 @@ class TestExecutionEngine:
                 "execution_time_ms": execution_time
             }
     
+    async def _execute_file_based_test(self, file_path: str, test_case: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Securely execute a file-based test with proper sandboxing.
+        
+        Args:
+            file_path: Path to the test file to execute
+            test_case: Test case metadata and configuration
+            
+        Returns:
+            Dict containing test execution results
+        """
+        import os
+        import subprocess
+        import tempfile
+        import shutil
+        from pathlib import Path
+        
+        start_time = datetime.now(timezone.utc)
+        
+        try:
+            # Validate file path for security
+            if not file_path or not isinstance(file_path, str):
+                return {
+                    "status": "failed",
+                    "error": "Invalid file path provided",
+                    "execution_time_ms": 0
+                }
+            
+            # Normalize and validate path to prevent directory traversal
+            file_path = os.path.normpath(file_path)
+            if '..' in file_path or file_path.startswith('/'):
+                return {
+                    "status": "failed",
+                    "error": "Invalid file path: directory traversal or absolute paths not allowed",
+                    "execution_time_ms": 0
+                }
+            
+            # Check if file exists and is readable
+            full_path = Path(file_path)
+            if not full_path.exists():
+                return {
+                    "status": "failed",
+                    "error": f"Test file not found: {file_path}",
+                    "execution_time_ms": 0
+                }
+            
+            if not full_path.is_file():
+                return {
+                    "status": "failed",
+                    "error": f"Path is not a file: {file_path}",
+                    "execution_time_ms": 0
+                }
+            
+            # Only allow Python files for security
+            if not file_path.endswith('.py'):
+                return {
+                    "status": "failed",
+                    "error": "Only Python (.py) test files are allowed",
+                    "execution_time_ms": 0
+                }
+            
+            # Read and validate file content
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    file_content = f.read()
+            except Exception as read_error:
+                return {
+                    "status": "failed",
+                    "error": f"Failed to read test file: {str(read_error)}",
+                    "execution_time_ms": 0
+                }
+            
+            # Basic security validation - check for dangerous imports/operations
+            dangerous_patterns = [
+                'import os', 'import sys', 'import subprocess', 'import shutil',
+                'import socket', 'import urllib', 'import requests', 'import http',
+                'import ftplib', 'import telnetlib', 'import smtplib', 
+                'exec(', 'eval(', '__import__', 'open(', 'file(',
+                'input(', 'raw_input(', 'reload(', 'compile(',
+                'globals(', 'locals(', 'vars(', 'dir('
+            ]
+            
+            file_content_lower = file_content.lower()
+            for pattern in dangerous_patterns:
+                if pattern in file_content_lower:
+                    return {
+                        "status": "failed",
+                        "error": f"Security violation: Dangerous pattern detected: {pattern}",
+                        "execution_time_ms": 0
+                    }
+            
+            # Execute the test file in a restricted environment
+            timeout = test_case.get('timeout_seconds', 30)
+            
+            # Create a temporary directory for isolated execution
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_file = Path(temp_dir) / "test_file.py"
+                
+                # Copy test file to temporary location
+                shutil.copy2(full_path, temp_file)
+                
+                # Prepare environment variables
+                env = os.environ.copy()
+                env.update({
+                    'DATABASE_URL': self.database_url or '',
+                    'PYTHONPATH': str(Path(__file__).parent),
+                    'PYTHONDONTWRITEBYTECODE': '1'
+                })
+                
+                # Execute using subprocess with timeout and restrictions
+                try:
+                    result = subprocess.run(
+                        ['python3', str(temp_file)],
+                        cwd=temp_dir,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        env=env
+                    )
+                    
+                    execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                    
+                    if result.returncode == 0:
+                        return {
+                            "status": "passed",
+                            "message": "File-based test executed successfully",
+                            "stdout": result.stdout.strip(),
+                            "stderr": result.stderr.strip() if result.stderr else None,
+                            "execution_time_ms": execution_time,
+                            "file_path": file_path
+                        }
+                    else:
+                        return {
+                            "status": "failed",
+                            "error": f"Test execution failed with return code {result.returncode}",
+                            "stdout": result.stdout.strip() if result.stdout else None,
+                            "stderr": result.stderr.strip(),
+                            "execution_time_ms": execution_time,
+                            "file_path": file_path
+                        }
+                        
+                except subprocess.TimeoutExpired:
+                    execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                    return {
+                        "status": "failed",
+                        "error": f"Test execution timed out after {timeout} seconds",
+                        "execution_time_ms": execution_time,
+                        "file_path": file_path
+                    }
+                
+        except Exception as e:
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            return {
+                "status": "failed",
+                "error": f"File-based test execution failed: {str(e)}",
+                "traceback": traceback.format_exc(),
+                "execution_time_ms": execution_time,
+                "file_path": file_path
+            }
 
     
     async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any]) -> Union[Dict[str, Any], Any]:
