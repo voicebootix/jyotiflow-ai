@@ -1090,9 +1090,6 @@ async def get_campaigns_data(status: Optional[str], platform: Optional[str]) -> 
 # Export
 __all__ = ["social_marketing_router"]
 
-# Also export as 'router' for compatibility with main.py imports
-router = social_marketing_router
-
 def generate_content_template(content_type: str, platform: str, content_id: int) -> Dict[str, Any]:
     """Generate content template based on type and platform - CORE.MD principle: DRY (Don't Repeat Yourself)"""
     base_content = {
