@@ -463,14 +463,10 @@ class SpiritualAvatarGenerationEngine:
 _avatar_engine_instance: Optional[SpiritualAvatarGenerationEngine] = None
 _avatar_engine_lock = threading.Lock()
 
-def get_avatar_engine(
-    settings: AppSettings = Depends(get_app_settings),
-    db_manager: DatabaseManager = Depends(get_database_manager)
-) -> SpiritualAvatarGenerationEngine:
+def _get_or_create_avatar_engine(settings: AppSettings, db_manager: DatabaseManager) -> SpiritualAvatarGenerationEngine:
     """
-    Dependency injector for the SpiritualAvatarGenerationEngine.
-    Uses a thread-safe singleton pattern to ensure only one instance of the
-    engine is created and shared across the application.
+    Core logic to create and cache the avatar engine instance.
+    This function is designed to be called by the dependency provider.
     """
     global _avatar_engine_instance
     if _avatar_engine_instance is None:
@@ -482,10 +478,18 @@ def get_avatar_engine(
                     logger.info("✅ SpiritualAvatarGenerationEngine initialized successfully.")
                 except Exception as e:
                     logger.critical(f"❌ CRITICAL: Failed to initialize SpiritualAvatarGenerationEngine: {e}", exc_info=True)
-                    # This is a critical failure. Re-raising ensures the application
-                    # does not start in a broken state.
                     raise RuntimeError("Failed to initialize the avatar generation engine.") from e
     return _avatar_engine_instance
+
+def get_avatar_engine(
+    settings: AppSettings = Depends(get_app_settings),
+    db_manager: DatabaseManager = Depends(get_database_manager)
+) -> SpiritualAvatarGenerationEngine:
+    """
+    FastAPI dependency provider for the SpiritualAvatarGenerationEngine.
+    This function cleanly separates dependency injection from the core singleton logic.
+    """
+    return _get_or_create_avatar_engine(settings, db_manager)
 
 # Export for use in other modules
 __all__ = ["SpiritualAvatarGenerationEngine", "get_avatar_engine"]
