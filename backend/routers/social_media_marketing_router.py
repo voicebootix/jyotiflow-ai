@@ -14,11 +14,31 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Any
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile, Body, Request
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile, Body, Request, status
 from pydantic import BaseModel, Field
 
+from ..core.dependencies import get_database_manager, get_app_settings
+from ..services.youtube_service import YouTubeService
+from ..services.facebook_service import FacebookService
+from ..services.instagram_service import InstagramService
+from ..services.tiktok_service import TikTokService
+from ..utils.response_utils import StandardResponse
+from ..auth.auth_helpers import get_current_admin_user
+from ..spiritual_avatar_generation_engine import get_avatar_engine, SpiritualAvatarGenerationEngine
+from ..database.database_manager import DatabaseManager
+from ..core.config import AppSettings
+from ..schemas.social_media import (
+    GenerateAvatarPreviewRequest,
+    AvatarPreviewResponse,
+    GenerateAllAvatarPreviewsRequest,
+    PlatformConfiguration,
+    ContentGenerationRequest,
+    GeneratedContent,
+    PostExecutionRequest,
+    PostExecutionResult
+)
+
 from deps import get_current_user, get_admin_user, get_current_admin_dependency
-from core_foundation_enhanced import StandardResponse
 
 # SURGICAL FIX: Safe imports with fallbacks
 try:
@@ -828,56 +848,103 @@ async def get_swamiji_avatar_config(request: Request, admin_user: dict = Depends
         ) from e
 
 
-@social_marketing_router.post("/generate-avatar-preview")
-async def generate_avatar_preview(
-    request: AvatarPreviewRequest,
-    admin_user: dict = Depends(get_admin_user)
-):
-    """Generate a preview of the Swamiji avatar with a given style."""
-    # REFRESH.MD: Check for dependencies before executing complex logic
-    if not AVATAR_ENGINE_AVAILABLE:
-        raise HTTPException(
-            status_code=501,
-            detail="Avatar Generation Engine is not available. Please check server configuration."
-        )
-    
-    try:
-        logger.info(f"🎨 Starting REAL avatar preview generation for style: {request.style}")
-        
-        # CORE.MD & REFRESH.MD: Generate a unique session ID for each preview
-        # to prevent primary key violations in the database.
-        preview_session_id = f"preview_{uuid.uuid4().hex}"
+# CORE.MD: Use a module-level constant for better maintainability.
+AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
 
-        # CORE.MD: Call the actual, evidence-based implementation
-        # REFRESH.MD: Corrected the method call to generate_complete_avatar_video
-        # and provided mock parameters as this is a preview context.
+@social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
+async def generate_avatar_preview(
+    request: GenerateAvatarPreviewRequest,
+    admin_user: dict = Depends(get_current_admin_user),
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
+):
+    """
+    Generates a single avatar preview for a selected style.
+    """
+    try:
+        logger.info(f"Generating avatar preview for style: {request.style}")
+        
+        session_id = f"preview_single_{uuid.uuid4().hex}"
+        user_email = admin_user.get("email", "admin_preview@jyotiflow.ai")
+
         generation_result = await avatar_engine.generate_complete_avatar_video(
-            session_id=preview_session_id,
-            user_email="admin_preview@jyotiflow.ai",
-            guidance_text=request.sample_text,
+            session_id=session_id,
+            user_email=user_email,
+            guidance_text=request.text,
             service_type="avatar_preview",
             avatar_style=request.style
         )
 
-        if generation_result.get("success"):
-            return StandardResponse(
-                success=True,
-                data={"preview": generation_result},
-                message=f"Avatar preview for '{request.style}' style generated successfully."
-            ).dict()
-        else:
-            # Pass the error from the engine to the frontend
-            error_message = generation_result.get("error", "Unknown error during generation.")
+        if not generation_result.get("success"):
             raise HTTPException(
-                status_code=500,
-                detail=error_message
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Avatar generation failed: {generation_result.get('error', 'Unknown error')}"
             )
 
+        response_data = AvatarPreviewResponse(
+            style=request.style,
+            preview_url=generation_result.get("video_url")
+        )
+        
+        return StandardResponse(success=True, data=response_data.dict(), message="Avatar preview generated successfully.").dict()
+
     except Exception as e:
-        logger.error(f"❌ Avatar preview generation failed: {e}", exc_info=True)
+        logger.error(f"Error generating single avatar preview: {e}", exc_info=True)
         raise HTTPException(
-            status_code=500,
-            detail=f"Preview generation failed: {str(e)}"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        ) from e
+
+@social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
+async def generate_all_avatar_previews(
+    request: GenerateAllAvatarPreviewsRequest,
+    admin_user: dict = Depends(get_current_admin_user),
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
+):
+    """
+    Generates avatar previews for all available styles.
+    """
+    try:
+        logger.info("Generating avatar previews for all styles.")
+        
+        preview_results = []
+        
+        user_email = admin_user.get("email", "admin_preview@jyotiflow.ai")
+
+        for style in AVAILABLE_AVATAR_STYLES:
+            session_id = f"preview_all_{style}_{uuid.uuid4().hex}"
+            
+            generation_result = await avatar_engine.generate_complete_avatar_video(
+                session_id=session_id,
+                user_email=user_email,
+                guidance_text=request.text,
+                service_type="avatar_preview_all",
+                avatar_style=style
+            )
+
+            if generation_result.get("success"):
+                preview_results.append(
+                    AvatarPreviewResponse(
+                        style=style,
+                        preview_url=generation_result.get("video_url")
+                    )
+                )
+            else:
+                logger.error(f"Failed to generate preview for style '{style}': {generation_result.get('error')}")
+                preview_results.append(
+                    AvatarPreviewResponse(
+                        style=style,
+                        preview_url=None,
+                        error=generation_result.get('error', 'Unknown error')
+                    )
+                )
+
+        return StandardResponse(success=True, data={"previews": [p.dict() for p in preview_results]}, message="All avatar previews generation process completed.").dict()
+
+    except Exception as e:
+        logger.error(f"Error generating all avatar previews: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
         ) from e
 
 

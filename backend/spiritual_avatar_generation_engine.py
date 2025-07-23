@@ -18,16 +18,17 @@ from pathlib import Path
 import base64
 import hashlib
 import time
+import threading
 
-from core_foundation_enhanced import settings, db_manager
-from enhanced_business_logic import SpiritualAvatarEngine, AvatarGenerationContext, AvatarEmotion
+from fastapi import Depends
 from ..schemas.avatar import AvatarSessionCreate, AvatarSession
 from app_settings import AppSettings
 from ..database.database_manager import DatabaseManager
+from ..core.dependencies import get_app_settings, get_database_manager
 
 logger = logging.getLogger(__name__)
 
-class SwamjiAvatarGenerationEngine:
+class SpiritualAvatarGenerationEngine:
     """
     Complete Avatar Generation Engine for Swami Jyotirananthan
     Real D-ID + ElevenLabs Integration
@@ -457,8 +458,38 @@ class SwamjiAvatarGenerationEngine:
         
         return results
 
-# Global instance
-avatar_engine = SwamjiAvatarGenerationEngine()
+
+# REFRESH.MD: Implement thread-safe singleton pattern for the engine instance.
+_avatar_engine_instance: Optional[SpiritualAvatarGenerationEngine] = None
+_avatar_engine_lock = threading.Lock()
+
+def _get_or_create_avatar_engine(settings: AppSettings, db_manager: DatabaseManager) -> SpiritualAvatarGenerationEngine:
+    """
+    Core logic to create and cache the avatar engine instance.
+    This function is designed to be called by the dependency provider.
+    """
+    global _avatar_engine_instance
+    if _avatar_engine_instance is None:
+        with _avatar_engine_lock:
+            if _avatar_engine_instance is None:
+                try:
+                    logger.info("Initializing SpiritualAvatarGenerationEngine instance...")
+                    _avatar_engine_instance = SpiritualAvatarGenerationEngine(settings, db_manager)
+                    logger.info("✅ SpiritualAvatarGenerationEngine initialized successfully.")
+                except Exception as e:
+                    logger.critical(f"❌ CRITICAL: Failed to initialize SpiritualAvatarGenerationEngine: {e}", exc_info=True)
+                    raise RuntimeError("Failed to initialize the avatar generation engine.") from e
+    return _avatar_engine_instance
+
+def get_avatar_engine(
+    settings: AppSettings = Depends(get_app_settings),
+    db_manager: DatabaseManager = Depends(get_database_manager)
+) -> SpiritualAvatarGenerationEngine:
+    """
+    FastAPI dependency provider for the SpiritualAvatarGenerationEngine.
+    This function cleanly separates dependency injection from the core singleton logic.
+    """
+    return _get_or_create_avatar_engine(settings, db_manager)
 
 # Export for use in other modules
-__all__ = ["avatar_engine", "SwamjiAvatarGenerationEngine"]
+__all__ = ["SpiritualAvatarGenerationEngine", "get_avatar_engine"]
