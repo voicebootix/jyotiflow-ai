@@ -968,22 +968,57 @@ class TestExecutionEngine:
             
             generator = TestSuiteGenerator()
             
-            # Generate the specific test suite
-            if suite_name == "authentication_tests":
+            # Generate the specific test suite - using correct suite names from TestSuiteGenerator
+            if suite_name == "security_tests":
                 suite_data = await generator.generate_security_tests()
             elif suite_name == "database_tests":
                 suite_data = await generator.generate_database_tests()
-            elif suite_name == "api_endpoints_tests":
+            elif suite_name == "api_tests":
                 suite_data = await generator.generate_api_tests()
-            elif suite_name == "monitoring_tests":
+            elif suite_name == "analytics_monitoring_tests":
                 suite_data = await generator.generate_analytics_monitoring_tests()
             elif suite_name == "spiritual_services_tests":
                 suite_data = await generator.generate_spiritual_services_tests()
-            elif suite_name == "self_healing_tests":
+            elif suite_name == "auto_healing_tests":
                 suite_data = await generator.generate_auto_healing_tests()
-            else:
-                # Generate integration tests as fallback
+            elif suite_name == "integration_tests":
                 suite_data = await generator.generate_integration_tests()
+            elif suite_name == "performance_tests":
+                suite_data = await generator.generate_performance_tests()
+            elif suite_name == "social_media_tests":
+                suite_data = await generator.generate_social_media_tests()
+            elif suite_name == "live_audio_video_tests":
+                suite_data = await generator.generate_live_audio_video_tests()
+            elif suite_name == "avatar_generation_tests":
+                suite_data = await generator.generate_avatar_generation_tests()
+            elif suite_name == "credit_payment_tests":
+                suite_data = await generator.generate_credit_payment_tests()
+            elif suite_name == "user_management_tests":
+                suite_data = await generator.generate_user_management_tests()
+            elif suite_name == "admin_services_tests":
+                suite_data = await generator.generate_admin_services_tests()
+            elif suite_name == "community_services_tests":
+                suite_data = await generator.generate_community_services_tests()
+            elif suite_name == "notification_services_tests":
+                suite_data = await generator.generate_notification_services_tests()
+            else:
+                # Handle legacy names and fallback cases
+                if suite_name == "authentication_tests":
+                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'security_tests'")
+                    suite_data = await generator.generate_security_tests()
+                elif suite_name == "api_endpoints_tests":
+                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'api_tests'")
+                    suite_data = await generator.generate_api_tests()
+                elif suite_name == "monitoring_tests":
+                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'analytics_monitoring_tests'")
+                    suite_data = await generator.generate_analytics_monitoring_tests()
+                elif suite_name == "self_healing_tests":
+                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'auto_healing_tests'")
+                    suite_data = await generator.generate_auto_healing_tests()
+                else:
+                    # Generate integration tests as fallback for unknown suite names
+                    logger.warning(f"Unknown suite name '{suite_name}', falling back to integration_tests")
+                    suite_data = await generator.generate_integration_tests()
             
             # Extract test cases from suite data
             if isinstance(suite_data, dict) and 'test_cases' in suite_data:
