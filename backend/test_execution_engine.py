@@ -1017,23 +1017,9 @@ class TestExecutionEngine:
             elif suite_name == "notification_services_tests":
                 suite_data = await generator.generate_notification_services_tests()
             else:
-                # Handle legacy names and fallback cases
-                if suite_name == "authentication_tests":
-                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'security_tests'")
-                    suite_data = await generator.generate_security_tests()
-                elif suite_name == "api_endpoints_tests":
-                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'api_tests'")
-                    suite_data = await generator.generate_api_tests()
-                elif suite_name == "monitoring_tests":
-                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'analytics_monitoring_tests'")
-                    suite_data = await generator.generate_analytics_monitoring_tests()
-                elif suite_name == "self_healing_tests":
-                    logger.warning(f"Legacy suite name '{suite_name}' mapped to 'auto_healing_tests'")
-                    suite_data = await generator.generate_auto_healing_tests()
-                else:
-                    # Generate integration tests as fallback for unknown suite names
-                    logger.warning(f"Unknown suite name '{suite_name}', falling back to integration_tests")
-                    suite_data = await generator.generate_integration_tests()
+                # Generate integration tests as fallback for unknown suite names
+                logger.warning(f"Unknown suite name '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                suite_data = await generator.generate_integration_tests()
             
             # Extract test cases from suite data
             if isinstance(suite_data, dict) and 'test_cases' in suite_data:

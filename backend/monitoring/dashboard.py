@@ -1065,23 +1065,72 @@ async def get_business_logic_validation_status(admin: dict = Depends(get_current
                     }
                 )
             
-            # Get recent business logic validation results (without validation_type for now)
-            recent_validations = await conn.fetch("""
-                SELECT 
-                    session_id,
-                    issue_description,
-                    severity_score as quality_score,
-                    created_at,
-                    CASE 
-                        WHEN severity_score IS NULL OR severity_score = 0 THEN 'success'
-                        WHEN severity_score <= 3 THEN 'warning'
-                        ELSE 'error'
-                    END as validation_result
-                FROM business_logic_issues 
-                WHERE created_at >= NOW() - INTERVAL '24 hours'
-                ORDER BY created_at DESC
-                LIMIT 50
+            # Check schema compatibility first
+            schema_check = await conn.fetch("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'business_logic_issues' 
+                AND column_name IN ('issue_description', 'severity_score', 'validation_type')
             """)
+            
+            available_columns = {row['column_name'] for row in schema_check}
+            has_new_schema = 'issue_description' in available_columns and 'severity_score' in available_columns
+            has_validation_type = 'validation_type' in available_columns
+            
+            # Build query based on available schema
+            if has_new_schema:
+                # New schema with issue_description and severity_score
+                recent_validations = await conn.fetch("""
+                    SELECT 
+                        session_id,
+                        issue_description,
+                        severity_score as quality_score,
+                        created_at,
+                        CASE 
+                            WHEN severity_score IS NULL OR severity_score = 0 THEN 'success'
+                            WHEN severity_score <= 3 THEN 'warning'
+                            ELSE 'error'
+                        END as validation_result,
+                        COALESCE(validation_type, 'business_logic') as validation_type
+                    FROM business_logic_issues 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """)
+            elif has_validation_type:
+                # Old schema with validation_type but no new columns
+                recent_validations = await conn.fetch("""
+                    SELECT 
+                        session_id,
+                        validation_type,
+                        'No description available' as issue_description,
+                        0 as quality_score,
+                        created_at,
+                        CASE 
+                            WHEN validation_type LIKE '%success%' OR validation_type LIKE '%pass%' THEN 'success'
+                            WHEN validation_type LIKE '%warning%' THEN 'warning'
+                            ELSE 'error'
+                        END as validation_result
+                    FROM business_logic_issues 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """)
+            else:
+                # Minimal schema - just basic columns
+                recent_validations = await conn.fetch("""
+                    SELECT 
+                        session_id,
+                        'business_logic' as validation_type,
+                        'Legacy validation entry' as issue_description,
+                        0 as quality_score,
+                        created_at,
+                        'unknown' as validation_result
+                    FROM business_logic_issues 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """)
             
             # Calculate summary statistics
             total_validations = len(recent_validations)
