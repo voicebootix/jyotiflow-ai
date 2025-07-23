@@ -301,20 +301,44 @@ app = FastAPI(
 )
 
 # --- CORS Middleware (English & Tamil) ---
-# REFRESH.MD: Simplify and harden CORS configuration to guarantee frontend access.
-# The previous dynamic method was complex and could fail silently.
+# REFRESH.MD: Restore dynamic CORS origins for different environments while ensuring
+# the production frontend is always allowed. This is a more robust and secure approach.
+ALWAYS_ALLOW_ORIGINS = ["https://jyotiflow-ai-frontend.onrender.com"]
+
+def get_cors_origins():
+    """Get CORS origins based on environment"""
+    app_env = os.getenv("APP_ENV", "development").lower()
+    
+    if app_env == "production":
+        cors_origins = os.getenv(
+            "CORS_ORIGINS", 
+            "https://jyotiflow.ai,https://www.jyotiflow.ai"
+        ).split(",")
+    elif app_env == "staging":
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "https://staging.jyotiflow.ai,http://localhost:3000,http://localhost:5173"
+        ).split(",")
+    else: # development
+        cors_origins = os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"
+        ).split(",")
+    
+    # Ensure production frontend URL is always included
+    for origin in ALWAYS_ALLOW_ORIGINS:
+        if origin not in cors_origins:
+            cors_origins.append(origin)
+            
+    return [origin.strip() for origin in cors_origins if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "https://jyotiflow-ai-frontend.onrender.com",
-        "https://jyotiflow.ai",
-        "https://www.jyotiflow.ai"
-    ],
+    allow_origins=get_cors_origins(),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],  # REFRESH.MD: Restore expose_headers to allow frontend access to custom headers.
 )
 
 # --- Global Exception Handler ---
