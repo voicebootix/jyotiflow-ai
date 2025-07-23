@@ -17,6 +17,27 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, File, UploadFile, Body, Request, status
 from pydantic import BaseModel, Field
 
+from ..core.dependencies import get_database_manager, get_app_settings
+from ..services.youtube_service import YouTubeService
+from ..services.facebook_service import FacebookService
+from ..services.instagram_service import InstagramService
+from ..services.tiktok_service import TikTokService
+from ..utils.response_utils import StandardResponse
+from ..auth.auth_helpers import get_current_admin_user
+from ..services.spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine
+from ..database.database_manager import DatabaseManager
+from ..core.config import AppSettings
+from ..schemas.social_media import (
+    GenerateAvatarPreviewRequest,
+    AvatarPreviewResponse,
+    GenerateAllAvatarPreviewsRequest,
+    PlatformConfiguration,
+    ContentGenerationRequest,
+    GeneratedContent,
+    PostExecutionRequest,
+    PostExecutionResult
+)
+
 from deps import get_current_user, get_admin_user, get_current_admin_dependency
 from core_foundation_enhanced import StandardResponse
 
@@ -828,7 +849,10 @@ async def get_swamiji_avatar_config(request: Request, admin_user: dict = Depends
         ) from e
 
 
-@social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
+# CORE.MD: Use a module-level constant for better maintainability.
+AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
+
+@router.post("/generate-avatar-preview", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
 async def generate_avatar_preview(
     request: GenerateAvatarPreviewRequest,
     admin_user: dict = Depends(get_current_admin_user),
@@ -836,7 +860,6 @@ async def generate_avatar_preview(
 ):
     """
     Generates a single avatar preview for a selected style.
-    CORE.MD: Implemented the actual avatar generation logic.
     """
     try:
         logger.info(f"Generating avatar preview for style: {request.style}")
@@ -863,16 +886,16 @@ async def generate_avatar_preview(
             preview_url=generation_result.get("video_url")
         )
         
-        return StandardResponse(success=True, data=response_data, message="Avatar preview generated successfully.")
+        return StandardResponse(success=True, data=response_data.dict(), message="Avatar preview generated successfully.").dict()
 
     except Exception as e:
         logger.error(f"Error generating single avatar preview: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        )
+        ) from e
 
-@social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
+@router.post("/generate-all-avatar-previews", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
 async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(get_current_admin_user),
@@ -880,17 +903,15 @@ async def generate_all_avatar_previews(
 ):
     """
     Generates avatar previews for all available styles.
-    CORE.MD: Implemented the multi-style avatar generation logic.
     """
     try:
         logger.info("Generating avatar previews for all styles.")
         
-        available_styles = ["traditional", "modern", "default"]
         preview_results = []
         
         user_email = admin_user.get("email", "admin_preview@jyotiflow.ai")
 
-        for style in available_styles:
+        for style in AVAILABLE_AVATAR_STYLES:
             session_id = f"preview_all_{style}_{uuid.uuid4().hex}"
             
             generation_result = await avatar_engine.generate_complete_avatar_video(
@@ -918,14 +939,14 @@ async def generate_all_avatar_previews(
                     )
                 )
 
-        return StandardResponse(success=True, data={"previews": [p.dict() for p in preview_results]}, message="All avatar previews generation process completed.")
+        return StandardResponse(success=True, data={"previews": [p.dict() for p in preview_results]}, message="All avatar previews generation process completed.").dict()
 
     except Exception as e:
         logger.error(f"Error generating all avatar previews: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
-        )
+        ) from e
 
 
 # Helper Functions
