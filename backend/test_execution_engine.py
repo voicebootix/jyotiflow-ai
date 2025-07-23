@@ -292,6 +292,277 @@ class TestExecutionEngine:
                 "execution_time_ms": execution_time
             }
     
+    async def _execute_file_based_test(self, file_path: str, test_case: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Securely execute a file-based test with proper sandboxing.
+        
+        Args:
+            file_path: Path to the test file to execute
+            test_case: Test case metadata and configuration
+            
+        Returns:
+            Dict containing test execution results
+        """
+        import os
+        import subprocess
+        import tempfile
+        import shutil
+        from pathlib import Path
+        
+        start_time = datetime.now(timezone.utc)
+        
+        try:
+            # Validate file path for security
+            if not file_path or not isinstance(file_path, str):
+                return {
+                    "status": "failed",
+                    "error": "Invalid file path provided",
+                    "execution_time_ms": 0
+                }
+            
+            # Normalize and validate path to prevent directory traversal
+            file_path = os.path.normpath(file_path)
+            if '..' in file_path or file_path.startswith('/'):
+                return {
+                    "status": "failed",
+                    "error": "Invalid file path: directory traversal or absolute paths not allowed",
+                    "execution_time_ms": 0
+                }
+            
+            # Check if file exists and is readable
+            full_path = Path(file_path)
+            if not full_path.exists():
+                return {
+                    "status": "failed",
+                    "error": f"Test file not found: {file_path}",
+                    "execution_time_ms": 0
+                }
+            
+            if not full_path.is_file():
+                return {
+                    "status": "failed",
+                    "error": f"Path is not a file: {file_path}",
+                    "execution_time_ms": 0
+                }
+            
+            # Only allow Python files for security
+            if not file_path.endswith('.py'):
+                return {
+                    "status": "failed",
+                    "error": "Only Python (.py) test files are allowed",
+                    "execution_time_ms": 0
+                }
+            
+            # Read and validate file content
+            try:
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    file_content = f.read()
+            except Exception as read_error:
+                return {
+                    "status": "failed",
+                    "error": f"Failed to read test file: {str(read_error)}",
+                    "execution_time_ms": 0
+                }
+            
+            # Robust security validation using AST parsing
+            security_result = self._validate_code_security(file_content)
+            if not security_result["is_safe"]:
+                return {
+                    "status": "failed",
+                    "error": f"Security violation: {security_result['reason']}",
+                    "details": security_result.get('details', ''),
+                    "execution_time_ms": 0
+                }
+            
+            # Execute the test file in a restricted environment
+            timeout = test_case.get('timeout_seconds', 30)
+            
+            # Create a temporary directory for isolated execution
+            with tempfile.TemporaryDirectory() as temp_dir:
+                temp_file = Path(temp_dir) / "test_file.py"
+                
+                # Copy test file to temporary location
+                shutil.copy2(full_path, temp_file)
+                
+                # Prepare environment variables
+                env = os.environ.copy()
+                env.update({
+                    'DATABASE_URL': self.database_url or '',
+                    'PYTHONPATH': str(Path(__file__).parent),
+                    'PYTHONDONTWRITEBYTECODE': '1'
+                })
+                
+                # Execute using subprocess with timeout and restrictions
+                try:
+                    result = subprocess.run(
+                        ['python3', str(temp_file)],
+                        cwd=temp_dir,
+                        capture_output=True,
+                        text=True,
+                        timeout=timeout,
+                        env=env
+                    )
+                    
+                    execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                    
+                    if result.returncode == 0:
+                        return {
+                            "status": "passed",
+                            "message": "File-based test executed successfully",
+                            "stdout": result.stdout.strip(),
+                            "stderr": result.stderr.strip() if result.stderr else None,
+                            "execution_time_ms": execution_time,
+                            "file_path": file_path
+                        }
+                    else:
+                        return {
+                            "status": "failed",
+                            "error": f"Test execution failed with return code {result.returncode}",
+                            "stdout": result.stdout.strip() if result.stdout else None,
+                            "stderr": result.stderr.strip(),
+                            "execution_time_ms": execution_time,
+                            "file_path": file_path
+                        }
+                        
+                except subprocess.TimeoutExpired:
+                    execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+                    return {
+                        "status": "failed",
+                        "error": f"Test execution timed out after {timeout} seconds",
+                        "execution_time_ms": execution_time,
+                        "file_path": file_path
+                    }
+                
+        except Exception as e:
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            return {
+                "status": "failed",
+                "error": f"File-based test execution failed: {str(e)}",
+                "traceback": traceback.format_exc(),
+                "execution_time_ms": execution_time,
+                "file_path": file_path
+            }
+
+    def _validate_code_security(self, code: str) -> Dict[str, Any]:
+        """
+        Validate code security using AST parsing to detect dangerous operations.
+        
+        Args:
+            code: Python code to validate
+            
+        Returns:
+            Dict with 'is_safe' boolean and 'reason' if unsafe
+        """
+        import ast
+        
+        try:
+            # Parse the code into an AST
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return {
+                "is_safe": False,
+                "reason": f"Syntax error in code: {str(e)}",
+                "details": "Code must be valid Python syntax"
+            }
+        
+        # Define dangerous modules and functions
+        dangerous_modules = {
+            'os', 'sys', 'subprocess', 'shutil', 'socket', 'urllib', 'requests', 
+            'http', 'ftplib', 'telnetlib', 'smtplib', 'email', 'imaplib', 'poplib',
+            'ssl', 'hashlib', 'hmac', 'secrets', 'tempfile', 'glob', 'fnmatch',
+            'pickle', 'dill', 'shelve', 'dbm', 'sqlite3', 'threading', 'multiprocessing',
+            'ctypes', 'platform', 'webbrowser', 'pty', 'fcntl', 'termios'
+        }
+        
+        dangerous_functions = {
+            'exec', 'eval', 'compile', '__import__', 'open', 'file', 'input', 
+            'raw_input', 'reload', 'globals', 'locals', 'vars', 'dir', 'getattr',
+            'setattr', 'delattr', 'callable'
+        }
+        
+        dangerous_attributes = {
+            '__class__', '__bases__', '__subclasses__', '__mro__', '__dict__',
+            '__globals__', '__code__', '__closure__', '__defaults__', '__kwdefaults__'
+        }
+        
+        class SecurityValidator(ast.NodeVisitor):
+            def __init__(self):
+                self.violations = []
+                
+            def visit_Import(self, node):
+                for alias in node.names:
+                    if alias.name in dangerous_modules:
+                        self.violations.append(f"Dangerous import: {alias.name}")
+                self.generic_visit(node)
+                
+            def visit_ImportFrom(self, node):
+                if node.module in dangerous_modules:
+                    self.violations.append(f"Dangerous import from: {node.module}")
+                self.generic_visit(node)
+                
+            def visit_Call(self, node):
+                # Check for dangerous function calls
+                if isinstance(node.func, ast.Name):
+                    if node.func.id in dangerous_functions:
+                        self.violations.append(f"Dangerous function call: {node.func.id}")
+                elif isinstance(node.func, ast.Attribute):
+                    if node.func.attr in dangerous_functions:
+                        self.violations.append(f"Dangerous method call: {node.func.attr}")
+                self.generic_visit(node)
+                
+            def visit_Attribute(self, node):
+                if node.attr in dangerous_attributes:
+                    self.violations.append(f"Dangerous attribute access: {node.attr}")
+                self.generic_visit(node)
+                
+            def visit_Subscript(self, node):
+                # Check for dangerous subscript operations that might access builtins
+                if isinstance(node.value, ast.Name) and node.value.id == '__builtins__':
+                    self.violations.append("Dangerous access to __builtins__")
+                self.generic_visit(node)
+                
+            def visit_Name(self, node):
+                # Check for dangerous variable names
+                if isinstance(node.ctx, ast.Load) and node.id in dangerous_functions:
+                    # Only flag if it's being loaded (used), not stored
+                    if node.id in {'exec', 'eval', 'compile', '__import__'}:
+                        self.violations.append(f"Reference to dangerous function: {node.id}")
+                self.generic_visit(node)
+        
+        # Run the security validator
+        validator = SecurityValidator()
+        validator.visit(tree)
+        
+        if validator.violations:
+            return {
+                "is_safe": False,
+                "reason": "Code contains dangerous operations",
+                "details": "; ".join(validator.violations[:5])  # Limit to first 5 violations
+            }
+        
+        # Additional checks for string-based evasion attempts
+        code_lower = code.lower()
+        evasion_patterns = [
+            'chr(', 'ord(', 'hex(', 'oct(', 'bin(',  # Character/number conversion
+            'bytes(', 'bytearray(',  # Byte manipulation
+            'str.format(', '.format(',  # String formatting
+            'f"', "f'",  # F-strings that might hide code
+        ]
+        
+        suspicious_count = sum(1 for pattern in evasion_patterns if pattern in code_lower)
+        if suspicious_count >= 3:  # Multiple evasion techniques
+            return {
+                "is_safe": False,
+                "reason": "Code contains multiple potential evasion techniques",
+                "details": f"Found {suspicious_count} suspicious patterns that could be used to bypass security"
+            }
+        
+        return {
+            "is_safe": True,
+            "reason": "Code passed security validation"
+        }
+
+    
     async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any]) -> Union[Dict[str, Any], Any]:
         """
         Safely execute test code with proper validation and security measures.
@@ -574,16 +845,16 @@ class TestExecutionEngine:
             logger.warning(f"Could not store test result: {e}")
     
     async def _get_test_cases(self, suite_name: str) -> List[Dict[str, Any]]:
-        """Get test cases for a specific suite"""
+        """Get test cases for a specific suite from database or generate them"""
         if not self.database_url:
             return []
             
         try:
             conn = await asyncpg.connect(self.database_url)
             
-            # Get test cases from database
+            # Get test cases from database (generated by TestSuiteGenerator)
             results = await conn.fetch('''
-                SELECT tcr.test_name, tcr.test_category, tcr.output_data
+                SELECT tcr.test_name, tcr.test_category, tcr.test_data, tcr.output_data
                 FROM test_case_results tcr
                 JOIN test_execution_sessions tes ON tcr.session_id = tes.session_id
                 WHERE tes.test_type = $1 AND tcr.status = 'generated'
@@ -595,16 +866,30 @@ class TestExecutionEngine:
             test_cases = []
             for row in results:
                 try:
-                    test_data = json.loads(row['output_data'])
-                    test_cases.append(test_data)
+                    # Use test_data first, fall back to output_data
+                    test_data = json.loads(row['test_data']) if row['test_data'] else {}
+                    if not test_data and row['output_data']:
+                        test_data = json.loads(row['output_data'])
+                    
+                    test_cases.append({
+                        'test_name': row['test_name'],
+                        'test_category': row['test_category'],
+                        **test_data
+                    })
                 except Exception as e:
                     logger.warning(f"Could not parse test case data: {e}")
+            
+            # If no test cases found, generate them using TestSuiteGenerator
+            if not test_cases:
+                logger.info(f"No test cases found for {suite_name}, generating...")
+                test_cases = await self._generate_test_cases(suite_name)
             
             return test_cases
             
         except Exception as e:
             logger.warning(f"Could not get test cases from database: {e}")
-            return []
+            # Fallback to generation
+            return await self._generate_test_cases(suite_name)
     
     async def _get_available_test_suites(self) -> List[Dict[str, Any]]:
         """Get all available test suites"""
@@ -614,6 +899,7 @@ class TestExecutionEngine:
         try:
             conn = await asyncpg.connect(self.database_url)
             
+            # Get test suites from database (generated by TestSuiteGenerator)
             results = await conn.fetch('''
                 SELECT DISTINCT test_type, test_category
                 FROM test_execution_sessions
@@ -623,10 +909,127 @@ class TestExecutionEngine:
             
             await conn.close()
             
+            # If no test suites found, generate them using TestSuiteGenerator
+            if not results:
+                logger.info("No test suites found in database, generating...")
+                test_suites = await self._initialize_test_suites()
+                return test_suites
+            
             return [dict(row) for row in results]
             
         except Exception as e:
             logger.warning(f"Could not get test suites from database: {e}")
+            # Fallback to generation
+            return await self._initialize_test_suites()
+    
+    async def _initialize_test_suites(self) -> List[Dict[str, Any]]:
+        """Initialize test suites using TestSuiteGenerator"""
+        try:
+            from test_suite_generator import TestSuiteGenerator
+            
+            logger.info("Initializing test suites using TestSuiteGenerator...")
+            generator = TestSuiteGenerator()
+            
+            # Generate all test suites
+            test_suites = await generator.generate_all_test_suites()
+            
+            # Store test suites in database
+            await generator.store_test_suites(test_suites)
+            
+            # Convert to the format expected by TestExecutionEngine
+            suite_list = []
+            for suite_name, suite_data in test_suites.items():
+                if isinstance(suite_data, dict) and 'test_category' in suite_data:
+                    suite_list.append({
+                        'test_type': suite_name,
+                        'test_category': suite_data['test_category']
+                    })
+            
+            logger.info(f"Initialized {len(suite_list)} test suites")
+            return suite_list
+            
+        except ImportError as import_error:
+            logger.error(f"Failed to import TestSuiteGenerator: {import_error}")
+            logger.error("TestSuiteGenerator module is not available - test suite initialization failed")
+            return []
+        except Exception as e:
+            logger.error(f"Failed to initialize test suites: {e}")
+            return []
+    
+    async def _generate_test_cases(self, suite_name: str) -> List[Dict[str, Any]]:
+        """Generate test cases for a specific suite using TestSuiteGenerator"""
+        try:
+            from test_suite_generator import TestSuiteGenerator
+            
+            generator = TestSuiteGenerator()
+            
+            # Handle legacy suite name mappings first
+            original_suite_name = suite_name
+            if suite_name == "authentication_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'security_tests'")
+                suite_name = "security_tests"
+            elif suite_name == "api_endpoints_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'api_tests'")
+                suite_name = "api_tests"
+            elif suite_name == "monitoring_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'analytics_monitoring_tests'")
+                suite_name = "analytics_monitoring_tests"
+            elif suite_name == "self_healing_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'auto_healing_tests'")
+                suite_name = "auto_healing_tests"
+            
+            # Generate the specific test suite - using correct suite names from TestSuiteGenerator
+            if suite_name == "security_tests":
+                suite_data = await generator.generate_security_tests()
+            elif suite_name == "database_tests":
+                suite_data = await generator.generate_database_tests()
+            elif suite_name == "api_tests":
+                suite_data = await generator.generate_api_tests()
+            elif suite_name == "analytics_monitoring_tests":
+                suite_data = await generator.generate_analytics_monitoring_tests()
+            elif suite_name == "spiritual_services_tests":
+                suite_data = await generator.generate_spiritual_services_tests()
+            elif suite_name == "auto_healing_tests":
+                suite_data = await generator.generate_auto_healing_tests()
+            elif suite_name == "integration_tests":
+                suite_data = await generator.generate_integration_tests()
+            elif suite_name == "performance_tests":
+                suite_data = await generator.generate_performance_tests()
+            elif suite_name == "social_media_tests":
+                suite_data = await generator.generate_social_media_tests()
+            elif suite_name == "live_audio_video_tests":
+                suite_data = await generator.generate_live_audio_video_tests()
+            elif suite_name == "avatar_generation_tests":
+                suite_data = await generator.generate_avatar_generation_tests()
+            elif suite_name == "credit_payment_tests":
+                suite_data = await generator.generate_credit_payment_tests()
+            elif suite_name == "user_management_tests":
+                suite_data = await generator.generate_user_management_tests()
+            elif suite_name == "admin_services_tests":
+                suite_data = await generator.generate_admin_services_tests()
+            elif suite_name == "community_services_tests":
+                suite_data = await generator.generate_community_services_tests()
+            elif suite_name == "notification_services_tests":
+                suite_data = await generator.generate_notification_services_tests()
+            else:
+                # Generate integration tests as fallback for unknown suite names
+                logger.warning(f"Unknown suite name '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                suite_data = await generator.generate_integration_tests()
+            
+            # Extract test cases from suite data
+            if isinstance(suite_data, dict) and 'test_cases' in suite_data:
+                test_cases = suite_data['test_cases']
+                # Update test cases to use original suite name for consistency
+                for test_case in test_cases:
+                    test_case['original_suite_name'] = original_suite_name
+                    test_case['mapped_suite_name'] = suite_name
+                return test_cases
+            else:
+                logger.warning(f"No test cases found in generated suite: {suite_name} (original: {original_suite_name})")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Failed to generate test cases for {suite_name}: {e}")
             return []
     
     def _calculate_overall_status(self, passed: int, failed: int, total: int) -> str:
