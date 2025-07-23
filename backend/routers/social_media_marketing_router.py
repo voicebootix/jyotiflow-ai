@@ -1,6 +1,6 @@
 """
 🚀 SOCIAL MEDIA MARKETING API ROUTER - SURGICAL FIX
-Complete API for automated social media marketing, content generation, 
+Complete API for automated social media marketing, content generation,
 campaign management, and customer acquisition analytics.
 
 SURGICAL FIX: Enhanced error handling for platform configuration save/test operations
@@ -1448,4 +1448,3 @@ async def _execute_real_posting(platform: str, platform_credentials: Dict) -> Di
                 "error": f"An unexpected error occurred during posting: {type(e).__name__}",
                 "posted_at": datetime.now(timezone.utc).isoformat()
             }
-
