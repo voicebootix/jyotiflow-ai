@@ -968,6 +968,21 @@ class TestExecutionEngine:
             
             generator = TestSuiteGenerator()
             
+            # Handle legacy suite name mappings first
+            original_suite_name = suite_name
+            if suite_name == "authentication_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'security_tests'")
+                suite_name = "security_tests"
+            elif suite_name == "api_endpoints_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'api_tests'")
+                suite_name = "api_tests"
+            elif suite_name == "monitoring_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'analytics_monitoring_tests'")
+                suite_name = "analytics_monitoring_tests"
+            elif suite_name == "self_healing_tests":
+                logger.info(f"Mapping legacy suite name '{suite_name}' to 'auto_healing_tests'")
+                suite_name = "auto_healing_tests"
+            
             # Generate the specific test suite - using correct suite names from TestSuiteGenerator
             if suite_name == "security_tests":
                 suite_data = await generator.generate_security_tests()
@@ -1022,9 +1037,14 @@ class TestExecutionEngine:
             
             # Extract test cases from suite data
             if isinstance(suite_data, dict) and 'test_cases' in suite_data:
-                return suite_data['test_cases']
+                test_cases = suite_data['test_cases']
+                # Update test cases to use original suite name for consistency
+                for test_case in test_cases:
+                    test_case['original_suite_name'] = original_suite_name
+                    test_case['mapped_suite_name'] = suite_name
+                return test_cases
             else:
-                logger.warning(f"No test cases found in generated suite: {suite_name}")
+                logger.warning(f"No test cases found in generated suite: {suite_name} (original: {original_suite_name})")
                 return []
                 
         except Exception as e:
