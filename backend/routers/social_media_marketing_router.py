@@ -3,22 +3,17 @@
 
 Complete and robust API for all social media marketing operations.
 This file follows CORE.MD and REFRESH.MD principles for quality and maintainability.
-- No silent failures: All imports are direct. If a dependency is missing, the app will fail fast.
-- Consistent Dependencies: Uses a single, reliable dependency for admin user authentication.
-- Clean and Readable: Code is organized and easy to follow.
 """
 
 import logging
-from typing import List, Optional, Dict, Any
 from pathlib import Path
-import uuid
+import shutil
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported from their correct locations.
 from ..auth.auth_helpers import get_current_admin_user
-from ..core.dependencies import get_app_settings
 from ..schemas.response import StandardResponse
 from ..schemas.social_media import (
     Campaign,
@@ -31,7 +26,6 @@ from ..schemas.social_media import (
     PostExecutionRequest,
     PostExecutionResult,
     TestConnectionRequest,
-    AvatarPreviewResponse
 )
 from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
 
@@ -55,6 +49,15 @@ class GenerateAllAvatarPreviewsRequest(BaseModel):
 
 # REFRESH.MD: Centralize available styles to avoid magic strings and promote maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
+
+# CORE.MD: Define security constants for file uploads
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
+MIME_TYPE_TO_EXTENSION = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
 
 
 # --- Marketing Overview Endpoints (using placeholder data) ---
@@ -122,12 +125,33 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_current_admin
 
 @social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
 async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = Depends(get_current_admin_user)):
+    # REFRESH.MD: Restore filename null check (regression fix)
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    # CORE.MD: Add MIME Type and File Size validation (security fix)
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Only image/jpeg, image/png, image/webp are allowed.")
+    
+    # Check file size by reading its content
+    contents = await file.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"File size exceeds the limit of {MAX_FILE_SIZE / 1024 / 1024} MB.")
+    await file.seek(0)  # Reset file pointer after reading size
+
+    # CORE.MD: Sanitize filename and use extension from validated MIME type
     upload_dir = Path("backend/static_uploads/avatars")
     upload_dir.mkdir(parents=True, exist_ok=True)
-    file_name = f"swamiji_base_avatar{Path(file.filename).suffix}"
+    file_extension = MIME_TYPE_TO_EXTENSION[file.content_type]
+    file_name = f"swamiji_base_avatar{file_extension}"
     file_path = upload_dir / file_name
-    with open(file_path, "wb") as buffer:
-        buffer.write(await file.read())
+
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+    finally:
+        file.file.close()
+
     logger.info(f"✅ Swamiji's photo saved to: {file_path}")
     return StandardResponse(success=True, message="Image uploaded successfully.", data={"url": f"/static/avatars/{file_name}"})
 
