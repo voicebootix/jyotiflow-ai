@@ -24,7 +24,7 @@ from ..services.instagram_service import InstagramService
 from ..services.tiktok_service import TikTokService
 from ..utils.response_utils import StandardResponse
 from ..auth.auth_helpers import get_current_admin_user
-from ..services.spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine
+from ..spiritual_avatar_generation_engine import get_avatar_engine, SpiritualAvatarGenerationEngine
 from ..database.database_manager import DatabaseManager
 from ..core.config import AppSettings
 from ..schemas.social_media import (
@@ -39,7 +39,6 @@ from ..schemas.social_media import (
 )
 
 from deps import get_current_user, get_admin_user, get_current_admin_dependency
-from core_foundation_enhanced import StandardResponse
 
 # SURGICAL FIX: Safe imports with fallbacks
 try:
@@ -852,7 +851,7 @@ async def get_swamiji_avatar_config(request: Request, admin_user: dict = Depends
 # CORE.MD: Use a module-level constant for better maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
 
-@router.post("/generate-avatar-preview", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
+@social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
 async def generate_avatar_preview(
     request: GenerateAvatarPreviewRequest,
     admin_user: dict = Depends(get_current_admin_user),
@@ -895,7 +894,7 @@ async def generate_avatar_preview(
             detail=str(e)
         ) from e
 
-@router.post("/generate-all-avatar-previews", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
+@social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse, tags=["Social Media Marketing", "Admin"])
 async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(get_current_admin_user),

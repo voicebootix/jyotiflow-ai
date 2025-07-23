@@ -24,10 +24,11 @@ from enhanced_business_logic import SpiritualAvatarEngine, AvatarGenerationConte
 from ..schemas.avatar import AvatarSessionCreate, AvatarSession
 from app_settings import AppSettings
 from ..database.database_manager import DatabaseManager
+from ..core.dependencies import get_app_settings, get_database_manager
 
 logger = logging.getLogger(__name__)
 
-class SwamjiAvatarGenerationEngine:
+class SpiritualAvatarGenerationEngine:
     """
     Complete Avatar Generation Engine for Swami Jyotirananthan
     Real D-ID + ElevenLabs Integration
@@ -457,8 +458,21 @@ class SwamjiAvatarGenerationEngine:
         
         return results
 
-# Global instance
-avatar_engine = SwamjiAvatarGenerationEngine()
+def get_avatar_engine(
+    settings: AppSettings = Depends(get_app_settings),
+    db_manager: DatabaseManager = Depends(get_database_manager)
+) -> SpiritualAvatarGenerationEngine:
+    """
+    Dependency injector for the SpiritualAvatarGenerationEngine.
+    Creates a single instance and caches it for the application's lifespan.
+    """
+    # This is a simple way to cache the engine instance.
+    # For a more robust solution in a larger app, you might use a more
+    # sophisticated caching mechanism tied to the app's lifecycle.
+    if not hasattr(get_avatar_engine, "engine_instance"):
+        logger.info("Initializing SpiritualAvatarGenerationEngine instance...")
+        get_avatar_engine.engine_instance = SpiritualAvatarGenerationEngine(settings, db_manager)
+    return get_avatar_engine.engine_instance
 
 # Export for use in other modules
-__all__ = ["avatar_engine", "SwamjiAvatarGenerationEngine"]
+__all__ = ["SpiritualAvatarGenerationEngine", "get_avatar_engine"]
