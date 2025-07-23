@@ -780,7 +780,7 @@ class TestExecutionEngine:
             
             # Generate the specific test suite
             if suite_name == "authentication_tests":
-                suite_data = await generator.generate_authentication_tests()
+                suite_data = await generator.generate_security_tests()
             elif suite_name == "database_tests":
                 suite_data = await generator.generate_database_tests()
             elif suite_name == "api_endpoints_tests":
@@ -788,12 +788,12 @@ class TestExecutionEngine:
             elif suite_name == "monitoring_tests":
                 suite_data = await generator.generate_analytics_monitoring_tests()
             elif suite_name == "spiritual_services_tests":
-                suite_data = await generator.generate_spiritual_guidance_tests()
+                suite_data = await generator.generate_spiritual_services_tests()
             elif suite_name == "self_healing_tests":
-                suite_data = await generator.generate_self_healing_tests()
+                suite_data = await generator.generate_auto_healing_tests()
             else:
-                # Generate a basic health check suite
-                suite_data = await generator.generate_health_check_tests()
+                # Generate integration tests as fallback
+                suite_data = await generator.generate_integration_tests()
             
             # Extract test cases from suite data
             if isinstance(suite_data, dict) and 'test_cases' in suite_data:
