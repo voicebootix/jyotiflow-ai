@@ -2181,9 +2181,14 @@ class SelfHealingOrchestrator:
                 integrator = AutoFixTestIntegrator()
                 
                 # Run comprehensive pre-fix testing
-                pre_test_session = await integrator.pre_fix_comprehensive_test()
-                test_results['pre_fix_session'] = pre_test_session
-                logger.info(f"Pre-fix testing completed: {pre_test_session}")
+                pre_test_result = await integrator.pre_fix_comprehensive_test()
+                if isinstance(pre_test_result, str):
+                    test_results['pre_fix_session'] = pre_test_result
+                    logger.info(f"Pre-fix testing completed: {pre_test_result}")
+                else:
+                    # Handle error case
+                    test_results['pre_fix_error'] = pre_test_result
+                    logger.error(f"Pre-fix testing failed: {pre_test_result}")
                 
             except ImportError:
                 logger.debug("AutoFixTestIntegrator not available, skipping test integration")
@@ -2200,14 +2205,19 @@ class SelfHealingOrchestrator:
                     integrator = AutoFixTestIntegrator()
                     
                     # Run post-fix validation
-                    post_test_session = await integrator.post_fix_comprehensive_test(
+                    post_test_result = await integrator.post_fix_comprehensive_test(
                         test_results['pre_fix_session']
                     )
-                    test_results['post_fix_session'] = post_test_session
+                    if isinstance(post_test_result, str):
+                        test_results['post_fix_session'] = post_test_result
+                        logger.info(f"Post-fix testing completed: {post_test_result}")
+                    else:
+                        # Handle error case
+                        test_results['post_fix_error'] = post_test_result
+                        logger.error(f"Post-fix testing failed: {post_test_result}")
                     
                     # Add test results to overall results
                     results['test_validation'] = test_results
-                    logger.info(f"Post-fix testing completed: {post_test_session}")
                     
                 except Exception as e:
                     logger.warning(f"Post-fix testing failed: {e}")

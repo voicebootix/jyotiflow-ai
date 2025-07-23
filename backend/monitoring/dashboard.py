@@ -991,7 +991,15 @@ async def get_available_test_suites(admin: dict = Depends(get_current_admin_depe
         
         # Generate and store test suites
         test_suites = await generator.generate_all_test_suites()
-        await generator.store_test_suites(test_suites)
+        
+        try:
+            await generator.store_test_suites(test_suites)
+        except Exception as store_error:
+            logger.error(f"Failed to store test suites: {store_error}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Test suite generation succeeded but storage failed: {str(store_error)}"
+            )
         
         # Format for UI consumption
         suite_info = []
@@ -1061,9 +1069,14 @@ async def get_business_logic_validation_status(admin: dict = Depends(get_current
             recent_validations = await conn.fetch("""
                 SELECT 
                     session_id,
-                    issue_description as validation_result,
+                    issue_description,
                     severity_score as quality_score,
-                    created_at
+                    created_at,
+                    CASE 
+                        WHEN severity_score IS NULL OR severity_score = 0 THEN 'success'
+                        WHEN severity_score <= 3 THEN 'warning'
+                        ELSE 'error'
+                    END as validation_result
                 FROM business_logic_issues 
                 WHERE created_at >= NOW() - INTERVAL '24 hours'
                 ORDER BY created_at DESC
@@ -1073,7 +1086,7 @@ async def get_business_logic_validation_status(admin: dict = Depends(get_current
             # Calculate summary statistics
             total_validations = len(recent_validations)
             passed_validations = sum(1 for v in recent_validations 
-                                   if v['validation_result'] and 'success' in str(v['validation_result']).lower())
+                                   if v['validation_result'] and str(v['validation_result']).lower() == 'success')
             avg_quality_score = sum(v['quality_score'] or 0 for v in recent_validations) / max(total_validations, 1)
             
             validation_data = [dict(v) for v in recent_validations]

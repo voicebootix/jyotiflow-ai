@@ -679,6 +679,10 @@ class TestExecutionEngine:
             logger.info(f"Initialized {len(suite_list)} test suites")
             return suite_list
             
+        except ImportError as import_error:
+            logger.error(f"Failed to import TestSuiteGenerator: {import_error}")
+            logger.error("TestSuiteGenerator module is not available - test suite initialization failed")
+            return []
         except Exception as e:
             logger.error(f"Failed to initialize test suites: {e}")
             return []

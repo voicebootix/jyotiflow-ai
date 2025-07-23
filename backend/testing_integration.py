@@ -10,7 +10,7 @@ import asyncpg
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 import os
 import logging
 
@@ -624,7 +624,7 @@ class AutoFixTestIntegrator:
                 "reason": f"Analysis failed: {str(e)}"
             }
     
-    async def pre_fix_comprehensive_test(self) -> str:
+    async def pre_fix_comprehensive_test(self) -> Union[str, Dict[str, Any]]:
         """Run comprehensive pre-fix testing for self-healing system"""
         try:
             session_id = await self._create_test_session(
@@ -647,10 +647,25 @@ class AutoFixTestIntegrator:
             
         except Exception as e:
             logger.error(f"Comprehensive pre-fix testing failed: {e}")
-            return None
+            return {
+                "status": "error",
+                "error": str(e),
+                "error_type": "pre_fix_test_failure",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
     
-    async def post_fix_comprehensive_test(self, pre_fix_session_id: str) -> str:
+    async def post_fix_comprehensive_test(self, pre_fix_session_id: str) -> Union[str, Dict[str, Any]]:
         """Run comprehensive post-fix testing for self-healing system"""
+        # Validate pre_fix_session_id parameter
+        if not pre_fix_session_id or not pre_fix_session_id.strip():
+            logger.error("Invalid pre_fix_session_id provided to post_fix_comprehensive_test")
+            return {
+                "status": "error",
+                "error": "Invalid or empty pre_fix_session_id parameter",
+                "error_type": "validation_error",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
         try:
             session_id = await self._create_test_session(
                 test_type="comprehensive_post_fix",
@@ -676,7 +691,13 @@ class AutoFixTestIntegrator:
             
         except Exception as e:
             logger.error(f"Comprehensive post-fix testing failed: {e}")
-            return None
+            return {
+                "status": "error",
+                "error": str(e),
+                "error_type": "post_fix_test_failure",
+                "pre_fix_session_id": pre_fix_session_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
 
 # Example integration with database self-healing system
 async def integrate_with_auto_fix_system():
