@@ -623,6 +623,60 @@ class AutoFixTestIntegrator:
                 "rollback_required": True,
                 "reason": f"Analysis failed: {str(e)}"
             }
+    
+    async def pre_fix_comprehensive_test(self) -> str:
+        """Run comprehensive pre-fix testing for self-healing system"""
+        try:
+            session_id = await self._create_test_session(
+                test_type="comprehensive_pre_fix",
+                test_category="auto_healing",
+                triggered_by="self_healing_system",
+                trigger_context={"phase": "pre_fix", "timestamp": datetime.now(timezone.utc).isoformat()}
+            )
+            
+            # Run comprehensive validation tests
+            focus_areas = ["database", "api", "business_logic", "monitoring"]
+            
+            for area in focus_areas:
+                validation_result = await self._execute_validation_tests(
+                    session_id, area, "comprehensive_pre_fix"
+                )
+                logger.info(f"Pre-fix validation for {area}: {validation_result}")
+            
+            return session_id
+            
+        except Exception as e:
+            logger.error(f"Comprehensive pre-fix testing failed: {e}")
+            return None
+    
+    async def post_fix_comprehensive_test(self, pre_fix_session_id: str) -> str:
+        """Run comprehensive post-fix testing for self-healing system"""
+        try:
+            session_id = await self._create_test_session(
+                test_type="comprehensive_post_fix",
+                test_category="auto_healing", 
+                triggered_by="self_healing_system",
+                trigger_context={
+                    "phase": "post_fix", 
+                    "pre_fix_session": pre_fix_session_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            )
+            
+            # Run comprehensive validation tests
+            focus_areas = ["database", "api", "business_logic", "monitoring"]
+            
+            for area in focus_areas:
+                validation_result = await self._execute_validation_tests(
+                    session_id, area, "comprehensive_post_fix"
+                )
+                logger.info(f"Post-fix validation for {area}: {validation_result}")
+            
+            return session_id
+            
+        except Exception as e:
+            logger.error(f"Comprehensive post-fix testing failed: {e}")
+            return None
 
 # Example integration with database self-healing system
 async def integrate_with_auto_fix_system():

@@ -247,29 +247,21 @@ class TestExecutionEngine:
         start_time = datetime.now(timezone.utc)
         
         try:
+            test_code = test_case.get('test_code', '')
             timeout = test_case.get('timeout_seconds', 30)
             
-            # Try to execute file-based test first
-            file_path = test_case.get('file_path', '')
-            if file_path:
-                result = await asyncio.wait_for(
-                    self._execute_file_based_test(file_path, test_case),
-                    timeout=timeout
-                )
-            else:
-                # Fall back to code-based test
-                test_code = test_case.get('test_code', '')
-                if not test_code:
-                    return {
-                        "status": "failed",
-                        "error": "No test code or file path provided",
-                        "execution_time_ms": 0
-                    }
-                
-                result = await asyncio.wait_for(
-                    self._execute_test_code(test_code, test_case),
-                    timeout=timeout
-                )
+            if not test_code:
+                return {
+                    "status": "failed",
+                    "error": "No test code provided",
+                    "execution_time_ms": 0
+                }
+            
+            # Execute test code with timeout
+            result = await asyncio.wait_for(
+                self._execute_test_code(test_code, test_case),
+                timeout=timeout
+            )
             
             execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             
@@ -676,101 +668,47 @@ class TestExecutionEngine:
             logger.warning(f"Could not store test result: {e}")
     
     async def _get_test_cases(self, suite_name: str) -> List[Dict[str, Any]]:
-        """Get test cases for a specific suite"""
-        # Define static test cases for each suite
-        test_suite_definitions = {
-            "authentication_tests": [
-                {
-                    "test_name": "test_jwt_token_generation",
-                    "test_category": "security",
-                    "description": "Test JWT token generation",
-                    "test_type": "unit",
-                    "file_path": "test_jwt_simple.py"
-                },
-                {
-                    "test_name": "test_admin_authentication",
-                    "test_category": "security", 
-                    "description": "Test admin login functionality",
-                    "test_type": "integration",
-                    "file_path": "test_auth_fix.py"
-                }
-            ],
-            "database_tests": [
-                {
-                    "test_name": "test_database_connection",
-                    "test_category": "infrastructure",
-                    "description": "Test database connectivity",
-                    "test_type": "infrastructure",
-                    "file_path": "test_db_init.py"
-                },
-                {
-                    "test_name": "test_table_structure",
-                    "test_category": "infrastructure",
-                    "description": "Test database table structure",
-                    "test_type": "infrastructure", 
-                    "file_path": "test_db_tables.py"
-                }
-            ],
-            "api_endpoints_tests": [
-                {
-                    "test_name": "test_api_endpoints",
-                    "test_category": "integration",
-                    "description": "Test API endpoint functionality",
-                    "test_type": "integration",
-                    "file_path": "test_api_endpoints.py"
-                },
-                {
-                    "test_name": "test_admin_endpoints",
-                    "test_category": "integration",
-                    "description": "Test admin-specific endpoints",
-                    "test_type": "integration",
-                    "file_path": "test_admin_endpoints.py"
-                }
-            ],
-            "monitoring_tests": [
-                {
-                    "test_name": "test_monitoring_system",
-                    "test_category": "monitoring",
-                    "description": "Test monitoring system functionality", 
-                    "test_type": "functional",
-                    "file_path": "test_monitoring_system.py"
-                },
-                {
-                    "test_name": "test_monitoring_complete",
-                    "test_category": "monitoring",
-                    "description": "Complete monitoring system test",
-                    "test_type": "functional",
-                    "file_path": "test_monitoring_complete.py"
-                }
-            ],
-            "spiritual_services_tests": [
-                {
-                    "test_name": "test_spiritual_progress",
-                    "test_category": "business_logic",
-                    "description": "Test spiritual progress tracking",
-                    "test_type": "functional",
-                    "file_path": "test_spiritual_progress_fix.py"
-                },
-                {
-                    "test_name": "test_spiritual_security",
-                    "test_category": "business_logic", 
-                    "description": "Test spiritual services security",
-                    "test_type": "security",
-                    "file_path": "test_spiritual_progress_security.py"
-                }
-            ],
-            "self_healing_tests": [
-                {
-                    "test_name": "test_self_healing_system",
-                    "test_category": "automation",
-                    "description": "Test self-healing automation",
-                    "test_type": "automation",
-                    "file_path": "test_self_healing_system.py"
-                }
-            ]
-        }
-        
-        return test_suite_definitions.get(suite_name, [])
+        """Get test cases for a specific suite from database or generate them"""
+        if not self.database_url:
+            return []
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Get test cases from database (generated by TestSuiteGenerator)
+            results = await conn.fetch('''
+                SELECT tcr.test_name, tcr.test_category, tcr.output_data
+                FROM test_case_results tcr
+                JOIN test_execution_sessions tes ON tcr.session_id = tes.session_id
+                WHERE tes.test_type = $1 AND tcr.status = 'generated'
+                ORDER BY tcr.created_at DESC
+            ''', suite_name)
+            
+            await conn.close()
+            
+            test_cases = []
+            for row in results:
+                try:
+                    test_data = json.loads(row['output_data']) if row['output_data'] else {}
+                    test_cases.append({
+                        'test_name': row['test_name'],
+                        'test_category': row['test_category'],
+                        **test_data
+                    })
+                except Exception as e:
+                    logger.warning(f"Could not parse test case data: {e}")
+            
+            # If no test cases found, generate them using TestSuiteGenerator
+            if not test_cases:
+                logger.info(f"No test cases found for {suite_name}, generating...")
+                test_cases = await self._generate_test_cases(suite_name)
+            
+            return test_cases
+            
+        except Exception as e:
+            logger.warning(f"Could not get test cases from database: {e}")
+            # Fallback to generation
+            return await self._generate_test_cases(suite_name)
     
     async def _get_available_test_suites(self) -> List[Dict[str, Any]]:
         """Get all available test suites"""
@@ -780,7 +718,7 @@ class TestExecutionEngine:
         try:
             conn = await asyncpg.connect(self.database_url)
             
-            # First, try to get registered test suites from test_execution_sessions
+            # Get test suites from database (generated by TestSuiteGenerator)
             results = await conn.fetch('''
                 SELECT DISTINCT test_type, test_category
                 FROM test_execution_sessions
@@ -788,88 +726,85 @@ class TestExecutionEngine:
                 ORDER BY test_type
             ''')
             
-            # If no test suites found, register the default ones
-            if not results:
-                logger.info("No test suites found in database, registering default test suites...")
-                await self._register_default_test_suites(conn)
-                
-                # Try again after registration
-                results = await conn.fetch('''
-                    SELECT DISTINCT test_type, test_category
-                    FROM test_execution_sessions
-                    WHERE triggered_by = 'test_suite_generator'
-                    ORDER BY test_type
-                ''')
-            
             await conn.close()
+            
+            # If no test suites found, generate them using TestSuiteGenerator
+            if not results:
+                logger.info("No test suites found in database, generating...")
+                test_suites = await self._initialize_test_suites()
+                return test_suites
             
             return [dict(row) for row in results]
             
         except Exception as e:
             logger.warning(f"Could not get test suites from database: {e}")
-            return []
+            # Fallback to generation
+            return await self._initialize_test_suites()
     
-    async def _register_default_test_suites(self, conn) -> None:
-        """Register default test suites in the database"""
+    async def _initialize_test_suites(self) -> List[Dict[str, Any]]:
+        """Initialize test suites using TestSuiteGenerator"""
         try:
-            # Define default test suites based on existing test files
-            default_test_suites = [
-                {
-                    "test_type": "authentication_tests",
-                    "test_category": "security",
-                    "description": "Authentication and JWT token tests"
-                },
-                {
-                    "test_type": "database_tests", 
-                    "test_category": "infrastructure",
-                    "description": "Database connectivity and table structure tests"
-                },
-                {
-                    "test_type": "api_endpoints_tests",
-                    "test_category": "integration",
-                    "description": "API endpoint functionality tests"
-                },
-                {
-                    "test_type": "monitoring_tests",
-                    "test_category": "monitoring", 
-                    "description": "Monitoring system functionality tests"
-                },
-                {
-                    "test_type": "spiritual_services_tests",
-                    "test_category": "business_logic",
-                    "description": "Spiritual guidance and services tests"
-                },
-                {
-                    "test_type": "self_healing_tests",
-                    "test_category": "automation",
-                    "description": "Self-healing system tests"
-                }
-            ]
+            from test_suite_generator import TestSuiteGenerator
             
-            # Insert test suite registrations
-            for suite in default_test_suites:
-                session_id = str(uuid.uuid4())
-                await conn.execute('''
-                    INSERT INTO test_execution_sessions (
-                        session_id, test_type, test_category, environment,
-                        started_at, status, triggered_by, created_at
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                    ON CONFLICT (session_id) DO NOTHING
-                ''', 
-                session_id,
-                suite["test_type"],
-                suite["test_category"], 
-                "production",
-                datetime.now(timezone.utc),
-                "registered",
-                "test_suite_generator",
-                datetime.now(timezone.utc)
-                )
+            logger.info("Initializing test suites using TestSuiteGenerator...")
+            generator = TestSuiteGenerator()
             
-            logger.info(f"Registered {len(default_test_suites)} default test suites")
+            # Generate all test suites
+            test_suites = await generator.generate_all_test_suites()
+            
+            # Store test suites in database
+            await generator.store_test_suites(test_suites)
+            
+            # Convert to the format expected by TestExecutionEngine
+            suite_list = []
+            for suite_name, suite_data in test_suites.items():
+                if isinstance(suite_data, dict) and 'test_category' in suite_data:
+                    suite_list.append({
+                        'test_type': suite_name,
+                        'test_category': suite_data['test_category']
+                    })
+            
+            logger.info(f"Initialized {len(suite_list)} test suites")
+            return suite_list
             
         except Exception as e:
-            logger.error(f"Failed to register default test suites: {e}")
+            logger.error(f"Failed to initialize test suites: {e}")
+            return []
+    
+    async def _generate_test_cases(self, suite_name: str) -> List[Dict[str, Any]]:
+        """Generate test cases for a specific suite using TestSuiteGenerator"""
+        try:
+            from test_suite_generator import TestSuiteGenerator
+            
+            generator = TestSuiteGenerator()
+            
+            # Generate the specific test suite
+            if suite_name == "authentication_tests":
+                suite_data = await generator.generate_authentication_tests()
+            elif suite_name == "database_tests":
+                suite_data = await generator.generate_database_tests()
+            elif suite_name == "api_endpoints_tests":
+                suite_data = await generator.generate_api_tests()
+            elif suite_name == "monitoring_tests":
+                suite_data = await generator.generate_analytics_monitoring_tests()
+            elif suite_name == "spiritual_services_tests":
+                suite_data = await generator.generate_spiritual_guidance_tests()
+            elif suite_name == "self_healing_tests":
+                suite_data = await generator.generate_self_healing_tests()
+            else:
+                # Generate a basic health check suite
+                suite_data = await generator.generate_health_check_tests()
+            
+            # Extract test cases from suite data
+            if isinstance(suite_data, dict) and 'test_cases' in suite_data:
+                return suite_data['test_cases']
+            else:
+                logger.warning(f"No test cases found in generated suite: {suite_name}")
+                return []
+                
+        except Exception as e:
+            logger.error(f"Failed to generate test cases for {suite_name}: {e}")
+            return []
     
     def _calculate_overall_status(self, passed: int, failed: int, total: int) -> str:
         """Calculate overall test status"""

@@ -8,7 +8,7 @@ import asyncpg
 import uuid
 import os
 from datetime import datetime, timezone
-from typing import Dict, List, Union, Any
+from typing import Dict, List, Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from db import db_manager
@@ -17,12 +17,12 @@ logger = logging.getLogger(__name__)
 
 # Database connection managed through db_manager
 from pydantic import BaseModel, Field, model_validator
-from typing import Optional, Dict, Any, Union, List
+from typing import Optional, Dict, Any
 
 class StandardResponse(BaseModel):
     status: str
     message: str
-    data: Union[Dict[str, Any], List[Any]] = Field(default_factory=dict)
+    data: Dict[str, Any] = Field(default_factory=dict)
     success: bool = Field(default=True, description="Backward compatibility field")
     
     @model_validator(mode='after')
@@ -36,7 +36,7 @@ class StandardResponse(BaseModel):
         "json_schema_extra": {
             "examples": [
                 {
-                    "status": "success",
+                    "status": "success", 
                     "message": "Operation completed",
                     "data": {},
                     "success": True
@@ -802,7 +802,7 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
                 return StandardResponse(
                     status="success",
                     message="Test sessions table not yet created",
-                    data=[]
+                    data={"sessions": [], "total": 0}
                 )
             
             # Fetch recent test sessions (last 50, ordered by most recent)
@@ -853,7 +853,7 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
             return StandardResponse(
                 status="success",
                 message=f"Retrieved {len(formatted_sessions)} test sessions",
-                data=formatted_sessions
+                data={"sessions": formatted_sessions, "total": len(formatted_sessions)}
             )
             
         finally:
@@ -864,21 +864,21 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
         return StandardResponse(
             status="error",
             message="Database connection failed",
-            data=[]
+            data={"sessions": [], "total": 0}
         )
     except asyncpg.PostgresError as e:
         logger.error(f"Database query error: {e}")
         return StandardResponse(
             status="error",
             message=f"Database query failed: {str(e)}",
-            data=[]
+            data={"sessions": [], "total": 0}
         )
     except Exception as e:
         logger.error(f"Unexpected error getting test sessions: {e}")
         return StandardResponse(
             status="error",
             message=f"Failed to get test sessions: {str(e)}",
-            data=[]
+            data={"sessions": [], "total": 0}
         )
 
 @router.get("/test-metrics")
@@ -988,26 +988,30 @@ async def get_available_test_suites(admin: dict = Depends(get_current_admin_depe
         from test_suite_generator import TestSuiteGenerator
         
         generator = TestSuiteGenerator()
+        
+        # Generate and store test suites
         test_suites = await generator.generate_all_test_suites()
+        await generator.store_test_suites(test_suites)
         
         # Format for UI consumption
         suite_info = []
         for suite_name, suite_data in test_suites.items():
-            suite_info.append({
-                "name": suite_name,
-                "display_name": suite_data.get("test_suite_name", suite_name),
-                "category": suite_data.get("test_category", "unknown"),
-                "description": suite_data.get("description", ""),
-                "test_count": len(suite_data.get("test_cases", [])),
-                "test_cases": [
-                    {
-                        "name": test.get("test_name", ""),
-                        "description": test.get("description", ""),
-                        "priority": test.get("priority", "medium"),
-                        "test_type": test.get("test_type", "unit")
-                    }
-                    for test in suite_data.get("test_cases", [])
-                ]
+            if isinstance(suite_data, dict):  # Skip error entries
+                suite_info.append({
+                    "name": suite_name,
+                    "display_name": suite_data.get("test_suite_name", suite_name),
+                    "category": suite_data.get("test_category", "unknown"),
+                    "description": suite_data.get("description", ""),
+                    "test_count": len(suite_data.get("test_cases", [])),
+                    "test_cases": [
+                        {
+                            "name": test.get("test_name", ""),
+                            "description": test.get("description", ""),
+                            "priority": test.get("priority", "medium"),
+                            "test_type": test.get("test_type", "unit")
+                        }
+                        for test in suite_data.get("test_cases", [])
+                    ]
             })
         
         return StandardResponse(
