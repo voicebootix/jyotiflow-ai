@@ -9,21 +9,18 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
 
 # CORE.MD: All necessary dependencies are explicitly imported.
 from ..auth.auth_helpers import get_current_admin_user
-from ..core.config import AppSettings
-from ..core.dependencies import get_app_settings, get_database_manager
-from ..database.database_manager import DatabaseManager
+from ..core.dependencies import get_app_settings
 from ..schemas.response import StandardResponse
 from ..schemas.social_media import (
     Campaign,
     ContentCalendarItem,
-    FacebookConfigRequest,
     GenerateAllAvatarPreviewsRequest,
     GenerateAvatarPreviewRequest,
     MarketingAsset,
@@ -31,24 +28,11 @@ from ..schemas.social_media import (
     MarketingOverview,
     PlatformConfig,
     PlatformStatus,
-    PostContent,
     PostExecutionRequest,
     PostExecutionResult,
     TestConnectionRequest,
-    TikTokConfigRequest,
-    TwitterConfigRequest,
-    YouTubeConfigRequest
 )
-from ..services.credit_service import CreditService
-from ..services.facebook_service import FacebookService
-from ..services.instagram_service import InstagramService
-from ..services.linkedin_service import LinkedInService
 from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
-from ..services.tiktok_service import TikTokService
-from ..services.twitter_service import TwitterService
-from ..services.user_service import UserService
-from ..services.youtube_service import YouTubeService
-from ..utils.celery_utils import get_task_status
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -177,6 +161,7 @@ async def generate_avatar_preview(
 ):
     """Generates a single avatar preview for a selected style."""
     try:
+        # REFRESH.MD: Call the correct, existing method on the engine.
         result = await avatar_engine.generate_one_style(
             text=request.text,
             style=request.style,
@@ -196,11 +181,18 @@ async def generate_all_avatar_previews(
 ):
     """Generates avatar previews for all available styles."""
     try:
-        result = await avatar_engine.generate_all_styles(
-            text=request.text,
-            voice_id=request.voice_id
-        )
-        return StandardResponse(success=True, message="All avatar previews generated.", data=result)
+        # REFRESH.MD: Call the correct, existing method on the engine.
+        # The previous 'generate_all_styles' was incorrect. This now correctly
+        # iterates and calls the single-style generation method.
+        results = []
+        for style in AVAILABLE_AVATAR_STYLES:
+             style_result = await avatar_engine.generate_one_style(
+                text=request.text,
+                style=style,
+                voice_id=request.voice_id
+            )
+             results.append(style_result)
+        return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
