@@ -480,11 +480,6 @@ class TestExecutionEngine:
             'setattr', 'delattr', 'callable'
         }
         
-        # Allow some functions that are commonly used in tests but check context
-        conditionally_dangerous = {
-            'hasattr', 'isinstance', 'issubclass'  # Allow these in test contexts
-        }
-        
         dangerous_attributes = {
             '__class__', '__bases__', '__subclasses__', '__mro__', '__dict__',
             '__globals__', '__code__', '__closure__', '__defaults__', '__kwdefaults__'
