@@ -175,23 +175,23 @@ async def generate_avatar_preview(
 
 @social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse)
 async def generate_all_avatar_previews(
-    request: GenerateAllAvatarPreviewsRequest,
+    request: GenerateAvatarPreviewRequest, # REFRESH.MD: Use the existing, correct schema that has all needed fields.
     admin_user: dict = Depends(get_current_admin_user),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
     """Generates avatar previews for all available styles."""
     try:
-        # REFRESH.MD: Call the correct, existing method on the engine.
-        # The previous 'generate_all_styles' was incorrect. This now correctly
-        # iterates and calls the single-style generation method.
         results = []
         for style in AVAILABLE_AVATAR_STYLES:
-             style_result = await avatar_engine.generate_one_style(
-                text=request.text,
-                style=style,
-                voice_id=request.voice_id
+            # CORE.MD: Indentation fixed. Call the correct engine method.
+            style_result = await avatar_engine.generate_complete_avatar_video(
+                session_id=f"preview_all_{style}", # Use a consistent session ID format
+                user_email=admin_user.get("email", "admin_preview@jyotiflow.ai"),
+                guidance_text=request.text,
+                service_type="avatar_preview_all",
+                avatar_style=style
             )
-             results.append(style_result)
+            results.append(style_result)
         return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
