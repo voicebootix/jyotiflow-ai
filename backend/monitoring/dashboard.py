@@ -1004,7 +1004,7 @@ async def get_available_test_suites(admin: dict = Depends(get_current_admin_depe
         # Format for UI consumption
         suite_info = []
         for suite_name, suite_data in test_suites.items():
-            if isinstance(suite_data, dict):  # Skip error entries
+            if "error" not in suite_data:  # Skip error entries
                 suite_info.append({
                     "name": suite_name,
                     "display_name": suite_data.get("test_suite_name", suite_name),

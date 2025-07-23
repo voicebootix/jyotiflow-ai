@@ -364,24 +364,15 @@ class TestExecutionEngine:
                     "execution_time_ms": 0
                 }
             
-            # Basic security validation - check for dangerous imports/operations
-            dangerous_patterns = [
-                'import os', 'import sys', 'import subprocess', 'import shutil',
-                'import socket', 'import urllib', 'import requests', 'import http',
-                'import ftplib', 'import telnetlib', 'import smtplib', 
-                'exec(', 'eval(', '__import__', 'open(', 'file(',
-                'input(', 'raw_input(', 'reload(', 'compile(',
-                'globals(', 'locals(', 'vars(', 'dir('
-            ]
-            
-            file_content_lower = file_content.lower()
-            for pattern in dangerous_patterns:
-                if pattern in file_content_lower:
-                    return {
-                        "status": "failed",
-                        "error": f"Security violation: Dangerous pattern detected: {pattern}",
-                        "execution_time_ms": 0
-                    }
+            # Robust security validation using AST parsing
+            security_result = self._validate_code_security(file_content)
+            if not security_result["is_safe"]:
+                return {
+                    "status": "failed",
+                    "error": f"Security violation: {security_result['reason']}",
+                    "details": security_result.get('details', ''),
+                    "execution_time_ms": 0
+                }
             
             # Execute the test file in a restricted environment
             timeout = test_case.get('timeout_seconds', 30)
@@ -451,6 +442,130 @@ class TestExecutionEngine:
                 "execution_time_ms": execution_time,
                 "file_path": file_path
             }
+
+    def _validate_code_security(self, code: str) -> Dict[str, Any]:
+        """
+        Validate code security using AST parsing to detect dangerous operations.
+        
+        Args:
+            code: Python code to validate
+            
+        Returns:
+            Dict with 'is_safe' boolean and 'reason' if unsafe
+        """
+        import ast
+        
+        try:
+            # Parse the code into an AST
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return {
+                "is_safe": False,
+                "reason": f"Syntax error in code: {str(e)}",
+                "details": "Code must be valid Python syntax"
+            }
+        
+        # Define dangerous modules and functions
+        dangerous_modules = {
+            'os', 'sys', 'subprocess', 'shutil', 'socket', 'urllib', 'requests', 
+            'http', 'ftplib', 'telnetlib', 'smtplib', 'email', 'imaplib', 'poplib',
+            'ssl', 'hashlib', 'hmac', 'secrets', 'tempfile', 'glob', 'fnmatch',
+            'pickle', 'dill', 'shelve', 'dbm', 'sqlite3', 'threading', 'multiprocessing',
+            'ctypes', 'platform', 'webbrowser', 'pty', 'fcntl', 'termios'
+        }
+        
+        dangerous_functions = {
+            'exec', 'eval', 'compile', '__import__', 'open', 'file', 'input', 
+            'raw_input', 'reload', 'globals', 'locals', 'vars', 'dir', 'getattr',
+            'setattr', 'delattr', 'callable'
+        }
+        
+        # Allow some functions that are commonly used in tests but check context
+        conditionally_dangerous = {
+            'hasattr', 'isinstance', 'issubclass'  # Allow these in test contexts
+        }
+        
+        dangerous_attributes = {
+            '__class__', '__bases__', '__subclasses__', '__mro__', '__dict__',
+            '__globals__', '__code__', '__closure__', '__defaults__', '__kwdefaults__'
+        }
+        
+        class SecurityValidator(ast.NodeVisitor):
+            def __init__(self):
+                self.violations = []
+                
+            def visit_Import(self, node):
+                for alias in node.names:
+                    if alias.name in dangerous_modules:
+                        self.violations.append(f"Dangerous import: {alias.name}")
+                self.generic_visit(node)
+                
+            def visit_ImportFrom(self, node):
+                if node.module in dangerous_modules:
+                    self.violations.append(f"Dangerous import from: {node.module}")
+                self.generic_visit(node)
+                
+            def visit_Call(self, node):
+                # Check for dangerous function calls
+                if isinstance(node.func, ast.Name):
+                    if node.func.id in dangerous_functions:
+                        self.violations.append(f"Dangerous function call: {node.func.id}")
+                elif isinstance(node.func, ast.Attribute):
+                    if node.func.attr in dangerous_functions:
+                        self.violations.append(f"Dangerous method call: {node.func.attr}")
+                self.generic_visit(node)
+                
+            def visit_Attribute(self, node):
+                if node.attr in dangerous_attributes:
+                    self.violations.append(f"Dangerous attribute access: {node.attr}")
+                self.generic_visit(node)
+                
+            def visit_Subscript(self, node):
+                # Check for dangerous subscript operations that might access builtins
+                if isinstance(node.value, ast.Name) and node.value.id == '__builtins__':
+                    self.violations.append("Dangerous access to __builtins__")
+                self.generic_visit(node)
+                
+            def visit_Name(self, node):
+                # Check for dangerous variable names
+                if isinstance(node.ctx, ast.Load) and node.id in dangerous_functions:
+                    # Only flag if it's being loaded (used), not stored
+                    if node.id in {'exec', 'eval', 'compile', '__import__'}:
+                        self.violations.append(f"Reference to dangerous function: {node.id}")
+                self.generic_visit(node)
+        
+        # Run the security validator
+        validator = SecurityValidator()
+        validator.visit(tree)
+        
+        if validator.violations:
+            return {
+                "is_safe": False,
+                "reason": "Code contains dangerous operations",
+                "details": "; ".join(validator.violations[:5])  # Limit to first 5 violations
+            }
+        
+        # Additional checks for string-based evasion attempts
+        code_lower = code.lower()
+        evasion_patterns = [
+            'chr(', 'ord(', 'hex(', 'oct(', 'bin(',  # Character/number conversion
+            'bytes(', 'bytearray(',  # Byte manipulation
+            'str.format(', '.format(',  # String formatting
+            'f"', "f'",  # F-strings that might hide code
+        ]
+        
+        suspicious_count = sum(1 for pattern in evasion_patterns if pattern in code_lower)
+        if suspicious_count >= 3:  # Multiple evasion techniques
+            return {
+                "is_safe": False,
+                "reason": "Code contains multiple potential evasion techniques",
+                "details": f"Found {suspicious_count} suspicious patterns that could be used to bypass security"
+            }
+        
+        return {
+            "is_safe": True,
+            "reason": "Code passed security validation"
+        }
 
     
     async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any]) -> Union[Dict[str, Any], Any]:
