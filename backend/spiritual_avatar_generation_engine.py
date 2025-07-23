@@ -38,17 +38,17 @@ class SwamjiAvatarGenerationEngine:
         self.db = db_session_manager
         self.d_id_base_url = "https://api.d-id.com"
         
-        # REFRESH.MD: Restore concurrency control attributes.
         self.max_concurrent_generations = getattr(self.settings, 'avatar_max_concurrent_generations', 5)
         self.current_generations = 0
         self.max_video_duration = getattr(self.settings, 'avatar_max_video_duration', 300)
+        # REFRESH.MD: Initialize swamiji_voice_id in the constructor.
+        self.swamiji_voice_id = getattr(self.settings, 'elevenlabs_voice_id', 'onelab-voice-id')
         
         if not self.settings.d_id_api_key or "your-did-api-key" in self.settings.d_id_api_key:
             logger.warning("D-ID API key is not configured.")
         
         # Swamiji Avatar Configuration
         self.swamiji_presenter_id = "amy-jcu8YUbZbKt8EXOlXG7je"  # D-ID presenter ID
-        self.swamiji_voice_id = "21m00Tcm4TlvDq8ikWAM"  # ElevenLabs voice ID (Rachel as placeholder)
         
         # API Endpoints
         self.d_id_base_url = "https://api.d-id.com"
@@ -167,7 +167,8 @@ class SwamjiAvatarGenerationEngine:
                     "input": guidance_text,
                     "provider": {
                         "type": "elevenlabs",
-                        "voice_id": self.swamiji_voice_id # Use the configured voice_id
+                        # CORE.MD: Use the initialized attribute for consistency.
+                        "voice_id": self.swamiji_voice_id
                     }
                 }
 
@@ -309,29 +310,32 @@ class SwamjiAvatarGenerationEngine:
         voice_tone: str, video_url: Optional[str], audio_url: Optional[str],
         duration_seconds: int, voice_cost: float, video_cost: float, generation_time: float
     ):
-        # CORE.MD: Fix database type mismatch by using raw SQL insert.
+        # CORE.MD: Align query with database schema and fix connection management.
         query = """
             INSERT INTO avatar_sessions (
-                session_id, user_email, guidance_text, avatar_style, voice_tone, 
-                video_url, audio_url, duration_seconds, voice_cost, video_cost, 
-                total_cost, generation_time, status, created_at, updated_at
+                session_id, user_email, voice_script, avatar_style, voice_tone, 
+                video_url, audio_url, duration_seconds, elevenlabs_cost, d_id_cost, 
+                total_cost, generation_time, generation_status, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         """
         now = datetime.now(timezone.utc)
         total_cost = voice_cost + video_cost
         
-        async with self.db.get_connection() as connection:
-            try:
-                await connection.execute(
-                    query, session_id, user_email, guidance_text, avatar_style, voice_tone,
-                    video_url, audio_url, duration_seconds, voice_cost, video_cost,
-                    total_cost, generation_time, 'completed', now, now
-                )
-                logger.info(f"✅ Avatar session {session_id} stored successfully.")
-            except Exception as e:
-                # REFRESH.MD: Log the exception details before re-raising.
-                logger.error(f"❌ Failed to store avatar session {session_id}: {e}", exc_info=True)
-                raise
+        connection = None
+        try:
+            connection = await self.db.get_connection()
+            await connection.execute(
+                query, session_id, user_email, guidance_text, avatar_style, voice_tone,
+                video_url, audio_url, duration_seconds, voice_cost, video_cost,
+                total_cost, generation_time, 'completed', now, now
+            )
+            logger.info(f"✅ Avatar session {session_id} stored successfully.")
+        except Exception as e:
+            logger.error(f"❌ Failed to store avatar session {session_id}: {e}", exc_info=True)
+            raise
+        finally:
+            if connection:
+                await self.db.release_connection(connection)
     
     async def get_avatar_generation_status(self, session_id: str) -> Dict[str, Any]:
         """
