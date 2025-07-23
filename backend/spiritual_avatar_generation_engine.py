@@ -21,6 +21,8 @@ import time
 
 from core_foundation_enhanced import settings, db_manager
 from enhanced_business_logic import SpiritualAvatarEngine, AvatarGenerationContext, AvatarEmotion
+from ..schemas.avatar import AvatarSessionCreate, AvatarSession
+from ..database.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -65,296 +67,144 @@ class SwamjiAvatarGenerationEngine:
         user_email: str,
         guidance_text: str,
         service_type: str,
-        avatar_style: str = "traditional",
-        voice_tone: str = "compassionate",
-        video_duration: int = 300
+        avatar_style: str = "default",
+        voice_tone: str = "calm",
+        audio_url: Optional[str] = None,
+        video_duration: int = 60,
     ) -> Dict[str, Any]:
         """
-        Generate complete avatar video with voice synthesis
-        This is the main entry point for avatar generation
+        Orchestrates the full avatar generation process.
         """
+        generation_start_time = time.time()
         try:
-            # Validate inputs
-            if not guidance_text or len(guidance_text.strip()) < 10:
-                raise ValueError("Guidance text too short")
-            
-            if video_duration > self.max_video_duration:
-                raise ValueError(f"Duration exceeds maximum of {self.max_video_duration} seconds")
-            
-            # Check generation limits
-            if self.current_generations >= self.max_concurrent_generations:
-                raise ValueError("Maximum concurrent generations reached")
-            
-            self.current_generations += 1
-            generation_start_time = time.time()
-            
-            logger.info(f"🎭 Starting avatar generation for session {session_id}")
-            
-            # Step 1: Generate voice audio with ElevenLabs
-            logger.info("🎵 Generating voice audio...")
-            voice_result = await self._generate_voice_audio(
-                guidance_text, voice_tone, session_id
-            )
-            
-            if not voice_result["success"]:
-                raise Exception(f"Voice generation failed: {voice_result['error']}")
-            
-            # Step 2: Generate video with D-ID
-            logger.info("🎬 Generating avatar video...")
             video_result = await self._generate_avatar_video(
-                guidance_text, voice_result["audio_url"], avatar_style, session_id
+                guidance_text=guidance_text,
+                avatar_style=avatar_style,
+                session_id=session_id,
+                user_email=user_email,
+                audio_url=audio_url
             )
             
-            if not video_result["success"]:
-                raise Exception(f"Video generation failed: {video_result['error']}")
+            if not video_result.get("success"):
+                raise Exception(f"Video generation failed: {video_result.get('error', 'Unknown D-ID error')}")
             
-            # Step 3: Store generation record
             generation_time = time.time() - generation_start_time
+            total_cost = video_result.get("cost", 0)
+            
             await self._store_avatar_session(
                 session_id, user_email, guidance_text, avatar_style, voice_tone,
-                video_result["video_url"], voice_result["audio_url"],
-                video_duration, voice_result["cost"], video_result["cost"],
+                video_result.get("video_url"), audio_url,
+                video_duration, 0, total_cost,
                 generation_time
             )
             
             logger.info(f"✅ Avatar generation completed in {generation_time:.2f}s")
-            
             return {
                 "success": True,
-                "video_url": video_result["video_url"],
-                "audio_url": voice_result["audio_url"],
+                "video_url": video_result.get("video_url"),
+                "audio_url": audio_url,
                 "duration_seconds": video_duration,
                 "generation_time": generation_time,
-                "total_cost": voice_result["cost"] + video_result["cost"],
-                "voice_cost": voice_result["cost"],
-                "video_cost": video_result["cost"],
+                "total_cost": total_cost,
+                "voice_cost": 0,
+                "video_cost": total_cost,
                 "quality": "high"
             }
-            
         except Exception as e:
-            logger.error(f"❌ Avatar generation failed: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "video_url": None,
-                "audio_url": None,
-                "generation_time": time.time() - generation_start_time if 'generation_start_time' in locals() else 0
-            }
-        
-        finally:
-            self.current_generations -= 1
-    
-    async def _generate_voice_audio(
-        self, 
-        text: str, 
-        voice_tone: str, 
-        session_id: str
-    ) -> Dict[str, Any]:
-        """Generate voice audio using ElevenLabs API"""
-        try:
-            # Voice settings based on tone
-            voice_settings = self._get_voice_settings(voice_tone)
-            
-            # Prepare request payload
-            payload = {
-                "text": text,
-                "model_id": "eleven_multilingual_v2",
-                "voice_settings": voice_settings
-            }
-            
-            # API headers
-            headers = {
-                "Accept": "audio/mpeg",
-                "Content-Type": "application/json",
-                "xi-api-key": self.settings.elevenlabs_api_key
-            }
-            
-            # Make API call
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    f"{self.elevenlabs_base_url}/text-to-speech/{self.swamiji_voice_id}",
-                    json=payload,
-                    headers=headers
-                ) as response:
-                    
-                    if response.status == 200:
-                        # Save audio file
-                        audio_content = await response.read()
-                        audio_filename = f"voice_{session_id}_{uuid.uuid4().hex[:8]}.mp3"
-                        audio_path = self.avatar_storage_path / audio_filename
-                        
-                        with open(audio_path, 'wb') as f:
-                            f.write(audio_content)
-                        
-                        # Calculate cost (ElevenLabs pricing: ~$0.18/minute)
-                        estimated_minutes = len(text) / 150  # ~150 chars per minute
-                        cost = estimated_minutes * 0.18
-                        
-                        return {
-                            "success": True,
-                            "audio_url": f"/storage/avatars/{audio_filename}",
-                            "audio_path": str(audio_path),
-                            "cost": cost,
-                            "duration_estimate": estimated_minutes * 60
-                        }
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"ElevenLabs API error: {response.status} - {error_text}")
-                        return {
-                            "success": False,
-                            "error": f"ElevenLabs API error: {response.status}",
-                            "cost": 0
-                        }
-        
-        except Exception as e:
-            logger.error(f"Voice generation error: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "cost": 0
-            }
-    
+            logger.error(f"Avatar generation process failed for session {session_id}: {e}", exc_info=True)
+            return {"success": False, "error": str(e)}
+
     async def _generate_avatar_video(
         self,
-        text: str,
-        audio_url: str,
+        guidance_text: str,
         avatar_style: str,
-        session_id: str
+        session_id: str,
+        user_email: str,
+        audio_url: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Generate avatar video using D-ID API"""
+        """
+        Generates avatar video using D-ID with pre-generated audio or text-to-speech.
+        """
         try:
-            # Prepare avatar configuration
-            avatar_config = self._get_avatar_config(avatar_style)
-            
-            # Prepare request payload
-            payload = {
-                "source_url": avatar_config["presenter_image"],
-                "script": {
+            avatar_style_config = self._get_avatar_style_config(avatar_style)
+            source_image_url = avatar_style_config.get("source_url")
+            if not source_image_url:
+                return {"success": False, "error": f"Source image URL not found for style '{avatar_style}'"}
+
+            if audio_url:
+                script = {"type": "audio", "audio_url": audio_url}
+            else:
+                script = {
                     "type": "text",
-                    "subtitles": "false",
+                    "input": guidance_text,
                     "provider": {
-                        "type": "microsoft",
-                        "voice_id": "en-US-JennyNeural"
-                    },
-                    "input": text
-                },
-                "config": {
-                    "fluent": "false",
-                    "pad_audio": "0.0",
-                    "stitch": True,
-                    "result_format": "mp4"
-                },
-                "presenter_id": self.swamiji_presenter_id,
-                "background": {
-                    "type": "color",
-                    "color": avatar_config["background_color"]
+                        "type": "elevenlabs",
+                        "voice_id": self.swamiji_voice_id # Use the configured voice_id
+                    }
                 }
+
+            default_expressions_response = await self._get_d_id_default_expressions()
+            default_data = default_expressions_response.get("data", {})
+            default_expressions = default_data.get("expressions", []) if isinstance(default_data, dict) else []
+            
+            avatar_expressions = avatar_style_config.get("expressions", [])
+            final_expressions = default_expressions + avatar_expressions
+
+            body = {
+                "script": script,
+                "source_url": source_image_url,
+                "driver_expression": {"expressions": final_expressions, "transition_frames": 20},
+                "config": {"result_format": "mp4", "stitch": True},
+                "user_data": f'{{"session_id": "{session_id}", "user_email": "{user_email}"}}'
             }
             
-            # If we have custom audio, use it
-            if audio_url and Path(audio_url).exists():
-                payload["script"] = {
-                    "type": "audio",
-                    "audio_url": audio_url
-                }
-            
-            # API headers
-            headers = {
-                "Authorization": f"Basic {self.settings.d_id_api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            # Create video generation job
             async with aiohttp.ClientSession() as session:
                 async with session.post(
                     f"{self.d_id_base_url}/talks",
-                    json=payload,
-                    headers=headers
+                    json=body,
+                    headers={
+                        "accept": "application/json",
+                        "content-type": "application/json",
+                        "authorization": f"Basic {self.settings.d_id_api_key}"
+                    }
                 ) as response:
-                    
-                    if response.status == 201:
-                        result = await response.json()
-                        talk_id = result["id"]
-                        
-                        # Poll for completion
+                    response_data = await response.json()
+                    if response.status in [200, 201]:
+                        talk_id = response_data["id"]
                         video_url = await self._poll_d_id_completion(talk_id)
                         
                         if video_url:
-                            # Calculate cost (D-ID pricing: ~$0.12/minute)
-                            estimated_minutes = len(text) / 150
+                            estimated_minutes = len(guidance_text) / 150
                             cost = estimated_minutes * 0.12
-                            
-                            return {
-                                "success": True,
-                                "video_url": video_url,
-                                "talk_id": talk_id,
-                                "cost": cost
-                            }
+                            return {"success": True, "video_url": video_url, "talk_id": talk_id, "cost": cost}
                         else:
-                            return {
-                                "success": False,
-                                "error": "Video generation timeout",
-                                "cost": 0
-                            }
+                            return {"success": False, "error": "Video generation timeout", "cost": 0}
                     else:
                         error_text = await response.text()
-                        logger.error(f"D-ID API error: {response.status} - {error_text}")
-                        return {
-                            "success": False,
-                            "error": f"D-ID API error: {response.status}",
-                            "cost": 0
-                        }
-        
+                        return {"success": False, "error": f"D-ID API error: {response.status} - {error_text}", "cost": 0}
         except Exception as e:
-            logger.error(f"Video generation error: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "cost": 0
-            }
-    
-    async def _poll_d_id_completion(self, talk_id: str, max_wait: int = 300) -> Optional[str]:
-        """Poll D-ID API for video completion"""
-        headers = {
-            "Authorization": f"Basic {self.settings.d_id_api_key}",
-        }
-        
+            return {"success": False, "error": str(e), "cost": 0}
+
+    async def _poll_d_id_completion(self, talk_id: str, timeout: int = 300) -> Optional[str]:
         start_time = time.time()
-        
-        while time.time() - start_time < max_wait:
+        while time.time() - start_time < timeout:
             try:
+                await asyncio.sleep(10)
                 async with aiohttp.ClientSession() as session:
                     async with session.get(
                         f"{self.d_id_base_url}/talks/{talk_id}",
-                        headers=headers
+                        headers={"Authorization": f"Basic {self.settings.d_id_api_key}"}
                     ) as response:
-                        
                         if response.status == 200:
-                            result = await response.json()
-                            status = result.get("status")
-                            
-                            if status == "done":
-                                return result.get("result_url")
-                            elif status == "error":
-                                logger.error(f"D-ID generation error: {result.get('error')}")
+                            data = await response.json()
+                            if data.get("status") == "done":
+                                return data.get("result_url")
+                            elif data.get("status") == "error":
                                 return None
-                            elif status in ["created", "started"]:
-                                # Still processing, wait and retry
-                                await asyncio.sleep(10)
-                                continue
-                        else:
-                            logger.error(f"D-ID polling error: {response.status}")
-                            await asyncio.sleep(10)
-                            continue
-                            
-            except Exception as e:
-                logger.error(f"D-ID polling exception: {e}")
-                await asyncio.sleep(10)
+            except Exception:
                 continue
-        
-        logger.error(f"D-ID generation timeout after {max_wait} seconds")
         return None
-    
+
     def _get_voice_settings(self, voice_tone: str) -> Dict[str, float]:
         """Get voice settings based on tone"""
         settings_map = {
@@ -392,70 +242,36 @@ class SwamjiAvatarGenerationEngine:
         
         return settings_map.get(voice_tone, settings_map["compassionate"])
     
-    def _get_avatar_config(self, avatar_style: str) -> Dict[str, str]:
-        """Get avatar configuration based on style"""
-        config_map = {
-            "traditional": {
-                "presenter_image": "https://create-images-results.d-id.com/DefaultPresenters/amy/image.jpeg",
-                "background_color": "#8B4513",  # Saddle brown
-                "clothing_style": "traditional_robes"
-            },
-            "modern": {
-                "presenter_image": "https://create-images-results.d-id.com/DefaultPresenters/amy/image.jpeg",
-                "background_color": "#2F4F4F",  # Dark slate gray
-                "clothing_style": "modern_spiritual"
-            },
-            "festival": {
-                "presenter_image": "https://create-images-results.d-id.com/DefaultPresenters/amy/image.jpeg",
-                "background_color": "#FF6347",  # Tomato
-                "clothing_style": "festival_attire"
-            },
-            "meditation": {
-                "presenter_image": "https://create-images-results.d-id.com/DefaultPresenters/amy/image.jpeg",
-                "background_color": "#4682B4",  # Steel blue
-                "clothing_style": "meditation_robes"
-            }
+    def _get_avatar_style_config(self, avatar_style: str) -> Dict[str, Any]:
+        style_configs = {
+            "traditional": {"source_url": "https://d-id-talks-prod.s3.us-west-2.amazonaws.com/auth/google-oauth2%7C103333333333333333333/tlk_123456789/image.jpeg", "expressions": []},
+            "modern": {"source_url": "https://d-id-talks-prod.s3.us-west-2.amazonaws.com/auth/google-oauth2%7C103333333333333333333/tlk_123456789/image.jpeg", "expressions": []},
+            "default": {"source_url": "https://d-id-talks-prod.s3.us-west-2.amazonaws.com/auth/google-oauth2%7C103333333333333333333/tlk_123456789/image.jpeg", "expressions": []}
         }
-        
-        return config_map.get(avatar_style, config_map["traditional"])
-    
+        return style_configs.get(avatar_style, style_configs["default"])
+
+    async def _get_d_id_default_expressions(self) -> Dict[str, Any]:
+        return {"success": True, "data": {"expressions": []}}
+
     async def _store_avatar_session(
-        self,
-        session_id: str,
-        user_email: str,
-        guidance_text: str,
-        avatar_style: str,
-        voice_tone: str,
-        video_url: str,
-        audio_url: str,
-        duration_seconds: int,
-        voice_cost: float,
-        video_cost: float,
-        generation_time: float
+        self, session_id: str, user_email: str, guidance_text: str, avatar_style: str,
+        voice_tone: str, video_url: Optional[str], audio_url: Optional[str],
+        duration_seconds: int, voice_cost: float, video_cost: float, generation_time: float
     ):
-        """Store avatar generation session in database"""
-        try:
-            conn = await self.db.get_connection()
-            
-            await conn.execute("""
-                INSERT INTO avatar_sessions 
-                (session_id, user_email, avatar_prompt, voice_script, avatar_style, voice_tone,
-                 generation_status, video_url, audio_url, duration_seconds, 
-                 d_id_cost, elevenlabs_cost, total_cost, generation_time_seconds,
-                 generation_completed_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-            """, 
-                session_id, user_email, f"Avatar style: {avatar_style}", guidance_text,
-                avatar_style, voice_tone, "completed", video_url, audio_url, duration_seconds,
-                video_cost, voice_cost, voice_cost + video_cost, generation_time,
-                datetime.now(timezone.utc)
-            )
-            
-            await self.db.release_connection(conn)
-            logger.info(f"📊 Avatar session stored: {session_id}")
-            
-        except Exception as e:
-            logger.error(f"Failed to store avatar session: {e}")
+        async with self.db.get_connection() as session:
+            try:
+                new_session = AvatarSession(
+                    session_id=session_id, user_email=user_email, guidance_text=guidance_text,
+                    avatar_style=avatar_style, voice_tone=voice_tone, video_url=video_url,
+                    audio_url=audio_url, duration_seconds=duration_seconds, voice_cost=voice_cost,
+                    video_cost=video_cost, total_cost=voice_cost + video_cost,
+                    generation_time=generation_time, status='completed'
+                )
+                session.add(new_session)
+                await session.commit()
+            except Exception as e:
+                await session.rollback()
+                raise
     
     async def get_avatar_generation_status(self, session_id: str) -> Dict[str, Any]:
         """Get avatar generation status"""
