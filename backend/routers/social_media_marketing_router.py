@@ -38,8 +38,6 @@ from ..schemas.social_media import (
     PostExecutionResult
 )
 
-from deps import get_current_user, get_admin_user, get_current_admin_dependency
-
 # SURGICAL FIX: Safe imports with fallbacks
 try:
     from social_media_marketing_automation import social_marketing_engine
@@ -178,7 +176,7 @@ class AgentChatRequest(BaseModel):
 
 # Marketing Overview Endpoints
 @social_marketing_router.get("/overview")
-async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_dependency)):
+async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_user)):
     """Get comprehensive marketing overview with KPIs and performance data"""
     try:
         # SURGICAL FIX: Safe engine usage with fallbacks
@@ -246,7 +244,7 @@ async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_de
 async def get_content_calendar(
     date: Optional[str] = Query(None, description="Date for calendar (YYYY-MM-DD)"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
-    admin_user: dict = Depends(get_admin_user)
+    admin_user: dict = Depends(get_current_admin_user)
 ):
     """Get content calendar with scheduled and posted content"""
     try:
@@ -299,7 +297,7 @@ async def get_content_calendar(
 async def get_campaigns(
     status: Optional[str] = Query(None, description="Filter by status (active, paused, completed)"),
     platform: Optional[str] = Query(None, description="Filter by platform"),
-    admin_user: dict = Depends(get_admin_user)
+    admin_user: dict = Depends(get_current_admin_user)
 ):
     """Get all marketing campaigns"""
     try:
@@ -334,7 +332,7 @@ async def get_campaigns(
         ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.get("/platform-config")
-async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
+async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)):
     """Get social media platform credentials from database"""
     try:
         import db
@@ -398,7 +396,7 @@ async def get_platform_config(admin_user: dict = Depends(get_admin_user)):
 @social_marketing_router.post("/platform-config")
 async def update_platform_config(
     config_update: dict = Body(...),
-    admin_user: dict = Depends(get_admin_user)
+    admin_user: dict = Depends(get_current_admin_user)
 ):
     """Save social media platform credentials to database"""
     # SCOPE FIXES: Initialize variables before try block to prevent NameError in exception handler
@@ -517,7 +515,7 @@ async def update_platform_config(
 @social_marketing_router.post("/test-connection")
 async def test_platform_connection(
     test_request: dict = Body(...),
-    admin_user: dict = Depends(get_admin_user)
+    admin_user: dict = Depends(get_current_admin_user)
 ):
     """Test social media platform connection"""
     try:
@@ -699,7 +697,7 @@ async def test_platform_connection(
         ).dict()  # CRITICAL FIX: Serialize to JSON for frontend compatibility
 
 @social_marketing_router.post("/agent-chat")
-async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_admin_user)):
+async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Depends(get_current_admin_user)):
     """Chat with the AI Marketing Director Agent - give instructions and get reports"""
     try:
         # SURGICAL FIX: Enhanced agent handling with fallbacks
@@ -751,7 +749,7 @@ async def marketing_agent_chat(request: AgentChatRequest, admin_user: dict = Dep
 @social_marketing_router.post("/upload-swamiji-image")
 async def upload_swamiji_image(
     request: Request,
-    admin_user: dict = Depends(get_admin_user),
+    admin_user: dict = Depends(get_current_admin_user),
     swamiji_image: UploadFile = File(...)
 ):
     """Upload Swamiji's photo for avatar generation"""
@@ -805,7 +803,7 @@ async def upload_swamiji_image(
         ) from e
 
 @social_marketing_router.get("/swamiji-avatar-config")
-async def get_swamiji_avatar_config(request: Request, admin_user: dict = Depends(get_admin_user)):
+async def get_swamiji_avatar_config(request: Request, admin_user: dict = Depends(get_current_admin_user)):
     """
     Get the current Swamiji avatar configuration.
     REFRESH.MD: This now checks the filesystem for a saved avatar image,
@@ -1127,7 +1125,7 @@ def generate_content_template(content_type: str, platform: str, content_id: int)
 @social_marketing_router.post("/generate-daily-content")
 async def generate_daily_content(
     request: ContentGenerationRequest,  # ✅ FIXED: Removed Body(...) for proper FastAPI dependency injection
-    admin_user: dict = Depends(get_admin_user)
+    admin_user: dict = Depends(get_current_admin_user)
 ):
     """Generate daily content for social media platforms"""
     try:
@@ -1164,7 +1162,7 @@ async def generate_daily_content(
 
 @social_marketing_router.post("/execute-posting")
 async def execute_posting(
-    admin_user: dict = Depends(get_admin_user)
+    admin_user: dict = Depends(get_current_admin_user)
 ):
     """Execute posting to social media platforms"""
     try:
