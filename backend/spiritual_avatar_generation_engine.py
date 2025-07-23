@@ -18,7 +18,9 @@ from pathlib import Path
 import base64
 import hashlib
 import time
+import threading
 
+from fastapi import Depends
 from core_foundation_enhanced import settings, db_manager
 from enhanced_business_logic import SpiritualAvatarEngine, AvatarGenerationContext, AvatarEmotion
 from ..schemas.avatar import AvatarSessionCreate, AvatarSession
@@ -458,21 +460,34 @@ class SpiritualAvatarGenerationEngine:
         
         return results
 
+
+# REFRESH.MD: Implement thread-safe singleton pattern for the engine instance.
+_avatar_engine_instance: Optional[SpiritualAvatarGenerationEngine] = None
+_avatar_engine_lock = threading.Lock()
+
 def get_avatar_engine(
     settings: AppSettings = Depends(get_app_settings),
     db_manager: DatabaseManager = Depends(get_database_manager)
 ) -> SpiritualAvatarGenerationEngine:
     """
     Dependency injector for the SpiritualAvatarGenerationEngine.
-    Creates a single instance and caches it for the application's lifespan.
+    Uses a thread-safe singleton pattern to ensure only one instance of the
+    engine is created and shared across the application.
     """
-    # This is a simple way to cache the engine instance.
-    # For a more robust solution in a larger app, you might use a more
-    # sophisticated caching mechanism tied to the app's lifecycle.
-    if not hasattr(get_avatar_engine, "engine_instance"):
-        logger.info("Initializing SpiritualAvatarGenerationEngine instance...")
-        get_avatar_engine.engine_instance = SpiritualAvatarGenerationEngine(settings, db_manager)
-    return get_avatar_engine.engine_instance
+    global _avatar_engine_instance
+    if _avatar_engine_instance is None:
+        with _avatar_engine_lock:
+            if _avatar_engine_instance is None:
+                try:
+                    logger.info("Initializing SpiritualAvatarGenerationEngine instance...")
+                    _avatar_engine_instance = SpiritualAvatarGenerationEngine(settings, db_manager)
+                    logger.info("✅ SpiritualAvatarGenerationEngine initialized successfully.")
+                except Exception as e:
+                    logger.critical(f"❌ CRITICAL: Failed to initialize SpiritualAvatarGenerationEngine: {e}", exc_info=True)
+                    # This is a critical failure. Re-raising ensures the application
+                    # does not start in a broken state.
+                    raise RuntimeError("Failed to initialize the avatar generation engine.") from e
+    return _avatar_engine_instance
 
 # Export for use in other modules
 __all__ = ["SpiritualAvatarGenerationEngine", "get_avatar_engine"]
