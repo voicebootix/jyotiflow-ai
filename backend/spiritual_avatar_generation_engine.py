@@ -39,7 +39,6 @@ class SpiritualAvatarGenerationEngine:
         self.db = db_session_manager
         self.d_id_base_url = "https://api.d-id.com"
         
-        # REFRESH.MD: Consolidate all configuration assignments into the constructor.
         self.max_concurrent_generations = getattr(self.settings, 'avatar_max_concurrent_generations', 5)
         self.current_generations = 0
         self.max_video_duration = getattr(self.settings, 'avatar_max_video_duration', 300)
@@ -50,29 +49,11 @@ class SpiritualAvatarGenerationEngine:
             logger.warning("D-ID API key is not configured.")
         if not self.settings.elevenlabs_api_key or "your-elevenlabs-api-key" in self.settings.elevenlabs_api_key:
             logger.warning("ElevenLabs API key is not configured.")
-
-        # Swamiji Avatar Configuration
-        # self.swamiji_presenter_id = "amy-jcu8YUbZbKt8EXOlXG7je"  # D-ID presenter ID
         
-        # API Endpoints
-        self.d_id_base_url = "https://api.d-id.com"
         self.elevenlabs_base_url = "https://api.elevenlabs.io/v1"
-        
-        # Storage configuration
         self.avatar_storage_path = Path("storage/avatars")
         self.avatar_storage_path.mkdir(parents=True, exist_ok=True)
         
-        # Generation limits
-        self.max_video_duration = 1800  # 30 minutes
-        self.max_concurrent_generations = 3
-        self.current_generations = 0
-        
-        # CORE.MD & REFRESH.MD: Proactive dependency checks at initialization
-        if not self.settings.d_id_api_key or "your-d-id-api-key" in self.settings.d_id_api_key:
-            logger.warning("D-ID API key is not configured. Avatar generation will fail.")
-        if not self.settings.elevenlabs_api_key or "your-elevenlabs-api-key" in self.settings.elevenlabs_api_key:
-            logger.warning("ElevenLabs API key is not configured. Avatar generation will fail.")
-
         logger.info("🎭 Swamiji Avatar Generation Engine initialized")
     
     async def generate_complete_avatar_video(
@@ -89,17 +70,15 @@ class SpiritualAvatarGenerationEngine:
         """
         Orchestrates the full avatar generation process.
         """
-        # CORE.MD: Restore input validation.
         if not guidance_text or len(guidance_text.strip()) < 10:
             return {"success": False, "error": "Guidance text must be at least 10 characters long."}
         if video_duration > self.max_video_duration:
             return {"success": False, "error": f"Video duration cannot exceed {self.max_video_duration} seconds."}
-
-        # CORE.MD: Restore concurrency limiting.
+            
         if self.current_generations >= self.max_concurrent_generations:
             logger.warning("Max concurrent avatar generations reached. Request queued/rejected.")
             return {"success": False, "error": "Maximum concurrent generations reached. Please try again later."}
-
+            
         generation_start_time = time.time()
         try:
             self.current_generations += 1
@@ -142,9 +121,49 @@ class SpiritualAvatarGenerationEngine:
             logger.error(f"Avatar generation process failed for session {session_id}: {e}", exc_info=True)
             return {"success": False, "error": str(e)}
         finally:
-            # REFRESH.MD: Ensure concurrency counter is always decremented.
             self.current_generations -= 1
             logger.info(f"Avatar generation process finished for session {session_id}. Current generations: {self.current_generations}")
+    
+    async def generate_avatar_preview_lightweight(
+        self,
+        guidance_text: str,
+        avatar_style: str = "default",
+        voice_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Generates a lightweight, short preview video without database operations.
+        """
+        logger.info(f"Generating lightweight preview for style: {avatar_style}")
+        try:
+            session_id = f"preview_{uuid.uuid4().hex}"
+            
+            if not guidance_text or len(guidance_text.strip()) < 5:
+                return {"success": False, "error": "Preview text must be at least 5 characters long."}
+
+            video_result = await self._generate_avatar_video(
+                guidance_text=guidance_text,
+                avatar_style=avatar_style,
+                session_id=session_id,
+                user_email="admin_preview@jyotiflow.ai",
+                voice_id=voice_id
+            )
+
+            if video_result.get("success"):
+                logger.info(f"✅ Lightweight preview generated successfully for style {avatar_style}.")
+                return {
+                    "success": True,
+                    "video_url": video_result.get("video_url"),
+                    "style": avatar_style
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"Preview generation failed: {video_result.get('error', 'Unknown error')}",
+                    "style": avatar_style
+                }
+        except Exception as e:
+            logger.error(f"Lightweight preview generation failed: {e}", exc_info=True)
+            return {"success": False, "error": str(e), "style": avatar_style}
 
     async def _generate_avatar_video(
         self,
@@ -152,7 +171,8 @@ class SpiritualAvatarGenerationEngine:
         avatar_style: str,
         session_id: str,
         user_email: str,
-        audio_url: Optional[str] = None
+        audio_url: Optional[str] = None,
+        voice_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Generates avatar video using D-ID with pre-generated audio or text-to-speech.
@@ -171,8 +191,7 @@ class SpiritualAvatarGenerationEngine:
                     "input": guidance_text,
                     "provider": {
                         "type": "elevenlabs",
-                        # CORE.MD: Use the initialized attribute for consistency.
-                        "voice_id": self.swamiji_voice_id
+                        "voice_id": voice_id or self.swamiji_voice_id
                     }
                 }
 
@@ -207,7 +226,6 @@ class SpiritualAvatarGenerationEngine:
                         video_url = await self._poll_d_id_completion(talk_id)
                         
                         if video_url:
-                            # REFRESH.MD: Use configurable pricing values with fallbacks
                             words_per_minute = getattr(self.settings, 'avatar_words_per_minute', 150)
                             cost_per_minute = getattr(self.settings, 'avatar_video_cost_per_minute', 0.12)
                             
@@ -228,7 +246,6 @@ class SpiritualAvatarGenerationEngine:
         first_check = True
         while time.time() - start_time < timeout:
             try:
-                # CORE.MD: Avoid initial sleep to get faster response for completed jobs.
                 if not first_check:
                     await asyncio.sleep(10)
                 first_check = False
@@ -252,54 +269,25 @@ class SpiritualAvatarGenerationEngine:
                                 return None
                         else:
                              logger.warning(f"Polling D-ID: Status {response.status}")
-
+                            
             except Exception as e:
-                # REFRESH.MD: Log suppressed exceptions for better debugging.
                 logger.error(f"Error polling D-ID for talk {talk_id}: {e}", exc_info=True)
                 continue
         logger.error(f"D-ID generation timeout after {timeout} seconds for talk {talk_id}")
         return None
-
+    
     def _get_voice_settings(self, voice_tone: str) -> Dict[str, float]:
-        """Get voice settings based on tone"""
         settings_map = {
-            "compassionate": {
-                "stability": 0.85,
-                "similarity_boost": 0.75,
-                "style": 0.40,
-                "use_speaker_boost": True
-            },
-            "wise": {
-                "stability": 0.90,
-                "similarity_boost": 0.80,
-                "style": 0.25,
-                "use_speaker_boost": True
-            },
-            "gentle": {
-                "stability": 0.80,
-                "similarity_boost": 0.70,
-                "style": 0.50,
-                "use_speaker_boost": True
-            },
-            "powerful": {
-                "stability": 0.75,
-                "similarity_boost": 0.85,
-                "style": 0.20,
-                "use_speaker_boost": True
-            },
-            "joyful": {
-                "stability": 0.70,
-                "similarity_boost": 0.75,
-                "style": 0.60,
-                "use_speaker_boost": True
-            }
+            "compassionate": {"stability": 0.85, "similarity_boost": 0.75, "style": 0.40, "use_speaker_boost": True},
+            "wise": {"stability": 0.90, "similarity_boost": 0.80, "style": 0.25, "use_speaker_boost": True},
+            "gentle": {"stability": 0.80, "similarity_boost": 0.70, "style": 0.50, "use_speaker_boost": True},
+            "powerful": {"stability": 0.75, "similarity_boost": 0.85, "style": 0.20, "use_speaker_boost": True},
+            "joyful": {"stability": 0.70, "similarity_boost": 0.75, "style": 0.60, "use_speaker_boost": True}
         }
-        
         return settings_map.get(voice_tone, settings_map["compassionate"])
     
     def _get_avatar_style_config(self, avatar_style: str) -> Dict[str, Any]:
         style_configs = {
-            # CORE.MD: Update with unique and valid source URLs for visual variety.
             "traditional": {"source_url": "https://clips-presenters.d-id.com/jane/image.jpeg", "expressions": []},
             "modern": {"source_url": "https://clips-presenters.d-id.com/christopher/image.jpeg", "expressions": []},
             "default": {"source_url": "https://clips-presenters.d-id.com/amy/image.jpeg", "expressions": []}
@@ -308,13 +296,12 @@ class SpiritualAvatarGenerationEngine:
 
     async def _get_d_id_default_expressions(self) -> Dict[str, Any]:
         return {"success": True, "data": {"expressions": []}}
-
+    
     async def _store_avatar_session(
         self, session_id: str, user_email: str, guidance_text: str, avatar_style: str,
         voice_tone: str, video_url: Optional[str], audio_url: Optional[str],
         duration_seconds: int, voice_cost: float, video_cost: float, generation_time: float
     ):
-        # CORE.MD: Align query with database schema and fix connection management.
         query = """
             INSERT INTO avatar_sessions (
                 session_id, user_email, voice_script, avatar_style, voice_tone, 
@@ -342,10 +329,6 @@ class SpiritualAvatarGenerationEngine:
                 await self.db.release_connection(connection)
     
     async def get_avatar_generation_status(self, session_id: str) -> Dict[str, Any]:
-        """
-        Retrieves the status of an avatar generation task from the database.
-        """
-        # CORE.MD: Fix column name mismatch and standardize connection management.
         query = "SELECT generation_status, video_url FROM avatar_sessions WHERE session_id = $1"
         connection = None
         try:
@@ -378,7 +361,7 @@ class SpiritualAvatarGenerationEngine:
             "source_url": source_url,
             "name": "Swamiji"
         }
-        
+    
         async with aiohttp.ClientSession() as session:
             async with session.post(f"{self.d_id_base_url}/presenters", json=payload, headers=headers) as response:
                 if response.status == 201:
@@ -390,7 +373,7 @@ class SpiritualAvatarGenerationEngine:
                     error_text = await response.text()
                     logger.error(f"Failed to create Swamiji presenter: {response.status} - {error_text}")
                     return {"success": False, "error": f"D-ID API error: {response.status}"}
-    
+
     async def test_avatar_services(self) -> Dict[str, Any]:
         """Test both D-ID and ElevenLabs connectivity"""
         results = {
@@ -398,76 +381,35 @@ class SpiritualAvatarGenerationEngine:
             "services": {}
         }
         
-        # Test ElevenLabs
         try:
-            headers = {
-                "xi-api-key": self.settings.elevenlabs_api_key
-            }
-            
+            headers = {"xi-api-key": self.settings.elevenlabs_api_key}
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.elevenlabs_base_url}/voices",
-                    headers=headers
-                ) as response:
-                    
+                async with session.get(f"{self.elevenlabs_base_url}/voices", headers=headers) as response:
                     if response.status == 200:
                         voices = await response.json()
-                        results["services"]["elevenlabs"] = {
-                            "status": "connected",
-                            "voices_available": len(voices.get("voices", [])),
-                            "swamiji_voice_id": self.swamiji_voice_id
-                        }
+                        results["services"]["elevenlabs"] = {"status": "connected", "voices_available": len(voices.get("voices", []))                        }
                     else:
-                        results["services"]["elevenlabs"] = {
-                            "status": "error",
-                            "error": f"HTTP {response.status}"
-                        }
+                        results["services"]["elevenlabs"] = {"status": "error", "error": f"HTTP {response.status}"}
         except Exception as e:
-            results["services"]["elevenlabs"] = {
-                "status": "error",
-                "error": str(e)
-            }
+            results["services"]["elevenlabs"] = {"status": "error", "error": str(e)}
         
-        # Test D-ID
         try:
-            headers = {
-                "Authorization": f"Basic {self.settings.d_id_api_key}"
-            }
-            
+            headers = {"Authorization": f"Basic {self.settings.d_id_api_key}"}
             async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    f"{self.d_id_base_url}/talks",
-                    headers=headers
-                ) as response:
-                    
+                async with session.get(f"{self.d_id_base_url}/talks", headers=headers) as response:
                     if response.status == 200:
-                        results["services"]["d_id"] = {
-                            "status": "connected",
-                            "presenter_id": self.swamiji_presenter_id
-                        }
+                        results["services"]["d_id"] = {"status": "connected", "presenter_id": self.swamiji_presenter_id}
                     else:
-                        results["services"]["d_id"] = {
-                            "status": "error",
-                            "error": f"HTTP {response.status}"
-                        }
+                        results["services"]["d_id"] = {"status": "error", "error": f"HTTP {response.status}"}
         except Exception as e:
-            results["services"]["d_id"] = {
-                "status": "error",
-                "error": str(e)
-            }
+            results["services"]["d_id"] = {"status": "error", "error": str(e)}
         
         return results
 
-
-# REFRESH.MD: Implement thread-safe singleton pattern for the engine instance.
 _avatar_engine_instance: Optional[SpiritualAvatarGenerationEngine] = None
 _avatar_engine_lock = threading.Lock()
 
 def _get_or_create_avatar_engine(settings: AppSettings, db_manager: DatabaseManager) -> SpiritualAvatarGenerationEngine:
-    """
-    Core logic to create and cache the avatar engine instance.
-    This function is designed to be called by the dependency provider.
-    """
     global _avatar_engine_instance
     if _avatar_engine_instance is None:
         with _avatar_engine_lock:
@@ -485,11 +427,6 @@ def get_avatar_engine(
     settings: AppSettings = Depends(get_app_settings),
     db_manager: DatabaseManager = Depends(get_database_manager)
 ) -> SpiritualAvatarGenerationEngine:
-    """
-    FastAPI dependency provider for the SpiritualAvatarGenerationEngine.
-    This function cleanly separates dependency injection from the core singleton logic.
-    """
     return _get_or_create_avatar_engine(settings, db_manager)
 
-# Export for use in other modules
 __all__ = ["SpiritualAvatarGenerationEngine", "get_avatar_engine"]
