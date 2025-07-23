@@ -8,11 +8,11 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 import logging
 from pathlib import Path
 import shutil
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel, Field
 
-# CORE.MD: All necessary dependencies are explicitly imported from their correct locations.
 from ..auth.auth_helpers import get_current_admin_user
 from ..schemas.response import StandardResponse
 from ..schemas.social_media import (
@@ -45,7 +45,6 @@ class GenerateAvatarPreviewRequest(BaseModel):
 class GenerateAllAvatarPreviewsRequest(BaseModel):
     text: str = Field(..., description="The text content for the avatar previews.")
     voice_id: str = Field(..., description="The ID of the voice to be used for generation.")
-
 
 # REFRESH.MD: Centralize available styles to avoid magic strings and promote maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
@@ -158,13 +157,13 @@ async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = 
     logger.info(f"✅ Swamiji's photo saved to: {file_path}")
     return StandardResponse(success=True, message="Image uploaded successfully.", data={"url": f"/static/avatars/{file_name}"})
 
-
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(
     request: GenerateAvatarPreviewRequest,
     admin_user: dict = Depends(get_current_admin_user),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
+    """Generates a single, lightweight avatar preview."""
     try:
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.text,
@@ -186,6 +185,7 @@ async def generate_all_avatar_previews(
     admin_user: dict = Depends(get_current_admin_user),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
+    """Generates lightweight avatar previews for all available styles."""
     try:
         results = []
         for style in AVAILABLE_AVATAR_STYLES:
