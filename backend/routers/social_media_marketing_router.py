@@ -129,15 +129,16 @@ async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = 
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
 
-    # CORE.MD: Add MIME Type and File Size validation (security fix)
+    # CORE.MD: Add MIME Type validation (security fix)
     if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail=f"Invalid file type. Only image/jpeg, image/png, image/webp are allowed.")
-    
-    # Check file size by reading its content
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Only {', '.join(ALLOWED_MIME_TYPES)} are allowed.")
+
+    # REFRESH.MD: Read the file ONCE into memory to be efficient and avoid pointer issues.
     contents = await file.read()
+
+    # CORE.MD: Enforce file size limit on the in-memory content.
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail=f"File size exceeds the limit of {MAX_FILE_SIZE / 1024 / 1024} MB.")
-    await file.seek(0)  # Reset file pointer after reading size
 
     # CORE.MD: Sanitize filename and use extension from validated MIME type
     upload_dir = Path("backend/static_uploads/avatars")
@@ -147,10 +148,12 @@ async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = 
     file_path = upload_dir / file_name
 
     try:
+        # Write the in-memory contents to the file.
         with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-    finally:
-        file.file.close()
+            buffer.write(contents)
+    except Exception as e:
+        logger.error(f"Could not write uploaded file to disk: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save uploaded file.")
 
     logger.info(f"✅ Swamiji's photo saved to: {file_path}")
     return StandardResponse(success=True, message="Image uploaded successfully.", data={"url": f"/static/avatars/{file_name}"})
