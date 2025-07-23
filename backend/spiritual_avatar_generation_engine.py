@@ -22,6 +22,8 @@ import time
 from core_foundation_enhanced import settings, db_manager
 from enhanced_business_logic import SpiritualAvatarEngine, AvatarGenerationContext, AvatarEmotion
 from ..schemas.avatar import AvatarSessionCreate, AvatarSession
+from app_settings import AppSettings
+from ..database.database_manager import DatabaseManager
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +35,7 @@ class SwamjiAvatarGenerationEngine:
     
     def __init__(self, settings: AppSettings, db_session_manager: DatabaseManager):
         self.settings = settings
-        self.db_session_manager = db_session_manager
+        self.db = db_session_manager
         self.d_id_base_url = "https://api.d-id.com"
         
         # REFRESH.MD: Restore concurrency control attributes.
@@ -332,36 +334,20 @@ class SwamjiAvatarGenerationEngine:
                 raise
     
     async def get_avatar_generation_status(self, session_id: str) -> Dict[str, Any]:
-        """Get avatar generation status"""
-        try:
-            conn = await self.db.get_connection()
-            
-            result = await conn.fetchrow("""
-                SELECT generation_status, video_url, audio_url, duration_seconds,
-                       total_cost, generation_time_seconds, generation_completed_at
-                FROM avatar_sessions 
-                WHERE session_id = $1
-            """, session_id)
-            
-            await self.db.release_connection(conn)
-            
-            if result:
-                return {
-                    "session_id": session_id,
-                    "status": result["generation_status"],
-                    "video_url": result["video_url"],
-                    "audio_url": result["audio_url"],
-                    "duration_seconds": result["duration_seconds"],
-                    "total_cost": result["total_cost"],
-                    "generation_time": result["generation_time_seconds"],
-                    "completed_at": result["generation_completed_at"]
-                }
-            else:
-                return {"session_id": session_id, "status": "not_found"}
-                
-        except Exception as e:
-            logger.error(f"Failed to get avatar status: {e}")
-            return {"session_id": session_id, "status": "error", "error": str(e)}
+        """
+        Retrieves the status of an avatar generation task from the database.
+        """
+        query = "SELECT status, video_url FROM avatar_sessions WHERE session_id = $1"
+        async with self.db.get_connection() as connection:
+            try:
+                row = await connection.fetchrow(query, session_id)
+                if row:
+                    return {"success": True, "status": row['status'], "video_url": row['video_url']}
+                else:
+                    return {"success": False, "error": "Session not found."}
+            except Exception as e:
+                logger.error(f"Error fetching avatar status for session {session_id}: {e}", exc_info=True)
+                return {"success": False, "error": "Database error."}
     
     async def create_swamiji_presenter(self) -> Dict[str, Any]:
         """Create or update Swamiji presenter in D-ID"""
