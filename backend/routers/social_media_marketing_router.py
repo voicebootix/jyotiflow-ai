@@ -30,7 +30,12 @@ from schemas.social_media import (
     PostExecutionRequest,
     PostExecutionResult,
 )
-from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+try:
+    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    AVATAR_ENGINE_AVAILABLE = True
+except ImportError:
+    AVATAR_ENGINE_AVAILABLE = False
+
 
 # REFRESH.MD: Use try-except blocks for service imports to prevent router import failures.
 try:
@@ -326,6 +331,8 @@ async def generate_avatar_preview(
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
     """Generates a single, lightweight avatar preview."""
+    if not AVATAR_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available.")
     try:
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.text,
@@ -348,6 +355,8 @@ async def generate_all_avatar_previews(
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
     """Generates lightweight avatar previews for all available styles."""
+    if not AVATAR_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available.")
     try:
         results = []
         for style in AVAILABLE_AVATAR_STYLES:
