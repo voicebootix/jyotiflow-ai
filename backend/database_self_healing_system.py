@@ -2172,9 +2172,55 @@ class SelfHealingOrchestrator:
                 pass
     
     async def run_check(self) -> Dict[str, Any]:
-        """Run a single health check"""
+        """Run a single health check with integrated testing validation"""
         try:
+            # Run pre-fix tests if any fixes will be applied
+            test_results = {}
+            try:
+                from testing_integration import AutoFixTestIntegrator
+                integrator = AutoFixTestIntegrator()
+                
+                # Run comprehensive pre-fix testing
+                pre_test_result = await integrator.pre_fix_comprehensive_test()
+                if isinstance(pre_test_result, str):
+                    test_results['pre_fix_session'] = pre_test_result
+                    logger.info(f"Pre-fix testing completed: {pre_test_result}")
+                else:
+                    # Handle error case
+                    test_results['pre_fix_error'] = pre_test_result
+                    logger.error(f"Pre-fix testing failed: {pre_test_result}")
+                
+            except ImportError:
+                logger.debug("AutoFixTestIntegrator not available, skipping test integration")
+            except Exception as e:
+                logger.warning(f"Pre-fix testing failed: {e}")
+            
+            # Run the actual health check and fixes
             results = await self.monitor.run_health_check()
+            
+            # Run post-fix tests if fixes were applied
+            if results.get('issues_fixed', 0) > 0 and test_results.get('pre_fix_session'):
+                try:
+                    from testing_integration import AutoFixTestIntegrator
+                    integrator = AutoFixTestIntegrator()
+                    
+                    # Run post-fix validation
+                    post_test_result = await integrator.post_fix_comprehensive_test(
+                        test_results['pre_fix_session']
+                    )
+                    if isinstance(post_test_result, str):
+                        test_results['post_fix_session'] = post_test_result
+                        logger.info(f"Post-fix testing completed: {post_test_result}")
+                    else:
+                        # Handle error case
+                        test_results['post_fix_error'] = post_test_result
+                        logger.error(f"Post-fix testing failed: {post_test_result}")
+                    
+                    # Add test results to overall results
+                    results['test_validation'] = test_results
+                    
+                except Exception as e:
+                    logger.warning(f"Post-fix testing failed: {e}")
             
             # Log summary
             logger.info(f"Health check complete: {results['issues_found']} issues found, {results['issues_fixed']} fixed")

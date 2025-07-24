@@ -8,7 +8,7 @@ import asyncpg
 import uuid
 import os
 from datetime import datetime, timezone
-from typing import Dict, List
+from typing import Dict, List, Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from db import db_manager
@@ -36,7 +36,7 @@ class StandardResponse(BaseModel):
         "json_schema_extra": {
             "examples": [
                 {
-                    "status": "success",
+                    "status": "success", 
                     "message": "Operation completed",
                     "data": {},
                     "success": True
@@ -802,7 +802,7 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
                 return StandardResponse(
                     status="success",
                     message="Test sessions table not yet created",
-                    data=[]
+                    data={"sessions": [], "total": 0}
                 )
             
             # Fetch recent test sessions (last 50, ordered by most recent)
@@ -853,7 +853,7 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
             return StandardResponse(
                 status="success",
                 message=f"Retrieved {len(formatted_sessions)} test sessions",
-                data=formatted_sessions
+                data={"sessions": formatted_sessions, "total": len(formatted_sessions)}
             )
             
         finally:
@@ -864,21 +864,21 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
         return StandardResponse(
             status="error",
             message="Database connection failed",
-            data=[]
+            data={"sessions": [], "total": 0}
         )
     except asyncpg.PostgresError as e:
         logger.error(f"Database query error: {e}")
         return StandardResponse(
             status="error",
             message=f"Database query failed: {str(e)}",
-            data=[]
+            data={"sessions": [], "total": 0}
         )
     except Exception as e:
         logger.error(f"Unexpected error getting test sessions: {e}")
         return StandardResponse(
             status="error",
             message=f"Failed to get test sessions: {str(e)}",
-            data=[]
+            data={"sessions": [], "total": 0}
         )
 
 @router.get("/test-metrics")
@@ -988,26 +988,38 @@ async def get_available_test_suites(admin: dict = Depends(get_current_admin_depe
         from test_suite_generator import TestSuiteGenerator
         
         generator = TestSuiteGenerator()
+        
+        # Generate and store test suites
         test_suites = await generator.generate_all_test_suites()
+        
+        try:
+            await generator.store_test_suites(test_suites)
+        except Exception as store_error:
+            logger.error(f"Failed to store test suites: {store_error}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Test suite generation succeeded but storage failed: {str(store_error)}"
+            )
         
         # Format for UI consumption
         suite_info = []
         for suite_name, suite_data in test_suites.items():
-            suite_info.append({
-                "name": suite_name,
-                "display_name": suite_data.get("test_suite_name", suite_name),
-                "category": suite_data.get("test_category", "unknown"),
-                "description": suite_data.get("description", ""),
-                "test_count": len(suite_data.get("test_cases", [])),
-                "test_cases": [
-                    {
-                        "name": test.get("test_name", ""),
-                        "description": test.get("description", ""),
-                        "priority": test.get("priority", "medium"),
-                        "test_type": test.get("test_type", "unit")
-                    }
-                    for test in suite_data.get("test_cases", [])
-                ]
+            if "error" not in suite_data:  # Skip error entries
+                suite_info.append({
+                    "name": suite_name,
+                    "display_name": suite_data.get("test_suite_name", suite_name),
+                    "category": suite_data.get("test_category", "unknown"),
+                    "description": suite_data.get("description", ""),
+                    "test_count": len(suite_data.get("test_cases", [])),
+                    "test_cases": [
+                        {
+                            "name": test.get("test_name", ""),
+                            "description": test.get("description", ""),
+                            "priority": test.get("priority", "medium"),
+                            "test_type": test.get("test_type", "unit")
+                        }
+                        for test in suite_data.get("test_cases", [])
+                    ]
             })
         
         return StandardResponse(
@@ -1029,25 +1041,101 @@ async def get_business_logic_validation_status(admin: dict = Depends(get_current
     try:
         conn = await db_manager.get_connection()
         try:
-            # Get recent business logic validation results
-            recent_validations = await conn.fetch("""
-                SELECT 
-                    session_id,
-                    validation_type,
-                    validation_result,
-                    quality_score,
-                    issues_found,
-                    created_at
-                FROM business_logic_issues 
-                WHERE created_at >= NOW() - INTERVAL '24 hours'
-                ORDER BY created_at DESC
-                LIMIT 50
+            # Check if business_logic_issues table exists and get recent results
+            table_exists = await conn.fetchval("""
+                SELECT EXISTS(
+                    SELECT 1 FROM information_schema.tables 
+                    WHERE table_name = 'business_logic_issues' AND table_schema = 'public'
+                )
             """)
+            
+            if not table_exists:
+                # Return empty data if table doesn't exist yet
+                return StandardResponse(
+                    status="success",
+                    message="Business logic validation table not yet created",
+                    data={
+                        "summary": {
+                            "total_validations": 0,
+                            "passed_validations": 0,
+                            "success_rate": 0,
+                            "avg_quality_score": 0
+                        },
+                        "recent_validations": []
+                    }
+                )
+            
+            # Check schema compatibility first
+            schema_check = await conn.fetch("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'business_logic_issues' 
+                AND column_name IN ('issue_description', 'severity_score', 'validation_type')
+            """)
+            
+            available_columns = {row['column_name'] for row in schema_check}
+            has_new_schema = 'issue_description' in available_columns and 'severity_score' in available_columns
+            has_validation_type = 'validation_type' in available_columns
+            
+            # Build query based on available schema
+            if has_new_schema:
+                # New schema with issue_description and severity_score
+                recent_validations = await conn.fetch("""
+                    SELECT 
+                        session_id,
+                        issue_description,
+                        severity_score as quality_score,
+                        created_at,
+                        CASE 
+                            WHEN severity_score IS NULL OR severity_score = 0 THEN 'success'
+                            WHEN severity_score <= 3 THEN 'warning'
+                            ELSE 'error'
+                        END as validation_result,
+                        COALESCE(validation_type, 'business_logic') as validation_type
+                    FROM business_logic_issues 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """)
+            elif has_validation_type:
+                # Old schema with validation_type but no new columns
+                recent_validations = await conn.fetch("""
+                    SELECT 
+                        session_id,
+                        validation_type,
+                        'No description available' as issue_description,
+                        0 as quality_score,
+                        created_at,
+                        CASE 
+                            WHEN validation_type LIKE '%success%' OR validation_type LIKE '%pass%' THEN 'success'
+                            WHEN validation_type LIKE '%warning%' THEN 'warning'
+                            ELSE 'error'
+                        END as validation_result
+                    FROM business_logic_issues 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """)
+            else:
+                # Minimal schema - just basic columns
+                recent_validations = await conn.fetch("""
+                    SELECT 
+                        session_id,
+                        'business_logic' as validation_type,
+                        'Legacy validation entry' as issue_description,
+                        0 as quality_score,
+                        created_at,
+                        'unknown' as validation_result
+                    FROM business_logic_issues 
+                    WHERE created_at >= NOW() - INTERVAL '24 hours'
+                    ORDER BY created_at DESC
+                    LIMIT 50
+                """)
             
             # Calculate summary statistics
             total_validations = len(recent_validations)
             passed_validations = sum(1 for v in recent_validations 
-                                   if v['validation_result'] == 'passed')
+                                   if v['validation_result'] and str(v['validation_result']).lower() == 'success')
             avg_quality_score = sum(v['quality_score'] or 0 for v in recent_validations) / max(total_validations, 1)
             
             validation_data = [dict(v) for v in recent_validations]

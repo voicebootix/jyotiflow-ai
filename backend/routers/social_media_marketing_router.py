@@ -3,16 +3,15 @@
 
 Complete and robust API for all social media marketing operations.
 This file follows CORE.MD and REFRESH.MD principles for quality and maintainability.
-- No silent failures: All imports are direct. If a dependency is missing, the app will fail fast.
-- Consistent Dependencies: Uses a single, reliable dependency for admin user authentication.
-- Clean and Readable: Code is organized and easy to follow.
 """
 
 import logging
+from pathlib import Path
+import shutil
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported.
 from auth.auth_helpers import get_current_admin_user
@@ -29,7 +28,7 @@ from schemas.social_media import (
     PlatformStatus,
     PostExecutionRequest,
     PostExecutionResult,
-    TestConnectionRequest
+    TestConnectionRequest,
 )
 from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
 
@@ -40,34 +39,44 @@ social_marketing_router = APIRouter(
     tags=["Social Media Marketing", "Admin"]
 )
 
+# REFRESH.MD: Define necessary request schemas directly in the router for clarity and to resolve import issues.
+class GenerateAvatarPreviewRequest(BaseModel):
+    text: str = Field(..., description="The text content for the avatar preview.")
+    style: str = Field(..., description="The visual style for the avatar.")
+    voice_id: str = Field(..., description="The ID of the voice to be used.")
+
+class GenerateAllAvatarPreviewsRequest(BaseModel):
+    text: str = Field(..., description="The text content for the avatar previews.")
+    voice_id: str = Field(..., description="The ID of the voice to be used for generation.")
+
 # REFRESH.MD: Centralize available styles to avoid magic strings and promote maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
 
+# CORE.MD: Define security constants for file uploads
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
+MIME_TYPE_TO_EXTENSION = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
 
-# --- Marketing Overview Endpoints ---
+
+# --- Marketing Overview Endpoints (using placeholder data) ---
 
 @social_marketing_router.get("/overview", response_model=StandardResponse)
 async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_user)):
-    """Get comprehensive marketing overview with KPIs and performance data"""
-    # This is a placeholder. In a real application, you would fetch this data
-    # from a database or an analytics service.
     overview_data = MarketingOverview(
-        total_campaigns=10,
-        active_campaigns=3,
-        total_posts=150,
-        total_engagement=12500,
-        reach=75000
+        total_campaigns=10, active_campaigns=3, total_posts=150, total_engagement=12500, reach=75000
     )
     return StandardResponse(success=True, data=overview_data, message="Marketing overview retrieved successfully.")
 
 @social_marketing_router.get("/content-calendar", response_model=StandardResponse)
 async def get_content_calendar(
-    date: Optional[str] = Query(None, description="Date for calendar (YYYY-MM-DD)"),
-    platform: Optional[str] = Query(None, description="Filter by platform"),
+    date: Optional[str] = None,
+    platform: Optional[str] = None,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Get content calendar with scheduled and posted content"""
-    # Placeholder data
     calendar_data = [
         ContentCalendarItem(id=1, date="2024-08-15T10:00:00Z", platform="Facebook", content="Satsang announcement", status="posted"),
         ContentCalendarItem(id=2, date="2024-08-16T12:00:00Z", platform="Twitter", content="Daily wisdom quote", status="scheduled"),
@@ -76,24 +85,20 @@ async def get_content_calendar(
 
 @social_marketing_router.get("/campaigns", response_model=StandardResponse)
 async def get_campaigns(
-    status: Optional[str] = Query(None, description="Filter by status (active, paused, completed)"),
-    platform: Optional[str] = Query(None, description="Filter by platform"),
+    status: Optional[str] = None,
+    platform: Optional[str] = None,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Get all marketing campaigns"""
-    # Placeholder data
     campaign_data = [
         Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status="active", start_date="2024-10-20", end_date="2024-11-05"),
         Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status="completed", start_date="2024-06-01", end_date="2024-06-30"),
     ]
     return StandardResponse(success=True, data={"campaigns": campaign_data}, message="Campaigns retrieved successfully.")
 
-# --- Platform Configuration Endpoints ---
+# --- Platform Configuration Endpoints (using placeholder data) ---
 
 @social_marketing_router.get("/platform-config", response_model=StandardResponse)
 async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)):
-    """Retrieve current platform configurations"""
-    # In a real app, this would be fetched from the database.
     config_data = PlatformConfig(
         facebook=PlatformStatus(connected=True, username="jyotiflow.ai"),
         twitter=PlatformStatus(connected=False, username=None),
@@ -109,10 +114,7 @@ async def save_platform_config(
     config: PlatformConfig,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Save platform configurations"""
     logger.info(f"Attempting to save platform config: {config.dict()}")
-    # In a real app, you would save this to the database.
-    # Here, we just simulate a success response.
     return StandardResponse(success=True, message="Configuration saved successfully.")
 
 
@@ -121,8 +123,6 @@ async def test_platform_connection(
     request: TestConnectionRequest,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    """Test connection for a specific social media platform"""
-    # Placeholder logic
     if request.platform in ["facebook", "instagram", "youtube"]:
         return StandardResponse(success=True, message=f"Successfully connected to {request.platform}.")
     else:
@@ -132,25 +132,47 @@ async def test_platform_connection(
 
 @social_marketing_router.get("/swamiji-avatar-config", response_model=StandardResponse)
 async def get_swamiji_avatar_config(admin_user: dict = Depends(get_current_admin_user)):
-    """Retrieve Swamiji avatar configuration, like available voices and styles"""
-    try:
-        # Placeholder data, in a real scenario this might come from a config file or DB
-        config_data = {
-            "voices": [
-                {"id": "swamiji_voice_v1", "name": "Swamiji Calm Voice"},
-                {"id": "swamiji_voice_v2", "name": "Swamiji Energetic Voice"}
-            ],
-            "styles": AVAILABLE_AVATAR_STYLES,
-            "default_text": "Greetings from the digital ashram. May you find peace and wisdom in these words."
-        }
-        return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
-    except Exception as e:
-        logger.error(f"Error retrieving avatar configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve avatar configuration."
-        ) from e
+    config_data = {
+        "voices": [{"id": "swamiji_voice_v1", "name": "Swamiji Calm Voice"}],
+        "styles": AVAILABLE_AVATAR_STYLES,
+        "default_text": "Greetings from the digital ashram. May you find peace and wisdom."
+    }
+    return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
 
+@social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
+async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = Depends(get_current_admin_user)):
+    # REFRESH.MD: Restore filename null check (regression fix)
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    # CORE.MD: Add MIME Type validation (security fix)
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Only {', '.join(ALLOWED_MIME_TYPES)} are allowed.")
+
+    # REFRESH.MD: Read the file ONCE into memory to be efficient and avoid pointer issues.
+    contents = await file.read()
+
+    # CORE.MD: Enforce file size limit on the in-memory content.
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"File size exceeds the limit of {MAX_FILE_SIZE / 1024 / 1024} MB.")
+
+    # CORE.MD: Sanitize filename and use extension from validated MIME type
+    upload_dir = Path("backend/static_uploads/avatars")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_extension = MIME_TYPE_TO_EXTENSION[file.content_type]
+    file_name = f"swamiji_base_avatar{file_extension}"
+    file_path = upload_dir / file_name
+
+    try:
+        # Write the in-memory contents to the file.
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+    except Exception as e:
+        logger.error(f"Could not write uploaded file to disk: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save uploaded file.")
+
+    logger.info(f"✅ Swamiji's photo saved to: {file_path}")
+    return StandardResponse(success=True, message="Image uploaded successfully.", data={"url": f"/static/avatars/{file_name}"})
 
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(
@@ -158,14 +180,17 @@ async def generate_avatar_preview(
     admin_user: dict = Depends(get_current_admin_user),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
-    """Generates a single avatar preview for a selected style."""
+    """Generates a single, lightweight avatar preview."""
     try:
-        result = await avatar_engine.generate_one_style(
-            text=request.text,
-            style=request.style,
+        result = await avatar_engine.generate_avatar_preview_lightweight(
+            guidance_text=request.text,
+            avatar_style=request.style,
             voice_id=request.voice_id
         )
-        return StandardResponse(success=True, message="Avatar preview generated.", data=result)
+        if result.get("success"):
+            return StandardResponse(success=True, message="Avatar preview generated.", data=result)
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate preview."))
     except Exception as e:
         logger.error(f"Avatar preview generation failed for style {request.style}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating preview: {e}") from e
@@ -177,68 +202,35 @@ async def generate_all_avatar_previews(
     admin_user: dict = Depends(get_current_admin_user),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
-    """Generates avatar previews for all available styles."""
+    """Generates lightweight avatar previews for all available styles."""
     try:
-        result = await avatar_engine.generate_all_styles(
-            text=request.text,
-            voice_id=request.voice_id
-        )
-        return StandardResponse(success=True, message="All avatar previews generated.", data=result)
+        results = []
+        for style in AVAILABLE_AVATAR_STYLES:
+            style_result = await avatar_engine.generate_avatar_preview_lightweight(
+                guidance_text=request.text,
+                avatar_style=style,
+                voice_id=request.voice_id
+            )
+            results.append(style_result)
+        return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
 
-# --- Content Creation and Posting ---
-
-@social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
-async def upload_swamiji_image(
-    file: UploadFile = File(...),
-    admin_user: dict = Depends(get_current_admin_user)
-):
-    """Upload a new image of Swamiji to be used as an avatar source."""
-    # In a real app, you would save this to cloud storage (e.g., S3)
-    # and store the URL in the database.
-    logger.info(f"Received image upload: {file.filename}")
-    return StandardResponse(
-        success=True,
-        message="Image uploaded successfully.",
-        data={"url": f"/static/images/swamiji/{file.filename}"}
-    )
-
+# --- Content Posting & Asset Management (using placeholder data) ---
 
 @social_marketing_router.post("/execute-posting", response_model=StandardResponse)
-async def execute_posting(
-    request: PostExecutionRequest,
-    admin_user: dict = Depends(get_current_admin_user)
-):
-    """Execute the posting of content to the selected platforms."""
-    # This is a complex endpoint that would trigger background tasks
-    # to post content to each platform.
-    # Placeholder response:
+async def execute_posting(request: PostExecutionRequest, admin_user: dict = Depends(get_current_admin_user)):
     result = PostExecutionResult(
-        success=True,
-        message="Content posting has been scheduled.",
-        task_id="task_12345",
-        platform_statuses={
-            platform: "scheduled" for platform in request.platforms
-        }
+        success=True, message="Content posting has been scheduled.", task_id="task_12345",
+        platform_statuses={platform: "scheduled" for platform in request.platforms}
     )
     return StandardResponse(success=True, data=result, message="Posting scheduled.")
 
-# --- Asset Management ---
 @social_marketing_router.post("/assets", response_model=StandardResponse, status_code=201)
-async def create_marketing_asset(
-    asset: MarketingAssetCreate,
-    admin_user: dict = Depends(get_current_admin_user)
-):
-    """Create a new marketing asset (image, video, etc.)"""
-    # Placeholder logic
+async def create_marketing_asset(asset: MarketingAssetCreate, admin_user: dict = Depends(get_current_admin_user)):
     new_asset = MarketingAsset(
-        id=1,
-        name=asset.name,
-        type=asset.type,
-        url=asset.url,
-        created_at="2024-08-15T15:00:00Z"
+        id=1, name=asset.name, type=asset.type, url=asset.url, created_at="2024-08-15T15:00:00Z"
     )
     return StandardResponse(success=True, data=new_asset, message="Asset created successfully.")
 
