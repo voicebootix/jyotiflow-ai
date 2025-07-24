@@ -16,14 +16,10 @@ from pydantic import BaseModel
 
 # CORE.MD: All necessary dependencies are explicitly imported.
 from auth.auth_helpers import get_current_admin_user
-from core.config import AppSettings
-from core.dependencies import get_app_settings, get_database_manager
-from database.database_manager import DatabaseManager
 from schemas.response import StandardResponse
 from schemas.social_media import (
     Campaign,
     ContentCalendarItem,
-    FacebookConfigRequest,
     GenerateAllAvatarPreviewsRequest,
     GenerateAvatarPreviewRequest,
     MarketingAsset,
@@ -31,24 +27,11 @@ from schemas.social_media import (
     MarketingOverview,
     PlatformConfig,
     PlatformStatus,
-    PostContent,
     PostExecutionRequest,
     PostExecutionResult,
-    TestConnectionRequest,
-    TikTokConfigRequest,
-    TwitterConfigRequest,
-    YouTubeConfigRequest
+    TestConnectionRequest
 )
-from services.credit_service import CreditService
-from services.facebook_service import FacebookService
-from services.instagram_service import InstagramService
-from services.linkedin_service import LinkedInService
 from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
-from services.tiktok_service import TikTokService
-from services.twitter_service import TwitterService
-from services.user_service import UserService
-from services.youtube_service import YouTubeService
-from utils.celery_utils import get_task_status
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
