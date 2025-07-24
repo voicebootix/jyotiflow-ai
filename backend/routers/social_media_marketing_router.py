@@ -10,6 +10,7 @@ from pathlib import Path
 import shutil
 from typing import Optional
 import json
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
@@ -142,12 +143,14 @@ async def get_campaigns(
 ):
     """Get campaigns with optional status and platform filtering"""
     # Base campaign data with more examples for proper filtering demonstration
+    # REFRESH.MD: Using dynamic, future-proof dates to ensure deterministic behavior.
+    today = datetime.now().date()
     all_campaigns = [
-        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status=CampaignStatus.ACTIVE, start_date="2024-10-20", end_date="2024-11-05"),
-        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status=CampaignStatus.COMPLETED, start_date="2024-06-01", end_date="2024-06-30"),
-        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status=CampaignStatus.ACTIVE, start_date="2024-08-01", end_date="2024-12-31"),
-        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.PAUSED, start_date="2024-07-01", end_date="2024-09-30"),
-        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status=CampaignStatus.ACTIVE, start_date="2024-01-01", end_date="2024-12-31"),
+        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status=CampaignStatus.ACTIVE, start_date=today - timedelta(days=10), end_date=today + timedelta(days=20)),
+        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status=CampaignStatus.COMPLETED, start_date=today - timedelta(days=90), end_date=today - timedelta(days=60)),
+        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status=CampaignStatus.ACTIVE, start_date=today, end_date=today + timedelta(days=150)),
+        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.DRAFT, start_date=today + timedelta(days=5), end_date=today + timedelta(days=100)),
+        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status=CampaignStatus.ACTIVE, start_date=today - timedelta(days=365), end_date=today + timedelta(days=365)),
     ]
     
     # Apply filters following CORE.MD principles - explicit filter handling
