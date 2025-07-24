@@ -304,28 +304,32 @@ def get_cors_origins():
     """Get CORS origins based on environment"""
     app_env = os.getenv("APP_ENV", "development").lower()
     
+    # Start with the always-allowed origins
+    cors_origins = set(ALWAYS_ALLOW_ORIGINS)
+    
+    env_origins_str = ""
     if app_env == "production":
-        cors_origins = os.getenv(
+        env_origins_str = os.getenv(
             "CORS_ORIGINS", 
             "https://jyotiflow.ai,https://www.jyotiflow.ai"
-        ).split(",")
+        )
     elif app_env == "staging":
-        cors_origins = os.getenv(
+        env_origins_str = os.getenv(
             "CORS_ORIGINS",
             "https://staging.jyotiflow.ai,http://localhost:3000,http://localhost:5173"
-        ).split(",")
+        )
     else: # development
-        cors_origins = os.getenv(
+        env_origins_str = os.getenv(
             "CORS_ORIGINS",
             "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"
-        ).split(",")
+        )
     
-    # Ensure production frontend URL is always included
-    for origin in ALWAYS_ALLOW_ORIGINS:
-        if origin not in cors_origins:
-            cors_origins.append(origin)
+    # Add origins from environment variable
+    if env_origins_str:
+        env_origins = {origin.strip() for origin in env_origins_str.split(",") if origin.strip()}
+        cors_origins.update(env_origins)
             
-    return [origin.strip() for origin in cors_origins if origin.strip()]
+    return list(cors_origins)
 
 app.add_middleware(
     CORSMiddleware,
