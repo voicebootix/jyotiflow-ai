@@ -1,8 +1,8 @@
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict, Any
-from auth.jwt_config import JWTHandler
-from auth.auth_helpers import AuthenticationHelper
+from .auth.jwt_config import JWTHandler
+from .auth.auth_helpers import AuthenticationHelper
 from datetime import datetime, timezone
 import os
 
