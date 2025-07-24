@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 import shutil
 from typing import Optional
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
@@ -156,12 +157,21 @@ async def save_platform_config(
     try:
         logger.info(f"Attempting to save platform config: {config_request.dict()}")
         
-        # In a real application, this would save to a database.
-        # For now, we'll use a placeholder file to simulate persistence.
-        # CORE.MD: Use a structured approach for data persistence.
-        config_path = Path("backend/platform_config_cache.json")
+        # CORE.MD: Use a structured and safe approach for file-based persistence.
+        # This is a placeholder for a real database implementation.
+        cache_dir = Path("backend/cache")
+        
+        # REFRESH.MD: Proactively check for directory existence and permissions.
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Error creating cache directory {cache_dir}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to create configuration directory due to permission error.")
+
+        # In a production environment, this path should be configurable.
+        config_path = cache_dir / "platform_config_cache.json"
+
         with open(config_path, "w") as f:
-            import json
             json.dump(config_request.dict(), f, indent=2)
 
         return StandardResponse(success=True, message="Configuration saved successfully.")
@@ -180,31 +190,27 @@ async def test_platform_connection(
         raise HTTPException(status_code=400, detail="Configuration data is missing in the request.")
 
     try:
+        result = None
         if request.platform == "youtube":
             api_key = request.config.get("api_key")
             channel_id = request.config.get("channel_id")
             if not api_key or not channel_id:
                 raise HTTPException(status_code=400, detail="YouTube API key and Channel ID are required.")
-            
             result = await youtube_service.validate_credentials(api_key, channel_id)
 
         elif request.platform == "facebook":
-            # This assumes facebook_service has a similar validate_credentials method
-            # You would need to implement this in facebook_service.py
             page_access_token = request.config.get("page_access_token")
             if not page_access_token:
                  raise HTTPException(status_code=400, detail="Facebook Page Access Token is required.")
             result = await facebook_service.validate_credentials(page_access_token)
 
         elif request.platform == "instagram":
-            # Placeholder for Instagram validation
             access_token = request.config.get("access_token")
             if not access_token:
                 raise HTTPException(status_code=400, detail="Instagram Access Token is required.")
             result = await instagram_service.validate_credentials(access_token)
         
         elif request.platform == "tiktok":
-            # Placeholder for TikTok validation
             client_key = request.config.get("client_key")
             client_secret = request.config.get("client_secret")
             if not client_key or not client_secret:
@@ -212,21 +218,27 @@ async def test_platform_connection(
             result = await tiktok_service.validate_credentials(client_key, client_secret)
 
         else:
-            return StandardResponse(success=False, message=f"Connection testing for {request.platform} is not implemented yet.")
+            # CORE.MD: Ensure all branches return a standardized response.
+            raise HTTPException(status_code=404, detail=f"Connection testing for {request.platform} is not implemented yet.")
 
+        # REFRESH.MD: Standardize response handling from all services.
         if result and result.get("success"):
-            return StandardResponse(success=True, data=result, message=result.get("message"))
+            return StandardResponse(success=True, data=result, message=result.get("message", "Connection successful."))
         else:
-            # REFRESH.MD: Provide detailed error messages back to the frontend.
+            # REFRESH.MD: Uniformly handle varying error structures.
             error_detail = result.get("error", "Unknown error during validation.")
-            return StandardResponse(success=False, message=error_detail, data=result)
+            if isinstance(error_detail, dict):
+                 error_detail = error_detail.get("message", "Nested error occurred.")
+            return StandardResponse(success=False, message=str(error_detail), data=result)
 
     except HTTPException as http_exc:
         # Re-raise HTTP exceptions to be handled by FastAPI
         raise http_exc
     except Exception as e:
         logger.error(f"Connection test failed for {request.platform}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        # REFRESH.MD: Use 'from e' for proper exception chaining.
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred during the connection test.") from e
+
 
 # --- Spiritual Avatar Endpoints ---
 
