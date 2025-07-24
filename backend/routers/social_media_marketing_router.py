@@ -154,7 +154,7 @@ async def get_campaigns(
     
     # Filter by status if specified
     if status:
-        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.status.lower() == status.lower()]
+        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.status.value == status.lower()]
         logger.info(f"Filtered campaigns by status: {status}, found {len(filtered_campaigns)} campaigns")
     
     # Filter by platform if specified
