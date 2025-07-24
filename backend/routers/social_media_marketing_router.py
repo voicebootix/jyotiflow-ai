@@ -8,15 +8,19 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 import logging
 from pathlib import Path
 import shutil
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
-from ..auth.auth_helpers import get_current_admin_user
-from ..schemas.response import StandardResponse
-from ..schemas.social_media import (
+# CORE.MD: All necessary dependencies are explicitly imported.
+from auth.auth_helpers import get_current_admin_user
+from schemas.response import StandardResponse
+from schemas.social_media import (
     Campaign,
     ContentCalendarItem,
+    GenerateAllAvatarPreviewsRequest,
+    GenerateAvatarPreviewRequest,
     MarketingAsset,
     MarketingAssetCreate,
     MarketingOverview,
@@ -26,7 +30,7 @@ from ..schemas.social_media import (
     PostExecutionResult,
     TestConnectionRequest,
 )
-from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -34,16 +38,6 @@ social_marketing_router = APIRouter(
     prefix="/api/admin/social-marketing",
     tags=["Social Media Marketing", "Admin"]
 )
-
-# REFRESH.MD: Define necessary request schemas directly in the router for clarity and to resolve import issues.
-class GenerateAvatarPreviewRequest(BaseModel):
-    text: str = Field(..., description="The text content for the avatar preview.")
-    style: str = Field(..., description="The visual style for the avatar.")
-    voice_id: str = Field(..., description="The ID of the voice to be used.")
-
-class GenerateAllAvatarPreviewsRequest(BaseModel):
-    text: str = Field(..., description="The text content for the avatar previews.")
-    voice_id: str = Field(..., description="The ID of the voice to be used for generation.")
 
 # REFRESH.MD: Centralize available styles to avoid magic strings and promote maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
@@ -68,20 +62,73 @@ async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_us
     return StandardResponse(success=True, data=overview_data, message="Marketing overview retrieved successfully.")
 
 @social_marketing_router.get("/content-calendar", response_model=StandardResponse)
-async def get_content_calendar(admin_user: dict = Depends(get_current_admin_user)):
-    calendar_data = [
+async def get_content_calendar(
+    date: Optional[str] = None,
+    platform: Optional[str] = None,
+    admin_user: dict = Depends(get_current_admin_user)
+):
+    """Get content calendar with optional date and platform filtering"""
+    # Base calendar data
+    all_calendar_data = [
         ContentCalendarItem(id=1, date="2024-08-15T10:00:00Z", platform="Facebook", content="Satsang announcement", status="posted"),
         ContentCalendarItem(id=2, date="2024-08-16T12:00:00Z", platform="Twitter", content="Daily wisdom quote", status="scheduled"),
+        ContentCalendarItem(id=3, date="2024-08-15T14:00:00Z", platform="Instagram", content="Meditation session", status="posted"),
+        ContentCalendarItem(id=4, date="2024-08-17T09:00:00Z", platform="Facebook", content="Weekly blessing", status="scheduled"),
     ]
-    return StandardResponse(success=True, data={"calendar": calendar_data}, message="Content calendar retrieved successfully.")
+    
+    # Apply filters following CORE.MD principles - explicit filter handling
+    filtered_data = all_calendar_data
+    
+    # Filter by platform if specified
+    if platform:
+        filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+        logger.info(f"Filtered calendar by platform: {platform}, found {len(filtered_data)} items")
+    
+    # Filter by date if specified (matches date part only)
+    if date:
+        filtered_data = [item for item in filtered_data if item.date.startswith(date)]
+        logger.info(f"Filtered calendar by date: {date}, found {len(filtered_data)} items")
+    
+    return StandardResponse(
+        success=True, 
+        data={"calendar": filtered_data}, 
+        message=f"Content calendar retrieved successfully. {len(filtered_data)} items found."
+    )
 
 @social_marketing_router.get("/campaigns", response_model=StandardResponse)
-async def get_campaigns(admin_user: dict = Depends(get_current_admin_user)):
-    campaign_data = [
+async def get_campaigns(
+    status: Optional[str] = None,
+    platform: Optional[str] = None,
+    admin_user: dict = Depends(get_current_admin_user)
+):
+    """Get campaigns with optional status and platform filtering"""
+    # Base campaign data with more examples for proper filtering demonstration
+    all_campaigns = [
         Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status="active", start_date="2024-10-20", end_date="2024-11-05"),
         Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status="completed", start_date="2024-06-01", end_date="2024-06-30"),
+        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status="active", start_date="2024-08-01", end_date="2024-12-31"),
+        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status="paused", start_date="2024-07-01", end_date="2024-09-30"),
+        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status="active", start_date="2024-01-01", end_date="2024-12-31"),
     ]
-    return StandardResponse(success=True, data={"campaigns": campaign_data}, message="Campaigns retrieved successfully.")
+    
+    # Apply filters following CORE.MD principles - explicit filter handling
+    filtered_campaigns = all_campaigns
+    
+    # Filter by status if specified
+    if status:
+        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.status.lower() == status.lower()]
+        logger.info(f"Filtered campaigns by status: {status}, found {len(filtered_campaigns)} campaigns")
+    
+    # Filter by platform if specified
+    if platform:
+        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.platform.lower() == platform.lower()]
+        logger.info(f"Filtered campaigns by platform: {platform}, found {len(filtered_campaigns)} campaigns")
+    
+    return StandardResponse(
+        success=True, 
+        data={"campaigns": filtered_campaigns}, 
+        message=f"Campaigns retrieved successfully. {len(filtered_campaigns)} campaigns found."
+    )
 
 # --- Platform Configuration Endpoints (using placeholder data) ---
 
@@ -98,13 +145,19 @@ async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)
     return StandardResponse(success=True, data=config_data, message="Platform configuration retrieved successfully.")
 
 @social_marketing_router.post("/platform-config", response_model=StandardResponse)
-async def save_platform_config(config: PlatformConfig, admin_user: dict = Depends(get_current_admin_user)):
+async def save_platform_config(
+    config: PlatformConfig,
+    admin_user: dict = Depends(get_current_admin_user)
+):
     logger.info(f"Attempting to save platform config: {config.dict()}")
     return StandardResponse(success=True, message="Configuration saved successfully.")
 
 
 @social_marketing_router.post("/test-connection", response_model=StandardResponse)
-async def test_platform_connection(request: TestConnectionRequest, admin_user: dict = Depends(get_current_admin_user)):
+async def test_platform_connection(
+    request: TestConnectionRequest,
+    admin_user: dict = Depends(get_current_admin_user)
+):
     if request.platform in ["facebook", "instagram", "youtube"]:
         return StandardResponse(success=True, message=f"Successfully connected to {request.platform}.")
     else:
