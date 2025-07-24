@@ -30,7 +30,18 @@ from schemas.social_media import (
     PostExecutionRequest,
     PostExecutionResult,
 )
-from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+try:
+    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    AVATAR_ENGINE_AVAILABLE = True
+except ImportError:
+    AVATAR_ENGINE_AVAILABLE = False
+    # CORE.MD: Define stubs for graceful dependency injection failure.
+    class SpiritualAvatarGenerationEngine:
+        pass  # Empty class definition
+
+    def get_avatar_engine():
+        raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available due to missing dependencies.")
+
 
 # REFRESH.MD: Use try-except blocks for service imports to prevent router import failures.
 try:
