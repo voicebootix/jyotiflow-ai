@@ -5,7 +5,16 @@ Complete schema definitions for social media marketing operations.
 Supports all platforms: Facebook, Instagram, YouTube, Twitter, TikTok, LinkedIn.
 """
 
-from pydantic import BaseModel, Field, validator
+# Pydantic v2 compatible imports
+try:
+    from pydantic import BaseModel, Field, field_validator, model_validator
+    from pydantic import ValidationInfo
+    PYDANTIC_V2 = True
+except ImportError:
+    # Fallback to Pydantic v1
+    from pydantic import BaseModel, Field, validator, root_validator
+    PYDANTIC_V2 = False
+
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
@@ -56,42 +65,74 @@ class CampaignStatus(str, Enum):
 
 
 class Campaign(BaseModel):
-    """Social media campaign with strong date and status validation"""
+    """Social media campaign with strong date and status validation
+    
+    FIXED: Field order and validator issues resolved for Pydantic v1/v2 compatibility.
+    Uses @model_validator for Pydantic v2 or @root_validator for v1.
+    """
     id: int
     name: str
     platform: str
-    status: CampaignStatus
+    # REORDERED: Dates first, then status for proper validation
     start_date: date
     end_date: date
+    status: CampaignStatus
     budget: Optional[float] = None
     target_audience: Optional[Dict[str, Any]] = None
     performance_metrics: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
     
-    @validator('end_date')
-    def end_date_must_be_after_start_date(cls, v, values):
-        """Ensure end_date is after start_date"""
-        if 'start_date' in values and v <= values['start_date']:
-            raise ValueError('end_date must be after start_date')
-        return v
-    
-    @validator('status')
-    def validate_status_with_dates(cls, v, values):
-        """Validate status consistency with dates"""
-        if 'start_date' in values and 'end_date' in values:
-            today = date.today()
-            start_date = values['start_date']
-            end_date = values['end_date']
-            
-            # If campaign hasn't started yet, status should be draft
-            if start_date > today and v == CampaignStatus.COMPLETED:
-                raise ValueError('Cannot mark future campaign as completed')
-            
-            # If campaign has ended, status should be completed or paused
-            if end_date < today and v == CampaignStatus.ACTIVE:
-                raise ValueError('Cannot mark past campaign as active')
+    if PYDANTIC_V2:
+        @field_validator('end_date')
+        @classmethod
+        def end_date_must_be_after_start_date(cls, v: date, info: ValidationInfo) -> date:
+            """Ensure end_date is after start_date"""
+            if 'start_date' in info.data and v <= info.data['start_date']:
+                raise ValueError('end_date must be after start_date')
+            return v
+        
+        @model_validator(mode='after')
+        def validate_status_with_dates(self):
+            """Validate status consistency with dates using model_validator (Pydantic v2)"""
+            if self.start_date and self.end_date and self.status:
+                today = date.today()
                 
-        return v
+                # If campaign hasn't started yet, cannot be completed
+                if self.start_date > today and self.status == CampaignStatus.COMPLETED:
+                    raise ValueError('Cannot mark future campaign as completed')
+                
+                # If campaign has ended, cannot be active
+                if self.end_date < today and self.status == CampaignStatus.ACTIVE:
+                    raise ValueError('Cannot mark past campaign as active')
+                    
+            return self
+    else:
+        @validator('end_date')
+        def end_date_must_be_after_start_date(cls, v, values):
+            """Ensure end_date is after start_date"""
+            if 'start_date' in values and v <= values['start_date']:
+                raise ValueError('end_date must be after start_date')
+            return v
+        
+        @root_validator(skip_on_failure=True)
+        def validate_status_with_dates(cls, values):
+            """Validate status consistency with dates using root_validator (Pydantic v1)"""
+            start_date = values.get('start_date')
+            end_date = values.get('end_date')
+            status = values.get('status')
+            
+            if start_date and end_date and status:
+                today = date.today()
+                
+                # If campaign hasn't started yet, cannot be completed
+                if start_date > today and status == CampaignStatus.COMPLETED:
+                    raise ValueError('Cannot mark future campaign as completed')
+                
+                # If campaign has ended, cannot be active
+                if end_date < today and status == CampaignStatus.ACTIVE:
+                    raise ValueError('Cannot mark past campaign as active')
+                    
+            return values
 
 
 class ContentStatus(str, Enum):
@@ -103,7 +144,10 @@ class ContentStatus(str, Enum):
 
 
 class ContentCalendarItem(BaseModel):
-    """Content calendar item with proper datetime handling"""
+    """Content calendar item with proper datetime handling
+    
+    FIXED: Using proper validator approach for Pydantic v1/v2 compatibility.
+    """
     id: int
     date: date  # Changed from str to date for type safety
     platform: str
@@ -114,13 +158,26 @@ class ContentCalendarItem(BaseModel):
     hashtags: Optional[List[str]] = None
     scheduled_time: Optional[datetime] = None  # Changed from str to datetime
     
-    @validator('scheduled_time')
-    def validate_scheduled_time_with_date(cls, v, values):
-        """Ensure scheduled_time matches the date if provided"""
-        if v and 'date' in values:
-            if v.date() != values['date']:
-                raise ValueError('scheduled_time date must match the date field')
-        return v
+    if PYDANTIC_V2:
+        @model_validator(mode='after')
+        def validate_scheduled_time_with_date(self):
+            """Ensure scheduled_time matches the date if provided (Pydantic v2)"""
+            if self.scheduled_time and self.date:
+                if self.scheduled_time.date() != self.date:
+                    raise ValueError('scheduled_time date must match the date field')
+            return self
+    else:
+        @root_validator(skip_on_failure=True)
+        def validate_scheduled_time_with_date(cls, values):
+            """Ensure scheduled_time matches the date if provided (Pydantic v1)"""
+            scheduled_time = values.get('scheduled_time')
+            date_value = values.get('date')
+            
+            if scheduled_time and date_value:
+                if scheduled_time.date() != date_value:
+                    raise ValueError('scheduled_time date must match the date field')
+            
+            return values
 
 
 class MarketingAssetCreate(BaseModel):
