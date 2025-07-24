@@ -8,9 +8,8 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 import logging
 from pathlib import Path
 import shutil
-from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 from ..auth.auth_helpers import get_current_admin_user
