@@ -39,16 +39,6 @@ social_marketing_router = APIRouter(
     tags=["Social Media Marketing", "Admin"]
 )
 
-# REFRESH.MD: Define necessary request schemas directly in the router for clarity and to resolve import issues.
-class GenerateAvatarPreviewRequest(BaseModel):
-    text: str = Field(..., description="The text content for the avatar preview.")
-    style: str = Field(..., description="The visual style for the avatar.")
-    voice_id: str = Field(..., description="The ID of the voice to be used.")
-
-class GenerateAllAvatarPreviewsRequest(BaseModel):
-    text: str = Field(..., description="The text content for the avatar previews.")
-    voice_id: str = Field(..., description="The ID of the voice to be used for generation.")
-
 # REFRESH.MD: Centralize available styles to avoid magic strings and promote maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
 
