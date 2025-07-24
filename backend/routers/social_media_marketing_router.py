@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported.
-from auth.auth_helpers import get_current_admin_user
+from auth.auth_helpers import AuthenticationHelper
 from schemas.response import StandardResponse
 from schemas.social_media import (
     Campaign,
@@ -93,7 +93,7 @@ MIME_TYPE_TO_EXTENSION = {
 # --- Marketing Overview Endpoints (using placeholder data) ---
 
 @social_marketing_router.get("/overview", response_model=StandardResponse)
-async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_user)):
+async def get_marketing_overview(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     overview_data = MarketingOverview(
         total_campaigns=10, active_campaigns=3, total_posts=150, total_engagement=12500, reach=75000
     )
@@ -103,7 +103,7 @@ async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_us
 async def get_content_calendar(
     date: Optional[str] = None,
     platform: Optional[str] = None,
-    admin_user: dict = Depends(get_current_admin_user)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
     """Get content calendar with optional date and platform filtering"""
     # Base calendar data
@@ -137,7 +137,7 @@ async def get_content_calendar(
 async def get_campaigns(
     status: Optional[str] = None,
     platform: Optional[str] = None,
-    admin_user: dict = Depends(get_current_admin_user)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
     """Get campaigns with optional status and platform filtering"""
     # Base campaign data with more examples for proper filtering demonstration
@@ -171,7 +171,7 @@ async def get_campaigns(
 # --- Platform Configuration Endpoints (using placeholder data) ---
 
 @social_marketing_router.get("/platform-config", response_model=StandardResponse)
-async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)):
+async def get_platform_config(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     config_data = PlatformConfig(
         facebook=PlatformStatus(connected=True, username="jyotiflow.ai"),
         twitter=PlatformStatus(connected=False, username=None),
@@ -185,7 +185,7 @@ async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)
 @social_marketing_router.post("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
     config_request: PlatformConfig,
-    admin_user: dict = Depends(get_current_admin_user)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
     try:
         logger.info(f"Attempting to save platform config: {config_request.dict()}")
@@ -216,7 +216,7 @@ async def save_platform_config(
 @social_marketing_router.post("/test-connection", response_model=StandardResponse)
 async def test_platform_connection(
     request: TestConnectionRequest,
-    admin_user: dict = Depends(get_current_admin_user)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
     logger.info(f"Testing connection for platform: {request.platform}")
     if not request.config:
@@ -288,7 +288,7 @@ async def test_platform_connection(
 # --- Spiritual Avatar Endpoints ---
 
 @social_marketing_router.get("/swamiji-avatar-config", response_model=StandardResponse)
-async def get_swamiji_avatar_config(admin_user: dict = Depends(get_current_admin_user)):
+async def get_swamiji_avatar_config(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     config_data = {
         "voices": [{"id": "swamiji_voice_v1", "name": "Swamiji Calm Voice"}],
         "styles": AVAILABLE_AVATAR_STYLES,
@@ -297,7 +297,7 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(get_current_admin
     return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
 
 @social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
-async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = Depends(get_current_admin_user)):
+async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     # REFRESH.MD: Restore filename null check (regression fix)
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
@@ -334,7 +334,7 @@ async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = 
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(
     request: GenerateAvatarPreviewRequest,
-    admin_user: dict = Depends(get_current_admin_user),
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
     """Generates a single, lightweight avatar preview."""
@@ -356,7 +356,7 @@ async def generate_avatar_preview(
 @social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse)
 async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
-    admin_user: dict = Depends(get_current_admin_user),
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
     """Generates lightweight avatar previews for all available styles."""
@@ -377,7 +377,7 @@ async def generate_all_avatar_previews(
 # --- Content Posting & Asset Management (using placeholder data) ---
 
 @social_marketing_router.post("/execute-posting", response_model=StandardResponse)
-async def execute_posting(request: PostExecutionRequest, admin_user: dict = Depends(get_current_admin_user)):
+async def execute_posting(request: PostExecutionRequest, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     result = PostExecutionResult(
         success=True, message="Content posting has been scheduled.", task_id="task_12345",
         platform_statuses={platform: "scheduled" for platform in request.platforms}
@@ -385,7 +385,7 @@ async def execute_posting(request: PostExecutionRequest, admin_user: dict = Depe
     return StandardResponse(success=True, data=result, message="Posting scheduled.")
 
 @social_marketing_router.post("/assets", response_model=StandardResponse, status_code=201)
-async def create_marketing_asset(asset: MarketingAssetCreate, admin_user: dict = Depends(get_current_admin_user)):
+async def create_marketing_asset(asset: MarketingAssetCreate, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     new_asset = MarketingAsset(
         id=1, name=asset.name, type=asset.type, url=asset.url, created_at="2024-08-15T15:00:00Z"
     )
