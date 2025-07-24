@@ -149,7 +149,7 @@ async def get_campaigns(
         Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status=CampaignStatus.ACTIVE, start_date=today - timedelta(days=10), end_date=today + timedelta(days=20)),
         Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status=CampaignStatus.COMPLETED, start_date=today - timedelta(days=90), end_date=today - timedelta(days=60)),
         Campaign(id=3, name="Meditation Mondays", platform="Instagram", status=CampaignStatus.ACTIVE, start_date=today, end_date=today + timedelta(days=150)),
-        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.PAUSED, start_date=today + timedelta(days=5), end_date=today + timedelta(days=100)),
+        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.DRAFT, start_date=today + timedelta(days=5), end_date=today + timedelta(days=100)),
         Campaign(id=5, name="Daily Wisdom", platform="Twitter", status=CampaignStatus.ACTIVE, start_date=today - timedelta(days=365), end_date=today + timedelta(days=365)),
     ]
     
