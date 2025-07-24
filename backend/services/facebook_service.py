@@ -422,7 +422,7 @@ class FacebookService:
             logger.error(f"Failed to get Facebook credentials: {e}")
             
         return None
-    
+
     async def _post_text_only(self, credentials: Dict, message: str) -> Dict:
         """Post text-only content to Facebook page"""
         try:
@@ -433,14 +433,12 @@ class FacebookService:
                     "error": "Missing page access token in Facebook credentials"
                 }
             
-            # Get page ID from access token
             page_info = await self._get_page_info(page_access_token)
             if not page_info.get("success"):
                 return page_info
             
             page_id = page_info.get("page_id")
             
-            # Post to page feed
             async with aiohttp.ClientSession() as session:
                 url = f"{self.graph_url}/{page_id}/feed"
                 params = {
@@ -453,8 +451,6 @@ class FacebookService:
                     
                     if response.status == 200 and "id" in data:
                         post_id = data["id"]
-                        # ✅ FIXED: Construct proper Facebook post URL
-                        page_id = page_info.get("page_id")
                         post_url = f"https://www.facebook.com/{page_id}/posts/{post_id.split('_')[1]}" if '_' in post_id else f"https://www.facebook.com/{post_id}"
                         
                         return {
@@ -486,14 +482,12 @@ class FacebookService:
                     "error": "Missing page access token in Facebook credentials"
                 }
             
-            # Get page ID from access token
             page_info = await self._get_page_info(page_access_token)
             if not page_info.get("success"):
                 return page_info
             
             page_id = page_info.get("page_id")
             
-            # ✅ FIXED: Detect media type and validate URL
             media_type, endpoint = await self._detect_media_type_and_endpoint(media_url)
             if not media_type:
                 return {
@@ -501,27 +495,23 @@ class FacebookService:
                     "error": "Unable to determine media type from URL. Please ensure the URL points to a valid image or video."
                 }
             
-            # Post photo/video to page with correct endpoint
             async with aiohttp.ClientSession() as session:
-                url = f"{self.graph_url}/{page_id}/{endpoint}"  # /photos for images, /videos for videos
+                url = f"{self.graph_url}/{page_id}/{endpoint}"
                 params = {
                     "access_token": page_access_token,
-                    "url": media_url,  # Facebook can fetch from URL
+                    "url": media_url,
                 }
                 
-                # ✅ FIXED: Set correct parameter for photos vs videos
                 if endpoint == "photos":
-                    params["caption"] = message  # Photos use caption parameter
-                else:  # videos
-                    params["description"] = message  # Videos use description parameter
+                    params["caption"] = message
+                else:
+                    params["description"] = message
                 
                 async with session.post(url, data=params) as response:
                     data = await response.json()
                     
                     if response.status == 200 and "id" in data:
                         post_id = data["id"]
-                        # ✅ FIXED: Construct proper Facebook post URL for media posts
-                        page_id = page_info.get("page_id")
                         post_url = f"https://www.facebook.com/{page_id}/posts/{post_id.split('_')[1]}" if '_' in post_id else f"https://www.facebook.com/{post_id}"
                         
                         return {
@@ -550,15 +540,11 @@ class FacebookService:
         Returns: (media_type, endpoint) tuple
         """
         try:
-            # Extract file extension from URL
-            url_path = media_url.lower().split('?')[0]  # Remove query parameters
+            url_path = media_url.lower().split('?')[0]
             
-            # Image extensions
             image_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']
-            # Video extensions  
             video_extensions = ['.mp4', '.mov', '.avi', '.wmv', '.flv', '.webm', '.mkv', '.m4v']
             
-            # Check file extension
             for ext in image_extensions:
                 if url_path.endswith(ext):
                     return ("photo", "photos")
@@ -567,7 +553,6 @@ class FacebookService:
                 if url_path.endswith(ext):
                     return ("video", "videos")
             
-            # If no extension match, try to determine from URL content type
             try:
                 import aiohttp
                 async with aiohttp.ClientSession() as session:
@@ -581,7 +566,6 @@ class FacebookService:
             except Exception as content_check_error:
                 logger.warning(f"⚠️ Could not check media content type: {content_check_error}")
             
-            # Default to photo if uncertain
             logger.warning(f"⚠️ Could not determine media type for {media_url}, defaulting to photo")
             return ("photo", "photos")
             

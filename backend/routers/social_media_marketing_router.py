@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 import shutil
 from typing import Optional
+import json
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
@@ -31,6 +32,10 @@ from schemas.social_media import (
     TestConnectionRequest,
 )
 from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+from services.youtube_service import youtube_service
+from services.facebook_service import facebook_service
+from services.instagram_service import instagram_service
+from services.tiktok_service import tiktok_service
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -146,11 +151,33 @@ async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)
 
 @social_marketing_router.post("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
-    config: PlatformConfig,
+    config_request: PlatformConfig,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    logger.info(f"Attempting to save platform config: {config.dict()}")
-    return StandardResponse(success=True, message="Configuration saved successfully.")
+    try:
+        logger.info(f"Attempting to save platform config: {config_request.dict()}")
+        
+        # CORE.MD: Use a structured and safe approach for file-based persistence.
+        # This is a placeholder for a real database implementation.
+        cache_dir = Path("backend/cache")
+        
+        # REFRESH.MD: Proactively check for directory existence and permissions.
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Error creating cache directory {cache_dir}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to create configuration directory due to permission error.")
+
+        # In a production environment, this path should be configurable.
+        config_path = cache_dir / "platform_config_cache.json"
+
+        with open(config_path, "w") as f:
+            json.dump(config_request.dict(), f, indent=2)
+
+        return StandardResponse(success=True, message="Configuration saved successfully.")
+    except Exception as e:
+        logger.error(f"Failed to save platform configuration: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred while saving the configuration: {e}")
 
 
 @social_marketing_router.post("/test-connection", response_model=StandardResponse)
@@ -158,10 +185,64 @@ async def test_platform_connection(
     request: TestConnectionRequest,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    if request.platform in ["facebook", "instagram", "youtube"]:
-        return StandardResponse(success=True, message=f"Successfully connected to {request.platform}.")
-    else:
-        return StandardResponse(success=False, message=f"Connection to {request.platform} failed. Please check credentials.")
+    logger.info(f"Testing connection for platform: {request.platform}")
+    if not request.config:
+        raise HTTPException(status_code=400, detail="Configuration data is missing in the request.")
+
+    try:
+        result = None
+        if request.platform == "youtube":
+            api_key = request.config.get("api_key")
+            channel_id = request.config.get("channel_id")
+            if not api_key or not channel_id:
+                raise HTTPException(status_code=400, detail="YouTube API key and Channel ID are required.")
+            result = await youtube_service.validate_credentials(api_key, channel_id)
+
+        elif request.platform == "facebook":
+            app_id = request.config.get("app_id")
+            app_secret = request.config.get("app_secret")
+            access_token = request.config.get("page_access_token")
+            if not all([app_id, app_secret, access_token]):
+                 raise HTTPException(status_code=400, detail="Facebook App ID, App Secret, and Page Access Token are required.")
+            result = await facebook_service.validate_credentials(app_id, app_secret, access_token)
+
+        elif request.platform == "instagram":
+            app_id = request.config.get("app_id")
+            app_secret = request.config.get("app_secret")
+            access_token = request.config.get("access_token")
+            if not all([app_id, app_secret, access_token]):
+                raise HTTPException(status_code=400, detail="Instagram App ID, App Secret, and Access Token are required.")
+            result = await instagram_service.validate_credentials(app_id, app_secret, access_token)
+        
+        elif request.platform == "tiktok":
+            client_key = request.config.get("client_key")
+            client_secret = request.config.get("client_secret")
+            if not client_key or not client_secret:
+                raise HTTPException(status_code=400, detail="TikTok Client Key and Secret are required.")
+            result = await tiktok_service.validate_credentials(client_key, client_secret)
+
+        else:
+            # CORE.MD: Ensure all branches return a standardized response.
+            raise HTTPException(status_code=404, detail=f"Connection testing for {request.platform} is not implemented yet.")
+
+        # REFRESH.MD: Standardize response handling from all services.
+        if result and result.get("success"):
+            return StandardResponse(success=True, data=result, message=result.get("message", "Connection successful."))
+        else:
+            # REFRESH.MD: Uniformly handle varying error structures.
+            error_detail = result.get("error", "Unknown error during validation.")
+            if isinstance(error_detail, dict):
+                 error_detail = error_detail.get("message", "Nested error occurred.")
+            return StandardResponse(success=False, message=str(error_detail), data=result)
+
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions to be handled by FastAPI
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Connection test failed for {request.platform}: {e}", exc_info=True)
+        # REFRESH.MD: Use 'from e' for proper exception chaining.
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during the connection test.") from e
+
 
 # --- Spiritual Avatar Endpoints ---
 

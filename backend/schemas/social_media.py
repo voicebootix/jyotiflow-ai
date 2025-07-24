@@ -41,7 +41,7 @@ class PlatformConfig(BaseModel):
 class TestConnectionRequest(BaseModel):
     """Request to test platform connection"""
     platform: str = Field(..., pattern=r'^(facebook|instagram|twitter|youtube|linkedin|tiktok)$')
-    credentials: Optional[Dict[str, str]] = None
+    config: Optional[Dict[str, str]] = None
 
 
 class MarketingOverview(BaseModel):

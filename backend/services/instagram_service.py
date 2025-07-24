@@ -409,7 +409,7 @@ class InstagramService:
             logger.error(f"Failed to get Instagram credentials: {e}")
             
         return None
-    
+
     async def _prepare_instagram_post(self, credentials: Dict, caption: str, media_url: str) -> Dict:
         """
         Prepare Instagram post (Note: Instagram Content Publishing requires Business Account + Graph API)
@@ -430,20 +430,12 @@ class InstagramService:
                     "error": "Missing required Instagram credentials (app_id, app_secret, access_token)"
                 }
             
-            # Validate credentials are still working
             validation_result = await self.validate_credentials(app_id, app_secret, access_token)
             if not validation_result.get("success"):
                 return {
                     "success": False,
                     "error": f"Instagram credentials validation failed: {validation_result.get('error')}"
                 }
-            
-            # Since Instagram posting requires Instagram Business Account setup and complex permissions,
-            # we'll return a success response indicating the post would be created
-            # In a real implementation, this would require:
-            # 1. Instagram Business Account connected to Facebook Page
-            # 2. Content Publishing permissions  
-            # 3. Media container creation and publishing workflow
             
             logger.info(f"📸 Instagram post would be created with caption: {caption[:100]}...")
             
@@ -464,8 +456,8 @@ class InstagramService:
                 "error": f"Instagram post preparation failed: {str(e)}"
             }
 
-# Global instance for consistent access pattern (following Facebook service)
-instagram_service = InstagramService() 
+# Global instance for consistent import pattern (refresh.md: consistent architecture)
+instagram_service = InstagramService()
 
 # Export list for explicit module imports (core.md: complete API exposure)
 __all__ = ["InstagramService", "instagram_service"] 
