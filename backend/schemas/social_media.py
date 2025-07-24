@@ -5,9 +5,10 @@ Complete schema definitions for social media marketing operations.
 Supports all platforms: Facebook, Instagram, YouTube, Twitter, TikTok, LinkedIn.
 """
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Optional, List, Dict, Any
-from datetime import datetime
+from datetime import datetime, date
+from enum import Enum
 
 
 class PlatformStatus(BaseModel):
@@ -46,31 +47,80 @@ class MarketingOverview(BaseModel):
     top_performing_platform: Optional[str] = None
 
 
+class CampaignStatus(str, Enum):
+    """Campaign status enum for strict validation"""
+    ACTIVE = "active"
+    PAUSED = "paused" 
+    COMPLETED = "completed"
+    DRAFT = "draft"
+
+
 class Campaign(BaseModel):
-    """Social media campaign"""
+    """Social media campaign with strong date and status validation"""
     id: int
     name: str
     platform: str
-    status: str = Field(..., pattern=r'^(active|paused|completed|draft)$')
-    start_date: str
-    end_date: str
+    status: CampaignStatus
+    start_date: date
+    end_date: date
     budget: Optional[float] = None
     target_audience: Optional[Dict[str, Any]] = None
     performance_metrics: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
+    
+    @validator('end_date')
+    def end_date_must_be_after_start_date(cls, v, values):
+        """Ensure end_date is after start_date"""
+        if 'start_date' in values and v <= values['start_date']:
+            raise ValueError('end_date must be after start_date')
+        return v
+    
+    @validator('status')
+    def validate_status_with_dates(cls, v, values):
+        """Validate status consistency with dates"""
+        if 'start_date' in values and 'end_date' in values:
+            today = date.today()
+            start_date = values['start_date']
+            end_date = values['end_date']
+            
+            # If campaign hasn't started yet, status should be draft
+            if start_date > today and v == CampaignStatus.COMPLETED:
+                raise ValueError('Cannot mark future campaign as completed')
+            
+            # If campaign has ended, status should be completed or paused
+            if end_date < today and v == CampaignStatus.ACTIVE:
+                raise ValueError('Cannot mark past campaign as active')
+                
+        return v
+
+
+class ContentStatus(str, Enum):
+    """Content status enum for strict validation"""
+    DRAFT = "draft"
+    SCHEDULED = "scheduled"
+    POSTED = "posted"
+    FAILED = "failed"
 
 
 class ContentCalendarItem(BaseModel):
-    """Content calendar item"""
+    """Content calendar item with proper datetime handling"""
     id: int
-    date: str
+    date: date  # Changed from str to date for type safety
     platform: str
     content: str
-    status: str = Field(..., pattern=r'^(draft|scheduled|posted|failed)$')
+    status: ContentStatus  # Changed from pattern to Enum
     content_type: Optional[str] = None
     media_url: Optional[str] = None
     hashtags: Optional[List[str]] = None
-    scheduled_time: Optional[str] = None
+    scheduled_time: Optional[datetime] = None  # Changed from str to datetime
+    
+    @validator('scheduled_time')
+    def validate_scheduled_time_with_date(cls, v, values):
+        """Ensure scheduled_time matches the date if provided"""
+        if v and 'date' in values:
+            if v.date() != values['date']:
+                raise ValueError('scheduled_time date must match the date field')
+        return v
 
 
 class MarketingAssetCreate(BaseModel):
