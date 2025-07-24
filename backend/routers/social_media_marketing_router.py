@@ -67,11 +67,33 @@ async def get_content_calendar(
     platform: Optional[str] = None,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    calendar_data = [
+    """Get content calendar with optional date and platform filtering"""
+    # Base calendar data
+    all_calendar_data = [
         ContentCalendarItem(id=1, date="2024-08-15T10:00:00Z", platform="Facebook", content="Satsang announcement", status="posted"),
         ContentCalendarItem(id=2, date="2024-08-16T12:00:00Z", platform="Twitter", content="Daily wisdom quote", status="scheduled"),
+        ContentCalendarItem(id=3, date="2024-08-15T14:00:00Z", platform="Instagram", content="Meditation session", status="posted"),
+        ContentCalendarItem(id=4, date="2024-08-17T09:00:00Z", platform="Facebook", content="Weekly blessing", status="scheduled"),
     ]
-    return StandardResponse(success=True, data={"calendar": calendar_data}, message="Content calendar retrieved successfully.")
+    
+    # Apply filters following CORE.MD principles - explicit filter handling
+    filtered_data = all_calendar_data
+    
+    # Filter by platform if specified
+    if platform:
+        filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+        logger.info(f"Filtered calendar by platform: {platform}, found {len(filtered_data)} items")
+    
+    # Filter by date if specified (matches date part only)
+    if date:
+        filtered_data = [item for item in filtered_data if item.date.startswith(date)]
+        logger.info(f"Filtered calendar by date: {date}, found {len(filtered_data)} items")
+    
+    return StandardResponse(
+        success=True, 
+        data={"calendar": filtered_data}, 
+        message=f"Content calendar retrieved successfully. {len(filtered_data)} items found."
+    )
 
 @social_marketing_router.get("/campaigns", response_model=StandardResponse)
 async def get_campaigns(
@@ -79,11 +101,34 @@ async def get_campaigns(
     platform: Optional[str] = None,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    campaign_data = [
+    """Get campaigns with optional status and platform filtering"""
+    # Base campaign data with more examples for proper filtering demonstration
+    all_campaigns = [
         Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status="active", start_date="2024-10-20", end_date="2024-11-05"),
         Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status="completed", start_date="2024-06-01", end_date="2024-06-30"),
+        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status="active", start_date="2024-08-01", end_date="2024-12-31"),
+        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status="paused", start_date="2024-07-01", end_date="2024-09-30"),
+        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status="active", start_date="2024-01-01", end_date="2024-12-31"),
     ]
-    return StandardResponse(success=True, data={"campaigns": campaign_data}, message="Campaigns retrieved successfully.")
+    
+    # Apply filters following CORE.MD principles - explicit filter handling
+    filtered_campaigns = all_campaigns
+    
+    # Filter by status if specified
+    if status:
+        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.status.lower() == status.lower()]
+        logger.info(f"Filtered campaigns by status: {status}, found {len(filtered_campaigns)} campaigns")
+    
+    # Filter by platform if specified
+    if platform:
+        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.platform.lower() == platform.lower()]
+        logger.info(f"Filtered campaigns by platform: {platform}, found {len(filtered_campaigns)} campaigns")
+    
+    return StandardResponse(
+        success=True, 
+        data={"campaigns": filtered_campaigns}, 
+        message=f"Campaigns retrieved successfully. {len(filtered_campaigns)} campaigns found."
+    )
 
 # --- Platform Configuration Endpoints (using placeholder data) ---
 
