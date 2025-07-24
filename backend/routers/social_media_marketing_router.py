@@ -199,16 +199,20 @@ async def test_platform_connection(
             result = await youtube_service.validate_credentials(api_key, channel_id)
 
         elif request.platform == "facebook":
-            page_access_token = request.config.get("page_access_token")
-            if not page_access_token:
-                 raise HTTPException(status_code=400, detail="Facebook Page Access Token is required.")
-            result = await facebook_service.validate_credentials(page_access_token)
+            app_id = request.config.get("app_id")
+            app_secret = request.config.get("app_secret")
+            access_token = request.config.get("page_access_token")
+            if not all([app_id, app_secret, access_token]):
+                 raise HTTPException(status_code=400, detail="Facebook App ID, App Secret, and Page Access Token are required.")
+            result = await facebook_service.validate_credentials(app_id, app_secret, access_token)
 
         elif request.platform == "instagram":
+            app_id = request.config.get("app_id")
+            app_secret = request.config.get("app_secret")
             access_token = request.config.get("access_token")
-            if not access_token:
-                raise HTTPException(status_code=400, detail="Instagram Access Token is required.")
-            result = await instagram_service.validate_credentials(access_token)
+            if not all([app_id, app_secret, access_token]):
+                raise HTTPException(status_code=400, detail="Instagram App ID, App Secret, and Access Token are required.")
+            result = await instagram_service.validate_credentials(app_id, app_secret, access_token)
         
         elif request.platform == "tiktok":
             client_key = request.config.get("client_key")
@@ -237,7 +241,7 @@ async def test_platform_connection(
     except Exception as e:
         logger.error(f"Connection test failed for {request.platform}: {e}", exc_info=True)
         # REFRESH.MD: Use 'from e' for proper exception chaining.
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred during the connection test.") from e
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during the connection test.") from e
 
 
 # --- Spiritual Avatar Endpoints ---

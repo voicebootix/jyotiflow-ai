@@ -423,28 +423,6 @@ class FacebookService:
             
         return None
 
-    async def validate_credentials(self, page_access_token: str) -> Dict:
-        """
-        Validate Facebook credentials by making a real API call.
-        """
-        if not page_access_token:
-            return {"success": False, "error": "Page Access Token is missing."}
-        
-        # In a real implementation, you would make a call to Facebook's Graph API
-        # to check if the token is valid and has the required permissions.
-        # For now, we'll simulate a successful validation.
-        logger.info(f"Simulating validation for Facebook token ending in ...{page_access_token[-4:]}")
-        
-        # Placeholder for a real check
-        if "invalid" in page_access_token.lower():
-             return {"success": False, "error": "Simulated failure: The provided token is marked as invalid."}
-
-        return {
-            "success": True,
-            "message": "Facebook connection successful (simulated).",
-            "data": { "page_name": "JyotiFlow AI Page (Simulated)" }
-        }
-
 # Global instance for consistent import pattern (refresh.md: consistent architecture)
 facebook_service = FacebookService()
 

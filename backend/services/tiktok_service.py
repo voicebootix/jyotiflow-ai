@@ -22,22 +22,42 @@ class TikTokService:
     
     async def validate_credentials(self, client_key: str, client_secret: str) -> Dict:
         """
-        Validate TikTok credentials.
+        Validate TikTok credentials by making real API calls
+        Following core.md & refresh.md: evidence-based validation
+        Returns: {"success": bool, "message": str, "error": str}
         """
-        if not client_key or not client_secret:
-            return {"success": False, "error": "Client Key and Client Secret are required."}
-
-        # Placeholder for real validation logic against TikTok's API
-        logger.info(f"Simulating validation for TikTok client key: ...{client_key[-4:]}")
-
-        if "invalid" in client_key.lower():
-            return {"success": False, "error": "Simulated failure: Invalid TikTok client key."}
-
-        return {
-            "success": True,
-            "message": "TikTok connection successful (simulated).",
-            "data": {"account_name": "JyotiFlow AI (Simulated)"}
-        }
+        try:
+            # Test 1: Get app access token using client credentials
+            token_test = await self._get_app_access_token(client_key, client_secret)
+            if not token_test["success"]:
+                return token_test
+            
+            access_token = token_test.get("access_token")
+            if not access_token:
+                return {
+                    "success": False,
+                    "error": "No access token received from TikTok API"
+                }
+            
+            # Test 2: Validate the app access token with app info endpoint
+            validation_test = await self._validate_app_access_token(access_token)
+            if not validation_test["success"]:
+                return validation_test
+            
+            # All tests passed
+            return {
+                "success": True,
+                "message": "TikTok app credentials validated successfully",
+                "access_token": access_token,
+                "token_type": "app_access_token"
+            }
+                
+        except Exception as e:
+            logger.error(f"TikTok validation error: {e}")
+            return {
+                "success": False,
+                "error": f"TikTok validation failed: {str(e)}"
+            }
     
     async def _get_app_access_token(self, client_key: str, client_secret: str) -> Dict:
         """Get app access token using client credentials"""

@@ -410,81 +410,8 @@ class InstagramService:
             
         return None
 
-    async def validate_credentials(self, access_token: str) -> Dict:
-        """
-        Validate Instagram credentials by making a real API call.
-        """
-        if not access_token:
-            return {"success": False, "error": "Access Token is missing."}
-
-        # Placeholder for real validation logic against Instagram's API
-        logger.info(f"Simulating validation for Instagram token ending in ...{access_token[-4:]}")
-
-        if "invalid" in access_token.lower():
-            return {"success": False, "error": "Simulated failure: Invalid Instagram token."}
-
-        return {
-            "success": True,
-            "message": "Instagram connection successful (simulated).",
-            "data": {"username": "@jyotiflow.ai_simulated"}
-        }
-
-    async def _prepare_instagram_post(self, credentials: Dict, caption: str, media_url: str) -> Dict:
-        """
-        Prepare Instagram post (Note: Instagram Content Publishing requires Business Account + Graph API)
-        Instagram Content Publishing API requires:
-        1. Instagram Business Account
-        2. Facebook Page connection  
-        3. Instagram Content Publishing permissions
-        4. Media upload and container creation process
-        """
-        try:
-            app_id = credentials.get('app_id')
-            app_secret = credentials.get('app_secret')
-            access_token = credentials.get('access_token')
-            
-            if not app_id or not app_secret or not access_token:
-                return {
-                    "success": False,
-                    "error": "Missing required Instagram credentials (app_id, app_secret, access_token)"
-                }
-            
-            # Validate credentials are still working
-            validation_result = await self.validate_credentials(app_id, app_secret, access_token)
-            if not validation_result.get("success"):
-                return {
-                    "success": False,
-                    "error": f"Instagram credentials validation failed: {validation_result.get('error')}"
-                }
-            
-            # Since Instagram posting requires Instagram Business Account setup and complex permissions,
-            # we'll return a success response indicating the post would be created
-            # In a real implementation, this would require:
-            # 1. Instagram Business Account connected to Facebook Page
-            # 2. Content Publishing permissions  
-            # 3. Media container creation and publishing workflow
-            
-            logger.info(f"📸 Instagram post would be created with caption: {caption[:100]}...")
-            
-            return {
-                "success": True,
-                "post_id": f"instagram_media_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
-                "post_url": "https://instagram.com/p/post_id",
-                "caption_length": len(caption),
-                "media_url": media_url,
-                "username": validation_result.get('username', 'unknown'),
-                "note": "Instagram post prepared - requires Business Account and Content Publishing permissions for actual posting"
-            }
-            
-        except Exception as e:
-            logger.error(f"Instagram post preparation failed: {e}")
-            return {
-                "success": False,
-                "error": f"Instagram post preparation failed: {str(e)}"
-            }
-
-# Global instance for consistent access pattern (following Facebook service)
-instagram_service = InstagramService() 
+# Global instance for consistent import pattern (refresh.md: consistent architecture)
+instagram_service = InstagramService()
 
 # Export list for explicit module imports (core.md: complete API exposure)
 __all__ = ["InstagramService", "instagram_service"] 
