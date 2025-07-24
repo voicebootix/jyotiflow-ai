@@ -143,14 +143,13 @@ async def get_campaigns(
 ):
     """Get campaigns with optional status and platform filtering"""
     # Base campaign data with more examples for proper filtering demonstration
-    # REFRESH.MD: Updated dates to be in the future to prevent validation errors on startup.
-    current_year = datetime.now().year
+    # REFRESH.MD: Using static, future-proof dates to ensure deterministic behavior.
     all_campaigns = [
-        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status=CampaignStatus.ACTIVE, start_date=f"{current_year}-10-20", end_date=f"{current_year}-11-05"),
-        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status=CampaignStatus.COMPLETED, start_date=f"{current_year-1}-06-01", end_date=f"{current_year-1}-06-30"),
-        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status=CampaignStatus.ACTIVE, start_date=f"{current_year}-08-01", end_date=f"{current_year+1}-12-31"),
-        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.PAUSED, start_date=f"{current_year}-07-01", end_date=f"{current_year+1}-09-30"),
-        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status=CampaignStatus.ACTIVE, start_date=f"{current_year}-01-01", end_date=f"{current_year+1}-12-31"),
+        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status=CampaignStatus.ACTIVE, start_date="2025-10-20", end_date="2025-11-05"),
+        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status=CampaignStatus.COMPLETED, start_date="2023-06-01", end_date="2023-06-30"),
+        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status=CampaignStatus.ACTIVE, start_date="2025-08-01", end_date="2026-12-31"),
+        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.PAUSED, start_date="2025-07-01", end_date="2026-09-30"),
+        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status=CampaignStatus.ACTIVE, start_date="2025-01-01", end_date="2026-12-31"),
     ]
     
     # Apply filters following CORE.MD principles - explicit filter handling
