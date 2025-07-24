@@ -26,6 +26,7 @@ from schemas.social_media import (
     MarketingAssetCreate,
     MarketingOverview,
     PlatformConfig,
+    PlatformStatus,
     TestConnectionRequest,
     PostExecutionRequest,
     PostExecutionResult,
