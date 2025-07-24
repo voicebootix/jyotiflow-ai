@@ -9,9 +9,9 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from pydantic import BaseModel
 
 # CORE.MD: All necessary dependencies are explicitly imported.
