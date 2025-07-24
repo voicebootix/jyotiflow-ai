@@ -29,6 +29,7 @@ from schemas.social_media import (
     TestConnectionRequest,
     PostExecutionRequest,
     PostExecutionResult,
+    CampaignStatus,
 )
 try:
     from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
@@ -141,11 +142,11 @@ async def get_campaigns(
     """Get campaigns with optional status and platform filtering"""
     # Base campaign data with more examples for proper filtering demonstration
     all_campaigns = [
-        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status="active", start_date="2024-10-20", end_date="2024-11-05"),
-        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status="completed", start_date="2024-06-01", end_date="2024-06-30"),
-        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status="active", start_date="2024-08-01", end_date="2024-12-31"),
-        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status="paused", start_date="2024-07-01", end_date="2024-09-30"),
-        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status="active", start_date="2024-01-01", end_date="2024-12-31"),
+        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status=CampaignStatus.ACTIVE, start_date="2024-10-20", end_date="2024-11-05"),
+        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status=CampaignStatus.COMPLETED, start_date="2024-06-01", end_date="2024-06-30"),
+        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status=CampaignStatus.ACTIVE, start_date="2024-08-01", end_date="2024-12-31"),
+        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.PAUSED, start_date="2024-07-01", end_date="2024-09-30"),
+        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status=CampaignStatus.ACTIVE, start_date="2024-01-01", end_date="2024-12-31"),
     ]
     
     # Apply filters following CORE.MD principles - explicit filter handling
