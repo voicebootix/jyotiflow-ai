@@ -118,12 +118,7 @@ except ImportError:
     AVATAR_GENERATION_AVAILABLE = False
     print("⚠️ Avatar generation router not available")
 
-try:
-    from routers.social_media_marketing_router import social_marketing_router
-    SOCIAL_MEDIA_AVAILABLE = True
-except ImportError:
-    SOCIAL_MEDIA_AVAILABLE = False
-    print("⚠️ Social media marketing router not available")
+from routers.social_media_marketing_router import social_marketing_router
 
 try:
     from routers.livechat import router as livechat_router
@@ -470,9 +465,8 @@ app.include_router(admin_overview.router)
 app.include_router(admin_integrations.router)
 
 # CORE.MD: Group all marketing-related routers together for clarity.
-if SOCIAL_MEDIA_AVAILABLE:
-    app.include_router(social_marketing_router)
-    print("✅ Social media marketing router registered")
+app.include_router(social_marketing_router)
+print("✅ Social media marketing router registered")
 
 # Enhanced spiritual guidance router
 if ENHANCED_ROUTER_AVAILABLE:
