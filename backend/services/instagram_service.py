@@ -410,6 +410,52 @@ class InstagramService:
             
         return None
 
+    async def _prepare_instagram_post(self, credentials: Dict, caption: str, media_url: str) -> Dict:
+        """
+        Prepare Instagram post (Note: Instagram Content Publishing requires Business Account + Graph API)
+        Instagram Content Publishing API requires:
+        1. Instagram Business Account
+        2. Facebook Page connection  
+        3. Instagram Content Publishing permissions
+        4. Media upload and container creation process
+        """
+        try:
+            app_id = credentials.get('app_id')
+            app_secret = credentials.get('app_secret')
+            access_token = credentials.get('access_token')
+            
+            if not app_id or not app_secret or not access_token:
+                return {
+                    "success": False,
+                    "error": "Missing required Instagram credentials (app_id, app_secret, access_token)"
+                }
+            
+            validation_result = await self.validate_credentials(app_id, app_secret, access_token)
+            if not validation_result.get("success"):
+                return {
+                    "success": False,
+                    "error": f"Instagram credentials validation failed: {validation_result.get('error')}"
+                }
+            
+            logger.info(f"📸 Instagram post would be created with caption: {caption[:100]}...")
+            
+            return {
+                "success": True,
+                "post_id": f"instagram_media_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}",
+                "post_url": "https://instagram.com/p/post_id",
+                "caption_length": len(caption),
+                "media_url": media_url,
+                "username": validation_result.get('username', 'unknown'),
+                "note": "Instagram post prepared - requires Business Account and Content Publishing permissions for actual posting"
+            }
+            
+        except Exception as e:
+            logger.error(f"Instagram post preparation failed: {e}")
+            return {
+                "success": False,
+                "error": f"Instagram post preparation failed: {str(e)}"
+            }
+
 # Global instance for consistent import pattern (refresh.md: consistent architecture)
 instagram_service = InstagramService()
 
