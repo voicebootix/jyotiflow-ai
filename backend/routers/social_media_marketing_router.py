@@ -26,16 +26,37 @@ from schemas.social_media import (
     MarketingAssetCreate,
     MarketingOverview,
     PlatformConfig,
-    PlatformStatus,
+    TestConnectionRequest,
     PostExecutionRequest,
     PostExecutionResult,
-    TestConnectionRequest,
 )
 from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
-from services.youtube_service import youtube_service
-from services.facebook_service import facebook_service
-from services.instagram_service import instagram_service
-from services.tiktok_service import tiktok_service
+
+# REFRESH.MD: Use try-except blocks for service imports to prevent router import failures.
+try:
+    from services.youtube_service import youtube_service
+    YOUTUBE_SERVICE_AVAILABLE = True
+except ImportError:
+    YOUTUBE_SERVICE_AVAILABLE = False
+
+try:
+    from services.facebook_service import facebook_service
+    FACEBOOK_SERVICE_AVAILABLE = True
+except ImportError:
+    FACEBOOK_SERVICE_AVAILABLE = False
+
+try:
+    from services.instagram_service import instagram_service
+    INSTAGRAM_SERVICE_AVAILABLE = True
+except ImportError:
+    INSTAGRAM_SERVICE_AVAILABLE = False
+
+try:
+    from services.tiktok_service import tiktok_service
+    TIKTOK_SERVICE_AVAILABLE = True
+except ImportError:
+    TIKTOK_SERVICE_AVAILABLE = False
+
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -192,6 +213,8 @@ async def test_platform_connection(
     try:
         result = None
         if request.platform == "youtube":
+            if not YOUTUBE_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="YouTube service is not available.")
             api_key = request.config.get("api_key")
             channel_id = request.config.get("channel_id")
             if not api_key or not channel_id:
@@ -199,6 +222,8 @@ async def test_platform_connection(
             result = await youtube_service.validate_credentials(api_key, channel_id)
 
         elif request.platform == "facebook":
+            if not FACEBOOK_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="Facebook service is not available.")
             app_id = request.config.get("app_id")
             app_secret = request.config.get("app_secret")
             access_token = request.config.get("page_access_token")
@@ -207,6 +232,8 @@ async def test_platform_connection(
             result = await facebook_service.validate_credentials(app_id, app_secret, access_token)
 
         elif request.platform == "instagram":
+            if not INSTAGRAM_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="Instagram service is not available.")
             app_id = request.config.get("app_id")
             app_secret = request.config.get("app_secret")
             access_token = request.config.get("access_token")
@@ -215,6 +242,8 @@ async def test_platform_connection(
             result = await instagram_service.validate_credentials(app_id, app_secret, access_token)
         
         elif request.platform == "tiktok":
+            if not TIKTOK_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="TikTok service is not available.")
             client_key = request.config.get("client_key")
             client_secret = request.config.get("client_secret")
             if not client_key or not client_secret:
