@@ -31,6 +31,10 @@ from schemas.social_media import (
     TestConnectionRequest,
 )
 from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+from services.youtube_service import youtube_service
+from services.facebook_service import facebook_service
+from services.instagram_service import instagram_service
+from services.tiktok_service import tiktok_service
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -146,11 +150,24 @@ async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)
 
 @social_marketing_router.post("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
-    config: PlatformConfig,
+    config_request: PlatformConfig,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    logger.info(f"Attempting to save platform config: {config.dict()}")
-    return StandardResponse(success=True, message="Configuration saved successfully.")
+    try:
+        logger.info(f"Attempting to save platform config: {config_request.dict()}")
+        
+        # In a real application, this would save to a database.
+        # For now, we'll use a placeholder file to simulate persistence.
+        # CORE.MD: Use a structured approach for data persistence.
+        config_path = Path("backend/platform_config_cache.json")
+        with open(config_path, "w") as f:
+            import json
+            json.dump(config_request.dict(), f, indent=2)
+
+        return StandardResponse(success=True, message="Configuration saved successfully.")
+    except Exception as e:
+        logger.error(f"Failed to save platform configuration: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred while saving the configuration: {e}")
 
 
 @social_marketing_router.post("/test-connection", response_model=StandardResponse)
@@ -158,10 +175,58 @@ async def test_platform_connection(
     request: TestConnectionRequest,
     admin_user: dict = Depends(get_current_admin_user)
 ):
-    if request.platform in ["facebook", "instagram", "youtube"]:
-        return StandardResponse(success=True, message=f"Successfully connected to {request.platform}.")
-    else:
-        return StandardResponse(success=False, message=f"Connection to {request.platform} failed. Please check credentials.")
+    logger.info(f"Testing connection for platform: {request.platform}")
+    if not request.config:
+        raise HTTPException(status_code=400, detail="Configuration data is missing in the request.")
+
+    try:
+        if request.platform == "youtube":
+            api_key = request.config.get("api_key")
+            channel_id = request.config.get("channel_id")
+            if not api_key or not channel_id:
+                raise HTTPException(status_code=400, detail="YouTube API key and Channel ID are required.")
+            
+            result = await youtube_service.validate_credentials(api_key, channel_id)
+
+        elif request.platform == "facebook":
+            # This assumes facebook_service has a similar validate_credentials method
+            # You would need to implement this in facebook_service.py
+            page_access_token = request.config.get("page_access_token")
+            if not page_access_token:
+                 raise HTTPException(status_code=400, detail="Facebook Page Access Token is required.")
+            result = await facebook_service.validate_credentials(page_access_token)
+
+        elif request.platform == "instagram":
+            # Placeholder for Instagram validation
+            access_token = request.config.get("access_token")
+            if not access_token:
+                raise HTTPException(status_code=400, detail="Instagram Access Token is required.")
+            result = await instagram_service.validate_credentials(access_token)
+        
+        elif request.platform == "tiktok":
+            # Placeholder for TikTok validation
+            client_key = request.config.get("client_key")
+            client_secret = request.config.get("client_secret")
+            if not client_key or not client_secret:
+                raise HTTPException(status_code=400, detail="TikTok Client Key and Secret are required.")
+            result = await tiktok_service.validate_credentials(client_key, client_secret)
+
+        else:
+            return StandardResponse(success=False, message=f"Connection testing for {request.platform} is not implemented yet.")
+
+        if result and result.get("success"):
+            return StandardResponse(success=True, data=result, message=result.get("message"))
+        else:
+            # REFRESH.MD: Provide detailed error messages back to the frontend.
+            error_detail = result.get("error", "Unknown error during validation.")
+            return StandardResponse(success=False, message=error_detail, data=result)
+
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions to be handled by FastAPI
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Connection test failed for {request.platform}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
 
 # --- Spiritual Avatar Endpoints ---
 
