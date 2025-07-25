@@ -16,7 +16,6 @@ import asyncio
 from fastapi import HTTPException, Depends
 import asyncpg
 
-from backend.services.supabase_storage_service import SupabaseStorageService, get_storage_service
 import db
 
 
@@ -45,7 +44,8 @@ class SpiritualAvatarGenerationEngine:
     TTS and TTV services.
     """
 
-    def __init__(self, api_keys_provided: bool):
+    def __init__(self):
+        api_keys_provided = all([os.getenv("ELEVENLABS_API_KEY"), os.getenv("DID_API_KEY")])
         if not api_keys_provided:
             logger.warning("API keys for avatar generation are not configured. The engine will not work.")
             # The router will handle the user-facing HTTPException.
@@ -158,8 +158,8 @@ class SpiritualAvatarGenerationEngine:
         self,
         guidance_text: str,
         avatar_style: str, # Currently unused, but kept for API consistency
-        voice_id: str = DEFAULT_VOICE_ID,
-        conn: asyncpg.Connection = Depends(db.get_db) # Add DB connection dependency
+        voice_id: str,
+        conn: asyncpg.Connection # The DB connection is now passed directly
     ) -> dict:
         """
         Generates a lightweight avatar preview.
@@ -210,7 +210,6 @@ _avatar_engine_instance = None
 def get_avatar_engine() -> SpiritualAvatarGenerationEngine:
     """
     FastAPI dependency that provides a singleton instance of the avatar engine.
-    Checks for required API keys and raises an appropriate HTTP exception if not configured.
     """
     global _avatar_engine_instance
     
@@ -218,8 +217,6 @@ def get_avatar_engine() -> SpiritualAvatarGenerationEngine:
         logger.info("Creating new SpiritualAvatarGenerationEngine instance.")
         _avatar_engine_instance = SpiritualAvatarGenerationEngine()
     
-    # The engine's __init__ method now handles the logging of missing keys.
-    # We check the `is_configured` flag before returning it.
     if not _avatar_engine_instance.is_configured:
          raise HTTPException(
              status_code=501,

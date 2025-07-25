@@ -422,14 +422,17 @@ async def upload_swamiji_image(
 async def generate_avatar_preview(
     request: GenerateAvatarPreviewRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
     """Generates a single, lightweight avatar preview."""
     try:
+        # Pass the database connection explicitly to the method
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.text,
             avatar_style=request.style,
-            voice_id=request.voice_id
+            voice_id=request.voice_id,
+            conn=conn
         )
         if result.get("success"):
             return StandardResponse(success=True, message="Avatar preview generated.", data=result)
@@ -444,16 +447,19 @@ async def generate_avatar_preview(
 async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
     """Generates lightweight avatar previews for all available styles."""
     try:
         results = []
         for style in AVAILABLE_AVATAR_STYLES:
+            # Pass the database connection explicitly to the method
             style_result = await avatar_engine.generate_avatar_preview_lightweight(
                 guidance_text=request.text,
                 avatar_style=style,
-                voice_id=request.voice_id
+                voice_id=request.voice_id,
+                conn=conn
             )
             results.append(style_result)
         return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})

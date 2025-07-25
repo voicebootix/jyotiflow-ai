@@ -124,5 +124,4 @@ aiohttp>=3.8.0
 sqlparse==0.4.4  # SQL parsing for robust query analysis
 
 # Added for Supabase integration
-supabase
-supabase-py
+supabase==2.5.0

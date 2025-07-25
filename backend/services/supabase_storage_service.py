@@ -59,7 +59,7 @@ class SupabaseStorageService:
             self.supabase.storage.from_(bucket_name).upload(
                 path=file_path_in_bucket,
                 file=file_content,
-                file_options={"content-type": content_type, "upsert": "true"}
+                file_options={"content-type": content_type, "upsert": True}
             )
             logger.info(f"Successfully uploaded file to Supabase bucket '{bucket_name}' at path '{file_path_in_bucket}'.")
             
@@ -70,7 +70,7 @@ class SupabaseStorageService:
         except Exception as e:
             # The Supabase client might raise various exceptions. We catch them broadly.
             logger.error(f"Failed to upload file to Supabase: {e}", exc_info=True)
-            raise Exception(f"Could not upload file to storage: {e}")
+            raise Exception(f"Could not upload file to storage: {e}") from e
 
     def get_public_url(self, bucket_name: str, file_path_in_bucket: str) -> str:
         """
@@ -84,7 +84,7 @@ class SupabaseStorageService:
             return response
         except Exception as e:
             logger.error(f"Failed to get public URL from Supabase for path '{file_path_in_bucket}': {e}", exc_info=True)
-            raise Exception(f"Could not retrieve file URL: {e}")
+            raise Exception(f"Could not retrieve file URL: {e}") from e
 
 
 # --- FastAPI Dependency Injection ---
