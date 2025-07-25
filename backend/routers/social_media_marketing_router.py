@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
+import asyncpg
 
 # CORE.MD: All necessary dependencies are explicitly imported using absolute paths from the backend root.
 from auth.auth_helpers import AuthenticationHelper
