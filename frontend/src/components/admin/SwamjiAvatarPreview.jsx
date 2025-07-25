@@ -69,7 +69,7 @@ const SwamjiAvatarPreview = () => {
     if (!file) return;
 
     const formData = new FormData();
-    formData.append('swamiji_image', file);
+    formData.append('image', file);
 
     try {
       // Use the dedicated upload function
