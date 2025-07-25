@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported.
 from auth.auth_helpers import AuthenticationHelper
+from core.dependencies import get_database_manager
+from database.database_manager import DatabaseManager
 from schemas.response import StandardResponse
 from schemas.social_media import (
     Campaign,
@@ -178,45 +180,67 @@ async def get_campaigns(
 # --- Platform Configuration Endpoints (using placeholder data) ---
 
 @social_marketing_router.get("/platform-config", response_model=StandardResponse)
-async def get_platform_config(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
-    config_data = PlatformConfig(
-        facebook=PlatformStatus(connected=True, username="jyotiflow.ai"),
-        twitter=PlatformStatus(connected=False, username=None),
-        instagram=PlatformStatus(connected=True, username="@jyotiflow.ai"),
-        youtube=PlatformStatus(connected=True, username="JyotiFlowChannel"),
-        linkedin=PlatformStatus(connected=False, username=None),
-        tiktok=PlatformStatus(connected=False, username=None),
-    )
-    return StandardResponse(success=True, data=config_data, message="Platform configuration retrieved successfully.")
+async def get_platform_config(
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    db: DatabaseManager = Depends(get_database_manager)
+):
+    """Retrieve current platform configurations from the database."""
+    try:
+        # REFRESH.MD: Escaped the underscore in the LIKE clause to treat it as a literal.
+        rows = await db.fetch_all("SELECT key, value FROM platform_settings WHERE key LIKE '%\\_config' ESCAPE '\\'")
+        
+        config_data = {}
+        for row in rows:
+            key = row['key']
+            # CORE.MD: Use a safer method to remove the suffix, preventing accidental replacements.
+            if key.endswith('_config'):
+                platform_name = key[:-7]  # Slices off the last 7 characters ('_config')
+                # The value from DB is a JSON string, so we parse it.
+                config_data[platform_name] = PlatformStatus(**json.loads(row['value']))
+
+        # Ensure all platforms are present in the response, even if not in the DB
+        final_config = PlatformConfig(**config_data)
+        
+        return StandardResponse(success=True, data=final_config, message="Platform configuration retrieved successfully.")
+    except Exception as e:
+        logger.error(f"Failed to retrieve platform configuration from database: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to retrieve platform configuration.")
+
 
 @social_marketing_router.post("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
     config_request: PlatformConfig,
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    db: DatabaseManager = Depends(get_database_manager)
 ):
+    """Save platform configurations to the database."""
     try:
-        logger.info(f"Attempting to save platform config: {config_request.dict()}")
+        logger.info(f"Attempting to save platform config to database: {config_request.dict()}")
         
-        # CORE.MD: Use a structured and safe approach for file-based persistence.
-        # This is a placeholder for a real database implementation.
-        cache_dir = Path("backend/cache")
-        
-        # REFRESH.MD: Proactively check for directory existence and permissions.
-        try:
-            cache_dir.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            logger.error(f"Error creating cache directory {cache_dir}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to create configuration directory due to permission error.")
-
-        # In a production environment, this path should be configurable.
-        config_path = cache_dir / "platform_config_cache.json"
-
-        with open(config_path, "w") as f:
-            json.dump(config_request.dict(), f, indent=2)
+        async with db.get_connection() as conn:
+            # Using a transaction to ensure all or nothing is saved
+            async with conn.transaction():
+                for platform, status in config_request.dict().items():
+                    if isinstance(status, dict): # Ensure we only process platform statuses
+                        key = f"{platform}_config"
+                        # Convert the status dictionary to a JSON string to store in the JSONB column
+                        value = json.dumps(status)
+                        
+                        # Use INSERT ... ON CONFLICT DO UPDATE to handle both new and existing settings
+                        await conn.execute(
+                            """
+                            INSERT INTO platform_settings (key, value)
+                            VALUES ($1, $2)
+                            ON CONFLICT (key) DO UPDATE
+                            SET value = EXCLUDED.value, updated_at = NOW()
+                            """,
+                            key,
+                            value
+                        )
 
         return StandardResponse(success=True, message="Configuration saved successfully.")
     except Exception as e:
-        logger.error(f"Failed to save platform configuration: {e}", exc_info=True)
+        logger.error(f"Failed to save platform configuration to database: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred while saving the configuration: {e}")
 
 

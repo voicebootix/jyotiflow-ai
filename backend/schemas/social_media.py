@@ -27,15 +27,21 @@ class PlatformStatus(BaseModel):
     last_sync: Optional[datetime] = None
     error_message: Optional[str] = None
 
+    class Config:
+        extra = 'ignore'
+
 
 class PlatformConfig(BaseModel):
     """Social media platform configuration"""
-    facebook: PlatformStatus = PlatformStatus()
-    instagram: PlatformStatus = PlatformStatus()
-    twitter: PlatformStatus = PlatformStatus()
-    youtube: PlatformStatus = PlatformStatus()
-    linkedin: PlatformStatus = PlatformStatus()
-    tiktok: PlatformStatus = PlatformStatus()
+    facebook: PlatformStatus = Field(default_factory=PlatformStatus)
+    instagram: PlatformStatus = Field(default_factory=PlatformStatus)
+    twitter: PlatformStatus = Field(default_factory=PlatformStatus)
+    youtube: PlatformStatus = Field(default_factory=PlatformStatus)
+    linkedin: PlatformStatus = Field(default_factory=PlatformStatus)
+    tiktok: PlatformStatus = Field(default_factory=PlatformStatus)
+
+    class Config:
+        extra = 'ignore'
 
 
 class TestConnectionRequest(BaseModel):
