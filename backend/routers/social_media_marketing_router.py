@@ -16,11 +16,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 import asyncpg
 
-# CORE.MD: All necessary dependencies are explicitly imported.
-from ..auth.auth_helpers import AuthenticationHelper
-from .. import db
-from ..schemas.response import StandardResponse
-from ..schemas.social_media import (
+# CORE.MD: All necessary dependencies are explicitly imported using absolute paths from the backend root.
+from auth.auth_helpers import AuthenticationHelper
+import db
+from schemas.response import StandardResponse
+from schemas.social_media import (
     Campaign,
     ContentCalendarItem,
     GenerateAllAvatarPreviewsRequest,
@@ -217,7 +217,6 @@ async def save_platform_config(
     try:
         logger.info(f"Attempting to save platform config to database: {config_request.dict()}")
         
-        # Using a transaction to ensure all or nothing is saved
         async with conn.transaction():
             for platform, status in config_request.dict().items():
                 if isinstance(status, dict): # Ensure we only process platform statuses
