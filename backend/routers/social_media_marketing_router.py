@@ -29,6 +29,7 @@ from schemas.social_media import (
     MarketingAssetCreate,
     MarketingOverview,
     PlatformConfig,
+    PlatformConfigUpdate,
     PlatformStatus,
     TestConnectionRequest,
     PostExecutionRequest,
@@ -207,24 +208,26 @@ async def get_platform_config(
         raise HTTPException(status_code=500, detail="Failed to retrieve platform configuration.")
 
 
-@social_marketing_router.post("/platform-config", response_model=StandardResponse)
+@social_marketing_router.patch("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
-    config_request: PlatformConfig,
+    config_update: PlatformConfigUpdate,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     conn: asyncpg.Connection = Depends(db.get_db)
 ):
-    """Save platform configurations to the database."""
+    """Save a single platform's configuration to the database."""
     try:
-        logger.info(f"Attempting to save platform config to database: {config_request.dict()}")
+        update_data = config_update.dict(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No configuration data provided.")
+
+        logger.info(f"Attempting to save platform config to database: {update_data}")
         
         async with conn.transaction():
-            for platform, status in config_request.dict().items():
-                if isinstance(status, dict): # Ensure we only process platform statuses
+            for platform, status in update_data.items():
+                if isinstance(status, dict):
                     key = f"{platform}_config"
-                    # Convert the status dictionary to a JSON string to store in the JSONB column
                     value = json.dumps(status)
                     
-                    # Use INSERT ... ON CONFLICT DO UPDATE to handle both new and existing settings
                     await conn.execute(
                         """
                         INSERT INTO platform_settings (key, value)

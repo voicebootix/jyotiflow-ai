@@ -44,6 +44,16 @@ class PlatformConfig(BaseModel):
         extra = 'ignore'
 
 
+class PlatformConfigUpdate(BaseModel):
+    """Model for updating a single platform's configuration."""
+    facebook: Optional[PlatformStatus] = None
+    instagram: Optional[PlatformStatus] = None
+    twitter: Optional[PlatformStatus] = None
+    youtube: Optional[PlatformStatus] = None
+    linkedin: Optional[PlatformStatus] = None
+    tiktok: Optional[PlatformStatus] = None
+
+
 class TestConnectionRequest(BaseModel):
     """Request to test platform connection"""
     platform: str = Field(..., pattern=r'^(facebook|instagram|twitter|youtube|linkedin|tiktok)$')

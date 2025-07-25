@@ -73,6 +73,10 @@ class EnhancedAPI {
     return this.request(endpoint, { method: 'PUT', body: JSON.stringify(data) });
   }
 
+  async patch(endpoint, data) {
+    return this.request(endpoint, { method: 'PATCH', body: JSON.stringify(data) });
+  }
+
   async delete(endpoint) {
     return this.request(endpoint, { method: 'DELETE' });
   }
@@ -151,7 +155,7 @@ class EnhancedAPI {
   }
 
   async updatePlatformConfig(configData) {
-    return this.post('/api/admin/social-marketing/platform-config', configData);
+    return this.patch('/api/admin/social-marketing/platform-config', configData);
   }
 
   async testConnection(connectionData) {
