@@ -16,6 +16,8 @@ import asyncio
 from fastapi import HTTPException, Depends
 import asyncpg
 
+# REFRESH.MD: Use relative imports for deployment robustness
+from ..services.supabase_storage_service import SupabaseStorageService, get_storage_service
 import db
 
 
@@ -207,7 +209,8 @@ class SpiritualAvatarGenerationEngine:
 # --- FastAPI Dependency Injection ---
 _avatar_engine_instance = None
 
-def get_avatar_engine() -> SpiritualAvatarGenerationEngine:
+# REFRESH.MD: Corrected the function signature which was mistakenly altered
+def get_avatar_engine() -> "SpiritualAvatarGenerationEngine":
     """
     FastAPI dependency that provides a singleton instance of the avatar engine.
     """
