@@ -147,10 +147,7 @@ const PlatformConfiguration = () => {
         return;
       }
 
-      const response = await enhanced_api.updatePlatformConfig({
-        platform,
-        config: apiKeys[platform]
-      });
+      const response = await enhanced_api.updatePlatformConfig(apiKeys);
       
       responseData = response; // ✅ FIXED: response IS the data, no .data property
       
