@@ -2866,10 +2866,10 @@ async def test_credit_payment_database_schema():
                         suite_name,
                         suite_data['test_category'],
                         "production",
-                        datetime.now(),
+                        datetime.now(timezone.utc).replace(tzinfo=None),
                         "generated",
                         "test_suite_generator",
-                        datetime.now()
+                        datetime.now(timezone.utc).replace(tzinfo=None)
                         )
                         
                         # Store individual test cases for this suite
@@ -2888,7 +2888,7 @@ async def test_credit_payment_database_schema():
                                 "generated",
                                 json.dumps(test_case),
                                 json.dumps(test_case),
-                                datetime.now()
+                                datetime.now(timezone.utc).replace(tzinfo=None)
                                 )
                 
                 logger.info("✅ Test suites stored in database successfully")
