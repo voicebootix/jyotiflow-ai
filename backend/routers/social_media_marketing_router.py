@@ -94,8 +94,15 @@ except ImportError as e:
     def get_social_media_engine():
         raise HTTPException(status_code=501, detail="The Social Media Automation Engine is not available.")
 
-# REFRESH.MD: Use direct imports from the root of the 'backend' package for Render compatibility.
-from services.supabase_storage_service import SupabaseStorageService, get_storage_service
+# REFRESH.MD: Wrap Supabase service import in a try-except block for robustness.
+try:
+    from services.supabase_storage_service import SupabaseStorageService, get_storage_service
+    STORAGE_SERVICE_AVAILABLE = True
+except ImportError:
+    STORAGE_SERVICE_AVAILABLE = False
+    class SupabaseStorageService: pass
+    def get_storage_service():
+        raise HTTPException(status_code=501, detail="Storage service is not available.")
 
 # This import is no longer needed as frontend now sends the voice_id
 # from spiritual_avatar_generation_engine import DEFAULT_VOICE_ID
