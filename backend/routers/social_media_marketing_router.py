@@ -186,13 +186,17 @@ async def get_platform_config(
 ):
     """Retrieve current platform configurations from the database."""
     try:
-        rows = await db.fetch_all("SELECT key, value FROM platform_settings WHERE key LIKE '%_config'")
+        # REFRESH.MD: Escaped the underscore in the LIKE clause to treat it as a literal.
+        rows = await db.fetch_all("SELECT key, value FROM platform_settings WHERE key LIKE '%\\_config' ESCAPE '\\'")
         
         config_data = {}
         for row in rows:
-            platform_name = row['key'].replace('_config', '')
-            # The value from DB is a JSON string, so we parse it.
-            config_data[platform_name] = PlatformStatus(**json.loads(row['value']))
+            key = row['key']
+            # CORE.MD: Use a safer method to remove the suffix, preventing accidental replacements.
+            if key.endswith('_config'):
+                platform_name = key[:-7]  # Slices off the last 7 characters ('_config')
+                # The value from DB is a JSON string, so we parse it.
+                config_data[platform_name] = PlatformStatus(**json.loads(row['value']))
 
         # Ensure all platforms are present in the response, even if not in the DB
         final_config = PlatformConfig(**config_data)
