@@ -93,6 +93,9 @@ except ImportError as e:
     def get_social_media_engine():
         raise HTTPException(status_code=501, detail="The Social Media Automation Engine is not available.")
 
+# REFRESH.MD: Import the new Supabase storage service
+from backend.services.supabase_storage_service import SupabaseStorageService, get_storage_service
+
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -344,61 +347,76 @@ async def test_platform_connection(
 # --- Spiritual Avatar Endpoints ---
 
 @social_marketing_router.get("/swamiji-avatar-config", response_model=StandardResponse)
-async def get_swamiji_avatar_config(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
+async def get_swamiji_avatar_config(
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    conn: asyncpg.Connection = Depends(db.get_db)
+):
     config_data = {
         "voices": [{"id": "swamiji_voice_v1", "name": "Swamiji Calm Voice"}],
         "styles": AVAILABLE_AVATAR_STYLES,
         "default_text": "Greetings from the digital ashram. May you find peace and wisdom."
     }
     
-    # REFRESH.MD: Check for existing avatar image and include its URL in the response
-    upload_dir = Path("backend/static_uploads/avatars")
-    for ext in MIME_TYPE_TO_EXTENSION.values():
-        avatar_path = upload_dir / f"swamiji_base_avatar{ext}"
-        if avatar_path.exists():
-            config_data["image_url"] = f"/static/avatars/{avatar_path.name}"
-            break # Found the image, no need to check other extensions
+    # REFRESH.MD: Fetch the avatar URL from the database instead of the local filesystem
+    try:
+        record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
+        if record and record['value']:
+            config_data["image_url"] = record['value']
+    except Exception as e:
+        logger.error(f"Failed to fetch Swamiji avatar URL from database: {e}", exc_info=True)
+        # Non-fatal, we can proceed without the image URL
 
     return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
 
 @social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
 async def upload_swamiji_image(
     image: UploadFile = File(...), 
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    storage_service: SupabaseStorageService = Depends(get_storage_service),
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
-    # REFRESH.MD: Restore filename null check (regression fix)
     if not image.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
 
-    # CORE.MD: Add MIME Type validation (security fix)
     if image.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid file type. Only {', '.join(ALLOWED_MIME_TYPES)} are allowed.")
 
-    # REFRESH.MD: Read the file ONCE into memory to be efficient and avoid pointer issues.
     contents = await image.read()
 
-    # CORE.MD: Enforce file size limit on the in-memory content.
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(status_code=400, detail=f"File size exceeds the limit of {MAX_FILE_SIZE / 1024 / 1024} MB.")
 
-    # CORE.MD: Sanitize filename and use extension from validated MIME type
-    upload_dir = Path("backend/static_uploads/avatars")
-    upload_dir.mkdir(parents=True, exist_ok=True)
-    file_extension = MIME_TYPE_TO_EXTENSION[image.content_type]
-    file_name = f"swamiji_base_avatar{file_extension}"
-    file_path = upload_dir / file_name
+    file_extension = MIME_TYPE_TO_EXTENSION.get(image.content_type, '.png')
+    file_name_in_bucket = f"public/swamiji_base_avatar{file_extension}"
+    bucket_name = "avatars"
 
     try:
-        # Write the in-memory contents to the file.
-        with open(file_path, "wb") as buffer:
-            buffer.write(contents)
-    except Exception as e:
-        logger.error(f"Could not write uploaded file to disk: {e}")
-        raise HTTPException(status_code=500, detail="Failed to save uploaded file.")
+        # Upload to Supabase Storage instead of local file
+        public_url = storage_service.upload_file(
+            bucket_name=bucket_name,
+            file_path_in_bucket=file_name_in_bucket,
+            file_content=contents,
+            content_type=image.content_type
+        )
 
-    logger.info(f"✅ Swamiji's photo saved to: {file_path}")
-    # CORE.MD: Ensure response key matches frontend expectation ('image_url')
-    return StandardResponse(success=True, message="Image uploaded successfully.", data={"image_url": f"/static/avatars/{file_name}"})
+        # Save the public URL to the database
+        await conn.execute(
+            """
+            INSERT INTO platform_settings (key, value)
+            VALUES ('swamiji_avatar_url', $1)
+            ON CONFLICT (key) DO UPDATE
+            SET value = EXCLUDED.value, updated_at = NOW()
+            """,
+            public_url
+        )
+        
+        logger.info(f"✅ Swamiji's photo saved to Supabase and URL stored in DB: {public_url}")
+        return StandardResponse(success=True, message="Image uploaded successfully.", data={"image_url": public_url})
+        
+    except Exception as e:
+        logger.error(f"An error occurred during Swamiji image upload: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+
 
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(

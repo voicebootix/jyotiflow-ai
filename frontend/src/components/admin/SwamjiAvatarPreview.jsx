@@ -4,6 +4,7 @@ import {
   AlertTriangle, Play, Pause, RotateCcw, Save, Star 
 } from 'lucide-react';
 import enhanced_api from '../../services/enhanced-api';
+import { useNotification } from '../../hooks/useNotification';
 
 const SwamjiAvatarPreview = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
@@ -12,6 +13,7 @@ const SwamjiAvatarPreview = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [approvedConfig, setApprovedConfig] = useState(null);
   const [currentSample, setCurrentSample] = useState(null);
+  const { addNotification } = useNotification();
 
   const avatarStyles = {
     traditional: {
@@ -78,22 +80,22 @@ const SwamjiAvatarPreview = () => {
       // REFRESH.MD: Check nested properties safely to avoid runtime errors
       if (response && response.success && response.data?.image_url) {
         setUploadedImage(response.data.image_url);
-        alert('✅ Swamiji photo uploaded successfully!');
+        addNotification('success', '✅ Swamiji photo uploaded successfully!');
       } else {
         // Provide more specific feedback
         const errorMessage = response?.message || 'Unknown error occurred';
         console.error('Error uploading image:', errorMessage);
-        alert(`❌ Failed to upload image: ${errorMessage}`);
+        addNotification('error', `❌ Failed to upload image: ${errorMessage}`);
       }
     } catch (error) {
       console.error('Error uploading image:', error);
-      alert('❌ Failed to upload image');
+      addNotification('error', '❌ Failed to upload image. A network error occurred.');
     }
   };
 
   const generatePreviewSample = async (style) => {
     if (!uploadedImage) {
-      alert('Please upload Swamiji\'s photo first');
+      addNotification('error', 'Please upload Swamiji\'s photo first');
       return;
     }
 
@@ -110,11 +112,15 @@ const SwamjiAvatarPreview = () => {
           [style]: response.data.preview
         }));
         setCurrentSample(response.data.preview);
-        alert('✅ Preview generated successfully!');
+        addNotification('success', '✅ Preview generated successfully!');
+      } else {
+        const errorMessage = response?.message || 'Failed to generate preview.';
+        console.error('Error generating preview:', errorMessage);
+        addNotification('error', `❌ ${errorMessage}`);
       }
     } catch (error) {
       console.error('Error generating preview:', error);
-      alert('❌ Failed to generate preview');
+      addNotification('error', '❌ An unexpected error occurred while generating the preview.');
     } finally {
       setIsGenerating(false);
     }
@@ -122,7 +128,7 @@ const SwamjiAvatarPreview = () => {
 
   const generateAllPreviews = async () => {
     if (!uploadedImage) {
-      alert('Please upload Swamiji\'s photo first');
+      addNotification('error', 'Please upload Swamiji\'s photo first');
       return;
     }
 
@@ -139,7 +145,7 @@ const SwamjiAvatarPreview = () => {
 
   const approveConfiguration = async () => {
     if (!uploadedImage || Object.keys(avatarPreviews).length === 0) {
-      alert('Please upload photo and generate previews first');
+      addNotification('error', 'Please upload photo and generate previews first');
       return;
     }
 
@@ -153,11 +159,11 @@ const SwamjiAvatarPreview = () => {
 
       if (response.success) {
         setApprovedConfig(response.data.configuration);
-        alert('✅ Swamiji avatar configuration approved! All future content will use this appearance.');
+        addNotification('success', '✅ Swamiji avatar configuration approved! All future content will use this appearance.');
       }
     } catch (error) {
       console.error('Error approving configuration:', error);
-      alert('❌ Failed to approve configuration');
+      addNotification('error', '❌ Failed to approve configuration.');
     }
   };
 

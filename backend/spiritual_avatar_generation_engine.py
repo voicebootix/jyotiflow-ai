@@ -13,7 +13,12 @@ import time
 import logging
 import asyncio
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Depends
+import asyncpg
+
+from backend.services.supabase_storage_service import SupabaseStorageService, get_storage_service
+import db
+
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -153,26 +158,25 @@ class SpiritualAvatarGenerationEngine:
         self,
         guidance_text: str,
         avatar_style: str, # Currently unused, but kept for API consistency
-        voice_id: str = DEFAULT_VOICE_ID
+        voice_id: str = DEFAULT_VOICE_ID,
+        conn: asyncpg.Connection = Depends(db.get_db) # Add DB connection dependency
     ) -> dict:
         """
         Generates a lightweight avatar preview.
-
-        For this implementation, it's a "real" call to the services, but
-        it assumes certain things are in place (like a publicly hosted base image).
         """
         if not self.is_configured:
             raise HTTPException(status_code=501, detail="Avatar Generation Engine is not configured on the server.")
         
-        # CORE.MD: The source Swamiji image must be a publicly accessible URL for D-ID.
-        # This assumes the uploaded image is served from a public URL.
-        # Example URL based on our current setup
-        base_image_path = "backend/static_uploads/avatars/swamiji_base_avatar.png" # Assuming png for now
-        # This needs to be a public URL, not a local path.
-        # Render provides a public URL for the service, but static files need to be handled correctly.
-        # For now, using a placeholder public URL.
-        source_image_url = "https://storage.googleapis.com/jyotiflow-public-assets/swamiji_base_avatar.png"
-        
+        # CORE.MD: Fetch the source Swamiji image URL from the database
+        try:
+            record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
+            if not record or not record['value']:
+                raise HTTPException(status_code=404, detail="Swamiji avatar image not found. Please upload it first.")
+            source_image_url = record['value']
+        except Exception as e:
+            logger.error(f"Failed to fetch Swamiji avatar URL from DB for generation: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Could not retrieve avatar image for generation.")
+
         # 1. Generate Audio
         # In a real app, you might cache this audio if the text is the same.
         audio_url = await self._generate_audio(guidance_text, voice_id)
@@ -201,28 +205,24 @@ class SpiritualAvatarGenerationEngine:
 
 
 # --- FastAPI Dependency Injection ---
-# REFRESH.MD: Use a singleton pattern for the engine to avoid re-creating it on every request.
 _avatar_engine_instance = None
 
-def get_avatar_engine():
+def get_avatar_engine() -> SpiritualAvatarGenerationEngine:
     """
     FastAPI dependency that provides a singleton instance of the avatar engine.
     Checks for required API keys and raises an appropriate HTTP exception if not configured.
     """
     global _avatar_engine_instance
     
-    api_keys_provided = all([ELEVENLABS_API_KEY, DID_API_KEY])
-
     if _avatar_engine_instance is None:
         logger.info("Creating new SpiritualAvatarGenerationEngine instance.")
-        _avatar_engine_instance = SpiritualAvatarGenerationEngine(api_keys_provided=api_keys_provided)
+        _avatar_engine_instance = SpiritualAvatarGenerationEngine()
     
-    # Even if the instance exists, we check if it's configured.
-    # The router can now simply depend on this and call its methods.
+    # The engine's __init__ method now handles the logging of missing keys.
+    # We check the `is_configured` flag before returning it.
     if not _avatar_engine_instance.is_configured:
-         # This exception will be caught by FastAPI and returned to the user.
          raise HTTPException(
-             status_code=501, # 501 Not Implemented
+             status_code=501,
              detail="The Avatar Generation Engine is not configured on the server due to missing API keys."
          )
          
