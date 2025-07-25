@@ -340,19 +340,19 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(AuthenticationHel
 
 @social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
 async def upload_swamiji_image(
-    file: UploadFile, 
+    image: UploadFile = File(...), 
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
     # REFRESH.MD: Restore filename null check (regression fix)
-    if not file.filename:
+    if not image.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
 
     # CORE.MD: Add MIME Type validation (security fix)
-    if file.content_type not in ALLOWED_MIME_TYPES:
+    if image.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail=f"Invalid file type. Only {', '.join(ALLOWED_MIME_TYPES)} are allowed.")
 
     # REFRESH.MD: Read the file ONCE into memory to be efficient and avoid pointer issues.
-    contents = await file.read()
+    contents = await image.read()
 
     # CORE.MD: Enforce file size limit on the in-memory content.
     if len(contents) > MAX_FILE_SIZE:
@@ -361,7 +361,7 @@ async def upload_swamiji_image(
     # CORE.MD: Sanitize filename and use extension from validated MIME type
     upload_dir = Path("backend/static_uploads/avatars")
     upload_dir.mkdir(parents=True, exist_ok=True)
-    file_extension = MIME_TYPE_TO_EXTENSION[file.content_type]
+    file_extension = MIME_TYPE_TO_EXTENSION[image.content_type]
     file_name = f"swamiji_base_avatar{file_extension}"
     file_path = upload_dir / file_name
 
