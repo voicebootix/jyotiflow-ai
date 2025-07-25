@@ -10,6 +10,8 @@ const SwamjiAvatarPreview = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
   const [avatarPreviews, setAvatarPreviews] = useState({});
   const [selectedStyle, setSelectedStyle] = useState('traditional');
+  const [voices, setVoices] = useState([]);
+  const [selectedVoice, setSelectedVoice] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [approvedConfig, setApprovedConfig] = useState(null);
   const [currentSample, setCurrentSample] = useState(null);
@@ -53,9 +55,15 @@ const SwamjiAvatarPreview = () => {
   const fetchCurrentConfiguration = async () => {
     try {
       const response = await enhanced_api.getSwamjiAvatarConfig();
-      if (response.success && response.data?.image_url) {
+      if (response.success && response.data) {
         setApprovedConfig(response.data);
-        setUploadedImage(response.data.image_url);
+        if (response.data.image_url) {
+            setUploadedImage(response.data.image_url);
+        }
+        if (response.data.voices && response.data.voices.length > 0) {
+            setVoices(response.data.voices);
+            setSelectedVoice(response.data.voices[0].id); // Set the first voice as default
+        }
       } else {
         // If no config is found, ensure we don't show a broken image
         setUploadedImage(null);
@@ -103,6 +111,7 @@ const SwamjiAvatarPreview = () => {
       setIsGenerating(true);
       const response = await enhanced_api.generateAvatarPreview({
         style: style,
+        voice_id: selectedVoice,
         sample_text: "Namaste, beloved souls. Welcome to this divine spiritual guidance. May peace and wisdom be with you always. Om Namah Shivaya."
       });
 
@@ -135,6 +144,12 @@ const SwamjiAvatarPreview = () => {
     setIsGenerating(true);
     
     for (const style of Object.keys(avatarStyles)) {
+      // Pass voice_id in the loop as well
+      if (!selectedVoice) {
+        addNotification('error', 'Voice configuration not loaded. Please refresh.');
+        setIsGenerating(false);
+        return;
+      }
       await generatePreviewSample(style);
       // Small delay between generations
       await new Promise(resolve => setTimeout(resolve, 2000));

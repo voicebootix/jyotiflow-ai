@@ -96,6 +96,10 @@ except ImportError as e:
 # REFRESH.MD: Import the new Supabase storage service
 from backend.services.supabase_storage_service import SupabaseStorageService, get_storage_service
 
+# CORE.MD: Import the default voice ID for fallback
+# This import is no longer needed as frontend now sends the voice_id
+# from backend.spiritual_avatar_generation_engine import DEFAULT_VOICE_ID
+
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
