@@ -289,23 +289,39 @@ const PlatformConfiguration = () => {
         const successMessage = responseMessage || 'Connection successful!';
         
         // CORE.MD: Update the main state with new connection status and data
-        setApiKeys(prev => ({
-          ...prev,
-          [platform]: {
+        setApiKeys(prev => {
+          const updatedPlatformState = {
             ...prev[platform],
             status: 'connected',
             username: successData?.channel_info?.title || successData?.page_name || prev[platform].username,
-            // Persist the credentials used for the successful test
-            api_key: prev[platform].api_key,
-            channel_id: successData?.resolved_channel_id || prev[platform].channel_id,
+          };
+
+          // REFRESH.MD: Persist platform-specific credentials safely
+          if (platform === 'youtube') {
+            updatedPlatformState.api_key = prev[platform].api_key;
+            updatedPlatformState.channel_id = successData?.resolved_channel_id || prev[platform].channel_id;
+          } else if (platform === 'facebook') {
+            updatedPlatformState.app_id = prev[platform].app_id;
+            updatedPlatformState.app_secret = prev[platform].app_secret;
+            updatedPlatformState.page_access_token = prev[platform].page_access_token;
+          } else if (platform === 'instagram') {
+            updatedPlatformState.app_id = prev[platform].app_id;
+            updatedPlatformState.app_secret = prev[platform].app_secret;
+            updatedPlatformState.access_token = prev[platform].access_token;
+          } else if (platform === 'tiktok') {
+            updatedPlatformState.client_key = prev[platform].client_key;
+            updatedPlatformState.client_secret = prev[platform].client_secret;
           }
-        }));
+
+          return {
+            ...prev,
+            [platform]: updatedPlatformState,
+          };
+        });
 
         // Enhanced success feedback (core.md: informative responses)
         if (platform === 'youtube' && successData?.resolved_channel_id) {
           addNotification('success', `${successMessage} Channel: ${successData.channel_info?.title || 'Connected'}`, platform, successData);
-          // CORE.MD: Also update the channel_id field if a URL/handle was resolved
-          updateApiKey(platform, 'channel_id', successData.resolved_channel_id);
         } else if (platform === 'facebook' && successData?.page_name) {
           addNotification('success', `${successMessage} Page: ${successData.page_name}`, platform, successData);
         } else {
