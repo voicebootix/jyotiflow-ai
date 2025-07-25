@@ -17,8 +17,7 @@ from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported.
 from ..auth.auth_helpers import AuthenticationHelper
-from ..core.dependencies import get_database_manager
-from ..database.database_manager import DatabaseManager
+from ..main import get_database_manager, DatabaseManager
 from ..schemas.response import StandardResponse
 from ..schemas.social_media import (
     Campaign,
