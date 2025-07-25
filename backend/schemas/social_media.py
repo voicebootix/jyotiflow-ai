@@ -27,6 +27,9 @@ class PlatformStatus(BaseModel):
     last_sync: Optional[datetime] = None
     error_message: Optional[str] = None
 
+    class Config:
+        extra = 'ignore'
+
 
 class PlatformConfig(BaseModel):
     """Social media platform configuration"""
