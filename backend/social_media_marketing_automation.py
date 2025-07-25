@@ -11,6 +11,7 @@ from datetime import datetime, time
 from typing import List, Dict, Any, Optional
 
 from pydantic import BaseModel, Field
+from fastapi import Depends
 
 # Local dependencies
 # REFRESH.MD: Use absolute imports for clarity and robustness
@@ -156,38 +157,38 @@ class SocialMediaMarketingEngine:
                 daily_plan[platform.value] = result
         
         logger.info(f"📅 Daily content plan generated for {len(daily_plan)} platforms.")
-        await self._store_content_plan_in_db(daily_plan)
+        
+        # This will be called from the router which will provide the DB connection
+        # await self._store_content_plan_in_db(daily_plan) 
+        
         return daily_plan
 
-    async def _store_content_plan_in_db(self, plan: Dict[str, List[ContentPlan]]):
+    async def _store_content_plan_in_db(self, plan: Dict[str, List[ContentPlan]], conn):
         """Stores the generated content plan into the database for persistence."""
         try:
-            conn = await db.get_db_connection()
+            # The database connection is now passed in as an argument
             # In a real app, you would insert these plans into a `content_schedule` table.
-            # For now, we will just log it.
             logger.info("Simulating storage of content plan into database.")
             # Example:
-            # for platform, posts in plan.items():
-            #     for post in posts:
-            #         await conn.execute("INSERT INTO content_schedule (..) VALUES (..)", post.dict())
-            await conn.close()
+            # async with conn.transaction():
+            #     for platform, posts in plan.items():
+            #         for post in posts:
+            #             await conn.execute("INSERT INTO content_schedule (..) VALUES (..)", post.dict())
         except Exception as e:
             logger.error(f"Failed to store content plan in database: {e}", exc_info=True)
-            # Non-fatal error, the plan can still be used in memory.
+            # The calling function should handle this error.
 
 # --- FastAPI Dependency Injection ---
-_engine_instance = None
-
-def get_social_media_engine():
+# REFRESH.MD: Correctly use FastAPI's dependency injection system.
+# The factory now accepts dependencies as arguments, which will be provided by FastAPI.
+def get_social_media_engine(
+    spiritual_engine: EnhancedSpiritualEngine = Depends(get_spiritual_engine),
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
+) -> SocialMediaMarketingEngine:
     """
-    Provides a singleton instance of the SocialMediaMarketingEngine.
+    Provides a singleton-like instance of the SocialMediaMarketingEngine
+    by leveraging FastAPI's dependency caching.
     """
-    global _engine_instance
-    if _engine_instance is None:
-        logger.info("Creating new SocialMediaMarketingEngine instance.")
-        # These dependencies will also be resolved by FastAPI's DI system
-        spiritual_engine = get_spiritual_engine()
-        avatar_engine = get_avatar_engine()
-        _engine_instance = SocialMediaMarketingEngine(spiritual_engine, avatar_engine)
-    return _engine_instance
+    # FastAPI caches the result of this for a single request, effectively making it a singleton per-request.
+    return SocialMediaMarketingEngine(spiritual_engine, avatar_engine)
 

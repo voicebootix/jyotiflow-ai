@@ -448,7 +448,8 @@ async def generate_all_avatar_previews(
 @social_marketing_router.post("/generate-daily-content", response_model=StandardResponse)
 async def generate_daily_content(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine)
+    social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
+    conn = Depends(db.get_db)
 ):
     """
     Triggers the AI Marketing Engine to generate a content plan for the day.
@@ -458,6 +459,9 @@ async def generate_daily_content(
         # This one call orchestrates the entire planning process
         daily_plan = await social_engine.generate_daily_content_plan()
         
+        # Now, store the plan using the connection from this endpoint
+        await social_engine._store_content_plan_in_db(daily_plan, conn)
+
         # The plan is stored in the DB by the engine itself.
         # The response can be a summary of the plan.
         summary = {
@@ -465,10 +469,16 @@ async def generate_daily_content(
             for platform, posts in daily_plan.items()
         }
         
+        # REFRESH.MD: Convert Pydantic models to dicts for JSON serialization
+        serializable_plan = {
+            platform: [post.dict() for post in posts]
+            for platform, posts in daily_plan.items()
+        }
+
         return StandardResponse(
             success=True,
             message="Daily content plan generated successfully.",
-            data={"plan_summary": summary, "full_plan": daily_plan}
+            data={"plan_summary": summary, "full_plan": serializable_plan}
         )
     except Exception as e:
         logger.error(f"Error during daily content generation endpoint: {e}", exc_info=True)

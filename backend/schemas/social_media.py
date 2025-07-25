@@ -38,6 +38,14 @@ class ContentType(str, Enum):
     FESTIVAL_GREETING = "festival_greeting"
     USER_TESTIMONIAL = "user_testimonial"
 
+class PlanStatus(str, Enum):
+    """Represents the status of a content plan item."""
+    PENDING_GENERATION = "pending_generation"
+    PENDING_APPROVAL = "pending_approval"
+    SCHEDULED = "scheduled"
+    POSTED = "posted"
+    FAILED = "failed"
+
 # --- Main Models ---
 
 class BasePlatformStatus(BaseModel):
@@ -336,14 +344,14 @@ class AnalyticsResponse(BaseModel):
 
 class ContentPlan(BaseModel):
     """Represents a single piece of content to be generated and posted."""
-    platform: str
-    content_type: str
+    platform: SocialPlatform
+    content_type: ContentType
     title: str
     description: str
     hashtags: List[str]
     cta: str
     base_content_for_video: str
-    media_type: str # 'video' or 'text' or 'image'
-    status: str # 'pending_generation', 'pending_approval', 'scheduled', 'posted'
+    media_type: str  # 'video' or 'text' or 'image'
+    status: PlanStatus
     scheduled_time: Optional[datetime] = None
     media_url: Optional[HttpUrl] = None 
