@@ -79,6 +79,20 @@ try:
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
 
+# REFRESH.MD: Import the new automation engine
+try:
+    from backend.social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
+    AUTOMATION_ENGINE_AVAILABLE = True
+except ImportError as e:
+    AUTOMATION_ENGINE_AVAILABLE = False
+    # Log the import error for easier debugging
+    logging.error(f"Failed to import SocialMediaMarketingEngine: {e}", exc_info=True)
+    # Define a stub for graceful failure
+    class SocialMediaMarketingEngine:
+        pass
+    def get_social_media_engine():
+        raise HTTPException(status_code=501, detail="The Social Media Automation Engine is not available.")
+
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -336,6 +350,15 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(AuthenticationHel
         "styles": AVAILABLE_AVATAR_STYLES,
         "default_text": "Greetings from the digital ashram. May you find peace and wisdom."
     }
+    
+    # REFRESH.MD: Check for existing avatar image and include its URL in the response
+    upload_dir = Path("backend/static_uploads/avatars")
+    for ext in MIME_TYPE_TO_EXTENSION.values():
+        avatar_path = upload_dir / f"swamiji_base_avatar{ext}"
+        if avatar_path.exists():
+            config_data["image_url"] = f"/static/avatars/{avatar_path.name}"
+            break # Found the image, no need to check other extensions
+
     return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
 
 @social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
@@ -374,7 +397,8 @@ async def upload_swamiji_image(
         raise HTTPException(status_code=500, detail="Failed to save uploaded file.")
 
     logger.info(f"✅ Swamiji's photo saved to: {file_path}")
-    return StandardResponse(success=True, message="Image uploaded successfully.", data={"url": f"/static/avatars/{file_name}"})
+    # CORE.MD: Ensure response key matches frontend expectation ('image_url')
+    return StandardResponse(success=True, message="Image uploaded successfully.", data={"image_url": f"/static/avatars/{file_name}"})
 
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(
@@ -418,6 +442,50 @@ async def generate_all_avatar_previews(
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
+
+# --- Content Automation Endpoints ---
+
+@social_marketing_router.post("/generate-daily-content", response_model=StandardResponse)
+async def generate_daily_content(
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
+    conn = Depends(db.get_db)
+):
+    """
+    Triggers the AI Marketing Engine to generate a content plan for the day.
+    This is the main entry point for the daily automation task.
+    """
+    try:
+        # This one call orchestrates the entire planning process
+        daily_plan = await social_engine.generate_daily_content_plan()
+        
+        # Now, store the plan using the connection from this endpoint
+        await social_engine._store_content_plan_in_db(daily_plan, conn)
+
+        # The plan is stored in the DB by the engine itself.
+        # The response can be a summary of the plan.
+        summary = {
+            platform: f"{len(posts)} posts planned"
+            for platform, posts in daily_plan.items()
+        }
+        
+        # REFRESH.MD: Convert Pydantic models to dicts for JSON serialization
+        serializable_plan = {
+            platform: [post.dict() for post in posts]
+            for platform, posts in daily_plan.items()
+        }
+
+        return StandardResponse(
+            success=True,
+            message="Daily content plan generated successfully.",
+            data={"plan_summary": summary, "full_plan": serializable_plan}
+        )
+    except Exception as e:
+        logger.error(f"Error during daily content generation endpoint: {e}", exc_info=True)
+        # The dependency injector or the engine itself might raise HTTPExceptions,
+        # but we catch any other unexpected errors here.
+        raise HTTPException(status_code=500, detail=f"A critical error occurred while generating the daily content plan: {e}")
+
 
 # --- Content Posting & Asset Management (using placeholder data) ---
 

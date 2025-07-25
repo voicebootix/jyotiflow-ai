@@ -18,7 +18,35 @@ except ImportError:
 from typing import Optional, List, Dict, Any
 from datetime import datetime, date
 from enum import Enum
+from pydantic import BaseModel, Field, HttpUrl
 
+
+# --- Enums for Social Media Automation ---
+
+class SocialPlatform(str, Enum):
+    FACEBOOK = "facebook"
+    INSTAGRAM = "instagram"
+    YOUTUBE = "youtube"
+    TIKTOK = "tiktok"
+    TWITTER = "twitter"
+    LINKEDIN = "linkedin"
+
+class ContentType(str, Enum):
+    DAILY_WISDOM = "daily_wisdom"
+    SPIRITUAL_QUOTE = "spiritual_quote"
+    SATSANG_PROMO = "satsang_promo"
+    FESTIVAL_GREETING = "festival_greeting"
+    USER_TESTIMONIAL = "user_testimonial"
+
+class PlanStatus(str, Enum):
+    """Represents the status of a content plan item."""
+    PENDING_GENERATION = "pending_generation"
+    PENDING_APPROVAL = "pending_approval"
+    SCHEDULED = "scheduled"
+    POSTED = "posted"
+    FAILED = "failed"
+
+# --- Main Models ---
 
 class BasePlatformStatus(BaseModel):
     """Base model for status of social media platform connection"""
@@ -312,3 +340,18 @@ class AnalyticsResponse(BaseModel):
     summary: Optional[Dict[str, Any]] = None
     insights: Optional[List[str]] = None
     recommendations: Optional[List[str]] = None 
+
+
+class ContentPlan(BaseModel):
+    """Represents a single piece of content to be generated and posted."""
+    platform: SocialPlatform
+    content_type: ContentType
+    title: str
+    description: str
+    hashtags: List[str]
+    cta: str
+    base_content_for_video: str
+    media_type: str  # 'video' or 'text' or 'image'
+    status: PlanStatus
+    scheduled_time: Optional[datetime] = None
+    media_url: Optional[HttpUrl] = None 
