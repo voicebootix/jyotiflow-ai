@@ -339,7 +339,10 @@ async def get_swamiji_avatar_config(admin_user: dict = Depends(AuthenticationHel
     return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
 
 @social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
-async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
+async def upload_swamiji_image(
+    file: UploadFile, 
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
+):
     # REFRESH.MD: Restore filename null check (regression fix)
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided.")
