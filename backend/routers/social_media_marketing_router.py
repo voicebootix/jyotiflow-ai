@@ -16,11 +16,11 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported.
-from auth.auth_helpers import AuthenticationHelper
-from core.dependencies import get_database_manager
-from database.database_manager import DatabaseManager
-from schemas.response import StandardResponse
-from schemas.social_media import (
+from ..auth.auth_helpers import AuthenticationHelper
+from ..core.dependencies import get_database_manager
+from ..database.database_manager import DatabaseManager
+from ..schemas.response import StandardResponse
+from ..schemas.social_media import (
     Campaign,
     ContentCalendarItem,
     GenerateAllAvatarPreviewsRequest,
