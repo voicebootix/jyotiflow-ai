@@ -41,8 +41,9 @@ from schemas.social_media import (
     TikTokPlatformStatus,
     BasePlatformStatus,
 )
+# REFRESH.MD: Use a relative import for the avatar engine for deployment consistency.
 try:
-    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
     AVATAR_ENGINE_AVAILABLE = True
 except ImportError:
     AVATAR_ENGINE_AVAILABLE = False
