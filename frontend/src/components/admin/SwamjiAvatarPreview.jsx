@@ -107,6 +107,12 @@ const SwamjiAvatarPreview = () => {
       return;
     }
 
+    // CORE.MD: Add validation to ensure a voice is selected before proceeding.
+    if (!selectedVoice) {
+        addNotification('error', 'Voice configuration not loaded. Please refresh the page.');
+        return;
+    }
+
     try {
       setIsGenerating(true);
       const response = await enhanced_api.generateAvatarPreview({
