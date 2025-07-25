@@ -207,7 +207,8 @@ class SpiritualAvatarGenerationEngine:
 # --- FastAPI Dependency Injection ---
 _avatar_engine_instance = None
 
-def get_avatar_engine() -> SpiritualAvatarGenerationEngine:
+# REFRESH.MD: Corrected the function signature which was mistakenly altered
+def get_avatar_engine() -> "SpiritualAvatarGenerationEngine":
     """
     FastAPI dependency that provides a singleton instance of the avatar engine.
     """
