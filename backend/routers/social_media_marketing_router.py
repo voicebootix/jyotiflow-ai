@@ -30,7 +30,6 @@ from schemas.social_media import (
     MarketingOverview,
     PlatformConfig,
     PlatformConfigUpdate,
-    PlatformStatus,
     TestConnectionRequest,
     PostExecutionRequest,
     PostExecutionResult,
