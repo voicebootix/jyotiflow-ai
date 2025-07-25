@@ -5,18 +5,20 @@
 ### 1. UTC Timestamps with PostgreSQL Compatibility
 **Problem**: `datetime.now(timezone.utc)` caused "can't subtract offset-naive and offset-aware datetimes" error
 **Solution**: Changed to `datetime.now(timezone.utc).replace(tzinfo=None)`
+**Important**: All naive timestamps represent UTC time - they are UTC values with timezone info stripped for PostgreSQL compatibility
 **Benefit**: 
 - Maintains UTC semantics for consistency
 - Compatible with PostgreSQL TIMESTAMP columns  
 - Prevents timezone mismatch errors
+- **Note**: All naive timestamps in the testing system represent UTC time, not local time
 
 **Files Changed**:
 - `backend/test_suite_generator.py` (lines 2868, 2872, 2888)
 
-### 2. Hardcoded Path Removed
-**Problem**: Hardcoded `/workspace/backend` in sys.path caused environment failures
-**Solution**: Removed the file entirely (`test_fixes_verification.py` was temporary)
-**Benefit**: No more environment-specific path issues
+### 2. Hardcoded Path Issue Resolved
+**Problem**: Hardcoded `/workspace/backend` in sys.path could cause environment failures
+**Solution**: Removed the temporary file entirely (`test_fixes_verification.py` was a temporary testing file)
+**Benefit**: No hardcoded paths remain in the testing system codebase
 
 ### 3. Avatar Engine Export Issue (Left for Other Developer)
 **Problem**: Missing `avatar_engine` export breaking social media status endpoint
