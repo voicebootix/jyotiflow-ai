@@ -74,8 +74,6 @@ try:
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
 
-import asyncpg
-
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
