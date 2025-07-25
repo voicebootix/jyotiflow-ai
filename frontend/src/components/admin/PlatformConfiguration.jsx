@@ -147,10 +147,12 @@ const PlatformConfiguration = () => {
         return;
       }
 
-      const response = await enhanced_api.updatePlatformConfig({
-        platform,
-        config: apiKeys[platform]
-      });
+      // CORE.MD: Send only the specific platform's data for a partial update.
+      const payload = {
+        [platform]: apiKeys[platform]
+      };
+
+      const response = await enhanced_api.updatePlatformConfig(payload);
       
       responseData = response; // ✅ FIXED: response IS the data, no .data property
       

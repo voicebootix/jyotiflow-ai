@@ -29,12 +29,18 @@ from schemas.social_media import (
     MarketingAssetCreate,
     MarketingOverview,
     PlatformConfig,
+    PlatformConfigUpdate,
     PlatformStatus,
     TestConnectionRequest,
     PostExecutionRequest,
     PostExecutionResult,
     CampaignStatus,
     ContentStatus,
+    YouTubePlatformStatus,
+    FacebookPlatformStatus,
+    InstagramPlatformStatus,
+    TikTokPlatformStatus,
+    BasePlatformStatus,
 )
 try:
     from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
@@ -190,13 +196,19 @@ async def get_platform_config(
         rows = await conn.fetch("SELECT key, value FROM platform_settings WHERE key LIKE '%\\_config' ESCAPE '\\'")
         
         config_data = {}
+        platform_models = {
+            'youtube': YouTubePlatformStatus,
+            'facebook': FacebookPlatformStatus,
+            'instagram': InstagramPlatformStatus,
+            'tiktok': TikTokPlatformStatus,
+        }
+
         for row in rows:
             key = row['key']
-            # CORE.MD: Use a safer method to remove the suffix, preventing accidental replacements.
             if key.endswith('_config'):
-                platform_name = key[:-7]  # Slices off the last 7 characters ('_config')
-                # The value from DB is a JSON string, so we parse it.
-                config_data[platform_name] = PlatformStatus(**json.loads(row['value']))
+                platform_name = key[:-7]
+                model = platform_models.get(platform_name, BasePlatformStatus)
+                config_data[platform_name] = model(**json.loads(row['value']))
 
         # Ensure all platforms are present in the response, even if not in the DB
         final_config = PlatformConfig(**config_data)
@@ -207,24 +219,26 @@ async def get_platform_config(
         raise HTTPException(status_code=500, detail="Failed to retrieve platform configuration.")
 
 
-@social_marketing_router.post("/platform-config", response_model=StandardResponse)
+@social_marketing_router.patch("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
-    config_request: PlatformConfig,
+    config_update: PlatformConfigUpdate,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     conn: asyncpg.Connection = Depends(db.get_db)
 ):
-    """Save platform configurations to the database."""
+    """Save a single platform's configuration to the database."""
     try:
-        logger.info(f"Attempting to save platform config to database: {config_request.dict()}")
+        update_data = config_update.dict(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No configuration data provided.")
+
+        logger.info(f"Attempting to save platform config to database: {update_data}")
         
         async with conn.transaction():
-            for platform, status in config_request.dict().items():
-                if isinstance(status, dict): # Ensure we only process platform statuses
+            for platform, status in update_data.items():
+                if isinstance(status, dict):
                     key = f"{platform}_config"
-                    # Convert the status dictionary to a JSON string to store in the JSONB column
                     value = json.dumps(status)
                     
-                    # Use INSERT ... ON CONFLICT DO UPDATE to handle both new and existing settings
                     await conn.execute(
                         """
                         INSERT INTO platform_settings (key, value)

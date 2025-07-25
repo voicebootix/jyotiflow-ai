@@ -20,8 +20,8 @@ from datetime import datetime, date
 from enum import Enum
 
 
-class PlatformStatus(BaseModel):
-    """Status of social media platform connection"""
+class BasePlatformStatus(BaseModel):
+    """Base model for status of social media platform connection"""
     connected: bool = False
     username: Optional[str] = None
     last_sync: Optional[datetime] = None
@@ -30,18 +30,50 @@ class PlatformStatus(BaseModel):
     class Config:
         extra = 'ignore'
 
+class YouTubePlatformStatus(BasePlatformStatus):
+    """Status specific to YouTube"""
+    api_key: Optional[str] = None
+    channel_id: Optional[str] = None
+
+class FacebookPlatformStatus(BasePlatformStatus):
+    """Status specific to Facebook"""
+    app_id: Optional[str] = None
+    app_secret: Optional[str] = None
+    page_access_token: Optional[str] = None
+
+class InstagramPlatformStatus(BasePlatformStatus):
+    """Status specific to Instagram"""
+    app_id: Optional[str] = None
+    app_secret: Optional[str] = None
+    access_token: Optional[str] = None
+
+class TikTokPlatformStatus(BasePlatformStatus):
+    """Status specific to TikTok"""
+    client_key: Optional[str] = None
+    client_secret: Optional[str] = None
+
 
 class PlatformConfig(BaseModel):
     """Social media platform configuration"""
-    facebook: PlatformStatus = Field(default_factory=PlatformStatus)
-    instagram: PlatformStatus = Field(default_factory=PlatformStatus)
-    twitter: PlatformStatus = Field(default_factory=PlatformStatus)
-    youtube: PlatformStatus = Field(default_factory=PlatformStatus)
-    linkedin: PlatformStatus = Field(default_factory=PlatformStatus)
-    tiktok: PlatformStatus = Field(default_factory=PlatformStatus)
+    facebook: FacebookPlatformStatus = Field(default_factory=FacebookPlatformStatus)
+    instagram: InstagramPlatformStatus = Field(default_factory=InstagramPlatformStatus)
+    twitter: BasePlatformStatus = Field(default_factory=BasePlatformStatus) # Using base for now
+    youtube: YouTubePlatformStatus = Field(default_factory=YouTubePlatformStatus)
+    linkedin: BasePlatformStatus = Field(default_factory=BasePlatformStatus) # Using base for now
+    tiktok: TikTokPlatformStatus = Field(default_factory=TikTokPlatformStatus)
 
     class Config:
         extra = 'ignore'
+
+
+class PlatformConfigUpdate(BaseModel):
+    """Model for updating a single platform's configuration."""
+    facebook: Optional[FacebookPlatformStatus] = None
+    instagram: Optional[InstagramPlatformStatus] = None
+    twitter: Optional[BasePlatformStatus] = None
+    youtube: Optional[YouTubePlatformStatus] = None
+    linkedin: Optional[BasePlatformStatus] = None
+    tiktok: Optional[TikTokPlatformStatus] = None
 
 
 class TestConnectionRequest(BaseModel):
