@@ -41,9 +41,9 @@ from schemas.social_media import (
     TikTokPlatformStatus,
     BasePlatformStatus,
 )
-# REFRESH.MD: Use a relative import for the avatar engine for deployment consistency.
+# REFRESH.MD: Use direct imports from the root of the 'backend' package for Render compatibility.
 try:
-    from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
     AVATAR_ENGINE_AVAILABLE = True
 except ImportError:
     AVATAR_ENGINE_AVAILABLE = False
@@ -80,9 +80,9 @@ try:
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
 
-# REFRESH.MD: Use relative imports for deployment robustness
+# REFRESH.MD: Use direct imports from the root of the 'backend' package for Render compatibility.
 try:
-    from ..social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
+    from social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
     AUTOMATION_ENGINE_AVAILABLE = True
 except ImportError as e:
     AUTOMATION_ENGINE_AVAILABLE = False
@@ -94,12 +94,18 @@ except ImportError as e:
     def get_social_media_engine():
         raise HTTPException(status_code=501, detail="The Social Media Automation Engine is not available.")
 
-# REFRESH.MD: Use relative imports for deployment robustness
-from ..services.supabase_storage_service import SupabaseStorageService, get_storage_service
+# REFRESH.MD: Wrap Supabase service import in a try-except block for robustness.
+try:
+    from services.supabase_storage_service import SupabaseStorageService, get_storage_service
+    STORAGE_SERVICE_AVAILABLE = True
+except ImportError:
+    STORAGE_SERVICE_AVAILABLE = False
+    class SupabaseStorageService: pass
+    def get_storage_service():
+        raise HTTPException(status_code=501, detail="Storage service is not available.")
 
-# CORE.MD: Import the default voice ID for fallback
 # This import is no longer needed as frontend now sends the voice_id
-# from ..spiritual_avatar_generation_engine import DEFAULT_VOICE_ID
+# from spiritual_avatar_generation_engine import DEFAULT_VOICE_ID
 
 
 # Initialize logger and router

@@ -14,11 +14,11 @@ from pydantic import BaseModel, Field
 from fastapi import Depends
 
 # Local dependencies
-# REFRESH.MD: Use correct relative imports for sibling modules within the same package.
-from .core_foundation_enhanced import EnhancedSpiritualEngine, get_spiritual_engine
-from .spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
-from .schemas.social_media import SocialPlatform, ContentType, ContentPlan
-from .config.social_media_config import PLATFORM_CONFIGS, CONTENT_PROMPTS
+# REFRESH.MD: Use direct imports from the root of the 'backend' package for Render compatibility.
+from core_foundation_enhanced import EnhancedSpiritualEngine, get_spiritual_engine
+from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+from schemas.social_media import SocialPlatform, ContentType, ContentPlan
+from config.social_media_config import PLATFORM_CONFIGS, CONTENT_PROMPTS
 import db
 
 # Initialize logger
