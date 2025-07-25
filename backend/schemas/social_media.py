@@ -41,7 +41,8 @@ class PlatformConfig(BaseModel):
 class TestConnectionRequest(BaseModel):
     """Request to test platform connection"""
     platform: str = Field(..., pattern=r'^(facebook|instagram|twitter|youtube|linkedin|tiktok)$')
-    config: Optional[Dict[str, str]] = None
+    # REFRESH.MD: Changed from Dict[str, str] to Dict[str, Any] to support mixed types from frontend.
+    config: Optional[Dict[str, Any]] = None
 
 
 class MarketingOverview(BaseModel):
