@@ -32,7 +32,6 @@ class TikTokService:
             if not token_test["success"]:
                 return token_test
             
-            # Test 2: Validate the app access token
             access_token = token_test.get("access_token")
             if not access_token:
                 return {
@@ -40,7 +39,7 @@ class TikTokService:
                     "error": "No access token received from TikTok API"
                 }
             
-            # Test 3: Validate app access token with app info endpoint
+            # Test 2: Validate the app access token with app info endpoint
             validation_test = await self._validate_app_access_token(access_token)
             if not validation_test["success"]:
                 return validation_test

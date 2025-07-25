@@ -10,7 +10,7 @@ import asyncpg
 import json
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Union
 import os
 import logging
 
@@ -622,6 +622,81 @@ class AutoFixTestIntegrator:
                 "improved": False,
                 "rollback_required": True,
                 "reason": f"Analysis failed: {str(e)}"
+            }
+    
+    async def pre_fix_comprehensive_test(self) -> Union[str, Dict[str, Any]]:
+        """Run comprehensive pre-fix testing for self-healing system"""
+        try:
+            session_id = await self._create_test_session(
+                test_type="comprehensive_pre_fix",
+                test_category="auto_healing",
+                triggered_by="self_healing_system",
+                trigger_context={"phase": "pre_fix", "timestamp": datetime.now(timezone.utc).isoformat()}
+            )
+            
+            # Run comprehensive validation tests
+            focus_areas = ["database", "api", "business_logic", "monitoring"]
+            
+            for area in focus_areas:
+                validation_result = await self._execute_validation_tests(
+                    session_id, area, "comprehensive_pre_fix"
+                )
+                logger.info(f"Pre-fix validation for {area}: {validation_result}")
+            
+            return session_id
+            
+        except Exception as e:
+            logger.error(f"Comprehensive pre-fix testing failed: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "error_type": "pre_fix_test_failure",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+    
+    async def post_fix_comprehensive_test(self, pre_fix_session_id: str) -> Union[str, Dict[str, Any]]:
+        """Run comprehensive post-fix testing for self-healing system"""
+        # Validate pre_fix_session_id parameter
+        if not pre_fix_session_id or not pre_fix_session_id.strip():
+            logger.error("Invalid pre_fix_session_id provided to post_fix_comprehensive_test")
+            return {
+                "status": "error",
+                "error": "Invalid or empty pre_fix_session_id parameter",
+                "error_type": "validation_error",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            }
+            
+        try:
+            session_id = await self._create_test_session(
+                test_type="comprehensive_post_fix",
+                test_category="auto_healing", 
+                triggered_by="self_healing_system",
+                trigger_context={
+                    "phase": "post_fix", 
+                    "pre_fix_session": pre_fix_session_id,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            )
+            
+            # Run comprehensive validation tests
+            focus_areas = ["database", "api", "business_logic", "monitoring"]
+            
+            for area in focus_areas:
+                validation_result = await self._execute_validation_tests(
+                    session_id, area, "comprehensive_post_fix"
+                )
+                logger.info(f"Post-fix validation for {area}: {validation_result}")
+            
+            return session_id
+            
+        except Exception as e:
+            logger.error(f"Comprehensive post-fix testing failed: {e}")
+            return {
+                "status": "error",
+                "error": str(e),
+                "error_type": "post_fix_test_failure",
+                "pre_fix_session_id": pre_fix_session_id,
+                "timestamp": datetime.now(timezone.utc).isoformat()
             }
 
 # Example integration with database self-healing system

@@ -58,7 +58,7 @@ const TestResultsDashboard = () => {
             // Fetch test sessions
             const sessionsResponse = await spiritualAPI.get('/api/monitoring/test-sessions');
             if (sessionsResponse && sessionsResponse.status === 'success') {
-                setTestSessions(sessionsResponse.data || []);
+                setTestSessions(sessionsResponse.data?.sessions || []);
             }
             
             // Fetch test metrics

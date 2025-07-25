@@ -3,27 +3,24 @@
 
 Complete and robust API for all social media marketing operations.
 This file follows CORE.MD and REFRESH.MD principles for quality and maintainability.
-- No silent failures: All imports are direct. If a dependency is missing, the app will fail fast.
-- Consistent Dependencies: Uses a single, reliable dependency for admin user authentication.
-- Clean and Readable: Code is organized and easy to follow.
 """
 
 import logging
-from typing import List, Optional, Dict, Any
+from pathlib import Path
+import shutil
+from typing import Optional
+import json
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel, Field
 
 # CORE.MD: All necessary dependencies are explicitly imported.
-from ..auth.auth_helpers import get_current_admin_user
-from ..core.config import AppSettings
-from ..core.dependencies import get_app_settings, get_database_manager
-from ..database.database_manager import DatabaseManager
-from ..schemas.response import StandardResponse
-from ..schemas.social_media import (
+from auth.auth_helpers import AuthenticationHelper
+from schemas.response import StandardResponse
+from schemas.social_media import (
     Campaign,
     ContentCalendarItem,
-    FacebookConfigRequest,
     GenerateAllAvatarPreviewsRequest,
     GenerateAvatarPreviewRequest,
     MarketingAsset,
@@ -31,24 +28,50 @@ from ..schemas.social_media import (
     MarketingOverview,
     PlatformConfig,
     PlatformStatus,
-    PostContent,
+    TestConnectionRequest,
     PostExecutionRequest,
     PostExecutionResult,
-    TestConnectionRequest,
-    TikTokConfigRequest,
-    TwitterConfigRequest,
-    YouTubeConfigRequest
+    CampaignStatus,
+    ContentStatus,
 )
-from ..services.credit_service import CreditService
-from ..services.facebook_service import FacebookService
-from ..services.instagram_service import InstagramService
-from ..services.linkedin_service import LinkedInService
-from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
-from ..services.tiktok_service import TikTokService
-from ..services.twitter_service import TwitterService
-from ..services.user_service import UserService
-from ..services.youtube_service import YouTubeService
-from ..utils.celery_utils import get_task_status
+try:
+    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    AVATAR_ENGINE_AVAILABLE = True
+except ImportError:
+    AVATAR_ENGINE_AVAILABLE = False
+    # CORE.MD: Define stubs for graceful dependency injection failure.
+    class SpiritualAvatarGenerationEngine:
+        pass  # Empty class definition
+
+    def get_avatar_engine():
+        raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available due to missing dependencies.")
+
+
+# REFRESH.MD: Use try-except blocks for service imports to prevent router import failures.
+try:
+    from services.youtube_service import youtube_service
+    YOUTUBE_SERVICE_AVAILABLE = True
+except ImportError:
+    YOUTUBE_SERVICE_AVAILABLE = False
+
+try:
+    from services.facebook_service import facebook_service
+    FACEBOOK_SERVICE_AVAILABLE = True
+except ImportError:
+    FACEBOOK_SERVICE_AVAILABLE = False
+
+try:
+    from services.instagram_service import instagram_service
+    INSTAGRAM_SERVICE_AVAILABLE = True
+except ImportError:
+    INSTAGRAM_SERVICE_AVAILABLE = False
+
+try:
+    from services.tiktok_service import tiktok_service
+    TIKTOK_SERVICE_AVAILABLE = True
+except ImportError:
+    TIKTOK_SERVICE_AVAILABLE = False
+
 
 # Initialize logger and router
 logger = logging.getLogger(__name__)
@@ -60,57 +83,102 @@ social_marketing_router = APIRouter(
 # REFRESH.MD: Centralize available styles to avoid magic strings and promote maintainability.
 AVAILABLE_AVATAR_STYLES = ["traditional", "modern", "default"]
 
+# CORE.MD: Define security constants for file uploads
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"]
+MIME_TYPE_TO_EXTENSION = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
 
-# --- Marketing Overview Endpoints ---
+
+# --- Marketing Overview Endpoints (using placeholder data) ---
 
 @social_marketing_router.get("/overview", response_model=StandardResponse)
-async def get_marketing_overview(admin_user: dict = Depends(get_current_admin_user)):
-    """Get comprehensive marketing overview with KPIs and performance data"""
-    # This is a placeholder. In a real application, you would fetch this data
-    # from a database or an analytics service.
+async def get_marketing_overview(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     overview_data = MarketingOverview(
-        total_campaigns=10,
-        active_campaigns=3,
-        total_posts=150,
-        total_engagement=12500,
-        reach=75000
+        total_campaigns=10, active_campaigns=3, total_posts=150, total_engagement=12500, reach=75000
     )
     return StandardResponse(success=True, data=overview_data, message="Marketing overview retrieved successfully.")
 
 @social_marketing_router.get("/content-calendar", response_model=StandardResponse)
 async def get_content_calendar(
-    date: Optional[str] = Query(None, description="Date for calendar (YYYY-MM-DD)"),
-    platform: Optional[str] = Query(None, description="Filter by platform"),
-    admin_user: dict = Depends(get_current_admin_user)
+    date: Optional[str] = None,
+    platform: Optional[str] = None,
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
-    """Get content calendar with scheduled and posted content"""
-    # Placeholder data
-    calendar_data = [
-        ContentCalendarItem(id=1, date="2024-08-15T10:00:00Z", platform="Facebook", content="Satsang announcement", status="posted"),
-        ContentCalendarItem(id=2, date="2024-08-16T12:00:00Z", platform="Twitter", content="Daily wisdom quote", status="scheduled"),
+    """Get content calendar with optional date and platform filtering"""
+    # Base calendar data
+    all_calendar_data = [
+        ContentCalendarItem(id=1, date="2024-08-15", platform="Facebook", content="Satsang announcement", status=ContentStatus.POSTED),
+        ContentCalendarItem(id=2, date="2024-08-16", platform="Twitter", content="Daily wisdom quote", status=ContentStatus.SCHEDULED),
+        ContentCalendarItem(id=3, date="2024-08-15", platform="Instagram", content="Meditation session", status=ContentStatus.POSTED),
+        ContentCalendarItem(id=4, date="2024-08-17", platform="Facebook", content="Weekly blessing", status=ContentStatus.SCHEDULED),
     ]
-    return StandardResponse(success=True, data={"calendar": calendar_data}, message="Content calendar retrieved successfully.")
+    
+    # Apply filters following CORE.MD principles - explicit filter handling
+    filtered_data = all_calendar_data
+    
+    # Filter by platform if specified
+    if platform:
+        filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+        logger.info(f"Filtered calendar by platform: {platform}, found {len(filtered_data)} items")
+    
+    # Filter by date if specified (matches date part only)
+    if date:
+        # REFRESH.MD: Ensure date filtering is robust.
+        # This implementation correctly handles string-based date matching.
+        filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
+        logger.info(f"Filtered calendar by date: {date}, found {len(filtered_data)} items")
+    
+    return StandardResponse(
+        success=True, 
+        data={"calendar": filtered_data}, 
+        message=f"Content calendar retrieved successfully. {len(filtered_data)} items found."
+    )
 
 @social_marketing_router.get("/campaigns", response_model=StandardResponse)
 async def get_campaigns(
-    status: Optional[str] = Query(None, description="Filter by status (active, paused, completed)"),
-    platform: Optional[str] = Query(None, description="Filter by platform"),
-    admin_user: dict = Depends(get_current_admin_user)
+    status: Optional[str] = None,
+    platform: Optional[str] = None,
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
-    """Get all marketing campaigns"""
-    # Placeholder data
-    campaign_data = [
-        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status="active", start_date="2024-10-20", end_date="2024-11-05"),
-        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status="completed", start_date="2024-06-01", end_date="2024-06-30"),
+    """Get campaigns with optional status and platform filtering"""
+    # Base campaign data with more examples for proper filtering demonstration
+    # REFRESH.MD: Using dynamic, future-proof dates to ensure deterministic behavior.
+    today = datetime.now().date()
+    all_campaigns = [
+        Campaign(id=1, name="Diwali Special Satsang", platform="YouTube", status=CampaignStatus.ACTIVE, start_date=today - timedelta(days=10), end_date=today + timedelta(days=20)),
+        Campaign(id=2, name="Summer Wisdom Series", platform="Facebook", status=CampaignStatus.COMPLETED, start_date=today - timedelta(days=90), end_date=today - timedelta(days=60)),
+        Campaign(id=3, name="Meditation Mondays", platform="Instagram", status=CampaignStatus.ACTIVE, start_date=today, end_date=today + timedelta(days=150)),
+        Campaign(id=4, name="Spiritual Stories", platform="YouTube", status=CampaignStatus.DRAFT, start_date=today + timedelta(days=5), end_date=today + timedelta(days=100)),
+        Campaign(id=5, name="Daily Wisdom", platform="Twitter", status=CampaignStatus.ACTIVE, start_date=today - timedelta(days=365), end_date=today + timedelta(days=365)),
     ]
-    return StandardResponse(success=True, data={"campaigns": campaign_data}, message="Campaigns retrieved successfully.")
+    
+    # Apply filters following CORE.MD principles - explicit filter handling
+    filtered_campaigns = all_campaigns
+    
+    # Filter by status if specified
+    if status:
+        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.status.value.lower() == status.lower()]
+        logger.info(f"Filtered campaigns by status: {status}, found {len(filtered_campaigns)} campaigns")
+    
+    # Filter by platform if specified
+    if platform:
+        filtered_campaigns = [campaign for campaign in filtered_campaigns if campaign.platform.lower() == platform.lower()]
+        logger.info(f"Filtered campaigns by platform: {platform}, found {len(filtered_campaigns)} campaigns")
+    
+    return StandardResponse(
+        success=True, 
+        data={"campaigns": filtered_campaigns}, 
+        message=f"Campaigns retrieved successfully. {len(filtered_campaigns)} campaigns found."
+    )
 
-# --- Platform Configuration Endpoints ---
+# --- Platform Configuration Endpoints (using placeholder data) ---
 
 @social_marketing_router.get("/platform-config", response_model=StandardResponse)
-async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)):
-    """Retrieve current platform configurations"""
-    # In a real app, this would be fetched from the database.
+async def get_platform_config(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     config_data = PlatformConfig(
         facebook=PlatformStatus(connected=True, username="jyotiflow.ai"),
         twitter=PlatformStatus(connected=False, username=None),
@@ -123,66 +191,170 @@ async def get_platform_config(admin_user: dict = Depends(get_current_admin_user)
 
 @social_marketing_router.post("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
-    config: PlatformConfig,
-    admin_user: dict = Depends(get_current_admin_user)
+    config_request: PlatformConfig,
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
-    """Save platform configurations"""
-    logger.info(f"Attempting to save platform config: {config.dict()}")
-    # In a real app, you would save this to the database.
-    # Here, we just simulate a success response.
-    return StandardResponse(success=True, message="Configuration saved successfully.")
+    try:
+        logger.info(f"Attempting to save platform config: {config_request.dict()}")
+        
+        # CORE.MD: Use a structured and safe approach for file-based persistence.
+        # This is a placeholder for a real database implementation.
+        cache_dir = Path("backend/cache")
+        
+        # REFRESH.MD: Proactively check for directory existence and permissions.
+        try:
+            cache_dir.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Error creating cache directory {cache_dir}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to create configuration directory due to permission error.")
+
+        # In a production environment, this path should be configurable.
+        config_path = cache_dir / "platform_config_cache.json"
+
+        with open(config_path, "w") as f:
+            json.dump(config_request.dict(), f, indent=2)
+
+        return StandardResponse(success=True, message="Configuration saved successfully.")
+    except Exception as e:
+        logger.error(f"Failed to save platform configuration: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred while saving the configuration: {e}")
 
 
 @social_marketing_router.post("/test-connection", response_model=StandardResponse)
 async def test_platform_connection(
     request: TestConnectionRequest,
-    admin_user: dict = Depends(get_current_admin_user)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
-    """Test connection for a specific social media platform"""
-    # Placeholder logic
-    if request.platform in ["facebook", "instagram", "youtube"]:
-        return StandardResponse(success=True, message=f"Successfully connected to {request.platform}.")
-    else:
-        return StandardResponse(success=False, message=f"Connection to {request.platform} failed. Please check credentials.")
+    logger.info(f"Testing connection for platform: {request.platform}")
+    if not request.config:
+        raise HTTPException(status_code=400, detail="Configuration data is missing in the request.")
+
+    try:
+        result = None
+        if request.platform == "youtube":
+            if not YOUTUBE_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="YouTube service is not available.")
+            api_key = request.config.get("api_key")
+            channel_id = request.config.get("channel_id")
+            if not api_key or not channel_id:
+                raise HTTPException(status_code=400, detail="YouTube API key and Channel ID are required.")
+            result = await youtube_service.validate_credentials(api_key, channel_id)
+
+        elif request.platform == "facebook":
+            if not FACEBOOK_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="Facebook service is not available.")
+            app_id = request.config.get("app_id")
+            app_secret = request.config.get("app_secret")
+            access_token = request.config.get("page_access_token")
+            if not all([app_id, app_secret, access_token]):
+                 raise HTTPException(status_code=400, detail="Facebook App ID, App Secret, and Page Access Token are required.")
+            result = await facebook_service.validate_credentials(app_id, app_secret, access_token)
+
+        elif request.platform == "instagram":
+            if not INSTAGRAM_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="Instagram service is not available.")
+            app_id = request.config.get("app_id")
+            app_secret = request.config.get("app_secret")
+            access_token = request.config.get("access_token")
+            if not all([app_id, app_secret, access_token]):
+                raise HTTPException(status_code=400, detail="Instagram App ID, App Secret, and Access Token are required.")
+            result = await instagram_service.validate_credentials(app_id, app_secret, access_token)
+        
+        elif request.platform == "tiktok":
+            if not TIKTOK_SERVICE_AVAILABLE:
+                raise HTTPException(status_code=501, detail="TikTok service is not available.")
+            client_key = request.config.get("client_key")
+            client_secret = request.config.get("client_secret")
+            if not client_key or not client_secret:
+                raise HTTPException(status_code=400, detail="TikTok Client Key and Secret are required.")
+            result = await tiktok_service.validate_credentials(client_key, client_secret)
+
+        else:
+            # CORE.MD: Ensure all branches return a standardized response.
+            raise HTTPException(status_code=404, detail=f"Connection testing for {request.platform} is not implemented yet.")
+
+        # REFRESH.MD: Standardize response handling from all services.
+        if result and result.get("success"):
+            return StandardResponse(success=True, data=result, message=result.get("message", "Connection successful."))
+        else:
+            # REFRESH.MD: Uniformly handle varying error structures.
+            error_detail = result.get("error", "Unknown error during validation.")
+            if isinstance(error_detail, dict):
+                 error_detail = error_detail.get("message", "Nested error occurred.")
+            return StandardResponse(success=False, message=str(error_detail), data=result)
+
+    except HTTPException as http_exc:
+        # Re-raise HTTP exceptions to be handled by FastAPI
+        raise http_exc
+    except Exception as e:
+        logger.error(f"Connection test failed for {request.platform}: {e}", exc_info=True)
+        # REFRESH.MD: Use 'from e' for proper exception chaining.
+        raise HTTPException(status_code=500, detail="An unexpected error occurred during the connection test.") from e
+
 
 # --- Spiritual Avatar Endpoints ---
 
 @social_marketing_router.get("/swamiji-avatar-config", response_model=StandardResponse)
-async def get_swamiji_avatar_config(admin_user: dict = Depends(get_current_admin_user)):
-    """Retrieve Swamiji avatar configuration, like available voices and styles"""
-    try:
-        # Placeholder data, in a real scenario this might come from a config file or DB
-        config_data = {
-            "voices": [
-                {"id": "swamiji_voice_v1", "name": "Swamiji Calm Voice"},
-                {"id": "swamiji_voice_v2", "name": "Swamiji Energetic Voice"}
-            ],
-            "styles": AVAILABLE_AVATAR_STYLES,
-            "default_text": "Greetings from the digital ashram. May you find peace and wisdom in these words."
-        }
-        return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
-    except Exception as e:
-        logger.error(f"Error retrieving avatar configuration: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail="Failed to retrieve avatar configuration."
-        ) from e
+async def get_swamiji_avatar_config(admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
+    config_data = {
+        "voices": [{"id": "swamiji_voice_v1", "name": "Swamiji Calm Voice"}],
+        "styles": AVAILABLE_AVATAR_STYLES,
+        "default_text": "Greetings from the digital ashram. May you find peace and wisdom."
+    }
+    return StandardResponse(success=True, data=config_data, message="Avatar configuration retrieved.")
 
+@social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
+async def upload_swamiji_image(file: UploadFile = File(...), admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
+    # REFRESH.MD: Restore filename null check (regression fix)
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided.")
+
+    # CORE.MD: Add MIME Type validation (security fix)
+    if file.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail=f"Invalid file type. Only {', '.join(ALLOWED_MIME_TYPES)} are allowed.")
+
+    # REFRESH.MD: Read the file ONCE into memory to be efficient and avoid pointer issues.
+    contents = await file.read()
+
+    # CORE.MD: Enforce file size limit on the in-memory content.
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail=f"File size exceeds the limit of {MAX_FILE_SIZE / 1024 / 1024} MB.")
+
+    # CORE.MD: Sanitize filename and use extension from validated MIME type
+    upload_dir = Path("backend/static_uploads/avatars")
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    file_extension = MIME_TYPE_TO_EXTENSION[file.content_type]
+    file_name = f"swamiji_base_avatar{file_extension}"
+    file_path = upload_dir / file_name
+
+    try:
+        # Write the in-memory contents to the file.
+        with open(file_path, "wb") as buffer:
+            buffer.write(contents)
+    except Exception as e:
+        logger.error(f"Could not write uploaded file to disk: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save uploaded file.")
+
+    logger.info(f"✅ Swamiji's photo saved to: {file_path}")
+    return StandardResponse(success=True, message="Image uploaded successfully.", data={"url": f"/static/avatars/{file_name}"})
 
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(
     request: GenerateAvatarPreviewRequest,
-    admin_user: dict = Depends(get_current_admin_user),
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
-    """Generates a single avatar preview for a selected style."""
+    """Generates a single, lightweight avatar preview."""
     try:
-        result = await avatar_engine.generate_one_style(
-            text=request.text,
-            style=request.style,
+        result = await avatar_engine.generate_avatar_preview_lightweight(
+            guidance_text=request.text,
+            avatar_style=request.style,
             voice_id=request.voice_id
         )
-        return StandardResponse(success=True, message="Avatar preview generated.", data=result)
+        if result.get("success"):
+            return StandardResponse(success=True, message="Avatar preview generated.", data=result)
+        else:
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate preview."))
     except Exception as e:
         logger.error(f"Avatar preview generation failed for style {request.style}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating preview: {e}") from e
@@ -191,71 +363,38 @@ async def generate_avatar_preview(
 @social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse)
 async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
-    admin_user: dict = Depends(get_current_admin_user),
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
-    """Generates avatar previews for all available styles."""
+    """Generates lightweight avatar previews for all available styles."""
     try:
-        result = await avatar_engine.generate_all_styles(
-            text=request.text,
-            voice_id=request.voice_id
-        )
-        return StandardResponse(success=True, message="All avatar previews generated.", data=result)
+        results = []
+        for style in AVAILABLE_AVATAR_STYLES:
+            style_result = await avatar_engine.generate_avatar_preview_lightweight(
+                guidance_text=request.text,
+                avatar_style=style,
+                voice_id=request.voice_id
+            )
+            results.append(style_result)
+        return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
 
-# --- Content Creation and Posting ---
-
-@social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
-async def upload_swamiji_image(
-    file: UploadFile = File(...),
-    admin_user: dict = Depends(get_current_admin_user)
-):
-    """Upload a new image of Swamiji to be used as an avatar source."""
-    # In a real app, you would save this to cloud storage (e.g., S3)
-    # and store the URL in the database.
-    logger.info(f"Received image upload: {file.filename}")
-    return StandardResponse(
-        success=True,
-        message="Image uploaded successfully.",
-        data={"url": f"/static/images/swamiji/{file.filename}"}
-    )
-
+# --- Content Posting & Asset Management (using placeholder data) ---
 
 @social_marketing_router.post("/execute-posting", response_model=StandardResponse)
-async def execute_posting(
-    request: PostExecutionRequest,
-    admin_user: dict = Depends(get_current_admin_user)
-):
-    """Execute the posting of content to the selected platforms."""
-    # This is a complex endpoint that would trigger background tasks
-    # to post content to each platform.
-    # Placeholder response:
+async def execute_posting(request: PostExecutionRequest, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     result = PostExecutionResult(
-        success=True,
-        message="Content posting has been scheduled.",
-        task_id="task_12345",
-        platform_statuses={
-            platform: "scheduled" for platform in request.platforms
-        }
+        success=True, message="Content posting has been scheduled.", task_id="task_12345",
+        platform_statuses={platform: "scheduled" for platform in request.platforms}
     )
     return StandardResponse(success=True, data=result, message="Posting scheduled.")
 
-# --- Asset Management ---
 @social_marketing_router.post("/assets", response_model=StandardResponse, status_code=201)
-async def create_marketing_asset(
-    asset: MarketingAssetCreate,
-    admin_user: dict = Depends(get_current_admin_user)
-):
-    """Create a new marketing asset (image, video, etc.)"""
-    # Placeholder logic
+async def create_marketing_asset(asset: MarketingAssetCreate, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     new_asset = MarketingAsset(
-        id=1,
-        name=asset.name,
-        type=asset.type,
-        url=asset.url,
-        created_at="2024-08-15T15:00:00Z"
+        id=1, name=asset.name, type=asset.type, url=asset.url, created_at="2024-08-15T15:00:00Z"
     )
     return StandardResponse(success=True, data=new_asset, message="Asset created successfully.")
 
