@@ -27,6 +27,22 @@ class PlatformStatus(BaseModel):
     last_sync: Optional[datetime] = None
     error_message: Optional[str] = None
 
+    # YouTube
+    api_key: Optional[str] = None
+    channel_id: Optional[str] = None
+
+    # Facebook
+    app_id: Optional[str] = None
+    app_secret: Optional[str] = None
+    page_access_token: Optional[str] = None
+
+    # Instagram
+    access_token: Optional[str] = None
+
+    # TikTok
+    client_key: Optional[str] = None
+    client_secret: Optional[str] = None
+
     class Config:
         extra = 'ignore'
 
