@@ -14,10 +14,11 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from pydantic import BaseModel, Field
+import asyncpg
 
 # CORE.MD: All necessary dependencies are explicitly imported.
 from ..auth.auth_helpers import AuthenticationHelper
-from ..main import get_database_manager, DatabaseManager
+from .. import db
 from ..schemas.response import StandardResponse
 from ..schemas.social_media import (
     Campaign,
@@ -181,12 +182,12 @@ async def get_campaigns(
 @social_marketing_router.get("/platform-config", response_model=StandardResponse)
 async def get_platform_config(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    db: DatabaseManager = Depends(get_database_manager)
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
     """Retrieve current platform configurations from the database."""
     try:
         # REFRESH.MD: Escaped the underscore in the LIKE clause to treat it as a literal.
-        rows = await db.fetch_all("SELECT key, value FROM platform_settings WHERE key LIKE '%\\_config' ESCAPE '\\'")
+        rows = await conn.fetch("SELECT key, value FROM platform_settings WHERE key LIKE '%\\_config' ESCAPE '\\'")
         
         config_data = {}
         for row in rows:
@@ -210,32 +211,31 @@ async def get_platform_config(
 async def save_platform_config(
     config_request: PlatformConfig,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    db: DatabaseManager = Depends(get_database_manager)
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
     """Save platform configurations to the database."""
     try:
         logger.info(f"Attempting to save platform config to database: {config_request.dict()}")
         
-        async with db.get_connection() as conn:
-            # Using a transaction to ensure all or nothing is saved
-            async with conn.transaction():
-                for platform, status in config_request.dict().items():
-                    if isinstance(status, dict): # Ensure we only process platform statuses
-                        key = f"{platform}_config"
-                        # Convert the status dictionary to a JSON string to store in the JSONB column
-                        value = json.dumps(status)
-                        
-                        # Use INSERT ... ON CONFLICT DO UPDATE to handle both new and existing settings
-                        await conn.execute(
-                            """
-                            INSERT INTO platform_settings (key, value)
-                            VALUES ($1, $2)
-                            ON CONFLICT (key) DO UPDATE
-                            SET value = EXCLUDED.value, updated_at = NOW()
-                            """,
-                            key,
-                            value
-                        )
+        # Using a transaction to ensure all or nothing is saved
+        async with conn.transaction():
+            for platform, status in config_request.dict().items():
+                if isinstance(status, dict): # Ensure we only process platform statuses
+                    key = f"{platform}_config"
+                    # Convert the status dictionary to a JSON string to store in the JSONB column
+                    value = json.dumps(status)
+                    
+                    # Use INSERT ... ON CONFLICT DO UPDATE to handle both new and existing settings
+                    await conn.execute(
+                        """
+                        INSERT INTO platform_settings (key, value)
+                        VALUES ($1, $2)
+                        ON CONFLICT (key) DO UPDATE
+                        SET value = EXCLUDED.value, updated_at = NOW()
+                        """,
+                        key,
+                        value
+                    )
 
         return StandardResponse(success=True, message="Configuration saved successfully.")
     except Exception as e:
