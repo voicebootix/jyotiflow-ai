@@ -36,6 +36,11 @@ from schemas.social_media import (
     PostExecutionResult,
     CampaignStatus,
     ContentStatus,
+    YouTubePlatformStatus,
+    FacebookPlatformStatus,
+    InstagramPlatformStatus,
+    TikTokPlatformStatus,
+    BasePlatformStatus,
 )
 try:
     from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
@@ -191,13 +196,19 @@ async def get_platform_config(
         rows = await conn.fetch("SELECT key, value FROM platform_settings WHERE key LIKE '%\\_config' ESCAPE '\\'")
         
         config_data = {}
+        platform_models = {
+            'youtube': YouTubePlatformStatus,
+            'facebook': FacebookPlatformStatus,
+            'instagram': InstagramPlatformStatus,
+            'tiktok': TikTokPlatformStatus,
+        }
+
         for row in rows:
             key = row['key']
-            # CORE.MD: Use a safer method to remove the suffix, preventing accidental replacements.
             if key.endswith('_config'):
-                platform_name = key[:-7]  # Slices off the last 7 characters ('_config')
-                # The value from DB is a JSON string, so we parse it.
-                config_data[platform_name] = PlatformStatus(**json.loads(row['value']))
+                platform_name = key[:-7]
+                model = platform_models.get(platform_name, BasePlatformStatus)
+                config_data[platform_name] = model(**json.loads(row['value']))
 
         # Ensure all platforms are present in the response, even if not in the DB
         final_config = PlatformConfig(**config_data)
