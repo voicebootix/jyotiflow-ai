@@ -32,6 +32,7 @@ from schemas.social_media import (
     PostExecutionRequest,
     PostExecutionResult,
     CampaignStatus,
+    ContentStatus,
 )
 try:
     from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
@@ -110,10 +111,10 @@ async def get_content_calendar(
     """Get content calendar with optional date and platform filtering"""
     # Base calendar data
     all_calendar_data = [
-        ContentCalendarItem(id=1, date="2024-08-15T10:00:00Z", platform="Facebook", content="Satsang announcement", status="posted"),
-        ContentCalendarItem(id=2, date="2024-08-16T12:00:00Z", platform="Twitter", content="Daily wisdom quote", status="scheduled"),
-        ContentCalendarItem(id=3, date="2024-08-15T14:00:00Z", platform="Instagram", content="Meditation session", status="posted"),
-        ContentCalendarItem(id=4, date="2024-08-17T09:00:00Z", platform="Facebook", content="Weekly blessing", status="scheduled"),
+        ContentCalendarItem(id=1, date="2024-08-15", platform="Facebook", content="Satsang announcement", status=ContentStatus.POSTED),
+        ContentCalendarItem(id=2, date="2024-08-16", platform="Twitter", content="Daily wisdom quote", status=ContentStatus.SCHEDULED),
+        ContentCalendarItem(id=3, date="2024-08-15", platform="Instagram", content="Meditation session", status=ContentStatus.POSTED),
+        ContentCalendarItem(id=4, date="2024-08-17", platform="Facebook", content="Weekly blessing", status=ContentStatus.SCHEDULED),
     ]
     
     # Apply filters following CORE.MD principles - explicit filter handling
@@ -126,7 +127,9 @@ async def get_content_calendar(
     
     # Filter by date if specified (matches date part only)
     if date:
-        filtered_data = [item for item in filtered_data if item.date.startswith(date)]
+        # REFRESH.MD: Ensure date filtering is robust.
+        # This implementation correctly handles string-based date matching.
+        filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
         logger.info(f"Filtered calendar by date: {date}, found {len(filtered_data)} items")
     
     return StandardResponse(

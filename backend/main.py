@@ -1,13 +1,15 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError # REFRESH.MD: Import RequestValidationError for custom handling
 from contextlib import asynccontextmanager
 import asyncpg
 from datetime import datetime
 import os
 import asyncio
 from pathlib import Path
+import logging # CORE.MD: Add logging for structured server logs.
 
 # Sentry initialization - Enhanced version with comprehensive integrations
 import sentry_sdk
@@ -236,6 +238,9 @@ async def apply_migrations():
 # Database configuration
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
+# Initialize logger
+logger = logging.getLogger(__name__)
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """FastAPI lifespan manager using unified startup system"""
@@ -341,6 +346,33 @@ app.add_middleware(
 )
 
 # --- Global Exception Handler ---
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Handle Pydantic validation errors to return a standardized response.
+    This ensures frontend can correctly process 422 errors.
+    """
+    # REFRESH.MD: Log the validation errors for easier debugging.
+    logger.error(f"Pydantic Validation Error: {exc.errors()}")
+    
+    error_messages = []
+    for error in exc.errors():
+        # Example: "Field 'platform' is required."
+        field = " -> ".join(map(str, error['loc']))
+        message = error['msg']
+        error_messages.append(f"Field '{field}': {message}")
+
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "message": "Validation failed. Please check your input.",
+            "data": {"errors": error_messages},
+        },
+    )
+
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Handle all unhandled exceptions with user-friendly messages"""
