@@ -491,8 +491,5 @@ def get_avatar_engine(
     """
     return _get_or_create_avatar_engine(settings, db_manager)
 
-# Create avatar_engine instance for backward compatibility
-avatar_engine = None
-
 # Export for use in other modules
-__all__ = ["SpiritualAvatarGenerationEngine", "get_avatar_engine", "avatar_engine"]
+__all__ = ["SpiritualAvatarGenerationEngine", "get_avatar_engine"]
