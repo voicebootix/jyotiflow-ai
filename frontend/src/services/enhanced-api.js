@@ -17,12 +17,19 @@ class EnhancedAPI {
 
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
+    const headers = {
+      'Content-Type': 'application/json',
+      ...this.getAuthHeaders(),
+      ...(options.headers || {})
+    };
+
+    // CORE.MD: Do not set Content-Type for FormData, let the browser handle it.
+    if (options.body instanceof FormData) {
+      delete headers['Content-Type'];
+    }
+
     const config = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...this.getAuthHeaders(),
-        ...(options.headers || {})
-      },
+      headers,
       credentials: 'include',
       ...options
     };
@@ -170,11 +177,7 @@ class EnhancedAPI {
   async uploadSwamjiImage(formData) {
     return this.request('/api/admin/social-marketing/upload-swamiji-image', {
       method: 'POST',
-      body: formData,
-      headers: {
-        // Don't set Content-Type for FormData, let browser set it
-        ...this.getAuthHeaders()
-      }
+      body: formData
     });
   }
 
