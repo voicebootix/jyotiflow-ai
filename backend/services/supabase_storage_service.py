@@ -34,14 +34,14 @@ class SupabaseStorageService:
         else:
             logger.warning("Supabase URL or Key is not configured. Storage service is disabled.")
 
-    def upload_file(self, bucket_name: str, file_path_in_bucket: str, file_content: bytes, content_type: str) -> str:
+    def upload_file(self, bucket_name: str, file_path_in_bucket: str, file: bytes, content_type: str) -> str:
         """
         Uploads a file to a specified Supabase bucket.
 
         Args:
             bucket_name: The name of the bucket to upload to.
             file_path_in_bucket: The desired path and filename within the bucket.
-            file_content: The file content in bytes.
+            file: The file content in bytes.
             content_type: The MIME type of the file.
 
         Returns:
@@ -58,7 +58,7 @@ class SupabaseStorageService:
             # 'upsert=True' means it will overwrite the file if it already exists.
             self.supabase.storage.from_(bucket_name).upload(
                 path=file_path_in_bucket,
-                file=file_content,
+                file=file,
                 file_options={"content-type": content_type, "upsert": True}
             )
             logger.info(f"Successfully uploaded file to Supabase bucket '{bucket_name}' at path '{file_path_in_bucket}'.")
