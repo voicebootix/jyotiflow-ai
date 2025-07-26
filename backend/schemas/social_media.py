@@ -257,7 +257,7 @@ class MarketingAssetCreate(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class MarketingAsset(MarketingAssetCreate):
+class MarketingAsset(BaseModel):
     """Marketing asset response"""
     id: int
     created_at: datetime
@@ -288,20 +288,16 @@ class PostExecutionResult(BaseModel):
 
 
 class GenerateAvatarPreviewRequest(BaseModel):
-    """Request to generate avatar preview"""
-    text: str = Field(..., min_length=10, max_length=500)
-    voice_id: str = "swamiji_voice_v1"
-    style: str = Field(default="traditional", pattern=r'^(traditional|modern|default)$')
-    background: Optional[str] = None
-    duration: Optional[int] = Field(default=30, ge=10, le=120)
+    """Request model for generating a single avatar preview."""
+    style: str
+    voice_id: str
+    sample_text: str
 
 
 class GenerateAllAvatarPreviewsRequest(BaseModel):
-    """Request to generate all avatar previews for different styles"""
-    text: str = Field(..., min_length=10, max_length=500)
-    voice_id: str = "swamiji_voice_v1"
-    styles: List[str] = Field(default=["traditional", "modern", "default"])
-    background: Optional[str] = None
+    """Request model for generating all avatar previews."""
+    voice_id: str
+    sample_text: str
 
 
 class ContentGenerationRequest(BaseModel):
