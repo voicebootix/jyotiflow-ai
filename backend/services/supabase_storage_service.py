@@ -24,7 +24,10 @@ class SupabaseStorageService:
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 
+        # CORE.MD: Add robust debugging logs to verify environment variable loading.
         if supabase_url and supabase_key:
+            # Log the length of the loaded credentials for verification without exposing them.
+            logger.info(f"Attempting to initialize Supabase client. URL length: {len(supabase_url)}, Key length: {len(supabase_key)}")
             try:
                 self.supabase = create_client(supabase_url, supabase_key)
                 self.is_configured = True
