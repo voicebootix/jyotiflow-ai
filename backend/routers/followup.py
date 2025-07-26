@@ -53,7 +53,7 @@ async def schedule_followup(
 
 @router.get("/my-followups")
 async def get_my_followups(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_admin_user),
     followup_service: FollowUpService = Depends(get_followup_service)
 ):
     """Get all follow-ups for the current user"""
