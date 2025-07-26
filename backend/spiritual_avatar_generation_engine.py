@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # --- Constants and Configuration ---
 # CORE.MD: Load configuration from environment variables. Fallbacks are for local development.
 ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY")
-DID_API_KEY = os.getenv("DID_API_KEY")
+DID_API_KEY = os.getenv("D_ID_API_KEY")
 
 # REFRESH.MD: Use a single, reusable httpx.AsyncClient for performance.
 # Set appropriate timeouts to prevent indefinite hangs.
@@ -46,7 +46,7 @@ class SpiritualAvatarGenerationEngine:
     """
 
     def __init__(self):
-        api_keys_provided = all([os.getenv("ELEVENLABS_API_KEY"), os.getenv("DID_API_KEY")])
+        api_keys_provided = all([os.getenv("ELEVENLABS_API_KEY"), os.getenv("D_ID_API_KEY")])
         if not api_keys_provided:
             logger.warning("API keys for avatar generation are not configured. The engine will not work.")
             # The router will handle the user-facing HTTPException.
