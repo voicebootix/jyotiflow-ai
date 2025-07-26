@@ -257,7 +257,7 @@ class MarketingAssetCreate(BaseModel):
     metadata: Optional[Dict[str, Any]] = None
 
 
-class MarketingAsset(BaseModel):
+class MarketingAsset(MarketingAssetCreate):
     """Marketing asset response"""
     id: int
     created_at: datetime
