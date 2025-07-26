@@ -372,7 +372,8 @@ async def get_swamiji_avatar_config(
     try:
         record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
         if record and record['value']:
-            config_data["image_url"] = record['value']
+            # REFRESH.MD: Decode the JSON string from the database to get the raw URL.
+            config_data["image_url"] = json.loads(record['value'])
     except Exception as e:
         logger.error(f"Failed to fetch Swamiji avatar URL from database: {e}", exc_info=True)
         # Non-fatal, we can proceed without the image URL
