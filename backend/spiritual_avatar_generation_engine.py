@@ -173,8 +173,11 @@ class SpiritualAvatarGenerationEngine:
             record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
             if not record or not record['value']:
                 raise HTTPException(status_code=404, detail="Swamiji avatar image not found. Please upload it first.")
-            # REFRESH.MD: Decode the JSON string to get the raw URL.
-            source_image_url = json.loads(record['value'])
+            # REFRESH.MD: Decode the JSON string to get the raw URL, with a fallback for old plain string URLs.
+            try:
+                source_image_url = json.loads(record['value'])
+            except json.JSONDecodeError:
+                source_image_url = record['value']
         except Exception as e:
             logger.error(f"Failed to fetch Swamiji avatar URL from DB for generation: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not retrieve avatar image for generation.")
