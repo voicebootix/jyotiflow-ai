@@ -22,7 +22,7 @@ openai==1.93.2  # Updated OpenAI integration
 aiohttp==3.12.13  # Updated async HTTP client
 
 # তমিল - HTTP client for API integrations
-httpx==0.25.2
+httpx==0.27.0
 requests==2.31.0
 
 # তমিল - Data validation and serialization
