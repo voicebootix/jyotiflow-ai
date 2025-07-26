@@ -23,7 +23,7 @@ class SupabaseStorageService:
         """Initializes the Supabase client if credentials are available."""
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-        
+
         # CORE.MD: Add robust debugging logs to verify environment variable loading.
         if supabase_url and supabase_key:
             # Log the values being used, but truncate the key for security.
