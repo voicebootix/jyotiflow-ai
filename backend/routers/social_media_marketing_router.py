@@ -418,7 +418,7 @@ async def upload_swamiji_image(
             ON CONFLICT (key) DO UPDATE
             SET value = EXCLUDED.value, updated_at = NOW()
             """,
-            public_url
+            json.dumps(public_url)
         )
         
         logger.info(f"✅ Swamiji's photo saved to Supabase and URL stored in DB: {public_url}")
