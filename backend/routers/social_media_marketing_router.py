@@ -360,10 +360,14 @@ async def test_platform_connection(
 @social_marketing_router.get("/swamiji-avatar-config", response_model=StandardResponse)
 async def get_swamiji_avatar_config(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(db.get_db),
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
+    # REFRESH.MD: Dynamically fetch available voices from the avatar engine.
+    available_voices = await avatar_engine.get_available_voices()
+    
     config_data = {
-        "voices": [{"id": "swamiji_voice_v1", "name": "Swamiji Calm Voice"}],
+        "voices": available_voices,
         "styles": AVAILABLE_AVATAR_STYLES,
         "default_text": "Greetings from the digital ashram. May you find peace and wisdom."
     }
