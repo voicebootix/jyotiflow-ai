@@ -13,6 +13,7 @@ import time
 import logging
 import asyncio
 import json # Added for json.loads
+from typing import List, Dict # Added for List and Dict type hints
 
 from fastapi import HTTPException, Depends
 import asyncpg
@@ -154,6 +155,38 @@ class SpiritualAvatarGenerationEngine:
                 # Don't break the loop, allow retries
         
         raise HTTPException(status_code=500, detail="Video generation timed out.")
+
+    async def get_available_voices(self) -> List[Dict[str, str]]:
+        """
+        Retrieves the list of available voices from the ElevenLabs API.
+        """
+        if not self.is_configured:
+            logger.warning("Cannot fetch voices, avatar engine is not configured.")
+            return []
+
+        url = f"{ELEVENLABS_BASE_URL}/voices"
+        headers = {"xi-api-key": ELEVENLABS_API_KEY}
+
+        try:
+            response = await client.get(url, headers=headers)
+            response.raise_for_status()
+            voices_data = response.json().get("voices", [])
+            
+            # Format the voices for the frontend
+            formatted_voices = [
+                {"id": voice["voice_id"], "name": voice["name"]}
+                for voice in voices_data
+            ]
+            logger.info(f"Successfully fetched {len(formatted_voices)} voices from ElevenLabs.")
+            return formatted_voices
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"ElevenLabs API error while fetching voices: {e.response.status_code}", exc_info=True)
+            # Return empty list on failure, so the frontend doesn't break.
+            return []
+        except Exception as e:
+            logger.error(f"An unexpected error occurred while fetching voices: {e}", exc_info=True)
+            return []
 
     async def generate_avatar_preview_lightweight(
         self,
