@@ -406,7 +406,7 @@ async def upload_swamiji_image(
         public_url = storage_service.upload_file(
             bucket_name=bucket_name,
             file_path_in_bucket=file_name_in_bucket,
-            file_content=contents,
+            file=contents,
             content_type=image.content_type
         )
 

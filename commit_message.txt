@@ -1,0 +1,3 @@
+fix(storage): Correct Supabase upload parameter name
+
+The Supabase Python client's upload method expects the file content under the 'file' keyword argument, not 'file_content'. This commit renames the parameter in both the SupabaseStorageService and the calling router to match the library's API, fixing the 500 error during Swamiji's photo upload. 
