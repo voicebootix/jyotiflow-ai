@@ -58,11 +58,11 @@ class SupabaseStorageService:
 
         try:
             # The 'file_options' dictionary is crucial for setting the MIME type.
-            # 'upsert=True' means it will overwrite the file if it already exists.
+            # 'upsert="true"' means it will overwrite the file if it already exists.
             self.supabase.storage.from_(bucket_name).upload(
                 path=file_path_in_bucket,
                 file=file,
-                file_options={"content-type": content_type, "upsert": True}
+                file_options={"content-type": content_type, "upsert": "true"}
             )
             logger.info(f"Successfully uploaded file to Supabase bucket '{bucket_name}' at path '{file_path_in_bucket}'.")
             
