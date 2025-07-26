@@ -717,11 +717,19 @@ async def test_spiritual_avatar_engine():
                     "test_code": """
 async def test_monetization_optimizer():
     try:
-        # Import MonetizationOptimizer
-        import sys
+        # Import MonetizationOptimizer using importlib (safer for exec context)
+        import importlib.util
         import os
-        sys.path.append(os.path.dirname(__file__))
-        from enhanced_business_logic import MonetizationOptimizer
+        
+        # Try to import the monetization optimizer
+        spec = importlib.util.find_spec('enhanced_business_logic')
+        if spec:
+            business_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(business_module)
+            MonetizationOptimizer = business_module.MonetizationOptimizer
+        else:
+            # Fallback: direct import
+            from enhanced_business_logic import MonetizationOptimizer
         
         optimizer = MonetizationOptimizer()
         
