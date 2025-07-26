@@ -372,7 +372,11 @@ async def get_swamiji_avatar_config(
     try:
         record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
         if record and record['value']:
-            config_data["image_url"] = record['value']
+            # REFRESH.MD: Handle both JSON-encoded strings and plain strings for backward compatibility.
+            try:
+                config_data["image_url"] = json.loads(record['value'])
+            except json.JSONDecodeError:
+                config_data["image_url"] = record['value'] # Fallback for old plain string URLs
     except Exception as e:
         logger.error(f"Failed to fetch Swamiji avatar URL from database: {e}", exc_info=True)
         # Non-fatal, we can proceed without the image URL
@@ -418,7 +422,7 @@ async def upload_swamiji_image(
             ON CONFLICT (key) DO UPDATE
             SET value = EXCLUDED.value, updated_at = NOW()
             """,
-            public_url
+            json.dumps(public_url)
         )
         
         logger.info(f"✅ Swamiji's photo saved to Supabase and URL stored in DB: {public_url}")
