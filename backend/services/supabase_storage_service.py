@@ -23,8 +23,12 @@ class SupabaseStorageService:
         """Initializes the Supabase client if credentials are available."""
         supabase_url = os.getenv("SUPABASE_URL")
         supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
-
+        
+        # CORE.MD: Add robust debugging logs to verify environment variable loading.
         if supabase_url and supabase_key:
+            # Log the values being used, but truncate the key for security.
+            key_preview = f"...{supabase_key[-4:]}" if len(supabase_key) > 4 else supabase_key
+            logger.info(f"Attempting to initialize Supabase client. URL: {supabase_url}, Key Preview: {key_preview}")
             try:
                 self.supabase = create_client(supabase_url, supabase_key)
                 self.is_configured = True
