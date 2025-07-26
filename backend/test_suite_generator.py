@@ -1575,10 +1575,19 @@ async def test_social_media_automation_health():
         
         # Component 1: SocialMediaMarketingEngine availability
         try:
-            import sys
+            # Import social media engine using importlib (safer for exec context)
+            import importlib.util
             import os
-            sys.path.append(os.path.dirname(__file__))
-            from social_media_marketing_automation import SocialMediaMarketingEngine
+            
+            # Try to import from current backend directory
+            spec = importlib.util.find_spec('social_media_marketing_automation')
+            if spec:
+                social_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(social_module)
+                SocialMediaMarketingEngine = social_module.SocialMediaMarketingEngine
+            else:
+                # Fallback: direct import
+                from social_media_marketing_automation import SocialMediaMarketingEngine
             
             engine = SocialMediaMarketingEngine()
             health_components["marketing_engine"] = {
@@ -1596,8 +1605,18 @@ async def test_social_media_automation_health():
         
         # Component 2: SocialMediaValidator availability
         try:
-            sys.path.append(os.path.join(os.path.dirname(__file__), 'validators'))
-            from social_media_validator import SocialMediaValidator
+            # Import validator using importlib (safer for exec context)
+            import importlib.util
+            
+            # Try to import the validator
+            spec = importlib.util.find_spec('validators.social_media_validator')
+            if spec:
+                validator_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(validator_module)
+                SocialMediaValidator = validator_module.SocialMediaValidator
+            else:
+                # Fallback: direct import
+                from validators.social_media_validator import SocialMediaValidator
             
             validator = SocialMediaValidator()
             health_components["validator"] = {
@@ -2227,10 +2246,18 @@ async def test_live_audio_video_system_health():
         
         # Component 1: Agora Service availability
         try:
-            import sys
-            import os
-            sys.path.append(os.path.dirname(__file__))
-            from agora_service import AgoraService
+            # Import Agora service using importlib (safer for exec context)
+            import importlib.util
+            
+            # Try to import the Agora service
+            spec = importlib.util.find_spec('agora_service')
+            if spec:
+                agora_module = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(agora_module)
+                AgoraService = agora_module.AgoraService
+            else:
+                # Fallback: direct import
+                from agora_service import AgoraService
             
             agora_service = AgoraService()
             system_components["agora_service"] = {

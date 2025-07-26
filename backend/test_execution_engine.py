@@ -601,7 +601,9 @@ class TestExecutionEngine:
             'logger': logger,
             'sys': __import__('sys'),  # Add sys module
             'os': __import__('os'),    # Add os module
-            'importlib': __import__('importlib')  # Add importlib for dynamic imports
+            'importlib': __import__('importlib'),  # Add importlib for dynamic imports
+            '__file__': '/backend',    # Provide __file__ context for path operations
+            '__name__': '__main__'     # Provide __name__ context
         }
         
         # Add test case data to globals
