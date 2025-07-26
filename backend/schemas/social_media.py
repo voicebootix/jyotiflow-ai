@@ -288,20 +288,16 @@ class PostExecutionResult(BaseModel):
 
 
 class GenerateAvatarPreviewRequest(BaseModel):
-    """Request to generate avatar preview"""
-    text: str = Field(..., min_length=10, max_length=500)
-    voice_id: str = "swamiji_voice_v1"
+    """Request model for generating a single avatar preview."""
     style: str = Field(default="traditional", pattern=r'^(traditional|modern|default)$')
-    background: Optional[str] = None
-    duration: Optional[int] = Field(default=30, ge=10, le=120)
+    voice_id: str = "swamiji_voice_v1"
+    sample_text: str = Field(..., min_length=10, max_length=500)
 
 
 class GenerateAllAvatarPreviewsRequest(BaseModel):
-    """Request to generate all avatar previews for different styles"""
-    text: str = Field(..., min_length=10, max_length=500)
+    """Request model for generating all avatar previews."""
     voice_id: str = "swamiji_voice_v1"
-    styles: List[str] = Field(default=["traditional", "modern", "default"])
-    background: Optional[str] = None
+    sample_text: str = Field(..., min_length=10, max_length=500)
 
 
 class ContentGenerationRequest(BaseModel):

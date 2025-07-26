@@ -444,7 +444,7 @@ async def generate_avatar_preview(
     try:
         # Pass the database connection explicitly to the method
         result = await avatar_engine.generate_avatar_preview_lightweight(
-            guidance_text=request.text,
+            guidance_text=request.sample_text,
             avatar_style=request.style,
             voice_id=request.voice_id,
             conn=conn
@@ -471,7 +471,7 @@ async def generate_all_avatar_previews(
         for style in AVAILABLE_AVATAR_STYLES:
             # Pass the database connection explicitly to the method
             style_result = await avatar_engine.generate_avatar_preview_lightweight(
-                guidance_text=request.text,
+                guidance_text=request.sample_text,
                 avatar_style=style,
                 voice_id=request.voice_id,
                 conn=conn
