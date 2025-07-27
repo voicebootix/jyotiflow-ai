@@ -62,7 +62,13 @@ const SwamjiAvatarPreview = () => {
         }
         if (response.data.voices && response.data.voices.length > 0) {
             setVoices(response.data.voices);
-            setSelectedVoice(response.data.voices[0].id); // Set the first voice as default
+            // REFRESH.MD: Default to a suitable male voice like 'Prem'.
+            const defaultVoice = response.data.voices.find(v => v.name === 'Prem');
+            if (defaultVoice) {
+                setSelectedVoice(defaultVoice.id);
+            } else {
+                setSelectedVoice(response.data.voices[0].id); // Fallback to the first voice
+            }
         }
       } else {
         // If no config is found, ensure we don't show a broken image
@@ -118,7 +124,8 @@ const SwamjiAvatarPreview = () => {
       const response = await enhanced_api.generateAvatarPreview({
         style: style,
         voice_id: selectedVoice,
-        sample_text: "Namaste, beloved souls. Welcome to this divine spiritual guidance. May peace and wisdom be with you always. Om Namah Shivaya."
+        // REFRESH.MD: Changed the default greeting to Tamil.
+        sample_text: "Vanakkam, anbu aathmaakkale. Intha theyveega ஆன்மீக vazhikaattuthalukku ungalai varaverkirom. Amaithiyum gnanamum eppothum ungaludan irukkatum. Om Namah Shivaya."
       });
 
       if (response.success && response.data?.preview) {
