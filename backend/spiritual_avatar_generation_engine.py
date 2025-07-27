@@ -198,9 +198,13 @@ class SpiritualAvatarGenerationEngine:
             response.raise_for_status()
             voices_data = response.json().get("voices", [])
             
-            # Format the voices for the frontend
+            # REFRESH.MD: Format the voices for the frontend, including gender for better filtering.
             formatted_voices = [
-                {"id": voice["voice_id"], "name": voice["name"]}
+                {
+                    "id": voice["voice_id"],
+                    "name": voice["name"],
+                    "gender": voice.get("labels", {}).get("gender", "unknown")
+                }
                 for voice in voices_data
             ]
             logger.info(f"Successfully fetched {len(formatted_voices)} voices from ElevenLabs.")
