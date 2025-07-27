@@ -125,7 +125,8 @@ const SwamjiAvatarPreview = () => {
         style: style,
         voice_id: selectedVoice,
         // REFRESH.MD: Changed the default greeting to Tamil.
-        sample_text: "Vanakkam, anbu aathmaakkale. Intha theyveega ஆன்மீக vazhikaattuthalukku ungalai varaverkirom. Amaithiyum gnanamum eppothum ungaludan irukkatum. Om Namah Shivaya."
+        // CORE.MD: Standardized the sample_text to use consistent Tamil script to avoid TTS errors.
+        sample_text: "வணக்கம், அன்பு ஆத்மாக்களே. இந்த தெய்வீக ஆன்மீக வழிகாட்டுதலுக்கு உங்களை வரவேற்கிறோம். அமைதியும் ஞானமும் எப்போதும் உங்களுடன் இருக்கட்டும். ஓம் நமசிவாய."
       });
 
       if (response.success && response.data?.preview) {
