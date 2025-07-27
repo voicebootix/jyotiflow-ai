@@ -268,31 +268,23 @@ class SpiritualAvatarGenerationEngine:
 
 
 # --- FastAPI Dependency Injection ---
-_avatar_engine_instance = None
 
-# REFRESH.MD: Corrected the function signature which was mistakenly altered
-# REFRESH.MD: The dependency injector now accepts the storage_service to pass to the engine.
+# REFRESH.MD: Refactored to remove the flawed singleton pattern.
+# A new instance is created per request, which is FastAPI's recommended approach
+# for handling dependencies, avoiding state-related issues and static analysis warnings.
 def get_avatar_engine(
     storage_service: SupabaseStorageService = Depends(get_storage_service)
 ) -> "SpiritualAvatarGenerationEngine":
     """
-    FastAPI dependency that provides a singleton instance of the avatar engine.
-    It now correctly injects the storage service.
+    FastAPI dependency that provides a request-scoped instance of the avatar engine.
+    This ensures each request gets a fresh instance with its own dependencies.
     """
-    global _avatar_engine_instance
+    engine = SpiritualAvatarGenerationEngine(storage_service=storage_service)
     
-    if _avatar_engine_instance is None:
-        logger.info("Creating new SpiritualAvatarGenerationEngine instance.")
-        # CORE.MD: Pass the storage service dependency during instantiation.
-        _avatar_engine_instance = SpiritualAvatarGenerationEngine(storage_service=storage_service)
-    
-    # REFRESH.MD: Removed mutable dependency update to fix race condition in singleton.
-    # The storage service should only be set once during initialization.
-
-    if not _avatar_engine_instance.is_configured:
+    if not engine.is_configured:
          raise HTTPException(
              status_code=501,
              detail="The Avatar Generation Engine is not configured on the server due to missing API keys."
          )
          
-    return _avatar_engine_instance
+    return engine
