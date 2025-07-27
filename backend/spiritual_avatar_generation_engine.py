@@ -96,8 +96,9 @@ class SpiritualAvatarGenerationEngine:
             file_name_in_bucket = f"public/generated_audio_{uuid.uuid4()}.mp3"
             bucket_name = "avatars"
 
-            # CORE.MD: Added 'await' as file upload is an async I/O operation.
-            public_url = await self.storage_service.upload_file(
+            # CORE.MD: Removed 'await' as the underlying Supabase client library's
+            # upload method is synchronous, not asynchronous.
+            public_url = self.storage_service.upload_file(
                 bucket_name=bucket_name,
                 file_path_in_bucket=file_name_in_bucket,
                 file=audio_content,
