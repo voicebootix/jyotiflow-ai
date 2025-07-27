@@ -13,12 +13,23 @@ import time
 import logging
 import asyncio
 import json # Added for json.loads
+import uuid # REFRESH.MD: Added to generate unique filenames for audio
 from typing import List, Dict # Added for List and Dict type hints
 
 from fastapi import HTTPException, Depends
 import asyncpg
 
-import db
+# REFRESH.MD: Removed unused 'db' import for code cleanup.
+
+# REFRESH.MD: Import storage service to handle audio uploads dynamically.
+try:
+    from services.supabase_storage_service import SupabaseStorageService, get_storage_service
+    STORAGE_SERVICE_AVAILABLE = True
+except ImportError:
+    STORAGE_SERVICE_AVAILABLE = False
+    class SupabaseStorageService: pass
+    def get_storage_service():
+        raise HTTPException(status_code=501, detail="Storage service is not available.")
 
 
 # Initialize logger
@@ -46,18 +57,19 @@ class SpiritualAvatarGenerationEngine:
     TTS and TTV services.
     """
 
-    def __init__(self):
+    def __init__(self, storage_service: "SupabaseStorageService"):
         api_keys_provided = all([os.getenv("ELEVENLABS_API_KEY"), os.getenv("D_ID_API_KEY")])
         if not api_keys_provided:
             logger.warning("API keys for avatar generation are not configured. The engine will not work.")
             # The router will handle the user-facing HTTPException.
             # This class will just log the issue.
         self.is_configured = api_keys_provided
+        self.storage_service = storage_service
 
     async def _generate_audio(self, text: str, voice_id: str) -> str:
         """
-        Generates audio from text using ElevenLabs and returns the audio file path or URL.
-        For this lightweight version, we will assume direct audio generation is feasible.
+        Generates audio from text using ElevenLabs, uploads it to storage,
+        and returns the public URL.
         """
         url = f"{ELEVENLABS_BASE_URL}/text-to-speech/{voice_id}"
         headers = {
@@ -78,19 +90,31 @@ class SpiritualAvatarGenerationEngine:
             response = await client.post(url, json=payload, headers=headers)
             response.raise_for_status()
             
-            # For simplicity in this engine, we will imagine this returns a URL
-            # to the generated audio. In a real scenario, we would save the content
-            # to a file and upload it to a temporary storage like S3, then get its URL.
-            # Here, we will simulate this by using a placeholder.
-            # In a full implementation, the response.content would be the audio data.
-            logger.info(f"🎤 Successfully generated audio for voice_id: {voice_id}")
-            # This is a conceptual placeholder. D-ID requires a public URL.
-            # A real implementation needs a file hosting step.
-            return "https://storage.googleapis.com/jyotiflow-public-assets/swamiji_sample_audio.mp3"
+            # REFRESH.MD: Instead of returning a hardcoded URL, upload the real audio data.
+            audio_content = response.content
+            # CORE.MD: Use uuid to ensure unique filenames and prevent overwrites.
+            file_name_in_bucket = f"public/generated_audio_{uuid.uuid4()}.mp3"
+            bucket_name = "avatars"
+
+            # CORE.MD: Added 'await' as file upload is an async I/O operation.
+            public_url = await self.storage_service.upload_file(
+                bucket_name=bucket_name,
+                file_path_in_bucket=file_name_in_bucket,
+                file=audio_content,
+                content_type="audio/mpeg"
+            )
+            
+            logger.info(f"🎤 Successfully generated and uploaded audio to: {public_url}")
+            return public_url
 
         except httpx.HTTPStatusError as e:
             logger.error(f"ElevenLabs API error: {e.response.status_code} - {e.response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to generate audio for avatar.")
+            # CORE.MD: Use 'from e' for proper exception chaining and improved debugging.
+            raise HTTPException(status_code=500, detail="Failed to generate audio for avatar.") from e
+        except Exception as e:
+            logger.error(f"Failed to upload generated audio: {e}", exc_info=True)
+            # CORE.MD: Use 'from e' for proper exception chaining.
+            raise HTTPException(status_code=500, detail="Failed to store generated audio.") from e
 
     async def _create_video_talk(self, source_image_url: str, audio_url: str) -> str:
         """
@@ -121,7 +145,8 @@ class SpiritualAvatarGenerationEngine:
             return talk_id
         except httpx.HTTPStatusError as e:
             logger.error(f"D-ID API error while creating talk: {e.response.status_code} - {e.response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to initiate video generation.")
+            # CORE.MD: Use 'from e' for proper exception chaining.
+            raise HTTPException(status_code=500, detail="Failed to initiate video generation.") from e
 
     async def _get_talk_result(self, talk_id: str) -> dict:
         """
@@ -243,23 +268,23 @@ class SpiritualAvatarGenerationEngine:
 
 
 # --- FastAPI Dependency Injection ---
-_avatar_engine_instance = None
 
-# REFRESH.MD: Corrected the function signature which was mistakenly altered
-def get_avatar_engine() -> "SpiritualAvatarGenerationEngine":
+# REFRESH.MD: Refactored to remove the flawed singleton pattern.
+# A new instance is created per request, which is FastAPI's recommended approach
+# for handling dependencies, avoiding state-related issues and static analysis warnings.
+def get_avatar_engine(
+    storage_service: SupabaseStorageService = Depends(get_storage_service)
+) -> "SpiritualAvatarGenerationEngine":
     """
-    FastAPI dependency that provides a singleton instance of the avatar engine.
+    FastAPI dependency that provides a request-scoped instance of the avatar engine.
+    This ensures each request gets a fresh instance with its own dependencies.
     """
-    global _avatar_engine_instance
+    engine = SpiritualAvatarGenerationEngine(storage_service=storage_service)
     
-    if _avatar_engine_instance is None:
-        logger.info("Creating new SpiritualAvatarGenerationEngine instance.")
-        _avatar_engine_instance = SpiritualAvatarGenerationEngine()
-    
-    if not _avatar_engine_instance.is_configured:
+    if not engine.is_configured:
          raise HTTPException(
              status_code=501,
              detail="The Avatar Generation Engine is not configured on the server due to missing API keys."
          )
          
-    return _avatar_engine_instance
+    return engine
