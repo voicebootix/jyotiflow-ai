@@ -198,16 +198,27 @@ class SpiritualAvatarGenerationEngine:
             response.raise_for_status()
             voices_data = response.json().get("voices", [])
             
-            # REFRESH.MD: Format the voices for the frontend, including gender for better filtering.
-            formatted_voices = [
-                {
+            # REFRESH.MD: Refactored to a for-loop for robust and readable parsing of voice data.
+            formatted_voices = []
+            for voice in voices_data:
+                labels = voice.get("labels")
+                gender_raw = "unknown"
+                # CORE.MD: Check if 'labels' is a dictionary to prevent AttributeErrors.
+                if isinstance(labels, dict):
+                    gender_raw = labels.get("gender")
+
+                # CORE.MD: Check if the final gender value is a string before calling .lower().
+                gender_str = "unknown"
+                if isinstance(gender_raw, str):
+                    gender_str = gender_raw
+
+                formatted_voices.append({
                     "id": voice["voice_id"],
                     "name": voice["name"],
-                    # CORE.MD: Normalize gender to lowercase and handle None values safely to prevent AttributeErrors.
-                    "gender": ((voice.get("labels") or {}).get("gender") or "unknown").lower()
-                }
-                for voice in voices_data
-            ]
+                    # This is now safe from all identified edge cases (None, non-dict, non-str).
+                    "gender": gender_str.lower()
+                })
+
             logger.info(f"Successfully fetched {len(formatted_voices)} voices from ElevenLabs.")
             return formatted_voices
 
