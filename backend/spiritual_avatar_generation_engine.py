@@ -19,7 +19,8 @@ from typing import List, Dict # Added for List and Dict type hints
 from fastapi import HTTPException, Depends
 import asyncpg
 
-import db
+# REFRESH.MD: Removed unused 'db' import for code cleanup.
+
 # REFRESH.MD: Import storage service to handle audio uploads dynamically.
 try:
     from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -95,7 +96,8 @@ class SpiritualAvatarGenerationEngine:
             file_name_in_bucket = f"public/generated_audio_{uuid.uuid4()}.mp3"
             bucket_name = "avatars"
 
-            public_url = self.storage_service.upload_file(
+            # CORE.MD: Added 'await' as file upload is an async I/O operation.
+            public_url = await self.storage_service.upload_file(
                 bucket_name=bucket_name,
                 file_path_in_bucket=file_name_in_bucket,
                 file=audio_content,
@@ -107,10 +109,12 @@ class SpiritualAvatarGenerationEngine:
 
         except httpx.HTTPStatusError as e:
             logger.error(f"ElevenLabs API error: {e.response.status_code} - {e.response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to generate audio for avatar.")
+            # CORE.MD: Use 'from e' for proper exception chaining and improved debugging.
+            raise HTTPException(status_code=500, detail="Failed to generate audio for avatar.") from e
         except Exception as e:
             logger.error(f"Failed to upload generated audio: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to store generated audio.")
+            # CORE.MD: Use 'from e' for proper exception chaining.
+            raise HTTPException(status_code=500, detail="Failed to store generated audio.") from e
 
     async def _create_video_talk(self, source_image_url: str, audio_url: str) -> str:
         """
@@ -141,7 +145,8 @@ class SpiritualAvatarGenerationEngine:
             return talk_id
         except httpx.HTTPStatusError as e:
             logger.error(f"D-ID API error while creating talk: {e.response.status_code} - {e.response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to initiate video generation.")
+            # CORE.MD: Use 'from e' for proper exception chaining.
+            raise HTTPException(status_code=500, detail="Failed to initiate video generation.") from e
 
     async def _get_talk_result(self, talk_id: str) -> dict:
         """
@@ -281,11 +286,8 @@ def get_avatar_engine(
         # CORE.MD: Pass the storage service dependency during instantiation.
         _avatar_engine_instance = SpiritualAvatarGenerationEngine(storage_service=storage_service)
     
-    # REFRESH.MD: Ensure the singleton instance has the latest storage service, though in FastAPI's
-    # dependency lifecycle this is less of an issue. This is good practice.
-    if _avatar_engine_instance.storage_service is not storage_service:
-        _avatar_engine_instance.storage_service = storage_service
-
+    # REFRESH.MD: Removed mutable dependency update to fix race condition in singleton.
+    # The storage service should only be set once during initialization.
 
     if not _avatar_engine_instance.is_configured:
          raise HTTPException(
