@@ -104,6 +104,16 @@ except ImportError:
     def get_storage_service():
         raise HTTPException(status_code=501, detail="Storage service is not available.")
 
+# REFRESH.MD: Import the new ThemeService for dynamic avatar generation.
+try:
+    from services.theme_service import ThemeService, get_theme_service
+    THEME_SERVICE_AVAILABLE = True
+except ImportError:
+    THEME_SERVICE_AVAILABLE = False
+    class ThemeService: pass
+    def get_theme_service():
+        raise HTTPException(status_code=501, detail="Theme service is not available.")
+
 # This import is no longer needed as frontend now sends the voice_id
 # from spiritual_avatar_generation_engine import DEFAULT_VOICE_ID
 
@@ -442,16 +452,21 @@ async def generate_avatar_preview(
     request: GenerateAvatarPreviewRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    theme_service: ThemeService = Depends(get_theme_service) # CORE.MD: Inject the new ThemeService.
 ):
-    """Generates a single, lightweight avatar preview."""
+    """
+    Generates a single, lightweight avatar preview with a dynamic, daily-themed image.
+    """
     try:
-        # Pass the database connection explicitly to the method
+        # 1. Get the daily themed image URL from the ThemeService.
+        themed_image_url = await theme_service.get_daily_themed_image_url()
+
+        # 2. Pass the dynamic URL to the avatar engine.
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.sample_text,
             avatar_style=request.style,
             voice_id=request.voice_id,
-            conn=conn
+            source_image_url=themed_image_url
         )
         if result.get("success"):
             return StandardResponse(success=True, message="Avatar preview generated.", data=result)
@@ -459,6 +474,9 @@ async def generate_avatar_preview(
             raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate preview."))
     except Exception as e:
         logger.error(f"Avatar preview generation failed for style {request.style}: {e}", exc_info=True)
+        # REFRESH.MD: Check if the exception is already an HTTPException to avoid re-wrapping.
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"Error generating preview: {e}") from e
 
 
@@ -467,23 +485,28 @@ async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    theme_service: ThemeService = Depends(get_theme_service) # CORE.MD: Inject the new ThemeService.
 ):
-    """Generates lightweight avatar previews for all available styles."""
+    """Generates lightweight avatar previews for all available styles using a single daily theme."""
     try:
+        # Generate one themed image to be used for all style previews.
+        themed_image_url = await theme_service.get_daily_themed_image_url()
+        
         results = []
         for style in AVAILABLE_AVATAR_STYLES:
-            # Pass the database connection explicitly to the method
             style_result = await avatar_engine.generate_avatar_preview_lightweight(
                 guidance_text=request.sample_text,
                 avatar_style=style,
                 voice_id=request.voice_id,
-                conn=conn
+                source_image_url=themed_image_url
             )
             results.append(style_result)
         return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
+        # REFRESH.MD: Check if the exception is already an HTTPException.
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
 
 # --- Content Automation Endpoints ---

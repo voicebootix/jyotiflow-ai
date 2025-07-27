@@ -235,7 +235,8 @@ class SpiritualAvatarGenerationEngine:
         guidance_text: str,
         avatar_style: str, # Currently unused, but kept for API consistency
         voice_id: str,
-        conn: asyncpg.Connection # The DB connection is now passed directly
+        # REFRESH.MD: The source image URL is now passed directly, so a DB connection is no longer needed here.
+        source_image_url: str 
     ) -> dict:
         """
         Generates a lightweight avatar preview.
@@ -243,19 +244,10 @@ class SpiritualAvatarGenerationEngine:
         if not self.is_configured:
             raise HTTPException(status_code=501, detail="Avatar Generation Engine is not configured on the server.")
         
-        # CORE.MD: Fetch the source Swamiji image URL from the database
-        try:
-            record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
-            if not record or not record['value']:
-                raise HTTPException(status_code=404, detail="Swamiji avatar image not found. Please upload it first.")
-            # REFRESH.MD: Decode the JSON string to get the raw URL, with a fallback for old plain string URLs.
-            try:
-                source_image_url = json.loads(record['value'])
-            except json.JSONDecodeError:
-                source_image_url = record['value']
-        except Exception as e:
-            logger.error(f"Failed to fetch Swamiji avatar URL from DB for generation: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not retrieve avatar image for generation.")
+        # CORE.MD: The source Swamiji image URL is now a direct parameter.
+        # This decouples the engine from the database and makes it more flexible.
+        if not source_image_url:
+            raise HTTPException(status_code=400, detail="A source image URL must be provided.")
 
         # 1. Generate Audio
         # In a real app, you might cache this audio if the text is the same.
