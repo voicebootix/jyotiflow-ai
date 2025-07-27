@@ -62,12 +62,12 @@ const SwamjiAvatarPreview = () => {
         }
         if (response.data.voices && response.data.voices.length > 0) {
             setVoices(response.data.voices);
-            // REFRESH.MD: Default to a suitable male voice like 'Prem'.
-            const defaultVoice = response.data.voices.find(v => v.name === 'Prem');
+            // REFRESH.MD: Default to the first available male voice for better suitability.
+            const defaultVoice = response.data.voices.find(v => v.gender === 'male');
             if (defaultVoice) {
                 setSelectedVoice(defaultVoice.id);
             } else {
-                setSelectedVoice(response.data.voices[0].id); // Fallback to the first voice
+                setSelectedVoice(response.data.voices[0].id); // Fallback to the first voice if no male voice is found
             }
         }
       } else {
