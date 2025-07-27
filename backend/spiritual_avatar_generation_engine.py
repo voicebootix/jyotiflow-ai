@@ -203,8 +203,8 @@ class SpiritualAvatarGenerationEngine:
                 {
                     "id": voice["voice_id"],
                     "name": voice["name"],
-                    # CORE.MD: Normalize gender to lowercase to prevent case-sensitivity issues on the frontend.
-                    "gender": voice.get("labels", {}).get("gender", "unknown").lower()
+                    # CORE.MD: Normalize gender to lowercase and handle None values safely to prevent AttributeErrors.
+                    "gender": ((voice.get("labels") or {}).get("gender") or "unknown").lower()
                 }
                 for voice in voices_data
             ]
