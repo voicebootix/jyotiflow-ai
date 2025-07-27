@@ -84,6 +84,9 @@ class SupabaseStorageService:
         
         try:
             response = self.supabase.storage.from_(bucket_name).get_public_url(file_path_in_bucket)
+            # REFRESH.MD: Strip trailing question marks from the URL to prevent validation issues with D-ID.
+            if isinstance(response, str):
+                return response.rstrip('?')
             return response
         except Exception as e:
             logger.error(f"Failed to get public URL from Supabase for path '{file_path_in_bucket}': {e}", exc_info=True)
