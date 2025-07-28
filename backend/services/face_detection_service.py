@@ -16,6 +16,11 @@ class FaceDetectionService:
         base_dir = Path(__file__).resolve().parent.parent
         cascade_path = os.getenv("HAAR_CASCADE_PATH", str(base_dir / "models/haarcascade_frontalface_default.xml"))
         
+        # REFRESH.MD: Add detailed logging to debug file path issues on Render.
+        logger.info(f"Current working directory: {os.getcwd()}")
+        logger.info(f"Calculated Haar Cascade path: {cascade_path}")
+        logger.info(f"Does cascade file exist at path? {os.path.exists(cascade_path)}")
+
         self.face_cascade = cv2.CascadeClassifier(cascade_path)
         if self.face_cascade.empty():
             logger.error(f"Failed to load Haar Cascade model from {cascade_path}")
