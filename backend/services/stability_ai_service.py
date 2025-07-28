@@ -116,6 +116,57 @@ class StabilityAiService:
             logger.error(f"An unexpected error occurred during image generation: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred while generating the image.") from e
 
+    async def inpaint_image(self, image_bytes: bytes, mask_bytes: bytes, text_prompt: str) -> bytes:
+        """
+        Inpaints an image using the Stability.ai API's masking endpoint.
+        """
+        if not self.is_configured:
+            raise HTTPException(status_code=501, detail="Image generation service is not configured.")
+
+        # --- Input Validation ---
+        if not all(isinstance(arg, bytes) for arg in [image_bytes, mask_bytes]):
+            raise HTTPException(status_code=400, detail="Image and mask must be provided as bytes.")
+        if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
+
+        # --- API Request ---
+        engine_id = "stable-diffusion-v1-6"
+        url = f"{self.api_host}/v1/generation/{engine_id}/image-to-image/masking"
+        
+        headers = {
+            "Accept": "image/png",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        # CORE.MD: Correctly structure the multipart form data for httpx.
+        # File bytes are passed in 'files', other fields in 'data'.
+        files = {
+            'init_image': ('init_image.png', image_bytes, 'image/png'),
+            'mask_image': ('mask_image.png', mask_bytes, 'image/png')
+        }
+        data = {
+            'mask_source': 'MASK_IMAGE_BLACK',
+            'text_prompts[0][text]': text_prompt,
+            'cfg_scale': '7',
+            'samples': '1',
+            'steps': '30',
+        }
+        
+        try:
+            # REFRESH.MD: Use the existing self.client property, not a new client.
+            response = await self.client.post(url, headers=headers, data=data, files=files)
+            response.raise_for_status()
+            logger.info("✅ Successfully inpainted image.")
+            return response.content
+
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Stability.ai API error during inpainting: {e.response.status_code} - {e.response.text}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to inpaint image: {e.response.text}") from e
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during inpainting: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during inpainting.") from e
+
+
 # --- FastAPI Dependency Injection ---
 # REFRESH.MD: Refactored to a generator-based dependency to manage the client lifecycle.
 async def get_stability_service() -> AsyncGenerator[StabilityAiService, None]:
