@@ -75,22 +75,28 @@ class StabilityAiService:
             "Authorization": f"Bearer {self.api_key}"
         }
 
-        # CORE.MD: Correctly structure the multipart form data for httpx.
+        # REFRESH.MD: Correctly structure the multipart/form-data request as per API documentation.
         files = {
             'init_image': ('init_image.png', image_bytes, 'image/png'),
-            'mask_image': ('mask_image.png', mask_bytes, 'image/png')
-        }
-        data = {
-            'mask_source': 'MASK_IMAGE_WHITE',
-            'text_prompts[0][text]': text_prompt,
-            'cfg_scale': '7',
-            'samples': '1',
-            'steps': '30',
+            'mask_image': ('mask_image.png', mask_bytes, 'image/png'),
         }
         
+        data = {
+            "mask_source": "MASK_IMAGE_BLACK",
+            "text_prompts[0][text]": text_prompt,
+            "cfg_scale": "7",
+            "samples": "1",
+            "steps": "30",
+        }
+
         try:
             client = await self.get_client()
-            response = await client.post(url, headers=headers, data=data, files=files)
+            # REFRESH.MD: Pass files and data correctly to the httpx client.
+            response = await client.post(url, headers=headers, files=files, data=data)
+            
+            # REFRESH.MD: Log the response text on error for better debugging.
+            if response.status_code != 200:
+                logger.error(f"Stability.ai API error: {response.status_code} - {response.text}")
             response.raise_for_status()
 
             # REFRESH.MD: Correctly parse the JSON response and decode the base64 image.
