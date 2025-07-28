@@ -1645,12 +1645,12 @@ async def test_social_media_automation_health():
         available_platforms = 0
         
         for platform in platforms:
-                            try:
-                    module_name = f"{platform}_service"
-                    service = __import__(f"services.{module_name}", fromlist=[f"{platform}_service"])
-                    available_platforms += 1
-                except (ImportError, AttributeError) as import_error:
-                    logger.debug(f"Platform service {platform} not available: {import_error}")
+            try:
+                module_name = f"{platform}_service"
+                service = __import__(f"services.{module_name}", fromlist=[f"{platform}_service"])
+                available_platforms += 1
+            except (ImportError, AttributeError) as import_error:
+                logger.debug(f"Platform service {platform} not available: {import_error}")
         
         health_components["platform_services"] = {
             "available": available_platforms > 0,

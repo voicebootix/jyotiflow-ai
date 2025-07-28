@@ -2747,6 +2747,111 @@ setInterval(loadHealthStatus, 10000);  // Refresh every 10 seconds
 </script>
 """
 
+# Global instance tracking (minimal)
+_startup_instance = None
+
+# Add the missing DatabaseSelfHealingSystem class for backward compatibility
+class DatabaseSelfHealingSystem:
+    """
+    Database Self Healing System - Backward compatibility wrapper
+    Provides the interface expected by test_execution_engine.py
+    """
+    
+    def __init__(self):
+        self.orchestrator = None
+        self.initialized = False
+        
+    async def initialize(self):
+        """Initialize the self-healing system"""
+        try:
+            self.orchestrator = SelfHealingOrchestrator()
+            self.initialized = True
+            logger.info("Database Self Healing System initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize self-healing system: {e}")
+            
+    async def run_health_check(self) -> Dict[str, Any]:
+        """Run a health check"""
+        if not self.initialized:
+            await self.initialize()
+            
+        if self.orchestrator:
+            return await self.orchestrator.run_check()
+        else:
+            return {"status": "error", "message": "System not initialized"}
+            
+    async def get_system_status(self) -> Dict[str, Any]:
+        """Get current system status"""
+        return {
+            "initialized": self.initialized,
+            "orchestrator_available": self.orchestrator is not None,
+            "status": "healthy" if self.initialized else "not_initialized"
+        }
+
+# Utility function for extracting table names from queries
+def extract_table_from_query(query: str) -> str:
+    """Extract table name from SQL query - utility for test system"""
+    try:
+        # Simple regex to extract table names from common SQL patterns
+        import re
+        
+        # Handle SELECT queries
+        select_match = re.search(r'FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
+        if select_match:
+            return select_match.group(1)
+            
+        # Handle INSERT queries  
+        insert_match = re.search(r'INSERT\s+INTO\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
+        if insert_match:
+            return insert_match.group(1)
+            
+        # Handle UPDATE queries
+        update_match = re.search(r'UPDATE\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
+        if update_match:
+            return update_match.group(1)
+            
+        # Handle DELETE queries
+        delete_match = re.search(r'DELETE\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
+        if delete_match:
+            return delete_match.group(1)
+            
+        return "unknown_table"
+        
+    except Exception:
+        return "unknown_table"
+
+async def initialize_unified_jyotiflow():
+    """Main entry point for compatibility with existing main.py"""
+    global _startup_instance
+    # Import the simple unified startup functions
+    try:
+        from simple_unified_startup import initialize_jyotiflow_simple
+        return await initialize_jyotiflow_simple()
+    except ImportError:
+        # Fallback to orchestrator if simple startup not available
+        orchestrator = SelfHealingOrchestrator()
+        await orchestrator.start()
+        return {"status": "initialized", "type": "self_healing_orchestrator"}
+
+async def cleanup_unified_system(db_pool=None):
+    """Cleanup entry point for compatibility with existing main.py"""  
+    try:
+        from simple_unified_startup import cleanup_jyotiflow_simple
+        await cleanup_jyotiflow_simple(db_pool)
+    except ImportError:
+        # Fallback cleanup
+        if db_pool:
+            await db_pool.close()
+        logger.info("Cleanup completed")
+
+def get_unified_system_status():
+    """Get simple system status for health checks"""
+    return {
+        "system_available": True,
+        "architecture": "clean_shared_pool",
+        "startup_type": "simplified"
+    }
+
 if __name__ == "__main__":
     # Command-line interface
     import sys
@@ -2755,8 +2860,10 @@ if __name__ == "__main__":
         command = sys.argv[1]
         
         if command == "check":
+            orchestrator = SelfHealingOrchestrator()
             asyncio.run(orchestrator.run_check())
         elif command == "start":
+            orchestrator = SelfHealingOrchestrator()
             asyncio.run(orchestrator.start())
             # Keep running
             try:
