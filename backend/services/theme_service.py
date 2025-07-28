@@ -11,8 +11,8 @@ import uuid
 import os
 from fastapi import HTTPException, Depends
 
-from services.stability_ai_service import StabilityAiService
-from services.supabase_storage_service import SupabaseStorageService
+from services.stability_ai_service import StabilityAiService, get_stability_service
+from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 from services.face_detection_service import FaceDetectionService, get_face_detection_service
 
 logger = logging.getLogger(__name__)
@@ -72,8 +72,8 @@ class ThemeService:
 
             logger.info(f"Generated daily theme prompt: {prompt}")
 
-            # CORE.MD: Use a default base image for inpainting. This will be replaced by a user-uploaded image later.
-            base_image_path = "backend/assets/swamiji_base_image.png"
+            # CORE.MD: The base image path is now configurable via an environment variable.
+            base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", "backend/assets/swamiji_base_image.png")
             if not os.path.exists(base_image_path):
                 logger.error(f"Base image not found at {base_image_path}")
                 raise HTTPException(status_code=500, detail="Base Swamiji image not found.")
@@ -95,7 +95,6 @@ class ThemeService:
 
             # 3. Upload to Supabase
             file_name = f"public/daily_themes/swamiji_{datetime.now().strftime('%Y-%m-%d')}_{uuid.uuid4()}.png"
-            bucket_name = "avatars"
             file_path_on_storage = f"avatar_assets/{file_name}"
             public_url = self.storage_service.upload_file(
                 file_path_on_storage, inpainted_image_bytes, {"content-type": "image/png"}
@@ -112,8 +111,8 @@ class ThemeService:
 # REFRESH.MD: Removed Depends() from the function signature to resolve static analysis warnings.
 # Dependencies will now be injected directly in the route.
 def get_theme_service(
-    stability_service: StabilityAiService = Depends(),
-    storage_service: SupabaseStorageService = Depends(),
+    stability_service: StabilityAiService = Depends(get_stability_service),
+    storage_service: SupabaseStorageService = Depends(get_storage_service),
     face_detection_service: FaceDetectionService = Depends(get_face_detection_service),
 ) -> "ThemeService":
     """

@@ -131,8 +131,7 @@ class StabilityAiService:
 
         # --- API Request ---
         engine_id = "stable-diffusion-v1-6"
-        api_host = self.api_host
-        url = f"{api_host}/v1/generation/{engine_id}/image-to-image/masking"
+        url = f"{self.api_host}/v1/generation/{engine_id}/image-to-image/masking"
         
         headers = {
             "Accept": "image/png",
@@ -150,11 +149,11 @@ class StabilityAiService:
         }
         
         try:
-            async with httpx.AsyncClient(timeout=90.0) as client:
-                response = await client.post(url, headers=headers, files=form_data)
-                response.raise_for_status()
-                logger.info("✅ Successfully inpainted image.")
-                return response.content
+            client = await self.get_client()
+            response = await client.post(url, headers=headers, files=form_data)
+            response.raise_for_status()
+            logger.info("✅ Successfully inpainted image.")
+            return response.content
 
         except httpx.HTTPStatusError as e:
             logger.error(f"Stability.ai API error during inpainting: {e.response.status_code} - {e.response.text}", exc_info=True)
