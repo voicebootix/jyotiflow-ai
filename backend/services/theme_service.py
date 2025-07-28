@@ -30,6 +30,9 @@ class ThemeService:
         self.stability_service = stability_service
         self.storage_service = storage_service
         self.face_detection_service = face_detection_service
+        # CORE.MD: Use Path for robust, OS-agnostic path construction.
+        self.base_dir = Path(__file__).resolve().parent.parent
+        self.base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", str(self.base_dir / "assets/swamiji_base_image.png"))
         self.themes = {
             0: ("Meditative Mountain", "in serene white robes, meditating on a peaceful mountain peak at sunrise"), # Monday
             1: ("Temple Blessings", "in vibrant saffron robes, offering blessings in front of a traditional temple"), # Tuesday
@@ -46,62 +49,49 @@ class ThemeService:
         and returns its public URL.
         """
         try:
-            day_of_week = datetime.now().weekday()
-            original_day_for_logging = day_of_week
-            
-            theme = self.themes.get(day_of_week)
+            # CORE.MD: Ensure the base image file exists before proceeding.
+            if not Path(self.base_image_path).is_file():
+                logger.error(f"Base image not found at {self.base_image_path}")
+                raise HTTPException(status_code=500, detail=f"Base image not found at {self.base_image_path}")
 
-            if not theme:
-                logger.warning(
-                    f"Theme not found for day {original_day_for_logging}. "
-                    f"Falling back to theme for day 0."
-                )
-                day_of_week = 0
-                theme = self.themes[0]
-
-            theme_name, theme_description = theme
-            logger.info(f"Today's theme (day {original_day_for_logging}): {theme_name}")
-
-            # CORE.MD: Corrected the prompt structure to directly use the theme_description,
-            # which already contains the full attire and setting details. This avoids
-            # grammatical errors and creates a more coherent prompt.
-            prompt = (
-                f"A serene Indian spiritual master (Swamiji) with a gentle smile, "
-                f"{theme_description}. "
-                f"Photorealistic, digital art, full body shot."
-            )
-
-            logger.info(f"Generated daily theme prompt: {prompt}")
-
-            # CORE.MD: The base image path is now constructed relative to this file's location
-            # to ensure it works correctly in different environments like Render.
-            base_dir = Path(__file__).resolve().parent.parent
-            base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", str(base_dir / "assets/swamiji_base_image.png"))
-            
-            if not os.path.exists(base_image_path):
-                logger.error(f"Base image not found at {base_image_path}")
-                raise HTTPException(status_code=500, detail="Base Swamiji image not found.")
-
-            with open(base_image_path, "rb") as f:
+            with open(self.base_image_path, "rb") as f:
                 base_image_bytes = f.read()
 
             # 1. Create a face mask
             logger.info("Creating face mask from base image.")
             mask_bytes = self.face_detection_service.create_face_mask(base_image_bytes)
 
-            # 2. Inpaint the new image
-            logger.info("Inpainting the new themed image with Stability.ai.")
+            # REFRESH.MD: Restore prompt generation logic based on the daily theme.
+            day_of_week = datetime.now().weekday()
+            original_day_for_logging = day_of_week
+            theme = self.themes.get(day_of_week)
+
+            if theme is None:
+                logger.warning(f"No theme found for day {original_day_for_logging}. Defaulting to day 0.")
+                day_of_week = 0
+                theme = self.themes.get(day_of_week)
+            
+            # CORE.MD: Add a safeguard to prevent TypeError if the fallback theme is also missing.
+            if theme is None:
+                logger.error("Default theme (day 0) is missing from the configuration.")
+                raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
+
+            # CORE.MD: Construct a clear, descriptive prompt for the inpainting model.
+            prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme[1]}."
+
             inpainted_image_bytes = await self.stability_service.inpaint_image(
                 image_bytes=base_image_bytes,
                 mask_bytes=mask_bytes,
-                text_prompt=prompt
+                text_prompt=prompt,
             )
+
+            # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
+            unique_filename = f"swamiji_daily_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
 
             # 3. Upload to Supabase
             # REFRESH.MD: Corrected the file path construction to avoid nesting.
             theme_folder = "daily_themes"
-            file_name = f"swamiji_{datetime.now().strftime('%Y-%m-%d')}_{uuid.uuid4()}.png"
-            file_path_in_bucket = f"{theme_folder}/{file_name}"
+            file_path_in_bucket = f"{theme_folder}/{unique_filename}"
 
             public_url = self.storage_service.upload_file(
                 bucket_name="avatars",

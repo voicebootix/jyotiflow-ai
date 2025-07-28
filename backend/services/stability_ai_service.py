@@ -27,8 +27,9 @@ ENGINE_ID = "stable-diffusion-xl-1024-v1-0"
 class StabilityAiService:
     def __init__(self):
         self.api_key = os.getenv("STABILITY_API_KEY")
-        self.api_host = API_HOST
-        self.engine_id = ENGINE_ID
+        self.api_host = os.getenv("STABILITY_API_HOST", "https://api.stability.ai")
+        # REFRESH.MD: Use the correct engine ID for image inpainting/masking.
+        self.engine_id = "stable-diffusion-xl-1024-v1-0"
         self.is_configured = bool(self.api_key)
         self._async_client: Optional[httpx.AsyncClient] = None
         # REFRESH.MD: Add a lock to prevent race conditions during client initialization.
@@ -66,6 +67,7 @@ class StabilityAiService:
             raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
 
         # --- API Request ---
+        # CORE.MD: Use the correct, updated engine_id for the masking API endpoint.
         url = f"{self.api_host}/v1/generation/{self.engine_id}/image-to-image/masking"
         
         headers = {

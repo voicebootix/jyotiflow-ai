@@ -40,10 +40,12 @@ class FaceDetectionService:
                 logger.error("Failed to decode image bytes.")
                 raise ValueError("Invalid image bytes provided.")
 
+            # REFRESH.MD: Ensure mask has the exact same dimensions as the input image.
+            height, width, _ = img.shape
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             
-            # Create a white mask initially
-            mask = np.ones(img.shape[:2], dtype="uint8") * 255
+            # CORE.MD: Create a mask with the same dimensions as the original image.
+            mask = np.ones((height, width), dtype="uint8") * 255 # White mask
 
             # Detect faces
             faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
