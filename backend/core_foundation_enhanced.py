@@ -2416,7 +2416,6 @@ class EnhancedSpiritualEngine:
         }
 
 # Global instance management with async lock for thread safety
-import asyncio
 _spiritual_engine_instance = None
 _spiritual_engine_lock = asyncio.Lock()
 
