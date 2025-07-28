@@ -2860,16 +2860,27 @@ if __name__ == "__main__":
         command = sys.argv[1]
         
         if command == "check":
-            orchestrator = SelfHealingOrchestrator()
-            asyncio.run(orchestrator.run_check())
+            async def run_check():
+                orchestrator = SelfHealingOrchestrator()
+                await orchestrator.run_check()
+            asyncio.run(run_check())
+            
         elif command == "start":
-            orchestrator = SelfHealingOrchestrator()
-            asyncio.run(orchestrator.start())
-            # Keep running
-            try:
-                asyncio.run(asyncio.sleep(float('inf')))
-            except KeyboardInterrupt:
-                asyncio.run(orchestrator.stop())
+            async def run_orchestrator():
+                orchestrator = SelfHealingOrchestrator()
+                try:
+                    await orchestrator.start()
+                    # Keep running in the same event loop
+                    await asyncio.sleep(float('inf'))
+                except KeyboardInterrupt:
+                    logger.info("🛑 Received shutdown signal, stopping orchestrator...")
+                    await orchestrator.stop()
+                except Exception as e:
+                    logger.error(f"❌ Orchestrator error: {e}")
+                    await orchestrator.stop()
+                    raise
+            asyncio.run(run_orchestrator())
+            
         elif command == "analyze":
             analyzer = CodePatternAnalyzer()
             issues = analyzer.analyze_codebase()
