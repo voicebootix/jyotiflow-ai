@@ -30,6 +30,9 @@ class ThemeService:
         self.stability_service = stability_service
         self.storage_service = storage_service
         self.face_detection_service = face_detection_service
+        # CORE.MD: Use Path for robust, OS-agnostic path construction.
+        self.base_dir = Path(__file__).resolve().parent.parent
+        self.base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", str(self.base_dir / "assets/swamiji_base_image.png"))
         self.themes = {
             0: ("Meditative Mountain", "in serene white robes, meditating on a peaceful mountain peak at sunrise"), # Monday
             1: ("Temple Blessings", "in vibrant saffron robes, offering blessings in front of a traditional temple"), # Tuesday
@@ -46,43 +49,12 @@ class ThemeService:
         and returns its public URL.
         """
         try:
-            day_of_week = datetime.now().weekday()
-            original_day_for_logging = day_of_week
-            
-            theme = self.themes.get(day_of_week)
+            # CORE.MD: Ensure the base image file exists before proceeding.
+            if not Path(self.base_image_path).is_file():
+                logger.error(f"Base image not found at {self.base_image_path}")
+                raise HTTPException(status_code=500, detail=f"Base image not found at {self.base_image_path}")
 
-            if not theme:
-                logger.warning(
-                    f"Theme not found for day {original_day_for_logging}. "
-                    f"Falling back to theme for day 0."
-                )
-                day_of_week = 0
-                theme = self.themes[0]
-
-            theme_name, theme_description = theme
-            logger.info(f"Today's theme (day {original_day_for_logging}): {theme_name}")
-
-            # CORE.MD: Corrected the prompt structure to directly use the theme_description,
-            # which already contains the full attire and setting details. This avoids
-            # grammatical errors and creates a more coherent prompt.
-            prompt = (
-                f"A serene Indian spiritual master (Swamiji) with a gentle smile, "
-                f"{theme_description}. "
-                f"Photorealistic, digital art, full body shot."
-            )
-
-            logger.info(f"Generated daily theme prompt: {prompt}")
-
-            # CORE.MD: The base image path is now constructed relative to this file's location
-            # to ensure it works correctly in different environments like Render.
-            base_dir = Path(__file__).resolve().parent.parent
-            base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", str(base_dir / "assets/swamiji_base_image.png"))
-            
-            if not os.path.exists(base_image_path):
-                logger.error(f"Base image not found at {base_image_path}")
-                raise HTTPException(status_code=500, detail="Base Swamiji image not found.")
-
-            with open(base_image_path, "rb") as f:
+            with open(self.base_image_path, "rb") as f:
                 base_image_bytes = f.read()
 
             # 1. Create a face mask
