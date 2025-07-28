@@ -61,19 +61,32 @@ class ThemeService:
             logger.info("Creating face mask from base image.")
             mask_bytes = self.face_detection_service.create_face_mask(base_image_bytes)
 
-            # 2. Inpaint the new image
-            logger.info("Inpainting the new themed image with Stability.ai.")
+            # REFRESH.MD: Restore prompt generation logic based on the daily theme.
+            day_of_week = datetime.now().weekday()
+            original_day_for_logging = day_of_week
+            theme = self.themes.get(day_of_week)
+
+            if theme is None:
+                logger.warning(f"No theme found for day {original_day_for_logging}. Defaulting to day 0.")
+                day_of_week = 0
+                theme = self.themes.get(day_of_week)
+
+            # CORE.MD: Construct a clear, descriptive prompt for the inpainting model.
+            prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme[1]}."
+
             inpainted_image_bytes = await self.stability_service.inpaint_image(
                 image_bytes=base_image_bytes,
                 mask_bytes=mask_bytes,
-                text_prompt=prompt
+                text_prompt=prompt,
             )
+
+            # Use a unique filename for each generated image
+            unique_filename = f"swamiji_daily_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
 
             # 3. Upload to Supabase
             # REFRESH.MD: Corrected the file path construction to avoid nesting.
             theme_folder = "daily_themes"
-            file_name = f"swamiji_{datetime.now().strftime('%Y-%m-%d')}_{uuid.uuid4()}.png"
-            file_path_in_bucket = f"{theme_folder}/{file_name}"
+            file_path_in_bucket = f"{theme_folder}/{unique_filename}"
 
             public_url = self.storage_service.upload_file(
                 bucket_name="avatars",
