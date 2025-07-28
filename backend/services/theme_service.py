@@ -10,6 +10,7 @@ from datetime import datetime
 import uuid
 import os
 from fastapi import HTTPException, Depends
+from pathlib import Path
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -72,8 +73,11 @@ class ThemeService:
 
             logger.info(f"Generated daily theme prompt: {prompt}")
 
-            # CORE.MD: The base image path is now configurable via an environment variable.
-            base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", "backend/assets/swamiji_base_image.png")
+            # CORE.MD: The base image path is now constructed relative to this file's location
+            # to ensure it works correctly in different environments like Render.
+            base_dir = Path(__file__).resolve().parent.parent
+            base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", str(base_dir / "assets/swamiji_base_image.png"))
+            
             if not os.path.exists(base_image_path):
                 logger.error(f"Base image not found at {base_image_path}")
                 raise HTTPException(status_code=500, detail="Base Swamiji image not found.")
