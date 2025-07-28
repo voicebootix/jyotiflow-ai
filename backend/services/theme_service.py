@@ -70,6 +70,11 @@ class ThemeService:
                 logger.warning(f"No theme found for day {original_day_for_logging}. Defaulting to day 0.")
                 day_of_week = 0
                 theme = self.themes.get(day_of_week)
+            
+            # CORE.MD: Add a safeguard to prevent TypeError if the fallback theme is also missing.
+            if theme is None:
+                logger.error("Default theme (day 0) is missing from the configuration.")
+                raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
 
             # CORE.MD: Construct a clear, descriptive prompt for the inpainting model.
             prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme[1]}."
@@ -80,8 +85,8 @@ class ThemeService:
                 text_prompt=prompt,
             )
 
-            # Use a unique filename for each generated image
-            unique_filename = f"swamiji_daily_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+            # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
+            unique_filename = f"swamiji_daily_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
 
             # 3. Upload to Supabase
             # REFRESH.MD: Corrected the file path construction to avoid nesting.
