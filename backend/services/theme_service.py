@@ -18,6 +18,17 @@ from services.face_detection_service import FaceDetectionService, get_face_detec
 
 logger = logging.getLogger(__name__)
 
+# REFRESH.MD: Use a clear, maintainable dictionary structure for themes.
+THEMES = {
+    0: {"name": "Meditative Monday", "description": "in serene white robes, meditating on a peaceful mountain peak at sunrise"},
+    1: {"name": "Teaching Tuesday", "description": "wearing traditional saffron robes, giving a discourse in a vibrant ashram hall"},
+    2: {"name": "Wisdom Wednesday", "description": "in simple cotton attire, writing ancient scriptures on palm leaves under a banyan tree"},
+    3: {"name": "Thankful Thursday", "description": "in humble orange robes, offering flowers at a serene riverbank"},
+    4: {"name": "Festive Friday", "description": "adorned in bright, festive saffron and gold robes, celebrating amidst temple festivities"},
+    5: {"name": "Silent Saturday", "description": "in muted, earthy-toned robes, in deep meditation inside a quiet, rustic cave"},
+    6: {"name": "Serene Sunday", "description": "wearing a simple, cream-colored dhoti, walking peacefully along a sunlit beach at dawn"},
+}
+
 class ThemeService:
     """Orchestrates the generation of daily themes."""
 
@@ -64,20 +75,20 @@ class ThemeService:
             # REFRESH.MD: Restore prompt generation logic based on the daily theme.
             day_of_week = datetime.now().weekday()
             original_day_for_logging = day_of_week
-            theme = self.themes.get(day_of_week)
+            theme = THEMES.get(day_of_week)
 
             if theme is None:
                 logger.warning(f"No theme found for day {original_day_for_logging}. Defaulting to day 0.")
                 day_of_week = 0
-                theme = self.themes.get(day_of_week)
+                theme = THEMES.get(day_of_week)
             
             # CORE.MD: Add a safeguard to prevent TypeError if the fallback theme is also missing.
             if theme is None:
                 logger.error("Default theme (day 0) is missing from the configuration.")
                 raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
 
-            # CORE.MD: Construct a clear, descriptive prompt for the inpainting model.
-            prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme[1]}."
+            # CORE.MD: Use the correct key 'description' to access the theme details.
+            prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
 
             inpainted_image_bytes = await self.stability_service.inpaint_image(
                 image_bytes=base_image_bytes,
