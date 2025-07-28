@@ -110,9 +110,20 @@ class StabilityAiService:
             logger.info("✅ Successfully inpainted image.")
             return image_bytes
 
+        except HTTPException:
+            # CORE.MD: Re-raise HTTPException to preserve specific error messages.
+            raise
         except httpx.HTTPStatusError as e:
             logger.error(f"Stability.ai API error during inpainting: {e.response.status_code} - {e.response.text}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to inpaint image: {e.response.text}") from e
+        except (base64.binascii.Error, ValueError) as e:
+            # REFRESH.MD: Handle specific base64 decoding errors.
+            logger.error(f"Failed to decode base64 image from Stability.ai response: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to decode image from inpainting service.") from e
+        except httpx.RequestError as e:
+            # REFRESH.MD: Handle specific network errors.
+            logger.error(f"Network error while contacting Stability.ai for inpainting: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
         except Exception as e:
             logger.error(f"An unexpected error occurred during inpainting: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred during inpainting.") from e
