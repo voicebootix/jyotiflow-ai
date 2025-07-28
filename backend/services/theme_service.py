@@ -46,14 +46,16 @@ class ThemeService:
 
             logger.info(f"Today's theme ({day_of_week=}): {theme_name}")
 
-            # CORE.MD: Construct a detailed, high-quality prompt for better image generation.
-            # REFRESH.MD: Added negative prompts to improve facial consistency and quality.
+            # CORE.MD: Simplified the prompt to be more direct and less verbose, which can help avoid
+            # potential issues with the Stability.ai API's interpretation of the text.
             prompt = (
-                f"photorealistic digital art of a wise, kind-faced Indian spiritual master (Swamiji) "
-                f"with a gentle smile, {theme_description}. "
-                f"4k, ultra-realistic, cinematic lighting, sharp focus."
+                f"A serene Indian spiritual master (Swamiji) with a gentle smile, "
+                f"wearing {theme_name} attire, in a {theme_description} setting. "
+                f"Photorealistic, digital art, full body shot."
             )
-            
+
+            logger.info(f"Generated daily theme prompt: {prompt}")
+
             # 1. Generate the image
             image_bytes = await self.stability_service.generate_image(prompt)
 
