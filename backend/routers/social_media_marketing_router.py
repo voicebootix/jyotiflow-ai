@@ -463,24 +463,19 @@ async def upload_swamiji_image(
 
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(
-    request: GenerateAllAvatarPreviewsRequest, # REFRESH.MD: Re-used request model as fields are compatible.
+    request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
-    # REFRESH.MD: Manually construct dependencies to avoid static analysis warnings.
-    stability_service: StabilityAiService = Depends(get_stability_service),
-    storage_service: SupabaseStorageService = Depends(get_storage_service),
+    theme_service: ThemeService = Depends(get_theme_service),
 ):
     """
-    Generates a single, lightweight avatar preview with a dynamic, daily-themed image.
+    Generates a single, daily-themed avatar preview.
     """
     try:
-        # CORE.MD: Manually construct the ThemeService with its dependencies.
-        theme_service = get_theme_service(stability_service, storage_service)
-        
-        # 1. Get the daily themed image URL from the ThemeService.
+        # CORE.MD: The ThemeService now orchestrates image generation internally.
         themed_image_url = await theme_service.get_daily_themed_image_url()
 
-        # 2. Pass the dynamic URL to the avatar engine.
+        # Generate the video preview with the new themed image
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.sample_text,
             voice_id=request.voice_id,
@@ -503,20 +498,17 @@ async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
-    # REFRESH.MD: Manually construct dependencies to avoid static analysis warnings.
-    stability_service: StabilityAiService = Depends(get_stability_service),
-    storage_service: SupabaseStorageService = Depends(get_storage_service),
+    theme_service: ThemeService = Depends(get_theme_service),
 ):
-    """Generates lightweight avatar previews for all available styles using a single daily theme."""
+    """
+    DEPRECATED: This endpoint now generates a single daily preview, just like
+    generate_avatar_preview. It's kept for backward compatibility.
+    """
     try:
-        # CORE.MD: Manually construct the ThemeService with its dependencies.
-        theme_service = get_theme_service(stability_service, storage_service)
-        
-        # Generate one themed image to be used for all style previews.
+        # CORE.MD: The ThemeService now orchestrates image generation internally.
         themed_image_url = await theme_service.get_daily_themed_image_url()
-        
-        # REFRESH.MD: For simplicity, this endpoint now generates ONE preview instead of for all styles.
-        # This aligns with the new UI and reduces redundant (and costly) API calls.
+
+        # Generate the video preview with the new themed image
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.sample_text,
             voice_id=request.voice_id,
