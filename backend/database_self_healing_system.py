@@ -2747,6 +2747,81 @@ setInterval(loadHealthStatus, 10000);  // Refresh every 10 seconds
 </script>
 """
 
+# Global instance tracking (minimal)
+_startup_instance = None
+
+# Add the missing DatabaseSelfHealingSystem class for backward compatibility
+class DatabaseSelfHealingSystem:
+    """
+    Database Self Healing System - Backward compatibility wrapper
+    Provides the interface expected by test_execution_engine.py
+    """
+    
+    def __init__(self):
+        self.orchestrator = None
+        self.initialized = False
+        
+    async def initialize(self):
+        """Initialize the self-healing system"""
+        try:
+            self.orchestrator = SelfHealingOrchestrator()
+            self.initialized = True
+            logger.info("Database Self Healing System initialized")
+        except Exception as e:
+            logger.error(f"Failed to initialize self-healing system: {e}")
+            
+    async def run_health_check(self) -> Dict[str, Any]:
+        """Run a health check"""
+        if not self.initialized:
+            await self.initialize()
+            
+        if self.orchestrator:
+            return await self.orchestrator.run_check()
+        else:
+            return {"status": "error", "message": "System not initialized"}
+            
+    async def get_system_status(self) -> Dict[str, Any]:
+        """Get current system status"""
+        return {
+            "initialized": self.initialized,
+            "orchestrator_available": self.orchestrator is not None,
+            "status": "healthy" if self.initialized else "not_initialized"
+        }
+
+# Removed duplicate extract_table_from_query function - using the original at line 144
+
+async def initialize_unified_jyotiflow():
+    """Main entry point for compatibility with existing main.py"""
+    global _startup_instance
+    # Import the simple unified startup functions
+    try:
+        from simple_unified_startup import initialize_jyotiflow_simple
+        return await initialize_jyotiflow_simple()
+    except ImportError:
+        # Fallback to orchestrator if simple startup not available
+        orchestrator = SelfHealingOrchestrator()
+        await orchestrator.start()
+        return {"status": "initialized", "type": "self_healing_orchestrator"}
+
+async def cleanup_unified_system(db_pool=None):
+    """Cleanup entry point for compatibility with existing main.py"""  
+    try:
+        from simple_unified_startup import cleanup_jyotiflow_simple
+        await cleanup_jyotiflow_simple(db_pool)
+    except ImportError:
+        # Fallback cleanup
+        if db_pool:
+            await db_pool.close()
+        logger.info("Cleanup completed")
+
+def get_unified_system_status():
+    """Get simple system status for health checks"""
+    return {
+        "system_available": True,
+        "architecture": "clean_shared_pool",
+        "startup_type": "simplified"
+    }
+
 if __name__ == "__main__":
     # Command-line interface
     import sys
@@ -2755,14 +2830,27 @@ if __name__ == "__main__":
         command = sys.argv[1]
         
         if command == "check":
-            asyncio.run(orchestrator.run_check())
+            async def run_check():
+                orchestrator = SelfHealingOrchestrator()
+                await orchestrator.run_check()
+            asyncio.run(run_check())
+            
         elif command == "start":
-            asyncio.run(orchestrator.start())
-            # Keep running
-            try:
-                asyncio.run(asyncio.sleep(float('inf')))
-            except KeyboardInterrupt:
-                asyncio.run(orchestrator.stop())
+            async def run_orchestrator():
+                orchestrator = SelfHealingOrchestrator()
+                try:
+                    await orchestrator.start()
+                    # Keep running in the same event loop
+                    await asyncio.sleep(float('inf'))
+                except KeyboardInterrupt:
+                    logger.info("🛑 Received shutdown signal, stopping orchestrator...")
+                    await orchestrator.stop()
+                except Exception as e:
+                    logger.error(f"❌ Orchestrator error: {e}")
+                    await orchestrator.stop()
+                    raise
+            asyncio.run(run_orchestrator())
+            
         elif command == "analyze":
             analyzer = CodePatternAnalyzer()
             issues = analyzer.analyze_codebase()

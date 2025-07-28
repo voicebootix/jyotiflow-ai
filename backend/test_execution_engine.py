@@ -713,7 +713,9 @@ class TestExecutionEngine:
             'secrets', 'string', 'sys', 'os', 'importlib',  # Added necessary modules for testing
             'core_foundation_enhanced', 'database_self_healing_system',
             'monitoring', 'spiritual_avatar_generation_engine', 'social_media_marketing_automation',
-            'agora_service', 'test_suite_generator', 'test_execution_engine'
+            'agora_service', 'test_suite_generator', 'test_execution_engine',
+            'time', 'enhanced_business_logic', 'math', 'random',  # Add common modules needed for tests
+            'typing', 'collections', 'functools', 'itertools', 'operator'  # Add standard library modules
         }
         
         for child in ast.walk(node):
