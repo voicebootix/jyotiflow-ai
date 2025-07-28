@@ -10,7 +10,7 @@ import base64
 import logging
 import httpx
 import binascii # REFRESH.MD: Import for specific exception handling on base64 decoding.
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from fastapi import HTTPException
 
@@ -53,7 +53,7 @@ class StabilityAiService:
             await self._client.aclose()
             logger.info("Stability.ai service client closed.")
 
-    async def generate_image(self, text_prompt: str, style_preset: str = "photorealistic") -> bytes:
+    async def generate_image(self, text_prompt: str) -> bytes:
         """
         Generates an image from a text prompt using the Stability.ai API.
         """
