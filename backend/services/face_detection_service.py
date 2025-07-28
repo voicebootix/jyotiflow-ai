@@ -5,13 +5,17 @@ import cv2
 import numpy as np
 import logging
 import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
 class FaceDetectionService:
     def __init__(self):
-        # CORE.MD: Path to the Haar Cascade model is now configurable via an environment variable.
-        cascade_path = os.getenv("HAAR_CASCADE_PATH", "backend/models/haarcascade_frontalface_default.xml")
+        # CORE.MD: Path to the Haar Cascade model is now constructed relative to this file's location.
+        # This makes it robust to changes in the current working directory.
+        base_dir = Path(__file__).resolve().parent.parent
+        cascade_path = os.getenv("HAAR_CASCADE_PATH", str(base_dir / "models/haarcascade_frontalface_default.xml"))
+        
         self.face_cascade = cv2.CascadeClassifier(cascade_path)
         if self.face_cascade.empty():
             logger.error(f"Failed to load Haar Cascade model from {cascade_path}")
