@@ -8,7 +8,7 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 import logging
 from pathlib import Path
 import shutil
-from typing import Optional
+from typing import Optional, AsyncGenerator
 import json
 from datetime import datetime, timedelta
 
@@ -122,9 +122,12 @@ try:
 except ImportError:
     STABILITY_SERVICE_AVAILABLE = False
     class StabilityAiService: pass
-    async def get_stability_service():
+    # CORE.MD: Define a fallback async generator to match the real dependency's signature.
+    async def get_stability_service() -> AsyncGenerator[None, None]:
+        """Fallback if StabilityAiService is not available."""
         raise HTTPException(status_code=501, detail="Stability AI service is not available.")
-
+        yield # This makes it a generator, though it's unreachable.
+    
 # This import is no longer needed as frontend now sends the voice_id
 # from spiritual_avatar_generation_engine import DEFAULT_VOICE_ID
 
