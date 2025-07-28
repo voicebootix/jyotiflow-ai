@@ -95,7 +95,8 @@ class StabilityAiService:
             response_data = response.json()
             artifacts = response_data.get("artifacts")
             
-            if not artifacts or not isinstance(artifacts, list) or "base64" not in artifacts[0]:
+            # CORE.MD: Add type checking to prevent TypeError if the artifact is not a dict.
+            if not artifacts or not isinstance(artifacts, list) or not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
                 raise HTTPException(status_code=500, detail="Invalid response from image inpainting service.")
             
             image_base64 = artifacts[0]["base64"]
