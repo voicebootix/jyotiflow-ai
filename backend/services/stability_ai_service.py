@@ -17,105 +17,34 @@ from fastapi import HTTPException
 # Initialize logger
 logger = logging.getLogger(__name__)
 
-# CORE.MD: Load configuration from environment variables.
-STABILITY_API_KEY = os.getenv("STABILITY_API_KEY")
+# --- Constants ---
+# REFRESH.MD: Centralize API configuration constants.
 API_HOST = os.getenv("STABILITY_API_HOST", "https://api.stability.ai")
-ENGINE_ID = "stable-diffusion-xl-1024-v1-0"
+ENGINE_ID = "stable-diffusion-v1-6" # Using the latest stable version
 
 class StabilityAiService:
-    """
-    A service class to manage text-to-image generation with Stability.ai.
-    Manages the lifecycle of the httpx.AsyncClient.
-    """
-
     def __init__(self):
-        self.is_configured = bool(STABILITY_API_KEY)
+        self.api_key = os.getenv("STABILITY_API_KEY")
+        self.api_host = API_HOST
+        self.engine_id = ENGINE_ID
+        self.is_configured = bool(self.api_key)
+        self._async_client: Optional[httpx.AsyncClient] = None
+
         if not self.is_configured:
             logger.warning("Stability.ai API key is not configured. Image generation service is disabled.")
-        # REFRESH.MD: Lazy initialization of the client.
-        self._client: httpx.AsyncClient | None = None
 
-    @property
-    def client(self) -> httpx.AsyncClient:
+    async def get_client(self) -> httpx.AsyncClient:
         """Provides a lazily initialized httpx.AsyncClient instance."""
-        if self._client is None:
-            # CORE.MD: The client is instantiated on first use.
-            self._client = httpx.AsyncClient(timeout=90.0)
-        return self._client
+        if self._async_client is None or self._async_client.is_closed:
+            self._async_client = httpx.AsyncClient(timeout=90.0)
+        return self._async_client
 
-    async def __aenter__(self):
-        """Async context manager entry."""
-        return self
-    
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Async context manager exit. Ensures the client is closed."""
-        if self._client and not self._client.is_closed:
-            await self._client.aclose()
+    async def close_client(self):
+        """Closes the client if it's open."""
+        if self._async_client and not self._async_client.is_closed:
+            await self._async_client.aclose()
             logger.info("Stability.ai service client closed.")
-
-    async def generate_image(self, text_prompt: str) -> bytes:
-        """
-        Generates an image from a text prompt using the Stability.ai API.
-        """
-        if not self.is_configured:
-            raise HTTPException(status_code=501, detail="Image generation service is not configured.")
-
-        # CORE.MD: Add input validation for the text prompt.
-        if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
-            raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
-        if len(text_prompt) > 2000: # Stability API has a limit
-            raise HTTPException(status_code=400, detail="Text prompt is too long.")
-
-        url = f"{API_HOST}/v1/generation/{ENGINE_ID}/text-to-image"
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {STABILITY_API_KEY}",
-        }
-        payload = {
-            "steps": 40,
-            "width": 1024,
-            "height": 1024,
-            "seed": 0,
-            "cfg_scale": 5,
-            "samples": 1,
-            # CORE.MD: Removed style_preset from the payload as it might not be supported by all models
-            # and could be the cause of the 400 Bad Request error. The prompt is descriptive enough.
-            "text_prompts": [
-                {"text": text_prompt, "weight": 1},
-                {"text": "blurry, bad, disfigured, poor quality, distorted", "weight": -1}
-            ],
-        }
-
-        try:
-            response = await self.client.post(url, json=payload, headers=headers)
-            response.raise_for_status()
-            
-            response_data = response.json()
-            artifacts = response_data.get("artifacts")
-            
-            if not artifacts or not isinstance(artifacts, list) or "base64" not in artifacts[0]:
-                raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
-            
-            image_base64 = artifacts[0]["base64"]
-            
-            # CORE.MD: Add robust error handling for base64 decoding.
-            try:
-                image_bytes = base64.b64decode(image_base64)
-            except (binascii.Error, TypeError) as e:
-                logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail="Could not decode image data from generation service.") from e
-
-            logger.info("✅ Successfully generated image from text prompt.")
-            return image_bytes
-
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Stability.ai API error: {e.response.status_code} - {e.response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to generate image from Stability.ai.") from e
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during image generation: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="An unexpected error occurred while generating the image.") from e
-
+    
     async def inpaint_image(self, image_bytes: bytes, mask_bytes: bytes, text_prompt: str) -> bytes:
         """
         Inpaints an image using the Stability.ai API's masking endpoint.
@@ -130,8 +59,7 @@ class StabilityAiService:
             raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
 
         # --- API Request ---
-        engine_id = "stable-diffusion-v1-6"
-        url = f"{self.api_host}/v1/generation/{engine_id}/image-to-image/masking"
+        url = f"{self.api_host}/v1/generation/{self.engine_id}/image-to-image/masking"
         
         headers = {
             "Accept": "image/png",
@@ -139,7 +67,6 @@ class StabilityAiService:
         }
 
         # CORE.MD: Correctly structure the multipart form data for httpx.
-        # File bytes are passed in 'files', other fields in 'data'.
         files = {
             'init_image': ('init_image.png', image_bytes, 'image/png'),
             'mask_image': ('mask_image.png', mask_bytes, 'image/png')
@@ -153,8 +80,8 @@ class StabilityAiService:
         }
         
         try:
-            # REFRESH.MD: Use the existing self.client property, not a new client.
-            response = await self.client.post(url, headers=headers, data=data, files=files)
+            client = await self.get_client()
+            response = await client.post(url, headers=headers, data=data, files=files)
             response.raise_for_status()
             logger.info("✅ Successfully inpainted image.")
             return response.content
@@ -179,5 +106,5 @@ async def get_stability_service() -> AsyncGenerator[StabilityAiService, None]:
         yield service
     finally:
         # Ensures the client is closed even if errors occur.
-        if service._client and not service._client.is_closed:
-            await service._client.aclose() 
+        if service._async_client and not service._async_client.is_closed:
+            await service._async_client.aclose() 
