@@ -38,23 +38,39 @@ class ThemeService:
 
     async def get_daily_themed_image_url(self) -> str:
         """
-        Generates a daily themed image for Swamiji and returns its public URL.
+        Determines the daily theme, generates an image if it doesn't exist,
+        and returns its public URL.
         """
         try:
             day_of_week = datetime.now().weekday()
-            theme_name, theme_description = self.themes.get(day_of_week, self.themes[0])
-
-            logger.info(f"Today's theme ({day_of_week=}): {theme_name}")
-
-            # CORE.MD: Construct a detailed, high-quality prompt for better image generation.
-            # REFRESH.MD: Added negative prompts to improve facial consistency and quality.
-            prompt = (
-                f"photorealistic digital art of a wise, kind-faced Indian spiritual master (Swamiji) "
-                f"with a gentle smile, {theme_description}. "
-                f"4k, ultra-realistic, cinematic lighting, sharp focus."
-            )
+            original_day_for_logging = day_of_week
             
+            theme = self.themes.get(day_of_week)
+
+            if not theme:
+                logger.warning(
+                    f"Theme not found for day {original_day_for_logging}. "
+                    f"Falling back to theme for day 0."
+                )
+                day_of_week = 0
+                theme = self.themes[0]
+
+            theme_name, theme_description = theme
+            logger.info(f"Today's theme (day {original_day_for_logging}): {theme_name}")
+
+            # CORE.MD: Corrected the prompt structure to directly use the theme_description,
+            # which already contains the full attire and setting details. This avoids
+            # grammatical errors and creates a more coherent prompt.
+            prompt = (
+                f"A serene Indian spiritual master (Swamiji) with a gentle smile, "
+                f"{theme_description}. "
+                f"Photorealistic, digital art, full body shot."
+            )
+
+            logger.info(f"Generated daily theme prompt: {prompt}")
+
             # 1. Generate the image
+            logger.info("Generating a new themed image with Stability.ai.")
             image_bytes = await self.stability_service.generate_image(prompt)
 
             # 2. Upload the image to storage

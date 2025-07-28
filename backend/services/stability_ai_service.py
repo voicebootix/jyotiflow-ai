@@ -10,7 +10,7 @@ import base64
 import logging
 import httpx
 import binascii # REFRESH.MD: Import for specific exception handling on base64 decoding.
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
 from fastapi import HTTPException
 
@@ -53,7 +53,7 @@ class StabilityAiService:
             await self._client.aclose()
             logger.info("Stability.ai service client closed.")
 
-    async def generate_image(self, text_prompt: str, style_preset: str = "photorealistic") -> bytes:
+    async def generate_image(self, text_prompt: str) -> bytes:
         """
         Generates an image from a text prompt using the Stability.ai API.
         """
@@ -73,13 +73,18 @@ class StabilityAiService:
             "Authorization": f"Bearer {STABILITY_API_KEY}",
         }
         payload = {
-            "text_prompts": [{"text": text_prompt}],
-            "cfg_scale": 7,
-            "height": 1024,
-            "width": 1024,
-            "samples": 1,
             "steps": 40,
-            "style_preset": style_preset,
+            "width": 1024,
+            "height": 1024,
+            "seed": 0,
+            "cfg_scale": 5,
+            "samples": 1,
+            # CORE.MD: Removed style_preset from the payload as it might not be supported by all models
+            # and could be the cause of the 400 Bad Request error. The prompt is descriptive enough.
+            "text_prompts": [
+                {"text": text_prompt, "weight": 1},
+                {"text": "blurry, bad, disfigured, poor quality, distorted", "weight": -1}
+            ],
         }
 
         try:
