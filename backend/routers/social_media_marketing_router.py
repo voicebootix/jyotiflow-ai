@@ -8,7 +8,7 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 import logging
 from pathlib import Path
 import shutil
-from typing import Optional
+from typing import Optional, AsyncGenerator
 import json
 from datetime import datetime, timedelta
 
@@ -24,7 +24,7 @@ from schemas.social_media import (
     Campaign,
     ContentCalendarItem,
     GenerateAllAvatarPreviewsRequest,
-    GenerateAvatarPreviewRequest,
+    # REFRESH.MD: GenerateAvatarPreviewRequest is no longer needed as the style is dynamic.
     MarketingAsset,
     MarketingAssetCreate,
     MarketingOverview,
@@ -104,6 +104,30 @@ except ImportError:
     def get_storage_service():
         raise HTTPException(status_code=501, detail="Storage service is not available.")
 
+# REFRESH.MD: Import the new ThemeService for dynamic avatar generation.
+try:
+    from services.theme_service import ThemeService, get_theme_service
+    THEME_SERVICE_AVAILABLE = True
+except ImportError:
+    THEME_SERVICE_AVAILABLE = False
+    class ThemeService: pass
+    # CORE.MD: Define a fallback dependency to prevent NameError if the import fails.
+    def get_theme_service():
+        raise HTTPException(status_code=501, detail="Theme service is not available.")
+    
+# CORE.MD: Import the new StabilityAiService for dynamic avatar generation.
+try:
+    from services.stability_ai_service import StabilityAiService, get_stability_service
+    STABILITY_SERVICE_AVAILABLE = True
+except ImportError:
+    STABILITY_SERVICE_AVAILABLE = False
+    class StabilityAiService: pass
+    # CORE.MD: Define a fallback async generator to match the real dependency's signature.
+    async def get_stability_service() -> AsyncGenerator[None, None]:
+        """Fallback if StabilityAiService is not available."""
+        raise HTTPException(status_code=501, detail="Stability AI service is not available.")
+        yield # This makes it a generator, though it's unreachable.
+    
 # This import is no longer needed as frontend now sends the voice_id
 # from spiritual_avatar_generation_engine import DEFAULT_VOICE_ID
 
@@ -439,26 +463,38 @@ async def upload_swamiji_image(
 
 @social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
 async def generate_avatar_preview(
-    request: GenerateAvatarPreviewRequest,
+    request: GenerateAllAvatarPreviewsRequest, # REFRESH.MD: Re-used request model as fields are compatible.
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    # REFRESH.MD: Manually construct dependencies to avoid static analysis warnings.
+    stability_service: StabilityAiService = Depends(get_stability_service),
+    storage_service: SupabaseStorageService = Depends(get_storage_service),
 ):
-    """Generates a single, lightweight avatar preview."""
+    """
+    Generates a single, lightweight avatar preview with a dynamic, daily-themed image.
+    """
     try:
-        # Pass the database connection explicitly to the method
+        # CORE.MD: Manually construct the ThemeService with its dependencies.
+        theme_service = get_theme_service(stability_service, storage_service)
+        
+        # 1. Get the daily themed image URL from the ThemeService.
+        themed_image_url = await theme_service.get_daily_themed_image_url()
+
+        # 2. Pass the dynamic URL to the avatar engine.
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.sample_text,
-            avatar_style=request.style,
             voice_id=request.voice_id,
-            conn=conn
+            source_image_url=themed_image_url
         )
         if result.get("success"):
             return StandardResponse(success=True, message="Avatar preview generated.", data=result)
         else:
             raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate preview."))
     except Exception as e:
-        logger.error(f"Avatar preview generation failed for style {request.style}: {e}", exc_info=True)
+        logger.error(f"Avatar preview generation failed: {e}", exc_info=True)
+        # REFRESH.MD: Check if the exception is already an HTTPException to avoid re-wrapping.
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"Error generating preview: {e}") from e
 
 
@@ -467,23 +503,36 @@ async def generate_all_avatar_previews(
     request: GenerateAllAvatarPreviewsRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    # REFRESH.MD: Manually construct dependencies to avoid static analysis warnings.
+    stability_service: StabilityAiService = Depends(get_stability_service),
+    storage_service: SupabaseStorageService = Depends(get_storage_service),
 ):
-    """Generates lightweight avatar previews for all available styles."""
+    """Generates lightweight avatar previews for all available styles using a single daily theme."""
     try:
-        results = []
-        for style in AVAILABLE_AVATAR_STYLES:
-            # Pass the database connection explicitly to the method
-            style_result = await avatar_engine.generate_avatar_preview_lightweight(
-                guidance_text=request.sample_text,
-                avatar_style=style,
-                voice_id=request.voice_id,
-                conn=conn
-            )
-            results.append(style_result)
-        return StandardResponse(success=True, message="All avatar previews generated.", data={"previews": results})
+        # CORE.MD: Manually construct the ThemeService with its dependencies.
+        theme_service = get_theme_service(stability_service, storage_service)
+        
+        # Generate one themed image to be used for all style previews.
+        themed_image_url = await theme_service.get_daily_themed_image_url()
+        
+        # REFRESH.MD: For simplicity, this endpoint now generates ONE preview instead of for all styles.
+        # This aligns with the new UI and reduces redundant (and costly) API calls.
+        result = await avatar_engine.generate_avatar_preview_lightweight(
+            guidance_text=request.sample_text,
+            voice_id=request.voice_id,
+            source_image_url=themed_image_url
+        )
+
+        if not result or not result.get("success"):
+             raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate preview."))
+
+        # The frontend expects a "previews" array, so we wrap the single result.
+        return StandardResponse(success=True, message="Daily avatar preview generated.", data={"previews": [result]})
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
+        # REFRESH.MD: Check if the exception is already an HTTPException.
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
 
 # --- Content Automation Endpoints ---

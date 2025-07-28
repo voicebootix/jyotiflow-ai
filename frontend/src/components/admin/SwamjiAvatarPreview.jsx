@@ -8,8 +8,7 @@ import { useNotification } from '../../hooks/useNotification';
 
 const SwamjiAvatarPreview = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
-  const [avatarPreviews, setAvatarPreviews] = useState({});
-  const [selectedStyle, setSelectedStyle] = useState('traditional');
+  // REFRESH.MD: Removed avatarPreviews and selectedStyle states as they are no longer needed.
   const [voices, setVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -17,36 +16,7 @@ const SwamjiAvatarPreview = () => {
   const [currentSample, setCurrentSample] = useState(null);
   const { addNotification } = useNotification();
 
-  const avatarStyles = {
-    traditional: {
-      name: 'Traditional Spiritual',
-      background: '#8B4513',
-      description: 'Classic spiritual robes with warm brown background',
-      icon: '🕉️',
-      voiceTone: 'wise'
-    },
-    modern: {
-      name: 'Modern Spiritual',
-      background: '#2F4F4F',
-      description: 'Contemporary spiritual attire with elegant gray background',
-      icon: '✨',
-      voiceTone: 'compassionate'
-    },
-    festival: {
-      name: 'Festival Celebration',
-      background: '#FF6347',
-      description: 'Festive attire with vibrant celebration background',
-      icon: '🎉',
-      voiceTone: 'joyful'
-    },
-    meditation: {
-      name: 'Meditation Master',
-      background: '#4682B4',
-      description: 'Serene meditation robes with peaceful blue background',
-      icon: '🧘‍♂️',
-      voiceTone: 'gentle'
-    }
-  };
+  // REFRESH.MD: Removed the hardcoded avatarStyles object. The theme is now dynamic from the backend.
 
   useEffect(() => {
     fetchCurrentConfiguration();
@@ -107,7 +77,7 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
-  const generatePreviewSample = async (style) => {
+  const generatePreviewSample = async () => {
     if (!uploadedImage) {
       addNotification('error', 'Please upload Swamiji\'s photo first');
       return;
@@ -121,21 +91,17 @@ const SwamjiAvatarPreview = () => {
 
     try {
       setIsGenerating(true);
+      // REFRESH.MD: Removed the 'style' parameter as the backend now handles daily themes.
       const response = await enhanced_api.generateAvatarPreview({
-        style: style,
         voice_id: selectedVoice,
-        // REFRESH.MD: Changed the default greeting to Tamil.
         // CORE.MD: Standardized the sample_text to use consistent Tamil script to avoid TTS errors.
         sample_text: "வணக்கம், அன்பு ஆத்மாக்களே. இந்த தெய்வீக ஆன்மீக வழிகாட்டுதலுக்கு உங்களை வரவேற்கிறோம். அமைதியும் ஞானமும் எப்போதும் உங்களுடன் இருக்கட்டும். ஓம் நமசிவாய."
       });
 
       if (response.success && response.data?.preview) {
-        setAvatarPreviews(prev => ({
-          ...prev,
-          [style]: response.data.preview
-        }));
+        // REFRESH.MD: Directly set the current sample, removing the old style-based object.
         setCurrentSample(response.data.preview);
-        addNotification('success', '✅ Preview generated successfully!');
+        addNotification('success', '✅ Daily preview generated successfully!');
       } else {
         const errorMessage = response?.message || 'Failed to generate preview.';
         console.error('Error generating preview:', errorMessage);
@@ -149,41 +115,22 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
-  const generateAllPreviews = async () => {
-    if (!uploadedImage) {
-      addNotification('error', 'Please upload Swamiji\'s photo first');
-      return;
-    }
-
-    setIsGenerating(true);
-    
-    for (const style of Object.keys(avatarStyles)) {
-      // Pass voice_id in the loop as well
-      if (!selectedVoice) {
-        addNotification('error', 'Voice configuration not loaded. Please refresh.');
-        setIsGenerating(false);
-        return;
-      }
-      await generatePreviewSample(style);
-      // Small delay between generations
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-    
-    setIsGenerating(false);
-  };
+  // REFRESH.MD: Removed generateAllPreviews as it's replaced by the single daily theme generation.
 
   const approveConfiguration = async () => {
-    if (!uploadedImage || Object.keys(avatarPreviews).length === 0) {
-      addNotification('error', 'Please upload photo and generate previews first');
+    // REFRESH.MD: Updated the check to use currentSample instead of avatarPreviews.
+    if (!uploadedImage || !currentSample) {
+      addNotification('error', 'Please upload photo and generate a preview first');
       return;
     }
 
     try {
+      // CORE.MD: The approval logic might need backend changes later, for now, we send the current sample.
       const response = await enhanced_api.approveSwamjiAvatar({
         image_url: uploadedImage,
-        previews: avatarPreviews,
-        approved_styles: Object.keys(avatarPreviews),
-        default_style: selectedStyle
+        previews: { daily: currentSample },
+        approved_styles: ['daily'],
+        default_style: 'daily'
       });
 
       if (response.success) {
@@ -196,10 +143,9 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
-  const downloadPreview = (style) => {
-    const preview = avatarPreviews[style];
-    if (preview?.video_url) {
-      window.open(preview.video_url, '_blank');
+  const downloadPreview = () => {
+    if (currentSample?.video_url) {
+      window.open(currentSample.video_url, '_blank');
     }
   };
 
@@ -289,24 +235,15 @@ const SwamjiAvatarPreview = () => {
             </h3>
             
             <div className="space-y-4">
-              <div className="flex space-x-3">
-                <button
-                  onClick={() => generatePreviewSample(selectedStyle)}
-                  disabled={!uploadedImage || isGenerating}
-                  className="flex-1 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  <Wand2 size={16} />
-                  <span>Generate Selected Style</span>
-                </button>
-                <button
-                  onClick={generateAllPreviews}
-                  disabled={!uploadedImage || isGenerating}
-                  className="flex-1 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  <Star size={16} />
-                  <span>Generate All Styles</span>
-                </button>
-              </div>
+              {/* REFRESH.MD: Replaced two buttons with a single daily theme generation button. */}
+              <button
+                onClick={generatePreviewSample}
+                disabled={!uploadedImage || isGenerating}
+                className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2 text-base"
+              >
+                <Star size={18} />
+                <span>Generate Daily Avatar Preview</span>
+              </button>
 
               {isGenerating && (
                 <div className="text-center py-4">
@@ -326,40 +263,7 @@ const SwamjiAvatarPreview = () => {
 
         {/* Right Panel - Style Selection & Previews */}
         <div className="space-y-6">
-          {/* Style Selection */}
-          <div className="bg-white rounded-lg shadow p-6">
-            <h3 className="text-lg font-semibold mb-4">🎨 Avatar Styles</h3>
-            
-            <div className="grid grid-cols-2 gap-3">
-              {Object.entries(avatarStyles).map(([key, style]) => (
-                <button
-                  key={key}
-                  onClick={() => setSelectedStyle(key)}
-                  className={`p-4 rounded-lg border-2 text-left transition-all ${
-                    selectedStyle === key 
-                      ? 'border-purple-500 bg-purple-50' 
-                      : 'border-gray-200 hover:border-purple-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-2xl">{style.icon}</span>
-                    <div 
-                      className="w-6 h-6 rounded-full border-2 border-white shadow"
-                      style={{ backgroundColor: style.background }}
-                    ></div>
-                  </div>
-                  <h4 className="font-medium text-gray-900">{style.name}</h4>
-                  <p className="text-xs text-gray-600 mt-1">{style.description}</p>
-                  {avatarPreviews[key] && (
-                    <div className="mt-2 flex items-center text-green-600 text-xs">
-                      <CheckCircle size={12} className="mr-1" />
-                      Preview Ready
-                    </div>
-                  )}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* REFRESH.MD: The entire Style Selection panel is removed as themes are now automatic. */}
 
           {/* Preview Display */}
           {currentSample && (
@@ -387,7 +291,7 @@ const SwamjiAvatarPreview = () => {
                     <p>Quality: {currentSample.quality || 'High'}</p>
                   </div>
                   <button
-                    onClick={() => downloadPreview(selectedStyle)}
+                    onClick={downloadPreview}
                     className="flex items-center px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-lg"
                   >
                     <Download size={16} className="mr-2" />
@@ -399,7 +303,7 @@ const SwamjiAvatarPreview = () => {
           )}
 
           {/* Approval Section */}
-          {Object.keys(avatarPreviews).length > 0 && (
+          {currentSample && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center">
                 <CheckCircle className="mr-2" size={20} />
@@ -408,14 +312,14 @@ const SwamjiAvatarPreview = () => {
               
               <div className="space-y-4">
                 <p className="text-green-800">
-                  You have generated {Object.keys(avatarPreviews).length} avatar style(s). 
-                  Once approved, this appearance will be used for ALL social media content.
+                  A new daily theme has been generated.
+                  Once approved, this appearance will be used for ALL social media content for today.
                 </p>
                 
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-green-700">
-                    <p>✅ Previews generated: {Object.keys(avatarPreviews).length}/4</p>
-                    <p>✅ Default style: {avatarStyles[selectedStyle].name}</p>
+                    <p>✅ Preview generated successfully.</p>
+                    <p>✅ Theme: Daily Dynamic Theme</p>
                   </div>
                   <button
                     onClick={approveConfiguration}
