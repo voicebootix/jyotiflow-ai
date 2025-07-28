@@ -9,10 +9,10 @@ import logging
 from datetime import datetime
 import uuid
 
-from fastapi import HTTPException, Depends
+from fastapi import HTTPException
 
-from services.stability_ai_service import StabilityAiService, get_stability_service
-from services.supabase_storage_service import SupabaseStorageService, get_storage_service
+from services.stability_ai_service import StabilityAiService
+from services.supabase_storage_service import SupabaseStorageService
 
 logger = logging.getLogger(__name__)
 

@@ -111,7 +111,9 @@ try:
 except ImportError:
     THEME_SERVICE_AVAILABLE = False
     class ThemeService: pass
-    # This dependency doesn't need a getter as it will be constructed manually.
+    # CORE.MD: Define a fallback dependency to prevent NameError if the import fails.
+    def get_theme_service():
+        raise HTTPException(status_code=501, detail="Theme service is not available.")
     
 # CORE.MD: Import the new StabilityAiService for dynamic avatar generation.
 try:
