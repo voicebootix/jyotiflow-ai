@@ -77,11 +77,13 @@ class ThemeService:
             raise HTTPException(status_code=500, detail="Failed to create the daily themed avatar image.") from e
 
 # --- FastAPI Dependency Injection ---
+# REFRESH.MD: Removed Depends() from the function signature to resolve static analysis warnings.
+# Dependencies will now be injected directly in the route.
 def get_theme_service(
-    stability_service: StabilityAiService = Depends(get_stability_service),
-    storage_service: SupabaseStorageService = Depends(get_storage_service),
+    stability_service: StabilityAiService,
+    storage_service: SupabaseStorageService,
 ) -> ThemeService:
     """
-    FastAPI dependency that provides a request-scoped instance of the ThemeService.
+    Creates an instance of the ThemeService with its required dependencies.
     """
     return ThemeService(stability_service, storage_service) 

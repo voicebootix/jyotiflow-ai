@@ -233,9 +233,8 @@ class SpiritualAvatarGenerationEngine:
     async def generate_avatar_preview_lightweight(
         self,
         guidance_text: str,
-        avatar_style: str, # Currently unused, but kept for API consistency
+        # REFRESH.MD: The avatar_style parameter is no longer used and has been removed.
         voice_id: str,
-        # REFRESH.MD: The source image URL is now passed directly, so a DB connection is no longer needed here.
         source_image_url: str 
     ) -> dict:
         """
@@ -270,7 +269,7 @@ class SpiritualAvatarGenerationEngine:
             "video_url": video_url,
             "thumbnail_url": talk_result.get("source_url"), # Use source image as thumbnail
             "duration": talk_result.get("duration"),
-            "style": avatar_style
+            "style": "daily_theme" # REFRESH.MD: Hardcode the style as it's now always dynamic.
         }
 
         return {"success": True, "preview": preview_data}
