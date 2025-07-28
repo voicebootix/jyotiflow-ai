@@ -79,7 +79,7 @@ class StabilityAiService:
             'mask_image': ('mask_image.png', mask_bytes, 'image/png')
         }
         data = {
-            'mask_source': 'MASK_IMAGE_BLACK',
+            'mask_source': 'MASK_IMAGE_WHITE', # CORE.MD: Corrected mask source. White areas should be inpainted.
             'text_prompts[0][text]': text_prompt,
             'cfg_scale': '7',
             'samples': '1',
