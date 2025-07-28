@@ -69,7 +69,7 @@ class StabilityAiService:
         url = f"{self.api_host}/v1/generation/{self.engine_id}/image-to-image/masking"
         
         headers = {
-            "Accept": "image/png",
+            "Accept": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
 
@@ -79,7 +79,7 @@ class StabilityAiService:
             'mask_image': ('mask_image.png', mask_bytes, 'image/png')
         }
         data = {
-            'mask_source': 'MASK_IMAGE_WHITE', # CORE.MD: Corrected mask source. White areas should be inpainted.
+            'mask_source': 'MASK_IMAGE_WHITE',
             'text_prompts[0][text]': text_prompt,
             'cfg_scale': '7',
             'samples': '1',
@@ -90,12 +90,40 @@ class StabilityAiService:
             client = await self.get_client()
             response = await client.post(url, headers=headers, data=data, files=files)
             response.raise_for_status()
-            logger.info("✅ Successfully inpainted image.")
-            return response.content
 
+            # REFRESH.MD: Correctly parse the JSON response and decode the base64 image.
+            response_data = response.json()
+            artifacts = response_data.get("artifacts")
+            
+            # CORE.MD: Add type checking to prevent TypeError if the artifact is not a dict.
+            if not artifacts or not isinstance(artifacts, list) or not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
+                raise HTTPException(status_code=500, detail="Invalid response from image inpainting service.")
+            
+            image_base64 = artifacts[0]["base64"]
+            
+            try:
+                image_bytes = base64.b64decode(image_base64)
+            except (binascii.Error, TypeError) as e:
+                logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Could not decode image data from inpainting service.") from e
+
+            logger.info("✅ Successfully inpainted image.")
+            return image_bytes
+
+        except HTTPException:
+            # CORE.MD: Re-raise HTTPException to preserve specific error messages.
+            raise
         except httpx.HTTPStatusError as e:
             logger.error(f"Stability.ai API error during inpainting: {e.response.status_code} - {e.response.text}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Failed to inpaint image: {e.response.text}") from e
+        except (base64.binascii.Error, ValueError) as e:
+            # REFRESH.MD: Handle specific base64 decoding errors.
+            logger.error(f"Failed to decode base64 image from Stability.ai response: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Failed to decode image from inpainting service.") from e
+        except httpx.RequestError as e:
+            # REFRESH.MD: Handle specific network errors.
+            logger.error(f"Network error while contacting Stability.ai for inpainting: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
         except Exception as e:
             logger.error(f"An unexpected error occurred during inpainting: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred during inpainting.") from e
