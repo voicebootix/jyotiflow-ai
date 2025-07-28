@@ -11,6 +11,7 @@ import logging
 import httpx
 import binascii # REFRESH.MD: Import for specific exception handling on base64 decoding.
 from typing import AsyncGenerator, Optional
+import asyncio
 
 from fastapi import HTTPException
 
@@ -20,7 +21,8 @@ logger = logging.getLogger(__name__)
 # --- Constants ---
 # REFRESH.MD: Centralize API configuration constants.
 API_HOST = os.getenv("STABILITY_API_HOST", "https://api.stability.ai")
-ENGINE_ID = "stable-diffusion-v1-6" # Using the latest stable version
+# CORE.MD: Use a masking-capable engine ID.
+ENGINE_ID = "stable-diffusion-xl-1024-v1-0"
 
 class StabilityAiService:
     def __init__(self):
@@ -29,14 +31,19 @@ class StabilityAiService:
         self.engine_id = ENGINE_ID
         self.is_configured = bool(self.api_key)
         self._async_client: Optional[httpx.AsyncClient] = None
+        # REFRESH.MD: Add a lock to prevent race conditions during client initialization.
+        self._client_lock = asyncio.Lock()
 
         if not self.is_configured:
             logger.warning("Stability.ai API key is not configured. Image generation service is disabled.")
 
     async def get_client(self) -> httpx.AsyncClient:
-        """Provides a lazily initialized httpx.AsyncClient instance."""
+        """Provides a lazily initialized, thread-safe httpx.AsyncClient instance."""
         if self._async_client is None or self._async_client.is_closed:
-            self._async_client = httpx.AsyncClient(timeout=90.0)
+            async with self._client_lock:
+                # Double-check locking pattern
+                if self._async_client is None or self._async_client.is_closed:
+                    self._async_client = httpx.AsyncClient(timeout=90.0)
         return self._async_client
 
     async def close_client(self):
@@ -96,15 +103,11 @@ class StabilityAiService:
 
 # --- FastAPI Dependency Injection ---
 # REFRESH.MD: Refactored to a generator-based dependency to manage the client lifecycle.
-async def get_stability_service() -> AsyncGenerator[StabilityAiService, None]:
-    """
-    FastAPI dependency that provides a request-scoped instance of the StabilityAiService
-    and ensures its resources are properly cleaned up.
-    """
+async def get_stability_service() -> AsyncGenerator['StabilityAiService', None]:
+    """FastAPI dependency provider for StabilityAiService."""
     service = StabilityAiService()
     try:
         yield service
     finally:
-        # Ensures the client is closed even if errors occur.
-        if service._async_client and not service._async_client.is_closed:
-            await service._async_client.aclose() 
+        # REFRESH.MD: Use the dedicated close_client method for proper encapsulation.
+        await service.close_client() 
