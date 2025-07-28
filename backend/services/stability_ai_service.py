@@ -138,9 +138,13 @@ class StabilityAiService:
             "Authorization": f"Bearer {self.api_key}"
         }
 
-        form_data = {
-            'init_image': image_bytes,
-            'mask_image': mask_bytes,
+        # CORE.MD: Correctly structure the multipart form data for httpx.
+        # File bytes are passed in 'files', other fields in 'data'.
+        files = {
+            'init_image': ('init_image.png', image_bytes, 'image/png'),
+            'mask_image': ('mask_image.png', mask_bytes, 'image/png')
+        }
+        data = {
             'mask_source': 'MASK_IMAGE_BLACK',
             'text_prompts[0][text]': text_prompt,
             'cfg_scale': '7',
@@ -149,8 +153,8 @@ class StabilityAiService:
         }
         
         try:
-            client = await self.get_client()
-            response = await client.post(url, headers=headers, files=form_data)
+            # REFRESH.MD: Use the existing self.client property, not a new client.
+            response = await self.client.post(url, headers=headers, data=data, files=files)
             response.raise_for_status()
             logger.info("✅ Successfully inpainted image.")
             return response.content

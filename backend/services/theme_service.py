@@ -94,10 +94,16 @@ class ThemeService:
             )
 
             # 3. Upload to Supabase
-            file_name = f"public/daily_themes/swamiji_{datetime.now().strftime('%Y-%m-%d')}_{uuid.uuid4()}.png"
-            file_path_on_storage = f"avatar_assets/{file_name}"
+            # REFRESH.MD: Corrected the file path construction to avoid nesting.
+            theme_folder = "daily_themes"
+            file_name = f"swamiji_{datetime.now().strftime('%Y-%m-%d')}_{uuid.uuid4()}.png"
+            file_path_in_bucket = f"{theme_folder}/{file_name}"
+
             public_url = self.storage_service.upload_file(
-                file_path_on_storage, inpainted_image_bytes, {"content-type": "image/png"}
+                bucket_name="avatars",
+                file_path_in_bucket=file_path_in_bucket,
+                file=inpainted_image_bytes,
+                content_type="image/png"
             )
             
             logger.info(f"✅ Successfully uploaded themed image to {public_url}")
