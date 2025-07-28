@@ -42,15 +42,21 @@ class ThemeService:
         """
         try:
             day_of_week = datetime.now().weekday()
-            theme_name, theme_description = self.themes.get(day_of_week, self.themes[0])
+            theme = self.themes.get(day_of_week)
+            if not theme:
+                # Fallback to the first theme if day_of_week is out of bounds
+                theme = self.themes[0]
+                day_of_week = 0
 
+            theme_name, theme_description = theme
             logger.info(f"Today's theme ({day_of_week=}): {theme_name}")
 
-            # CORE.MD: Simplified the prompt to be more direct and less verbose, which can help avoid
-            # potential issues with the Stability.ai API's interpretation of the text.
+            # CORE.MD: Corrected the prompt structure to directly use the theme_description,
+            # which already contains the full attire and setting details. This avoids
+            # grammatical errors and creates a more coherent prompt.
             prompt = (
                 f"A serene Indian spiritual master (Swamiji) with a gentle smile, "
-                f"wearing {theme_name} attire, in a {theme_description} setting. "
+                f"{theme_description}. "
                 f"Photorealistic, digital art, full body shot."
             )
 
