@@ -2275,42 +2275,168 @@ app.include_router(content.router)
 from routers.spiritual import router as spiritual_router
 app.include_router(spiritual_router)
 
-# Add the missing EnhancedSpiritualEngine class
+# Add the missing EnhancedSpiritualEngine class with thread-safe singleton
 class EnhancedSpiritualEngine:
     """
     Enhanced Spiritual Engine for comprehensive spiritual guidance
     Compatible with existing imports and test systems
+    Thread-safe singleton implementation with async lock
     """
     
     def __init__(self):
         self.initialized = False
         self.rag_available = False
+        self.openai_client = None
         
     async def initialize(self):
-        """Initialize the spiritual engine"""
+        """Initialize the spiritual engine with OpenAI integration"""
         try:
+            # Initialize OpenAI client if available
+            import openai
+            api_key = os.getenv("OPENAI_API_KEY")
+            if api_key:
+                from openai import AsyncOpenAI
+                self.openai_client = AsyncOpenAI(api_key=api_key)
+                self.rag_available = True
+                logger.info("Enhanced Spiritual Engine initialized with OpenAI integration")
+            else:
+                logger.warning("OpenAI API key not available, using fallback mode")
+                
             self.initialized = True
-            logger.info("Enhanced Spiritual Engine initialized")
+            logger.info("Enhanced Spiritual Engine initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize spiritual engine: {e}")
+            self.initialized = True  # Mark as initialized even if OpenAI fails
             
     async def get_guidance(self, question: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
-        """Provide spiritual guidance"""
+        """
+        Provide meaningful spiritual guidance using AI if available
+        Falls back to structured guidance if AI is not available
+        """
+        try:
+            if not self.initialized:
+                await self.initialize()
+                
+            # Prepare context for guidance
+            if context is None:
+                context = {}
+                
+            # Use OpenAI for intelligent guidance if available
+            if self.openai_client and self.rag_available:
+                return await self._get_ai_guidance(question, context)
+            else:
+                return await self._get_fallback_guidance(question, context)
+                
+        except Exception as e:
+            logger.error(f"Error generating spiritual guidance: {e}")
+            return {
+                "guidance": "May you find peace and clarity in your spiritual journey. Please try again later.",
+                "status": "error",
+                "engine": "enhanced_fallback",
+                "error": str(e)
+            }
+    
+    async def _get_ai_guidance(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate AI-powered spiritual guidance"""
+        try:
+            # Create a spiritual guidance prompt
+            spiritual_prompt = f"""
+            As a compassionate spiritual guide, provide thoughtful guidance for this question:
+            
+            Question: {question}
+            
+            Context: {context.get('user_context', 'General spiritual inquiry')}
+            
+            Please provide:
+            1. Meaningful spiritual insight
+            2. Practical wisdom
+            3. Encouragement for the spiritual path
+            
+            Keep the response compassionate, non-denominational, and focused on universal spiritual principles.
+            """
+            
+            response = await self.openai_client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[
+                    {"role": "system", "content": "You are a wise, compassionate spiritual guide who helps people on their spiritual journey with non-denominational wisdom."},
+                    {"role": "user", "content": spiritual_prompt}
+                ],
+                max_tokens=300,
+                temperature=0.7
+            )
+            
+            guidance_text = response.choices[0].message.content
+            
+            return {
+                "guidance": guidance_text,
+                "status": "success",
+                "engine": "enhanced_ai",
+                "source": "openai_guidance",
+                "question": question
+            }
+            
+        except Exception as e:
+            logger.warning(f"AI guidance failed, falling back: {e}")
+            return await self._get_fallback_guidance(question, context)
+    
+    async def _get_fallback_guidance(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Provide structured fallback guidance when AI is not available"""
+        
+        # Analyze question for spiritual themes
+        question_lower = question.lower()
+        guidance_theme = "general"
+        
+        if any(word in question_lower for word in ["meditation", "mindfulness", "peace"]):
+            guidance_theme = "meditation"
+        elif any(word in question_lower for word in ["purpose", "meaning", "path"]):
+            guidance_theme = "purpose"
+        elif any(word in question_lower for word in ["forgiveness", "healing", "pain"]):
+            guidance_theme = "healing"
+        elif any(word in question_lower for word in ["gratitude", "thankful", "blessing"]):
+            guidance_theme = "gratitude"
+        elif any(word in question_lower for word in ["love", "compassion", "kindness"]):
+            guidance_theme = "love"
+        
+        # Provide themed guidance
+        guidance_responses = {
+            "meditation": "In stillness, we find our true nature. Consider dedicating time each day to quiet reflection, where you can connect with your inner wisdom and find the peace that already exists within you.",
+            "purpose": "Your purpose unfolds naturally when you align with your authentic self. Trust the journey, embrace growth, and remember that every experience contributes to your spiritual evolution.",
+            "healing": "Healing is a sacred process that takes time and compassion. Be gentle with yourself, acknowledge your feelings, and know that forgiveness—especially of yourself—is a powerful path to wholeness.",
+            "gratitude": "Gratitude transforms our perspective and opens our hearts to abundance. Take time to notice the blessings already present in your life, both large and small.",
+            "love": "Love is the highest spiritual practice. Begin with self-compassion, extend kindness to others, and remember that love multiplies when shared freely.",
+            "general": "Trust in your inner wisdom and the unfolding of your spiritual journey. Each challenge is an opportunity for growth, and every moment offers a chance for deeper understanding."
+        }
+        
         return {
-            "guidance": f"Spiritual guidance for: {question}",
+            "guidance": guidance_responses.get(guidance_theme, guidance_responses["general"]),
             "status": "success",
-            "engine": "enhanced"
+            "engine": "enhanced_structured",
+            "theme": guidance_theme,
+            "question": question
         }
 
-# Global instance and getter function
+# Global instance management with async lock for thread safety
+import asyncio
 _spiritual_engine_instance = None
+_spiritual_engine_lock = asyncio.Lock()
 
 async def get_spiritual_engine() -> EnhancedSpiritualEngine:
-    """Get or create the spiritual engine instance"""
+    """
+    Get or create the spiritual engine instance with thread-safe singleton pattern
+    Uses async lock to prevent race conditions in concurrent contexts
+    """
     global _spiritual_engine_instance
-    if _spiritual_engine_instance is None:
-        _spiritual_engine_instance = EnhancedSpiritualEngine()
-        await _spiritual_engine_instance.initialize()
+    
+    # Double-checked locking pattern for performance
+    if _spiritual_engine_instance is not None:
+        return _spiritual_engine_instance
+    
+    async with _spiritual_engine_lock:
+        # Check again inside the lock to prevent race condition
+        if _spiritual_engine_instance is None:
+            _spiritual_engine_instance = EnhancedSpiritualEngine()
+            await _spiritual_engine_instance.initialize()
+        
     return _spiritual_engine_instance
 
 # Add helper function to fetch service info from DB

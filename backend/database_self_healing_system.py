@@ -2788,37 +2788,7 @@ class DatabaseSelfHealingSystem:
             "status": "healthy" if self.initialized else "not_initialized"
         }
 
-# Utility function for extracting table names from queries
-def extract_table_from_query(query: str) -> str:
-    """Extract table name from SQL query - utility for test system"""
-    try:
-        # Simple regex to extract table names from common SQL patterns
-        import re
-        
-        # Handle SELECT queries
-        select_match = re.search(r'FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
-        if select_match:
-            return select_match.group(1)
-            
-        # Handle INSERT queries  
-        insert_match = re.search(r'INSERT\s+INTO\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
-        if insert_match:
-            return insert_match.group(1)
-            
-        # Handle UPDATE queries
-        update_match = re.search(r'UPDATE\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
-        if update_match:
-            return update_match.group(1)
-            
-        # Handle DELETE queries
-        delete_match = re.search(r'DELETE\s+FROM\s+([a-zA-Z_][a-zA-Z0-9_]*)', query, re.IGNORECASE)
-        if delete_match:
-            return delete_match.group(1)
-            
-        return "unknown_table"
-        
-    except Exception:
-        return "unknown_table"
+# Removed duplicate extract_table_from_query function - using the original at line 144
 
 async def initialize_unified_jyotiflow():
     """Main entry point for compatibility with existing main.py"""
