@@ -54,30 +54,22 @@ const TestResultsDashboard = () => {
     const fetchTestData = async () => {
         setLoading(true);
         try {
-            // Use public endpoints for testing (no auth required)
-            const sessionsResponse = await spiritualAPI.get('/api/monitoring/test-sessions-public');
-            if (sessionsResponse.data && sessionsResponse.data.data) {
-                setTestSessions(sessionsResponse.data.data.sessions || []);
-            }
-
-            const metricsResponse = await spiritualAPI.get('/api/monitoring/test-metrics-public');
-            if (metricsResponse.data && metricsResponse.data.data) {
-                setTestMetrics(metricsResponse.data.data);
-            }
-
             setError(null);
+            
+            // Fetch test sessions
+            const sessionsResponse = await spiritualAPI.get('/api/monitoring/test-sessions');
+            if (sessionsResponse && sessionsResponse.status === 'success') {
+                setTestSessions(sessionsResponse.data?.sessions || []);
+            }
+            
+            // Fetch test metrics
+            const metricsResponse = await spiritualAPI.get('/api/monitoring/test-metrics');
+            if (metricsResponse && metricsResponse.status === 'success') {
+                setTestMetrics(prevMetrics => metricsResponse.data || prevMetrics);
+            }
+            
         } catch (err) {
-            console.error('Error fetching test data:', err);
-            setError(`Failed to fetch test data: ${err.message}`);
-            // Set empty data on error
-            setTestSessions([]);
-            setTestMetrics({
-                total_sessions: 0,
-                success_rate: 0,
-                avg_execution_time: 0,
-                coverage_trend: 0,
-                auto_fixes_applied: 0
-            });
+            setError('Failed to fetch test data');
         } finally {
             setLoading(false);
         }
