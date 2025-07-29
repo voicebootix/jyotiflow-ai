@@ -110,11 +110,11 @@ class ThemeService:
             prompt = f"A full-body portrait, photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
 
             # CORE.MD: Switched to the more powerful image-to-image generation.
-            # REFRESH.MD: Further lowered image_strength to allow for more creative freedom in generating the full body and background.
+            # REFRESH.MD: Adjusted image_strength to 0.5 as a balance between creative freedom and preserving the face.
             generated_image_bytes = await self.stability_service.generate_image_from_image(
                 image_bytes=resized_image_bytes,
                 text_prompt=prompt,
-                image_strength=0.35,
+                image_strength=0.5,
             )
 
             # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
