@@ -14,7 +14,7 @@ from pathlib import Path
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
-from services.face_detection_service import FaceDetectionService, get_face_detection_service
+# CORE.MD: FaceDetectionService is no longer needed as we are using image-to-image generation.
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +36,9 @@ class ThemeService:
         self,
         stability_service: StabilityAiService,
         storage_service: SupabaseStorageService,
-        face_detection_service: FaceDetectionService,
     ):
         self.stability_service = stability_service
         self.storage_service = storage_service
-        self.face_detection_service = face_detection_service
         # CORE.MD: Use Path for robust, OS-agnostic path construction.
         self.base_dir = Path(__file__).resolve().parent.parent
         self.base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", str(self.base_dir / "assets/swamiji_base_image.png"))
@@ -68,11 +66,6 @@ class ThemeService:
             with open(self.base_image_path, "rb") as f:
                 base_image_bytes = f.read()
 
-            # 1. Create a face mask
-            logger.info("Creating face mask from base image.")
-            # CORE.MD: The service now returns both the resized image and the mask.
-            resized_image_bytes, mask_bytes = self.face_detection_service.create_face_mask(base_image_bytes)
-
             # REFRESH.MD: Restore prompt generation logic based on the daily theme.
             day_of_week = datetime.now().weekday()
             original_day_for_logging = day_of_week
@@ -91,9 +84,9 @@ class ThemeService:
             # CORE.MD: Use the correct key 'description' to access the theme details.
             prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
 
-            inpainted_image_bytes = await self.stability_service.inpaint_image(
-                image_bytes=resized_image_bytes,
-                mask_bytes=mask_bytes,
+            # CORE.MD: Switched to the more powerful image-to-image generation.
+            generated_image_bytes = await self.stability_service.generate_image_from_image(
+                image_bytes=base_image_bytes,
                 text_prompt=prompt,
             )
 
@@ -108,7 +101,7 @@ class ThemeService:
             public_url = self.storage_service.upload_file(
                 bucket_name="avatars",
                 file_path_in_bucket=file_path_in_bucket,
-                file=inpainted_image_bytes,
+                file=generated_image_bytes,
                 content_type="image/png"
             )
             
@@ -125,9 +118,8 @@ class ThemeService:
 def get_theme_service(
     stability_service: StabilityAiService = Depends(get_stability_service),
     storage_service: SupabaseStorageService = Depends(get_storage_service),
-    face_detection_service: FaceDetectionService = Depends(get_face_detection_service),
 ) -> "ThemeService":
     """
     Creates an instance of the ThemeService with its required dependencies.
     """
-    return ThemeService(stability_service, storage_service, face_detection_service) 
+    return ThemeService(stability_service, storage_service) 
