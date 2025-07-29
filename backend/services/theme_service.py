@@ -106,14 +106,15 @@ class ThemeService:
                 raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
 
             # CORE.MD: Use the correct key 'description' to access the theme details.
-            prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
+            # REFRESH.MD: Specify "full-body portrait" in the prompt to guide the AI away from close-ups.
+            prompt = f"A full-body portrait, photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
 
             # CORE.MD: Switched to the more powerful image-to-image generation.
-            # REFRESH.MD: Lowered image_strength to allow for more creative freedom in generating the full body and background.
+            # REFRESH.MD: Further lowered image_strength to allow for more creative freedom in generating the full body and background.
             generated_image_bytes = await self.stability_service.generate_image_from_image(
                 image_bytes=resized_image_bytes,
                 text_prompt=prompt,
-                image_strength=0.45,
+                image_strength=0.35,
             )
 
             # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
