@@ -11,6 +11,8 @@ import uuid
 import os
 from fastapi import HTTPException, Depends
 from pathlib import Path
+import cv2
+import numpy as np
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -66,6 +68,28 @@ class ThemeService:
             with open(self.base_image_path, "rb") as f:
                 base_image_bytes = f.read()
 
+            # CORE.MD: Re-introduce image resizing to ensure 1024x1024 compatibility for the SDXL model.
+            # This was previously handled in the now-removed FaceDetectionService.
+            try:
+                nparr = np.frombuffer(base_image_bytes, np.uint8)
+                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+                if img is None:
+                    raise ValueError("Failed to decode base image for resizing.")
+                
+                target_size = (1024, 1024)
+                resized_img = cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
+                
+                is_success, buffer = cv2.imencode(".png", resized_img)
+                if not is_success:
+                    raise RuntimeError("Failed to re-encode resized image.")
+                
+                resized_image_bytes = buffer.tobytes()
+                logger.info("Successfully resized base image to 1024x1024 for API compatibility.")
+
+            except Exception as e:
+                logger.error(f"Failed to resize base image: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="Failed to process base image for theme generation.") from e
+
             # REFRESH.MD: Restore prompt generation logic based on the daily theme.
             day_of_week = datetime.now().weekday()
             original_day_for_logging = day_of_week
@@ -86,7 +110,7 @@ class ThemeService:
 
             # CORE.MD: Switched to the more powerful image-to-image generation.
             generated_image_bytes = await self.stability_service.generate_image_from_image(
-                image_bytes=base_image_bytes,
+                image_bytes=resized_image_bytes,
                 text_prompt=prompt,
             )
 
