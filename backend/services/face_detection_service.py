@@ -55,12 +55,12 @@ class FaceDetectionService:
                 # If no face is detected, we can't inpaint, so we return a full white mask.
                 # This will cause the original image to be used.
             else:
-                # CORE.MD: Use an ellipse for a more natural face mask instead of a rectangle.
+                # CORE.MD: Use an ellipse with axes as half the bounding box dimensions for a consistent fit.
                 (x, y, w, h) = faces[0]
                 center_x = x + w // 2
                 center_y = y + h // 2
                 axis_x = w // 2
-                axis_y = int(h * 0.6)  # Use a slightly larger vertical axis for better coverage
+                axis_y = h // 2
                 cv2.ellipse(mask, (center_x, center_y), (axis_x, axis_y), 0, 0, 360, (0, 0, 0), -1)
 
             # Encode the mask to bytes
