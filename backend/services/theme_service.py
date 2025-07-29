@@ -70,7 +70,8 @@ class ThemeService:
 
             # 1. Create a face mask
             logger.info("Creating face mask from base image.")
-            mask_bytes = self.face_detection_service.create_face_mask(base_image_bytes)
+            # CORE.MD: The service now returns both the resized image and the mask.
+            resized_image_bytes, mask_bytes = self.face_detection_service.create_face_mask(base_image_bytes)
 
             # REFRESH.MD: Restore prompt generation logic based on the daily theme.
             day_of_week = datetime.now().weekday()
@@ -91,7 +92,7 @@ class ThemeService:
             prompt = f"A photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
 
             inpainted_image_bytes = await self.stability_service.inpaint_image(
-                image_bytes=base_image_bytes,
+                image_bytes=resized_image_bytes,
                 mask_bytes=mask_bytes,
                 text_prompt=prompt,
             )
