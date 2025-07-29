@@ -84,9 +84,10 @@ class StabilityAiService:
         data = {
             "mask_source": "MASK_IMAGE_BLACK",
             "text_prompts[0][text]": text_prompt,
-            "cfg_scale": "7",
-            "samples": "1",
-            "steps": "30",
+            "cfg_scale": 7,
+            "style_preset": "photographic",
+            "samples": 1,
+            "steps": 30,
         }
 
         try:
