@@ -9,13 +9,13 @@ router = APIRouter(prefix="/api/admin/credit-packages", tags=["Admin Credits"])
 # CREATE new credit package
 @router.post("", response_model=CreditPackageOut)
 async def create_package(pkg: CreditPackageCreate, db=Depends(get_db)):
-    # Map is_active to enabled for database
-    enabled = pkg.is_active if hasattr(pkg, 'is_active') else True
+    # Use the correct field names from schema
+    enabled = pkg.enabled if hasattr(pkg, 'enabled') else True
     row = await db.fetchrow("""
         INSERT INTO credit_packages (name, credits_amount, price_usd, bonus_credits, enabled)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *
-    """, pkg.name, pkg.credits_amount, pkg.price, pkg.bonus_credits, enabled)
+    """, pkg.name, pkg.credits_amount, pkg.price_usd, pkg.bonus_credits, enabled)
     
     # Format the response to match the schema
     return {
@@ -61,15 +61,11 @@ async def update_package(package_id: int, pkg: CreditPackageUpdate, db=Depends(g
     if not row:
         raise HTTPException(status_code=404, detail="Package not found")
     
-    # Build update data, mapping is_active to enabled
+    # Build update data with correct field names
     update_data = {}
     for field, value in pkg.dict(exclude_unset=True).items():
-        if field == 'is_active':
-            update_data['enabled'] = value
-        elif field == 'price':
-            update_data['price_usd'] = value
-        else:
-            update_data[field] = value
+        # No field mapping needed since schema now matches database
+        update_data[field] = value
     
     # Build the update query dynamically
     if update_data:
