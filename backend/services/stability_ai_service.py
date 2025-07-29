@@ -53,36 +53,40 @@ class StabilityAiService:
             await self._async_client.aclose()
             logger.info("Stability.ai service client closed.")
     
-    async def inpaint_image(self, image_bytes: bytes, mask_bytes: bytes, text_prompt: str) -> bytes:
+    # CORE.MD: Refactored from inpainting to a more suitable image-to-image generation.
+    async def generate_image_from_image(self, image_bytes: bytes, text_prompt: str, image_strength: float = 0.6) -> bytes:
         """
-        Inpaints an image using the Stability.ai API's masking endpoint.
+        Generates an image using the Stability.ai image-to-image endpoint,
+        which is better suited for theme generation than masking.
         """
         if not self.is_configured:
             raise HTTPException(status_code=501, detail="Image generation service is not configured.")
 
         # --- Input Validation ---
-        if not all(isinstance(arg, bytes) for arg in [image_bytes, mask_bytes]):
-            raise HTTPException(status_code=400, detail="Image and mask must be provided as bytes.")
+        if not isinstance(image_bytes, bytes):
+            raise HTTPException(status_code=400, detail="Image must be provided as bytes.")
         if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
+        if not 0.0 <= image_strength <= 1.0:
+            raise HTTPException(status_code=400, detail="Image strength must be between 0.0 and 1.0.")
 
         # --- API Request ---
-        # CORE.MD: Use the correct, updated engine_id for the masking API endpoint.
-        url = f"{self.api_host}/v1/generation/{self.engine_id}/image-to-image/masking"
+        # CORE.MD: Switched to the more appropriate image-to-image endpoint.
+        url = f"{self.api_host}/v1/generation/{self.engine_id}/image-to-image"
         
         headers = {
             "Accept": "application/json",
             "Authorization": f"Bearer {self.api_key}"
         }
 
-        # REFRESH.MD: Correctly structure the multipart/form-data request as per API documentation.
+        # REFRESH.MD: Correctly structure the multipart/form-data request for image-to-image.
         files = {
             'init_image': ('init_image.png', image_bytes, 'image/png'),
-            'mask_image': ('mask_image.png', mask_bytes, 'image/png'),
         }
         
         data = {
-            "mask_source": "MASK_IMAGE_BLACK",
+            "image_strength": str(image_strength),
+            "init_image_mode": "IMAGE_STRENGTH",
             "text_prompts[0][text]": text_prompt,
             "cfg_scale": 7,
             "style_preset": "photographic",
@@ -106,7 +110,7 @@ class StabilityAiService:
             
             # CORE.MD: Add type checking to prevent TypeError if the artifact is not a dict.
             if not artifacts or not isinstance(artifacts, list) or not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
-                raise HTTPException(status_code=500, detail="Invalid response from image inpainting service.")
+                raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
             
             image_base64 = artifacts[0]["base64"]
             
@@ -114,28 +118,28 @@ class StabilityAiService:
                 image_bytes = base64.b64decode(image_base64)
             except (binascii.Error, TypeError) as e:
                 logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail="Could not decode image data from inpainting service.") from e
+                raise HTTPException(status_code=500, detail="Could not decode image data from generation service.") from e
 
-            logger.info("✅ Successfully inpainted image.")
+            logger.info("✅ Successfully generated image from image.")
             return image_bytes
 
         except HTTPException:
             # CORE.MD: Re-raise HTTPException to preserve specific error messages.
             raise
         except httpx.HTTPStatusError as e:
-            logger.error(f"Stability.ai API error during inpainting: {e.response.status_code} - {e.response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Failed to inpaint image: {e.response.text}") from e
+            logger.error(f"Stability.ai API error during image generation: {e.response.status_code} - {e.response.text}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
         except (base64.binascii.Error, ValueError) as e:
             # REFRESH.MD: Handle specific base64 decoding errors.
             logger.error(f"Failed to decode base64 image from Stability.ai response: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to decode image from inpainting service.") from e
+            raise HTTPException(status_code=500, detail="Failed to decode image from generation service.") from e
         except httpx.RequestError as e:
             # REFRESH.MD: Handle specific network errors.
-            logger.error(f"Network error while contacting Stability.ai for inpainting: {e}", exc_info=True)
+            logger.error(f"Network error while contacting Stability.ai for image generation: {e}", exc_info=True)
             raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
         except Exception as e:
-            logger.error(f"An unexpected error occurred during inpainting: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="An unexpected error occurred during inpainting.") from e
+            logger.error(f"An unexpected error occurred during image generation: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.") from e
 
 
 # --- FastAPI Dependency Injection ---
