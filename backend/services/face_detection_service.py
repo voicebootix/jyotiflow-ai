@@ -20,12 +20,25 @@ class FaceDetectionService:
         # REFRESH.MD: Add detailed logging to debug file path issues on Render.
         logger.info(f"Current working directory: {os.getcwd()}")
         logger.info(f"Calculated Haar Cascade path: {cascade_path}")
-        logger.info(f"Does cascade file exist at path? {os.path.exists(cascade_path)}")
+        
+        # REFRESH.MD: Add explicit file existence and readability checks for robust debugging on Render.
+        if not os.path.exists(cascade_path):
+            logger.error(f"Haar Cascade model file NOT FOUND at the specified path: {cascade_path}")
+            raise IOError(f"Haar Cascade model file not found at: {cascade_path}")
+        
+        try:
+            # Check if the file is readable before passing to OpenCV, which gives vague errors.
+            with open(cascade_path, 'rb') as f:
+                pass
+            logger.info("Haar Cascade model file is accessible and readable.")
+        except OSError as e:
+            logger.error(f"OS error while trying to read the Haar Cascade model file: {e}", exc_info=True)
+            raise IOError(f"Could not read Haar Cascade model file due to OS error: {e}") from e
 
         self.face_cascade = cv2.CascadeClassifier(cascade_path)
         if self.face_cascade.empty():
-            logger.error(f"Failed to load Haar Cascade model from {cascade_path}")
-            raise IOError(f"Failed to load Haar Cascade model from {cascade_path}")
+            logger.error(f"Failed to load Haar Cascade model from {cascade_path}. The file might be corrupted or not a valid OpenCV model.")
+            raise IOError(f"Failed to load Haar Cascade model from {cascade_path}. File may be invalid.")
 
     def create_face_mask(self, image_bytes: bytes) -> Tuple[bytes, bytes]:
         """
