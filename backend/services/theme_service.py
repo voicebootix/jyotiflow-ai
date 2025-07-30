@@ -108,12 +108,16 @@ class ThemeService:
             # CORE.MD: Use the correct key 'description' to access the theme details.
             # REFRESH.MD: Specify "full-body portrait" in the prompt to guide the AI away from close-ups.
             prompt = f"A full-body portrait, photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
+            
+            # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing.
+            negative_prompt = "orange, orange robes, orange color"
 
             # CORE.MD: Switched to the more powerful image-to-image generation.
-            # REFRESH.MD: Reverted image_strength to 0.45 for a better balance between face preservation and creative freedom for clothing.
+            # REFRESH.MD: Reverted image_strength to 0.45 for a better balance, now guided by the negative prompt.
             generated_image_bytes = await self.stability_service.generate_image_from_image(
                 image_bytes=resized_image_bytes,
                 text_prompt=prompt,
+                negative_prompt=negative_prompt,
                 image_strength=0.45,
             )
 
