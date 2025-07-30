@@ -92,7 +92,7 @@ class StabilityAiService:
             "cfg_scale": 7,
             "style_preset": "photographic",
             "samples": 1,
-            "steps": 25,
+            "steps": 20,
         }
         
         # REFRESH.MD: Add negative prompt to the request if provided.
