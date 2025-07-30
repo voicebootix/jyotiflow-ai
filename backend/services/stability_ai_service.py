@@ -107,25 +107,13 @@ class StabilityAiService:
         for attempt in range(max_retries):
             try:
                 client = await self.get_client()
-                # REFRESH.MD: Pass files and data correctly to the httpx client.
                 response = await client.post(url, headers=headers, files=files, data=data)
+                response.raise_for_status()  # Raise for any non-2xx status
 
-                # REFRESH.MD: Log the response text on error for better debugging.
-                if response.status_code == 429 and attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)
-                    logger.warning(f"Rate limit exceeded. Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
-                    await asyncio.sleep(delay)
-                    continue
-
-                if response.status_code != 200:
-                    logger.error(f"Stability.ai API error: {response.status_code} - {response.text}")
-                response.raise_for_status()
-
-                # REFRESH.MD: Correctly parse the JSON response and decode the base64 image.
+                # --- Success Path ---
                 response_data = response.json()
                 artifacts = response_data.get("artifacts")
                 
-                # CORE.MD: Add type checking to prevent TypeError if the artifact is not a dict.
                 if not artifacts or not isinstance(artifacts, list) or not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
                     raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
                 
@@ -140,29 +128,31 @@ class StabilityAiService:
                 logger.info("✅ Successfully generated image from image.")
                 return image_bytes
 
-            except HTTPException:
-                # CORE.MD: Re-raise HTTPException to preserve specific error messages.
-                raise
             except httpx.HTTPStatusError as e:
-                # CORE.MD: Only retry on 429 (Too Many Requests). For other client/server errors, fail immediately.
+                # CORE.MD & REFRESH.MD: Correctly handle retries only for 429 errors.
                 if e.response.status_code == 429 and attempt < max_retries - 1:
-                    # This is the expected path for rate limiting, no need to log an error, just a warning.
-                    pass
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(f"Rate limit exceeded (429). Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                    continue  # Go to the next attempt
                 else:
-                    # For non-429 errors or if it's the last attempt, log and re-raise.
-                    logger.error(f"Stability.ai API error: {e.response.status_code} - {e.response.text}", exc_info=True)
+                    # For non-429 errors or if it's the last attempt for a 429, fail permanently.
+                    logger.error(f"Stability.ai API request failed after {attempt + 1} attempt(s): {e.response.status_code} - {e.response.text}", exc_info=True)
                     raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
             
+            except HTTPException:
+                raise  # Re-raise specific HTTP exceptions from inner logic
+
             except httpx.RequestError as e:
-                # REFRESH.MD: Handle specific network errors.
-                logger.error(f"Network error while contacting Stability.ai for image generation: {e}", exc_info=True)
+                logger.error(f"Network error while contacting Stability.ai: {e}", exc_info=True)
                 raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
+
             except Exception as e:
                 logger.error(f"An unexpected error occurred during image generation: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.") from e
         
-        # This part will be reached only if all retries fail with a non-HTTPStatusError that we didn't re-raise
-        raise HTTPException(status_code=500, detail="Failed to generate image after multiple attempts.")
+        # This part should ideally not be reached, but as a fallback.
+        raise HTTPException(status_code=500, detail="Failed to generate image after all retries.")
 
 
 # --- FastAPI Dependency Injection ---
