@@ -114,7 +114,9 @@ class ThemeService:
             # REFRESH.MD: DISABLED this negative prompt. It contradicts the base image which features orange robes,
             # causing the AI to aggressively change the face and ignore the prompt. Disabling this is critical
             # for face preservation and respecting the user-provided base image.
-            negative_prompt = None
+            # REFRESH.MD: Use a general, non-conflicting negative prompt to improve image quality
+            # and potentially reduce generation cost, which may help avoid 429 errors.
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs"
             # if day_of_week != 3: # Thursday is weekday 3
             #     negative_prompt = "orange, orange robes, orange color"
 
