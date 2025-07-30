@@ -112,8 +112,12 @@ const SwamjiAvatarPreview = () => {
   };
 
   const generateVideoFromPreview = async () => {
-    if (!previewImage || !selectedVoice) {
-      addNotification('error', 'Please generate and have an image preview first.');
+    if (!previewImage) {
+      addNotification('error', 'Please generate an image preview first.');
+      return;
+    }
+    if (!selectedVoice) {
+      addNotification('error', 'A voice must be selected to generate the video.');
       return;
     }
     try {
