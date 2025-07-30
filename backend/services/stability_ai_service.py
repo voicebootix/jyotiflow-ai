@@ -54,7 +54,7 @@ class StabilityAiService:
             logger.info("Stability.ai service client closed.")
     
     # CORE.MD: Refactored from inpainting to a more suitable image-to-image generation.
-    async def generate_image_from_image(self, image_bytes: bytes, text_prompt: str, image_strength: float = 0.6) -> bytes:
+    async def generate_image_from_image(self, image_bytes: bytes, text_prompt: str, negative_prompt: Optional[str] = None, image_strength: float = 0.6) -> bytes:
         """
         Generates an image using the Stability.ai image-to-image endpoint,
         which is better suited for theme generation than masking.
@@ -88,11 +88,18 @@ class StabilityAiService:
             "image_strength": str(image_strength),
             "init_image_mode": "IMAGE_STRENGTH",
             "text_prompts[0][text]": text_prompt,
+            "text_prompts[0][weight]": 1.0,
             "cfg_scale": 7,
             "style_preset": "photographic",
             "samples": 1,
             "steps": 30,
         }
+        
+        # REFRESH.MD: Add negative prompt to the request if provided.
+        if negative_prompt:
+            data["text_prompts[1][text]"] = negative_prompt
+            data["text_prompts[1][weight]"] = -1.0
+
 
         try:
             client = await self.get_client()
