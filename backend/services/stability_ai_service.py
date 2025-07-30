@@ -101,52 +101,68 @@ class StabilityAiService:
             data["text_prompts[1][weight]"] = -1.0
 
 
-        try:
-            client = await self.get_client()
-            # REFRESH.MD: Pass files and data correctly to the httpx client.
-            response = await client.post(url, headers=headers, files=files, data=data)
-            
-            # REFRESH.MD: Log the response text on error for better debugging.
-            if response.status_code != 200:
-                logger.error(f"Stability.ai API error: {response.status_code} - {response.text}")
-            response.raise_for_status()
+        max_retries = 3
+        base_delay = 1  # in seconds
 
-            # REFRESH.MD: Correctly parse the JSON response and decode the base64 image.
-            response_data = response.json()
-            artifacts = response_data.get("artifacts")
-            
-            # CORE.MD: Add type checking to prevent TypeError if the artifact is not a dict.
-            if not artifacts or not isinstance(artifacts, list) or not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
-                raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
-            
-            image_base64 = artifacts[0]["base64"]
-            
+        for attempt in range(max_retries):
             try:
-                image_bytes = base64.b64decode(image_base64)
-            except (binascii.Error, TypeError) as e:
-                logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail="Could not decode image data from generation service.") from e
+                client = await self.get_client()
+                # REFRESH.MD: Pass files and data correctly to the httpx client.
+                response = await client.post(url, headers=headers, files=files, data=data)
 
-            logger.info("✅ Successfully generated image from image.")
-            return image_bytes
+                # REFRESH.MD: Log the response text on error for better debugging.
+                if response.status_code == 429 and attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(f"Rate limit exceeded. Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                    continue
 
-        except HTTPException:
-            # CORE.MD: Re-raise HTTPException to preserve specific error messages.
-            raise
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Stability.ai API error during image generation: {e.response.status_code} - {e.response.text}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
-        except (base64.binascii.Error, ValueError) as e:
-            # REFRESH.MD: Handle specific base64 decoding errors.
-            logger.error(f"Failed to decode base64 image from Stability.ai response: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Failed to decode image from generation service.") from e
-        except httpx.RequestError as e:
-            # REFRESH.MD: Handle specific network errors.
-            logger.error(f"Network error while contacting Stability.ai for image generation: {e}", exc_info=True)
-            raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during image generation: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.") from e
+                if response.status_code != 200:
+                    logger.error(f"Stability.ai API error: {response.status_code} - {response.text}")
+                response.raise_for_status()
+
+                # REFRESH.MD: Correctly parse the JSON response and decode the base64 image.
+                response_data = response.json()
+                artifacts = response_data.get("artifacts")
+                
+                # CORE.MD: Add type checking to prevent TypeError if the artifact is not a dict.
+                if not artifacts or not isinstance(artifacts, list) or not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
+                    raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
+                
+                image_base64 = artifacts[0]["base64"]
+                
+                try:
+                    image_bytes = base64.b64decode(image_base64)
+                except (binascii.Error, TypeError) as e:
+                    logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
+                    raise HTTPException(status_code=500, detail="Could not decode image data from generation service.") from e
+
+                logger.info("✅ Successfully generated image from image.")
+                return image_bytes
+
+            except HTTPException:
+                # CORE.MD: Re-raise HTTPException to preserve specific error messages.
+                raise
+            except httpx.HTTPStatusError as e:
+                # CORE.MD: Only retry on 429 (Too Many Requests). For other client/server errors, fail immediately.
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    # This is the expected path for rate limiting, no need to log an error, just a warning.
+                    pass
+                else:
+                    # For non-429 errors or if it's the last attempt, log and re-raise.
+                    logger.error(f"Stability.ai API error: {e.response.status_code} - {e.response.text}", exc_info=True)
+                    raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
+            
+            except httpx.RequestError as e:
+                # REFRESH.MD: Handle specific network errors.
+                logger.error(f"Network error while contacting Stability.ai for image generation: {e}", exc_info=True)
+                raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during image generation: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.") from e
+        
+        # This part will be reached only if all retries fail with a non-HTTPStatusError that we didn't re-raise
+        raise HTTPException(status_code=500, detail="Failed to generate image after multiple attempts.")
 
 
 # --- FastAPI Dependency Injection ---
