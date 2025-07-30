@@ -109,8 +109,11 @@ class ThemeService:
             # REFRESH.MD: Specify "full-body portrait" in the prompt to guide the AI away from close-ups.
             prompt = f"A full-body portrait, photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
             
-            # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing.
-            negative_prompt = "orange, orange robes, orange color"
+            # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing,
+            # except on Thursdays when orange robes are part of the theme.
+            negative_prompt = None
+            if day_of_week != 3: # Thursday is weekday 3
+                negative_prompt = "orange, orange robes, orange color"
 
             # CORE.MD: Switched to the more powerful image-to-image generation.
             # REFRESH.MD: Reverted image_strength to 0.45 for a better balance, now guided by the negative prompt.
