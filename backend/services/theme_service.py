@@ -111,9 +111,12 @@ class ThemeService:
             
             # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing,
             # except on Thursdays when orange robes are part of the theme.
+            # REFRESH.MD: DISABLED this negative prompt. It contradicts the base image which features orange robes,
+            # causing the AI to aggressively change the face and ignore the prompt. Disabling this is critical
+            # for face preservation and respecting the user-provided base image.
             negative_prompt = None
-            if day_of_week != 3: # Thursday is weekday 3
-                negative_prompt = "orange, orange robes, orange color"
+            # if day_of_week != 3: # Thursday is weekday 3
+            #     negative_prompt = "orange, orange robes, orange color"
 
             # CORE.MD: Switched to the more powerful image-to-image generation.
             # REFRESH.MD: Reverted image_strength to 0.35 for a better balance, prioritizing face preservation.
