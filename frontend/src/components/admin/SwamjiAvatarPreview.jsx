@@ -401,4 +401,3 @@ const SwamjiAvatarPreview = () => {
 };
 
 export default SwamjiAvatarPreview;
-export default SwamjiAvatarPreview;

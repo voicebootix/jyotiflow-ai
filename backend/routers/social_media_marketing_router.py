@@ -530,8 +530,12 @@ async def generate_all_avatar_previews(
     generate_avatar_preview. It's kept for backward compatibility.
     """
     try:
-        # CORE.MD: The ThemeService now orchestrates image generation internally.
-        themed_image_url = await theme_service.get_daily_themed_image_url()
+        # CORE.MD: The ThemeService now orchestrates image generation internally and returns a dict.
+        theme_result = await theme_service.get_daily_themed_image_url()
+        themed_image_url = theme_result.get("image_url")
+
+        if not themed_image_url:
+            raise HTTPException(status_code=500, detail="Failed to retrieve themed image URL from theme service.")
 
         # Generate the video preview with the new themed image
         result = await avatar_engine.generate_avatar_preview_lightweight(
