@@ -144,14 +144,15 @@ class StabilityAiService:
                 # CORE.MD: Re-raise HTTPException to preserve specific error messages.
                 raise
             except httpx.HTTPStatusError as e:
-                # If it's the last attempt and still failing, raise the exception.
-                if attempt == max_retries - 1:
-                    logger.error(f"Stability.ai API error after all retries: {e.response.status_code} - {e.response.text}", exc_info=True)
-                    raise HTTPException(status_code=500, detail=f"Failed to generate image after multiple retries: {e.response.text}") from e
-            except (base64.binascii.Error, ValueError) as e:
-                # REFRESH.MD: Handle specific base64 decoding errors.
-                logger.error(f"Failed to decode base64 image from Stability.ai response: {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail="Failed to decode image from generation service.") from e
+                # CORE.MD: Only retry on 429 (Too Many Requests). For other client/server errors, fail immediately.
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    # This is the expected path for rate limiting, no need to log an error, just a warning.
+                    pass
+                else:
+                    # For non-429 errors or if it's the last attempt, log and re-raise.
+                    logger.error(f"Stability.ai API error: {e.response.status_code} - {e.response.text}", exc_info=True)
+                    raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
+            
             except httpx.RequestError as e:
                 # REFRESH.MD: Handle specific network errors.
                 logger.error(f"Network error while contacting Stability.ai for image generation: {e}", exc_info=True)
