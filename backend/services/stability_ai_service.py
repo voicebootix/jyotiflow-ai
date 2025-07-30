@@ -89,10 +89,10 @@ class StabilityAiService:
             "init_image_mode": "IMAGE_STRENGTH",
             "text_prompts[0][text]": text_prompt,
             "text_prompts[0][weight]": 1.0,
-            "cfg_scale": 7,
+            "cfg_scale": 10,
             "style_preset": "photographic",
             "samples": 1,
-            "steps": 20,
+            "steps": 30,
         }
         
         # REFRESH.MD: Add negative prompt to the request if provided.
