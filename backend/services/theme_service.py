@@ -126,7 +126,7 @@ class ThemeService:
                 image_bytes=resized_image_bytes,
                 text_prompt=prompt,
                 negative_prompt=negative_prompt,
-                image_strength=0.35,
+                image_strength=0.42,
             )
 
             # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
