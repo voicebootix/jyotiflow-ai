@@ -145,11 +145,25 @@ const SwamjiAvatarPreview = () => {
       addNotification('error', 'Please generate a video preview first');
       return;
     }
-    // This function's logic might need to be updated based on how
-    // the final "approval" is stored in the backend.
-    // For now, it simulates an approval.
-    setApprovedConfig({ status: 'Approved' });
-    addNotification('success', '✅ Configuration marked as approved!');
+    try {
+      const response = await enhanced_api.approveSwamjiAvatar({
+        image_url: uploadedImage,
+        video_url: finalVideo.video_url,
+        prompt: promptText,
+        // Add other relevant data if needed by the backend
+      });
+
+      if (response.success) {
+        setApprovedConfig(response.data.configuration);
+        addNotification('success', '✅ Swamiji avatar configuration approved!');
+      } else {
+        const errorMessage = response?.message || 'Failed to approve configuration.';
+        addNotification('error', `❌ ${errorMessage}`);
+      }
+    } catch (error) {
+      console.error('Error approving configuration:', error);
+      addNotification('error', '❌ An unexpected error occurred while approving.');
+    }
   };
 
   const downloadVideo = () => {

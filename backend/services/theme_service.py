@@ -90,25 +90,22 @@ class ThemeService:
                 logger.error(f"Failed to resize base image: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail="Failed to process base image for theme generation.") from e
 
-            # REFRESH.MD: Restore prompt generation logic based on the daily theme.
-            day_of_week = datetime.now().weekday()
-            original_day_for_logging = day_of_week
-            theme = THEMES.get(day_of_week)
-
-            if theme is None:
-                logger.warning(f"No theme found for day {original_day_for_logging}. Defaulting to day 0.")
-                day_of_week = 0
+            if custom_prompt:
+                final_prompt = custom_prompt
+            else:
+                day_of_week = datetime.now().weekday()
                 theme = THEMES.get(day_of_week)
-            
-            # CORE.MD: Add a safeguard to prevent TypeError if the fallback theme is also missing.
-            if theme is None:
-                logger.error("Default theme (day 0) is missing from the configuration.")
-                raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
 
-            final_prompt = custom_prompt if custom_prompt else f"A photorealistic, high-resolution image. The face and features of the wise Indian spiritual master, Swamiji, must be perfectly preserved from the original photo. The theme is: {theme['description']}."
+                if theme is None:
+                    logger.warning(f"No theme found for day {day_of_week}. Defaulting to day 0.")
+                    theme = THEMES.get(0)
+                
+                if theme is None:
+                    logger.error("Default theme (day 0) is missing from the configuration.")
+                    raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
+                
+                final_prompt = f"A photorealistic, high-resolution image. The face and features of the wise Indian spiritual master, Swamiji, must be perfectly preserved from the original photo. The theme is: {theme['description']}."
 
-            # CORE.MD: Use the correct key 'description' to access the theme details.
-            # REFRESH.MD: Strengthen prompt to explicitly preserve the face and apply the theme description.
             prompt = final_prompt
             
             # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing,
