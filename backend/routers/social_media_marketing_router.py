@@ -461,36 +461,61 @@ async def upload_swamiji_image(
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
 
 
-@social_marketing_router.post("/generate-avatar-preview", response_model=StandardResponse)
-async def generate_avatar_preview(
-    request: GenerateAllAvatarPreviewsRequest,
+class ImagePreviewRequest(BaseModel):
+    custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
+
+@social_marketing_router.post("/generate-image-preview", response_model=StandardResponse)
+async def generate_image_preview(
+    request: ImagePreviewRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
     theme_service: ThemeService = Depends(get_theme_service),
 ):
     """
-    Generates a single, daily-themed avatar preview.
+    Generates a daily-themed or custom-prompted avatar image preview.
+    Does not generate video. Returns the image URL and the prompt used.
     """
     try:
-        # CORE.MD: The ThemeService now orchestrates image generation internally.
-        themed_image_url = await theme_service.get_daily_themed_image_url()
+        # The ThemeService now accepts an optional custom prompt
+        result = await theme_service.get_daily_themed_image_url(
+            custom_prompt=request.custom_prompt
+        )
+        return StandardResponse(success=True, message="Image preview generated successfully.", data=result)
+    except Exception as e:
+        logger.error(f"Image preview generation failed: {e}", exc_info=True)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"Error generating image preview: {e}") from e
 
-        # Generate the video preview with the new themed image
+class VideoFromPreviewRequest(BaseModel):
+    image_url: str = Field(..., description="The URL of the confirmed preview image.")
+    sample_text: str = Field(..., description="The text to be spoken in the video.")
+    voice_id: str = Field(..., description="The voice ID to be used for the video.")
+
+@social_marketing_router.post("/generate-video-from-preview", response_model=StandardResponse)
+async def generate_video_from_preview(
+    request: VideoFromPreviewRequest,
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
+):
+    """
+    Generates the final video using a confirmed image URL.
+    """
+    try:
         result = await avatar_engine.generate_avatar_preview_lightweight(
             guidance_text=request.sample_text,
             voice_id=request.voice_id,
-            source_image_url=themed_image_url
+            source_image_url=request.image_url
         )
         if result.get("success"):
-            return StandardResponse(success=True, message="Avatar preview generated.", data=result)
+            return StandardResponse(success=True, message="Avatar video generated successfully.", data=result)
         else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate preview."))
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate video from preview."))
     except Exception as e:
-        logger.error(f"Avatar preview generation failed: {e}", exc_info=True)
-        # REFRESH.MD: Check if the exception is already an HTTPException to avoid re-wrapping.
+        logger.error(f"Video generation from preview failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):
             raise e
-        raise HTTPException(status_code=500, detail=f"Error generating preview: {e}") from e
+        raise HTTPException(status_code=500, detail=f"Error generating video from preview: {e}") from e
+
 
 
 @social_marketing_router.post("/generate-all-avatar-previews", response_model=StandardResponse)

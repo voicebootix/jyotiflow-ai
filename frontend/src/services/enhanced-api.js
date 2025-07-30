@@ -181,8 +181,12 @@ class EnhancedAPI {
     });
   }
 
-  async generateAvatarPreview(previewData) {
-    return this.post('/api/admin/social-marketing/generate-avatar-preview', previewData);
+  async generateImagePreview(previewData) {
+    return this.post('/api/admin/social-marketing/generate-image-preview', previewData);
+  }
+
+  async generateVideoFromPreview(videoData) {
+    return this.post('/api/admin/social-marketing/generate-video-from-preview', videoData);
   }
 
   async approveSwamjiAvatar(avatarData) {

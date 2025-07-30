@@ -54,10 +54,10 @@ class ThemeService:
             6: ("Joyful Celebration", "in festive colorful robes, celebrating amidst a joyful crowd") # Sunday
         }
 
-    async def get_daily_themed_image_url(self) -> str:
+    async def get_daily_themed_image_url(self, custom_prompt: str = None) -> dict:
         """
-        Determines the daily theme, generates an image if it doesn't exist,
-        and returns its public URL.
+        Determines the daily theme or uses a custom prompt, generates an image,
+        and returns its public URL along with the prompt used.
         """
         try:
             # CORE.MD: Ensure the base image file exists before proceeding.
@@ -105,9 +105,11 @@ class ThemeService:
                 logger.error("Default theme (day 0) is missing from the configuration.")
                 raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
 
+            final_prompt = custom_prompt if custom_prompt else f"A photorealistic, high-resolution image. The face and features of the wise Indian spiritual master, Swamiji, must be perfectly preserved from the original photo. The theme is: {theme['description']}."
+
             # CORE.MD: Use the correct key 'description' to access the theme details.
             # REFRESH.MD: Strengthen prompt to explicitly preserve the face and apply the theme description.
-            prompt = f"A photorealistic, high-resolution image. The face and features of the wise Indian spiritual master, Swamiji, must be perfectly preserved from the original photo. The theme is: {theme['description']}."
+            prompt = final_prompt
             
             # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing,
             # except on Thursdays when orange robes are part of the theme.
@@ -126,7 +128,7 @@ class ThemeService:
                 image_bytes=resized_image_bytes,
                 text_prompt=prompt,
                 negative_prompt=negative_prompt,
-                image_strength=0.42,
+                image_strength=0.5,
             )
 
             # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
@@ -145,7 +147,7 @@ class ThemeService:
             )
             
             logger.info(f"✅ Successfully uploaded themed image to {public_url}")
-            return public_url
+            return {"image_url": public_url, "prompt_used": final_prompt}
 
         except Exception as e:
             logger.error(f"Failed to create the daily themed avatar image: {e}", exc_info=True)

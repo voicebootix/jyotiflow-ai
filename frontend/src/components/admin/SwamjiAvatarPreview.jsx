@@ -8,12 +8,17 @@ import { useNotification } from '../../hooks/useNotification';
 
 const SwamjiAvatarPreview = () => {
   const [uploadedImage, setUploadedImage] = useState(null);
-  // REFRESH.MD: Removed avatarPreviews and selectedStyle states as they are no longer needed.
   const [voices, setVoices] = useState([]);
   const [selectedVoice, setSelectedVoice] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [approvedConfig, setApprovedConfig] = useState(null);
-  const [currentSample, setCurrentSample] = useState(null);
+  
+  // New states for the interactive process
+  const [previewImage, setPreviewImage] = useState(null);
+  const [promptText, setPromptText] = useState('');
+  const [finalVideo, setFinalVideo] = useState(null);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  
   const { addNotification } = useNotification();
 
   // REFRESH.MD: Removed the hardcoded avatarStyles object. The theme is now dynamic from the backend.
@@ -77,75 +82,79 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
-  const generatePreviewSample = async () => {
+  const generateImagePreview = async (customPrompt = null) => {
     if (!uploadedImage) {
       addNotification('error', 'Please upload Swamiji\'s photo first');
       return;
     }
-
-    // CORE.MD: Add validation to ensure a voice is selected before proceeding.
-    if (!selectedVoice) {
-        addNotification('error', 'Voice configuration not loaded. Please refresh the page.');
-        return;
-    }
-
     try {
       setIsGenerating(true);
-      // REFRESH.MD: Removed the 'style' parameter as the backend now handles daily themes.
-      const response = await enhanced_api.generateAvatarPreview({
-        voice_id: selectedVoice,
-        // CORE.MD: Standardized the sample_text to use consistent Tamil script to avoid TTS errors.
-        sample_text: "வணக்கம், அன்பு ஆத்மாக்களே. இந்த தெய்வீக ஆன்மீக வழிகாட்டுதலுக்கு உங்களை வரவேற்கிறோம். அமைதியும் ஞானமும் எப்போதும் உங்களுடன் இருக்கட்டும். ஓம் நமசிவாய."
+      setPreviewImage(null); // Clear previous image
+      setFinalVideo(null); // Clear previous video
+
+      const response = await enhanced_api.generateImagePreview({
+        custom_prompt: customPrompt || promptText || null,
       });
 
-      if (response.success && response.data?.preview) {
-        // REFRESH.MD: Directly set the current sample, removing the old style-based object.
-        setCurrentSample(response.data.preview);
-        addNotification('success', '✅ Daily preview generated successfully!');
+      if (response.success && response.data) {
+        setPreviewImage(response.data.image_url);
+        setPromptText(response.data.prompt_used);
+        addNotification('success', '✅ Image preview generated!');
       } else {
-        const errorMessage = response?.message || 'Failed to generate preview.';
-        console.error('Error generating preview:', errorMessage);
+        const errorMessage = response?.message || 'Failed to generate image preview.';
         addNotification('error', `❌ ${errorMessage}`);
       }
     } catch (error) {
-      console.error('Error generating preview:', error);
-      addNotification('error', '❌ An unexpected error occurred while generating the preview.');
+      addNotification('error', '❌ An unexpected error occurred.');
     } finally {
       setIsGenerating(false);
     }
   };
 
-  // REFRESH.MD: Removed generateAllPreviews as it's replaced by the single daily theme generation.
-
-  const approveConfiguration = async () => {
-    // REFRESH.MD: Updated the check to use currentSample instead of avatarPreviews.
-    if (!uploadedImage || !currentSample) {
-      addNotification('error', 'Please upload photo and generate a preview first');
+  const generateVideoFromPreview = async () => {
+    if (!previewImage || !selectedVoice) {
+      addNotification('error', 'Please generate and have an image preview first.');
       return;
     }
-
     try {
-      // CORE.MD: The approval logic might need backend changes later, for now, we send the current sample.
-      const response = await enhanced_api.approveSwamjiAvatar({
-        image_url: uploadedImage,
-        previews: { daily: currentSample },
-        approved_styles: ['daily'],
-        default_style: 'daily'
+      setIsGeneratingVideo(true);
+      setFinalVideo(null);
+
+      const response = await enhanced_api.generateVideoFromPreview({
+        image_url: previewImage,
+        voice_id: selectedVoice,
+        sample_text: "வணக்கம், அன்பு ஆத்மாக்களே. இந்த தெய்வீக ஆன்மீக வழிகாட்டுதலுக்கு உங்களை வரவேற்கிறோம். அமைதியும் ஞானமும் எப்போதும் உங்களுடன் இருக்கட்டும். ஓம் நமசிவாய."
       });
 
-      if (response.success) {
-        setApprovedConfig(response.data.configuration);
-        addNotification('success', '✅ Swamiji avatar configuration approved! All future content will use this appearance.');
+      if (response.success && response.data) {
+        setFinalVideo(response.data);
+        addNotification('success', '✅ Video generated successfully!');
+      } else {
+        const errorMessage = response?.message || 'Failed to generate video.';
+        addNotification('error', `❌ ${errorMessage}`);
       }
     } catch (error) {
-      console.error('Error approving configuration:', error);
-      addNotification('error', '❌ Failed to approve configuration.');
+      addNotification('error', '❌ An unexpected error occurred while generating the video.');
+    } finally {
+      setIsGeneratingVideo(false);
     }
   };
 
-  const downloadPreview = () => {
-    if (currentSample?.video_url) {
-      window.open(currentSample.video_url, '_blank');
+  const approveConfiguration = async () => {
+    if (!uploadedImage || !finalVideo) {
+      addNotification('error', 'Please generate a video preview first');
+      return;
+    }
+    // This function's logic might need to be updated based on how
+    // the final "approval" is stored in the backend.
+    // For now, it simulates an approval.
+    setApprovedConfig({ status: 'Approved' });
+    addNotification('success', '✅ Configuration marked as approved!');
+  };
+
+  const downloadVideo = () => {
+    if (finalVideo?.video_url) {
+      window.open(finalVideo.video_url, '_blank');
     }
   };
 
@@ -237,12 +246,12 @@ const SwamjiAvatarPreview = () => {
             <div className="space-y-4">
               {/* REFRESH.MD: Replaced two buttons with a single daily theme generation button. */}
               <button
-                onClick={generatePreviewSample}
+                onClick={() => generateImagePreview()}
                 disabled={!uploadedImage || isGenerating}
                 className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2 text-base"
               >
                 <Star size={18} />
-                <span>Generate Daily Avatar Preview</span>
+                <span>Generate Daily Image Preview</span>
               </button>
 
               {isGenerating && (
@@ -262,75 +271,103 @@ const SwamjiAvatarPreview = () => {
         </div>
 
         {/* Right Panel - Style Selection & Previews */}
+        {/* Right Panel - Interactive Preview and Generation */}
         <div className="space-y-6">
-          {/* REFRESH.MD: The entire Style Selection panel is removed as themes are now automatic. */}
-
-          {/* Preview Display */}
-          {currentSample && (
+          {/* Interactive Image Preview */}
+          {previewImage && (
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center">
                 <Eye className="mr-2" size={20} />
-                Avatar Preview
+                Image Preview
               </h3>
-              
               <div className="space-y-4">
                 <div className="bg-gray-100 rounded-lg p-4 text-center">
-                  <video 
-                    src={currentSample.video_url}
-                    controls
-                    className="mx-auto max-w-full h-64 rounded-lg"
-                    poster={currentSample.thumbnail_url}
-                  >
-                    Your browser does not support video playback.
-                  </video>
+                  <img 
+                    src={previewImage} 
+                    alt="Generated Preview" 
+                    className="mx-auto max-w-full h-64 rounded-lg object-contain"
+                  />
                 </div>
-                
-                <div className="flex justify-between items-center">
-                  <div className="text-sm text-gray-600">
-                    <p>Duration: {currentSample.duration || '~30s'}</p>
-                    <p>Quality: {currentSample.quality || 'High'}</p>
-                  </div>
-                  <button
-                    onClick={downloadPreview}
-                    className="flex items-center px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-lg"
-                  >
-                    <Download size={16} className="mr-2" />
-                    Download
-                  </button>
+                <div>
+                  <label htmlFor="prompt-text" className="block text-sm font-medium text-gray-700 mb-1">
+                    Generated Prompt
+                  </label>
+                  <textarea
+                    id="prompt-text"
+                    value={promptText}
+                    onChange={(e) => setPromptText(e.target.value)}
+                    rows={4}
+                    className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                  />
                 </div>
+                <button
+                  onClick={() => generateImagePreview(promptText)}
+                  disabled={isGenerating}
+                  className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  <RotateCcw size={16} />
+                  <span>Regenerate Image</span>
+                </button>
               </div>
             </div>
           )}
 
-          {/* Approval Section */}
-          {currentSample && (
+          {/* Video Generation & Final Preview */}
+          {previewImage && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-6">
               <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center">
-                <CheckCircle className="mr-2" size={20} />
-                Approve Avatar Configuration
+                <Play className="mr-2" size={20} />
+                Step 2: Generate Video
               </h3>
-              
               <div className="space-y-4">
                 <p className="text-green-800">
-                  A new daily theme has been generated.
-                  Once approved, this appearance will be used for ALL social media content for today.
+                  If you are happy with the image preview, generate the final video.
                 </p>
-                
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-green-700">
-                    <p>✅ Preview generated successfully.</p>
-                    <p>✅ Theme: Daily Dynamic Theme</p>
+                <button
+                  onClick={generateVideoFromPreview}
+                  disabled={isGeneratingVideo}
+                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
+                >
+                  <CheckCircle size={18} />
+                  <span>Confirm & Generate Video</span>
+                </button>
+                {isGeneratingVideo && (
+                  <div className="text-center py-4">
+                    <div className="animate-spin mx-auto h-8 w-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
+                    <p className="mt-2 text-gray-600">Generating video...</p>
                   </div>
-                  <button
-                    onClick={approveConfiguration}
-                    disabled={approvedConfig !== null}
-                    className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center space-x-2"
-                  >
-                    <Save size={16} />
-                    <span>{approvedConfig ? 'Approved' : 'Approve & Save'}</span>
-                  </button>
-                </div>
+                )}
               </div>
+            </div>
+          )}
+          
+          {finalVideo && (
+            <div className="bg-white rounded-lg shadow p-6">
+               <h3 className="text-lg font-semibold mb-4 text-purple-800">Final Video Preview</h3>
+                <video 
+                    src={finalVideo.video_url}
+                    controls
+                    className="mx-auto max-w-full h-64 rounded-lg"
+                    poster={previewImage}
+                  >
+                    Your browser does not support video playback.
+                </video>
+                 <div className="mt-4 flex justify-end space-x-3">
+                    <button
+                        onClick={downloadVideo}
+                        className="flex items-center px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-lg"
+                      >
+                        <Download size={16} className="mr-2" />
+                        Download
+                    </button>
+                    <button
+                        onClick={approveConfiguration}
+                        className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-2"
+                      >
+                        <Save size={16} />
+                        <span>Approve Final Avatar</span>
+                    </button>
+                </div>
             </div>
           )}
         </div>
@@ -363,4 +400,5 @@ const SwamjiAvatarPreview = () => {
   );
 };
 
+export default SwamjiAvatarPreview;
 export default SwamjiAvatarPreview;
