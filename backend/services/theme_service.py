@@ -106,8 +106,8 @@ class ThemeService:
                 raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
 
             # CORE.MD: Use the correct key 'description' to access the theme details.
-            # REFRESH.MD: Specify "full-body portrait" in the prompt to guide the AI away from close-ups.
-            prompt = f"A full-body portrait, photorealistic, high-resolution image of a wise Indian spiritual master, Swamiji, with a gentle smile, {theme['description']}."
+            # REFRESH.MD: Strengthen prompt to explicitly preserve the face and apply the theme description.
+            prompt = f"A photorealistic, high-resolution image. The face and features of the wise Indian spiritual master, Swamiji, must be perfectly preserved from the original photo. The theme is: {theme['description']}."
             
             # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing,
             # except on Thursdays when orange robes are part of the theme.
@@ -116,12 +116,12 @@ class ThemeService:
                 negative_prompt = "orange, orange robes, orange color"
 
             # CORE.MD: Switched to the more powerful image-to-image generation.
-            # REFRESH.MD: Reverted image_strength to 0.45 for a better balance, now guided by the negative prompt.
+            # REFRESH.MD: Reverted image_strength to 0.35 for a better balance, prioritizing face preservation.
             generated_image_bytes = await self.stability_service.generate_image_from_image(
                 image_bytes=resized_image_bytes,
                 text_prompt=prompt,
                 negative_prompt=negative_prompt,
-                image_strength=0.45,
+                image_strength=0.35,
             )
 
             # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
