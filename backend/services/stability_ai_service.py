@@ -110,8 +110,8 @@ class StabilityAiService:
                 response_data = response.json()
                 artifacts = response_data.get("artifacts")
                 
-                # REFRESH.MD: Add robust type checking for the API response.
-                if not artifacts or not isinstance(artifacts, list) or not artifacts:
+                # REFRESH.MD: Simplified and corrected artifact validation.
+                if not artifacts or not isinstance(artifacts, list):
                     raise HTTPException(status_code=500, detail="Invalid or empty artifacts received from image generation service.")
                 
                 if not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
@@ -194,8 +194,8 @@ class StabilityAiService:
                 response_data = response.json()
                 artifacts = response_data.get("artifacts")
                 
-                # REFRESH.MD: Add robust type checking for the API response.
-                if not artifacts or not isinstance(artifacts, list) or not artifacts:
+                # REFRESH.MD: Simplified and corrected artifact validation.
+                if not artifacts or not isinstance(artifacts, list):
                     raise HTTPException(status_code=500, detail="Invalid or empty artifacts received from image generation service.")
                 
                 if not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
