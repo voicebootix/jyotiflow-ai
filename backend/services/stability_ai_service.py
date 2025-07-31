@@ -222,6 +222,8 @@ class StabilityAiService:
                     logger.error(f"Stability.ai API request failed: {e.response.status_code} - {e.response.text}", exc_info=True)
                     raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
             
+            except HTTPException:
+                raise
             except httpx.RequestError as e:
                 logger.error(f"Network error while contacting Stability.ai: {e}", exc_info=True)
                 raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
