@@ -71,7 +71,6 @@ class StabilityAiService:
             raise HTTPException(status_code=400, detail="Image strength must be between 0.0 and 1.0.")
 
         # --- API Request ---
-        # CORE.MD: Switched to the more appropriate image-to-image endpoint.
         url = f"{self.api_host}/v1/generation/{self.engine_id}/image-to-image"
         
         headers = {
@@ -79,7 +78,6 @@ class StabilityAiService:
             "Authorization": f"Bearer {self.api_key}"
         }
 
-        # REFRESH.MD: Correctly structure the multipart/form-data request for image-to-image.
         files = {
             'init_image': ('init_image.png', image_bytes, 'image/png'),
         }
@@ -95,11 +93,9 @@ class StabilityAiService:
             "steps": 30,
         }
         
-        # REFRESH.MD: Add negative prompt to the request if provided.
         if negative_prompt:
             data["text_prompts[1][text]"] = negative_prompt
             data["text_prompts[1][weight]"] = -1.0
-
 
         max_retries = 3
         base_delay = 1  # in seconds
@@ -108,14 +104,18 @@ class StabilityAiService:
             try:
                 client = await self.get_client()
                 response = await client.post(url, headers=headers, files=files, data=data)
-                response.raise_for_status()  # Raise for any non-2xx status
+                response.raise_for_status()
 
                 # --- Success Path ---
                 response_data = response.json()
                 artifacts = response_data.get("artifacts")
                 
-                if not artifacts or not isinstance(artifacts, list) or not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
-                    raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
+                # REFRESH.MD: Add robust type checking for the API response.
+                if not artifacts or not isinstance(artifacts, list) or not artifacts:
+                    raise HTTPException(status_code=500, detail="Invalid or empty artifacts received from image generation service.")
+                
+                if not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
+                    raise HTTPException(status_code=500, detail="Invalid artifact structure in response.")
                 
                 image_base64 = artifacts[0]["base64"]
                 
@@ -129,33 +129,24 @@ class StabilityAiService:
                 return image_bytes
 
             except httpx.HTTPStatusError as e:
-                # CORE.MD & REFRESH.MD: Correctly handle retries only for 429 errors.
                 if e.response.status_code == 429 and attempt < max_retries - 1:
                     delay = base_delay * (2 ** attempt)
                     logger.warning(f"Rate limit exceeded (429). Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(delay)
-                    continue  # Go to the next attempt
+                    continue
                 else:
-                    # For non-429 errors or if it's the last attempt for a 429, fail permanently.
                     logger.error(f"Stability.ai API request failed after {attempt + 1} attempt(s): {e.response.status_code} - {e.response.text}", exc_info=True)
                     raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
             
             except HTTPException:
-                raise  # Re-raise specific HTTP exceptions from inner logic
-
+                raise
             except httpx.RequestError as e:
                 logger.error(f"Network error while contacting Stability.ai: {e}", exc_info=True)
                 raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
-
             except Exception as e:
                 logger.error(f"An unexpected error occurred during image generation: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.") from e
         
-        # This part should ideally not be reached, but as a fallback.
-        raise HTTPException(status_code=500, detail="Failed to generate image after all retries.")
-
-
-        # This part should ideally not be reached, but as a fallback.
         raise HTTPException(status_code=500, detail="Failed to generate image after all retries.")
 
     async def generate_image_from_text(self, text_prompt: str, negative_prompt: Optional[str] = None) -> bytes:
@@ -203,8 +194,12 @@ class StabilityAiService:
                 response_data = response.json()
                 artifacts = response_data.get("artifacts")
                 
-                if not artifacts or not isinstance(artifacts, list) or "base64" not in artifacts[0]:
-                    raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
+                # REFRESH.MD: Add robust type checking for the API response.
+                if not artifacts or not isinstance(artifacts, list) or not artifacts:
+                    raise HTTPException(status_code=500, detail="Invalid or empty artifacts received from image generation service.")
+                
+                if not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
+                    raise HTTPException(status_code=500, detail="Invalid artifact structure in response.")
                 
                 image_base64 = artifacts[0]["base64"]
                 
