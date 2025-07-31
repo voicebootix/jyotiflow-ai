@@ -155,6 +155,89 @@ class StabilityAiService:
         raise HTTPException(status_code=500, detail="Failed to generate image after all retries.")
 
 
+        # This part should ideally not be reached, but as a fallback.
+        raise HTTPException(status_code=500, detail="Failed to generate image after all retries.")
+
+    async def generate_image_from_text(self, text_prompt: str, negative_prompt: Optional[str] = None) -> bytes:
+        """
+        Generates an image using the Stability.ai text-to-image endpoint.
+        """
+        if not self.is_configured:
+            raise HTTPException(status_code=501, detail="Image generation service is not configured.")
+
+        if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
+
+        url = f"{self.api_host}/v1/generation/{self.engine_id}/text-to-image"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        payload = {
+            "text_prompts": [
+                {"text": text_prompt, "weight": 1.0}
+            ],
+            "cfg_scale": 10,
+            "height": 1024,
+            "width": 1024,
+            "style_preset": "photographic",
+            "samples": 1,
+            "steps": 30,
+        }
+        
+        if negative_prompt:
+            payload["text_prompts"].append({"text": negative_prompt, "weight": -1.0})
+
+        max_retries = 3
+        base_delay = 1
+
+        for attempt in range(max_retries):
+            try:
+                client = await self.get_client()
+                response = await client.post(url, headers=headers, json=payload)
+                response.raise_for_status()
+
+                response_data = response.json()
+                artifacts = response_data.get("artifacts")
+                
+                if not artifacts or not isinstance(artifacts, list) or "base64" not in artifacts[0]:
+                    raise HTTPException(status_code=500, detail="Invalid response from image generation service.")
+                
+                image_base64 = artifacts[0]["base64"]
+                
+                try:
+                    image_bytes = base64.b64decode(image_base64)
+                except (binascii.Error, TypeError) as e:
+                    logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
+                    raise HTTPException(status_code=500, detail="Could not decode image data from generation service.") from e
+
+                logger.info("✅ Successfully generated image from text.")
+                return image_bytes
+
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(f"Rate limit exceeded (429). Retrying in {delay} seconds... (Attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    logger.error(f"Stability.ai API request failed: {e.response.status_code} - {e.response.text}", exc_info=True)
+                    raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
+            
+            except httpx.RequestError as e:
+                logger.error(f"Network error while contacting Stability.ai: {e}", exc_info=True)
+                raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
+
+            except Exception as e:
+                logger.error(f"An unexpected error occurred during text-to-image generation: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.") from e
+        
+        raise HTTPException(status_code=500, detail="Failed to generate image after all retries.")
+
+
 # --- FastAPI Dependency Injection ---
 # REFRESH.MD: Refactored to a generator-based dependency to manage the client lifecycle.
 async def get_stability_service() -> AsyncGenerator['StabilityAiService', None]:
