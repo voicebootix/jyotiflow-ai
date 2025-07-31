@@ -11,8 +11,6 @@ import uuid
 import os
 from fastapi import HTTPException, Depends
 from pathlib import Path
-import cv2
-import numpy as np
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -43,16 +41,6 @@ class ThemeService:
         self.storage_service = storage_service
         # CORE.MD: Use Path for robust, OS-agnostic path construction.
         self.base_dir = Path(__file__).resolve().parent.parent
-        self.base_image_path = os.getenv("SWAMIJI_BASE_IMAGE_PATH", str(self.base_dir / "assets/swamiji_base_image.png"))
-        self.themes = {
-            0: ("Meditative Mountain", "in serene white robes, meditating on a peaceful mountain peak at sunrise"), # Monday
-            1: ("Temple Blessings", "in vibrant saffron robes, offering blessings in front of a traditional temple"), # Tuesday
-            2: ("Forest Wisdom", "in simple earth-toned robes, teaching in a lush, green forest"), # Wednesday
-            3: ("Golden Light", "in bright yellow robes, surrounded by a golden aura of light"), # Thursday
-            4: ("Lotus Pond", "in elegant pink robes, sitting beside a tranquil pond with lotus flowers"), # Friday
-            5: ("Night Sky", "in deep blue robes, under a starry night sky"), # Saturday
-            6: ("Joyful Celebration", "in festive colorful robes, celebrating amidst a joyful crowd") # Sunday
-        }
 
     async def get_daily_themed_image_url(self, custom_prompt: str = None) -> dict:
         """
@@ -62,32 +50,6 @@ class ThemeService:
         try:
             # CORE.MD: This function now performs text-to-image generation.
             # The base image is no longer required.
-            # if not Path(self.base_image_path).is_file():
-            #     logger.error(f"Base image not found at {self.base_image_path}")
-            #     raise HTTPException(status_code=500, detail=f"Base image not found at {self.base_image_path}")
-            #
-            # with open(self.base_image_path, "rb") as f:
-            #     base_image_bytes = f.read()
-            #
-            # try:
-            #     nparr = np.frombuffer(base_image_bytes, np.uint8)
-            #     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            #     if img is None:
-            #         raise ValueError("Failed to decode base image for resizing.")
-            #     
-            #     target_size = (1024, 1024)
-            #     resized_img = cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
-            #     
-            #     is_success, buffer = cv2.imencode(".png", resized_img)
-            #     if not is_success:
-            #         raise RuntimeError("Failed to re-encode resized image.")
-            #     
-            #     resized_image_bytes = buffer.tobytes()
-            #     logger.info("Successfully resized base image to 1024x1024 for API compatibility.")
-            #
-            # except Exception as e:
-            #     logger.error(f"Failed to resize base image: {e}", exc_info=True)
-            #     raise HTTPException(status_code=500, detail="Failed to process base image for theme generation.") from e
 
             if custom_prompt:
                 final_prompt = custom_prompt
