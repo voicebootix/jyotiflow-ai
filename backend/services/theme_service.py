@@ -60,35 +60,34 @@ class ThemeService:
         and returns its public URL along with the prompt used.
         """
         try:
-            # CORE.MD: Ensure the base image file exists before proceeding.
-            if not Path(self.base_image_path).is_file():
-                logger.error(f"Base image not found at {self.base_image_path}")
-                raise HTTPException(status_code=500, detail=f"Base image not found at {self.base_image_path}")
-
-            with open(self.base_image_path, "rb") as f:
-                base_image_bytes = f.read()
-
-            # CORE.MD: Re-introduce image resizing to ensure 1024x1024 compatibility for the SDXL model.
-            # This was previously handled in the now-removed FaceDetectionService.
-            try:
-                nparr = np.frombuffer(base_image_bytes, np.uint8)
-                img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-                if img is None:
-                    raise ValueError("Failed to decode base image for resizing.")
-                
-                target_size = (1024, 1024)
-                resized_img = cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
-                
-                is_success, buffer = cv2.imencode(".png", resized_img)
-                if not is_success:
-                    raise RuntimeError("Failed to re-encode resized image.")
-                
-                resized_image_bytes = buffer.tobytes()
-                logger.info("Successfully resized base image to 1024x1024 for API compatibility.")
-
-            except Exception as e:
-                logger.error(f"Failed to resize base image: {e}", exc_info=True)
-                raise HTTPException(status_code=500, detail="Failed to process base image for theme generation.") from e
+            # CORE.MD: This function now performs text-to-image generation.
+            # The base image is no longer required.
+            # if not Path(self.base_image_path).is_file():
+            #     logger.error(f"Base image not found at {self.base_image_path}")
+            #     raise HTTPException(status_code=500, detail=f"Base image not found at {self.base_image_path}")
+            #
+            # with open(self.base_image_path, "rb") as f:
+            #     base_image_bytes = f.read()
+            #
+            # try:
+            #     nparr = np.frombuffer(base_image_bytes, np.uint8)
+            #     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            #     if img is None:
+            #         raise ValueError("Failed to decode base image for resizing.")
+            #     
+            #     target_size = (1024, 1024)
+            #     resized_img = cv2.resize(img, target_size, interpolation=cv2.INTER_AREA)
+            #     
+            #     is_success, buffer = cv2.imencode(".png", resized_img)
+            #     if not is_success:
+            #         raise RuntimeError("Failed to re-encode resized image.")
+            #     
+            #     resized_image_bytes = buffer.tobytes()
+            #     logger.info("Successfully resized base image to 1024x1024 for API compatibility.")
+            #
+            # except Exception as e:
+            #     logger.error(f"Failed to resize base image: {e}", exc_info=True)
+            #     raise HTTPException(status_code=500, detail="Failed to process base image for theme generation.") from e
 
             if custom_prompt:
                 final_prompt = custom_prompt
@@ -104,28 +103,18 @@ class ThemeService:
                     logger.error("Default theme (day 0) is missing from the configuration.")
                     raise HTTPException(status_code=500, detail="Server is misconfigured: Default theme is missing.")
                 
-                final_prompt = f"A photorealistic, high-resolution image. The face and features of the wise Indian spiritual master, Swamiji, must be perfectly preserved from the original photo. The theme is: {theme['description']}."
+                # REFRESH.MD: Modified the prompt to be more descriptive for text-to-image generation.
+                # It now explicitly describes Swamiji's appearance since there's no base image.
+                final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, Swamiji. He has a kind, serene face, a gentle smile, and traditional vibhuti markings on his forehead. The theme is: {theme['description']}."
 
             prompt = final_prompt
             
-            # CORE.MD: Add a negative prompt to explicitly prevent the original orange robes from appearing,
-            # except on Thursdays when orange robes are part of the theme.
-            # REFRESH.MD: DISABLED this negative prompt. It contradicts the base image which features orange robes,
-            # causing the AI to aggressively change the face and ignore the prompt. Disabling this is critical
-            # for face preservation and respecting the user-provided base image.
-            # REFRESH.MD: Use a general, non-conflicting negative prompt to improve image quality
-            # and potentially reduce generation cost, which may help avoid 429 errors.
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs"
-            # if day_of_week != 3: # Thursday is weekday 3
-            #     negative_prompt = "orange, orange robes, orange color"
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render"
 
-            # CORE.MD: Switched to the more powerful image-to-image generation.
-            # REFRESH.MD: Reverted image_strength to 0.35 for a better balance, prioritizing face preservation.
-            generated_image_bytes = await self.stability_service.generate_image_from_image(
-                image_bytes=resized_image_bytes,
+            # CORE.MD: Switched from image-to-image to text-to-image generation as requested.
+            generated_image_bytes = await self.stability_service.generate_image_from_text(
                 text_prompt=prompt,
                 negative_prompt=negative_prompt,
-                image_strength=0.5,
             )
 
             # REFRESH.MD: Re-introduce UUID to prevent filename race conditions.
