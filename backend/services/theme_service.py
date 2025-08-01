@@ -54,8 +54,6 @@ class ThemeService:
             
         self.face_cascade = cv2.CascadeClassifier(str(cascade_file))
 
-        # CORE.MD: Add a validation check to ensure the cascade classifier was loaded correctly.
-        # This prevents the '!empty()' assertion error during runtime if the XML is invalid.
         if self.face_cascade.empty():
             logger.error(f"Failed to load Haar Cascade classifier from {cascade_file}. The file might be corrupt or invalid.")
             raise RuntimeError(f"Failed to load Haar Cascade from {cascade_file}")
@@ -80,7 +78,6 @@ class ThemeService:
                 if isinstance(raw_value, str) and raw_value.startswith('http'):
                     image_url = raw_value
                 else:
-                    # REFRESH.MD: Add exception chaining for better traceability.
                     raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.") from e
 
             if not image_url:
@@ -134,8 +131,8 @@ class ThemeService:
             
             _, mask_bytes = cv2.imencode('.png', mask)
             return mask_bytes.tobytes()
-
-            except Exception as e:
+            
+        except Exception as e:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
