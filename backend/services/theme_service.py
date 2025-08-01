@@ -45,9 +45,7 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        # REFRESH.MD: Use pathlib for robust, OS-independent path resolution.
-        # This makes the path relative to this file, not the current working directory.
-        base_path = Path(__file__).parent.parent # Moves up from services -> backend
+        base_path = Path(__file__).parent.parent
         cascade_file = base_path / "assets" / "haarcascade_frontalface_default.xml"
         
         if not cascade_file.is_file():
@@ -71,11 +69,12 @@ class ThemeService:
                     image_url = parsed_value
                 else:
                     raise TypeError("Parsed JSON value is not a string.")
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError) as e:
                 if isinstance(raw_value, str) and raw_value.startswith('http'):
                     image_url = raw_value
                 else:
-                    raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.")
+                    # REFRESH.MD: Add exception chaining for better traceability.
+                    raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.") from e
 
             if not image_url:
                  raise HTTPException(status_code=500, detail="Could not determine a valid image URL from database.")
@@ -83,7 +82,6 @@ class ThemeService:
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url)
                 response.raise_for_status()
-                # REFRESH.MD: Return content from within the context manager to avoid closed client errors.
                 return response.content
                 
         except asyncpg.PostgresError as e:
