@@ -54,6 +54,13 @@ class ThemeService:
             
         self.face_cascade = cv2.CascadeClassifier(str(cascade_file))
 
+        # CORE.MD: Add a validation check to ensure the cascade classifier was loaded correctly.
+        # This prevents the '!empty()' assertion error during runtime if the XML is invalid.
+        if self.face_cascade.empty():
+            logger.error(f"Failed to load Haar Cascade classifier from {cascade_file}. The file might be corrupt or invalid.")
+            raise RuntimeError(f"Failed to load Haar Cascade from {cascade_file}")
+
+
     async def _get_base_image_bytes(self) -> bytes:
         """Fetches the uploaded Swamiji image URL from the DB and downloads the image."""
         image_url = None
