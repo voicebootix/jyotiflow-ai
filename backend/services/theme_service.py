@@ -134,8 +134,8 @@ class ThemeService:
             
             _, mask_bytes = cv2.imencode('.png', mask)
             return mask_bytes.tobytes()
-            
-        except Exception as e:
+
+            except Exception as e:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
