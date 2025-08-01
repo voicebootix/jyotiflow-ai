@@ -303,10 +303,7 @@ app = FastAPI(
 # --- CORS Middleware (English & Tamil) ---
 # REFRESH.MD: Restore dynamic CORS origins for different environments while ensuring
 # the production frontend is always allowed. This is a more robust and secure approach.
-ALWAYS_ALLOW_ORIGINS = [
-    "https://jyotiflow-ai-frontend.onrender.com",
-    "https://jyotiflow-ai.onrender.com"
-]
+ALWAYS_ALLOW_ORIGINS = ["https://jyotiflow-ai-frontend.onrender.com"]
 
 def get_cors_origins():
     """Get CORS origins based on environment"""
