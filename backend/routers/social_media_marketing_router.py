@@ -582,14 +582,14 @@ async def approve_swamiji_avatar(
                 "generation_prompt": request.prompt,
             }
             
-            # Storing base image URL
+            # Storing base image URL consistently as a JSON-encoded string.
             await conn.execute(
                 """
                 INSERT INTO platform_settings (key, value, updated_at)
                 VALUES ('swamiji_avatar_url', $1, NOW())
                 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
                 """,
-                request.image_url
+                json.dumps(request.image_url)
             )
 
             # Storing the full approved configuration object
