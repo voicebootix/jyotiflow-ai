@@ -506,10 +506,12 @@ async def generate_video_from_preview(
             voice_id=request.voice_id,
             source_image_url=request.image_url
         )
+        # REFRESH.MD: Ensure the response is nested under a 'data' key for frontend consistency.
         if result.get("success"):
             return StandardResponse(success=True, message="Avatar video generated successfully.", data=result)
         else:
-            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate video from preview."))
+            error_message = result.get("error", "Failed to generate video from preview.")
+            return StandardResponse(success=False, message=error_message, data=result)
     except Exception as e:
         logger.error(f"Video generation from preview failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):
@@ -668,10 +670,9 @@ async def execute_posting(request: PostExecutionRequest, admin_user: dict = Depe
     )
     return StandardResponse(success=True, data=result, message="Posting scheduled.")
 
-@social_marketing_router.post("/assets", response_model=StandardResponse, status_code=201)
+@social_manual_router.post("/assets", response_model=StandardResponse, status_code=201)
 async def create_marketing_asset(asset: MarketingAssetCreate, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)):
     new_asset = MarketingAsset(
         id=1, name=asset.name, type=asset.type, url=asset.url, created_at="2024-08-15T15:00:00Z"
     )
     return StandardResponse(success=True, data=new_asset, message="Asset created successfully.")
-
