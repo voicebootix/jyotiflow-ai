@@ -551,10 +551,66 @@ async def generate_all_avatar_previews(
         return StandardResponse(success=True, message="Daily avatar preview generated.", data={"previews": [result]})
     except Exception as e:
         logger.error(f"All avatar previews generation failed: {e}", exc_info=True)
-        # REFRESH.MD: Check if the exception is already an HTTPException.
-        if isinstance(e, HTTPException):
-            raise e
-        raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
+            # REFRESH.MD: Check if the exception is already an HTTPException.
+    if isinstance(e, HTTPException):
+        raise e
+    raise HTTPException(status_code=500, detail=f"Error generating all previews: {e}") from e
+
+class ApproveSwamijiAvatarRequest(BaseModel):
+    image_url: str = Field(..., description="The original uploaded image URL of Swamiji.")
+    video_url: str = Field(..., description="The final generated video URL to be approved.")
+    prompt: str = Field(..., description="The prompt used to generate the video's image.")
+
+@social_marketing_router.post("/approve-swamiji-avatar", response_model=StandardResponse)
+async def approve_swamiji_avatar(
+    request: ApproveSwamijiAvatarRequest,
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    conn: asyncpg.Connection = Depends(db.get_db),
+):
+    """
+    Approves and saves the final Swamiji avatar configuration.
+    This stores the approved image and video URL in the database for future use.
+    """
+    try:
+        # CORE.MD: Use a structured JSON object for the configuration value for better extensibility.
+        config_value = {
+            "approved_at": datetime.now().isoformat(),
+            "approved_by": admin_user.get("email"),
+            "base_image_url": request.image_url,
+            "approved_video_url": request.video_url,
+            "generation_prompt": request.prompt,
+        }
+        
+        # Storing base image URL
+        await conn.execute(
+            """
+            INSERT INTO platform_settings (key, value, updated_at)
+            VALUES ('swamiji_avatar_url', $1, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+            """,
+            request.image_url
+        )
+
+        # Storing the full approved configuration object
+        await conn.execute(
+            """
+            INSERT INTO platform_settings (key, value, updated_at)
+            VALUES ('swamiji_approved_config', $1, NOW())
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+            """,
+            json.dumps(config_value)
+        )
+        
+        logger.info(f"✅ Swamiji avatar configuration approved and saved by {admin_user.get('email')}.")
+        
+        return StandardResponse(
+            success=True, 
+            message="Avatar configuration approved successfully.",
+            data={"configuration": config_value}
+        )
+    except Exception as e:
+        logger.error(f"Failed to save approved Swamiji avatar configuration: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred while saving the configuration: {e}")
 
 # --- Content Automation Endpoints ---
 

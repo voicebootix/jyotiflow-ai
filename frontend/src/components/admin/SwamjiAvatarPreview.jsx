@@ -150,7 +150,7 @@ const SwamjiAvatarPreview = () => {
       return;
     }
     try {
-      const response = await enhanced_api.approveSwamjiAvatar({
+      const response = await enhanced_api.approveSwamijiAvatar({
         image_url: uploadedImage,
         video_url: finalVideo.video_url,
         prompt: promptText,
