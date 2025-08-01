@@ -14,7 +14,7 @@ import httpx
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
-import os # CORE.MD: Import 'os' for path operations.
+from pathlib import Path # CORE.MD: Import 'pathlib' for robust path resolution.
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -45,14 +45,16 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        # REFRESH.MD: Load the cascade from the local assets directory for reliability.
-        cascade_file = "backend/assets/haarcascade_frontalface_default.xml"
-        if not os.path.exists(cascade_file):
+        # REFRESH.MD: Use pathlib for robust, OS-independent path resolution.
+        # This makes the path relative to this file, not the current working directory.
+        base_path = Path(__file__).parent.parent # Moves up from services -> backend
+        cascade_file = base_path / "assets" / "haarcascade_frontalface_default.xml"
+        
+        if not cascade_file.is_file():
             logger.error(f"Haar Cascade file not found at {cascade_file}. Face detection will fail.")
-            # CORE.MD: Raise an exception during initialization if a critical dependency is missing.
             raise RuntimeError(f"Missing critical asset: {cascade_file}")
             
-        self.face_cascade = cv2.CascadeClassifier(cascade_file)
+        self.face_cascade = cv2.CascadeClassifier(str(cascade_file))
 
     async def _get_base_image_bytes(self) -> bytes:
         """Fetches the uploaded Swamiji image URL from the DB and downloads the image."""
@@ -63,17 +65,13 @@ class ThemeService:
                 raise HTTPException(status_code=404, detail="Swamiji base image not found. Please upload a photo first.")
             
             raw_value = record['value']
-            # REFRESH.MD: Handle both JSON-encoded strings and plain URL strings robustly.
             try:
-                # Attempt to parse as JSON first
                 parsed_value = json.loads(raw_value)
                 if isinstance(parsed_value, str):
                     image_url = parsed_value
                 else:
-                    # If it's some other JSON type, we can't use it as a URL.
                     raise TypeError("Parsed JSON value is not a string.")
             except (json.JSONDecodeError, TypeError):
-                # Fallback for plain string URLs
                 if isinstance(raw_value, str) and raw_value.startswith('http'):
                     image_url = raw_value
                 else:
@@ -85,8 +83,9 @@ class ThemeService:
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url)
                 response.raise_for_status()
-            return response.content
-        # CORE.MD: Added comprehensive exception handling for all failure modes.
+                # REFRESH.MD: Return content from within the context manager to avoid closed client errors.
+                return response.content
+                
         except asyncpg.PostgresError as e:
             logger.error(f"Database error while fetching Swamiji image URL: {e}", exc_info=True)
             raise HTTPException(status_code=503, detail="A database error occurred.") from e
@@ -178,7 +177,6 @@ class ThemeService:
             logger.error(f"Failed to create the daily themed avatar image with masking: {e}", exc_info=True)
             if isinstance(e, HTTPException):
                 raise e
-            # REFRESH.MD: Preserve original exception context with `from e`.
             raise HTTPException(status_code=500, detail="Failed to create themed image.") from e
 
 # --- FastAPI Dependency Injection ---
