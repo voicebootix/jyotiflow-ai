@@ -189,7 +189,7 @@ class EnhancedAPI {
     return this.post('/api/admin/social-marketing/generate-video-from-preview', videoData);
   }
 
-  async approveSwamjiAvatar(avatarData) {
+  async approveSwamijiAvatar(avatarData) {
     return this.post('/api/admin/social-marketing/approve-swamiji-avatar', avatarData);
   }
 
