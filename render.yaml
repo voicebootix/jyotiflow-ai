@@ -2,7 +2,7 @@ services:
   - type: web
     name: jyotiflow-backend
     env: python
-    buildCommand: "cd backend && pip install -r requirements.txt && python3 auto_deploy_migration.py && python3 populate_service_endpoints.py"
+    buildCommand: "apt-get update && apt-get install -y libgl1-mesa-glx && cd backend && pip install -r requirements.txt && python3 auto_deploy_migration.py && python3 populate_service_endpoints.py"
     startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION
