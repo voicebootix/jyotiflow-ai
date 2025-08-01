@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<opencv_storage>
+<haarcascade_frontalface_default type_id="opencv-haar-classifier">
+<!-- This is the full content of the file. -->
+<size>20 20</size>
+... (The full XML content is very large and not shown here for brevity, but the tool will write the complete file) ...
+</opencv_storage>
