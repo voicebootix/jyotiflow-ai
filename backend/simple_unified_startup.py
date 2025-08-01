@@ -7,6 +7,7 @@ import os
 import asyncpg
 import logging
 import time
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -18,37 +19,49 @@ async def initialize_jyotiflow_simple():
     
     database_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
     
-    try:
-        # Create single shared database pool
-        logger.info("🗄️ Creating shared database pool...")
-        db_pool = await asyncpg.create_pool(
-            database_url,
-            min_size=2,
-            max_size=10,
-            timeout=15,  # Connection timeout in seconds
-            command_timeout=60,
-            server_settings={
-                'application_name': 'jyotiflow_clean_system'
-            }
-        )
-        
-        # Test connection
-        logger.info("🧪 Testing database connection...")
-        async with db_pool.acquire() as conn:
-            result = await conn.fetchval("SELECT 1 as test")
-            if result != 1:
-                raise Exception("Database test query failed")
-        
-        elapsed_time = time.time() - start_time
-        logger.info(f"✅ JyotiFlow.ai initialized successfully in {elapsed_time:.2f} seconds")
-        logger.info("🎯 Clean shared pool architecture ready")
-        
-        return db_pool
-        
-    except Exception as e:
-        elapsed_time = time.time() - start_time
-        logger.error(f"❌ System initialization failed after {elapsed_time:.2f} seconds: {e}")
-        raise
+    max_retries = 3
+    retry_delay = 5  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            # Create single shared database pool
+            logger.info(f"🗄️ Creating shared database pool... (Attempt {attempt + 1}/{max_retries})")
+            db_pool = await asyncpg.create_pool(
+                database_url,
+                min_size=2,
+                max_size=10,
+                timeout=30,  # Increased to 30s for Render cold starts
+                command_timeout=60,
+                server_settings={
+                    'application_name': 'jyotiflow_clean_system'
+                }
+            )
+            
+            # Test connection
+            logger.info("🧪 Testing database connection...")
+            async with db_pool.acquire() as conn:
+                result = await conn.fetchval("SELECT 1 as test")
+                if result != 1:
+                    raise Exception("Database test query failed")
+            
+            elapsed_time = time.time() - start_time
+            logger.info(f"✅ JyotiFlow.ai initialized successfully in {elapsed_time:.2f} seconds")
+            logger.info("🎯 Clean shared pool architecture ready")
+            
+            return db_pool
+            
+        except (asyncpg.exceptions.PostgresError, OSError, ConnectionError, TimeoutError) as e:
+            elapsed_time = time.time() - start_time
+            logger.warning(f"⚠️ Attempt {attempt + 1} failed after {elapsed_time:.2f}s: {e}")
+            if attempt < max_retries - 1:
+                logger.info(f"Retrying in {retry_delay} seconds...")
+                await asyncio.sleep(retry_delay)
+            else:
+                logger.error("❌ All database connection attempts failed.")
+                raise
+    
+    # This part should not be reachable if the loop exhausts
+    raise Exception("Failed to initialize database connection after multiple retries.")
 
 async def cleanup_jyotiflow_simple(db_pool=None):
     """Simple cleanup function with proper pool closure"""

@@ -9,10 +9,16 @@ with real AI services integration.
 import asyncio
 import json
 import logging
+import os
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
+import io
+from PIL import Image, ImageDraw, ImageFont
+from pathlib import Path
 
 from deps import get_current_user, get_admin_user
 from core_foundation_enhanced import StandardResponse
@@ -21,6 +27,13 @@ from enhanced_business_logic import SpiritualAvatarEngine
 from universal_pricing_engine import UniversalPricingEngine
 
 logger = logging.getLogger(__name__)
+
+# --- Configuration from Environment Variables ---
+# CORE.MD: Load paths from environment variables to avoid hardcoding.
+# Provides flexibility for different deployment environments.
+BASE_IMAGE_PATH = os.getenv("SWAMIJI_BASE_IMAGE_PATH", "backend/assets/swamiji_base_image.png")
+PREVIEW_OUTPUT_DIR = os.getenv("PREVIEW_IMAGE_OUTPUT_DIR", "backend/static_uploads")
+
 
 # Request/Response Models
 class AvatarGenerationRequest(BaseModel):
@@ -68,6 +81,67 @@ avatar_router = APIRouter(prefix="/api/avatar", tags=["Avatar Generation"])
 # Initialize spiritual avatar engine for guidance generation
 spiritual_engine = SpiritualAvatarEngine()
 pricing_engine = UniversalPricingEngine()
+
+async def cleanup_temp_file(file_path: Path):
+    """Background task to remove a temporary file."""
+    try:
+        if file_path.exists():
+            os.remove(file_path)
+            logger.info(f"Cleaned up temporary file: {file_path}")
+    except OSError as e:
+        logger.error(f"Error cleaning up temporary file {file_path}: {e}")
+
+@avatar_router.post("/generate-image-preview", response_class=FileResponse)
+async def generate_image_preview(
+    admin_user: dict = Depends(get_admin_user),
+    background_tasks: BackgroundTasks = BackgroundTasks()
+):
+    """
+    Generate a simple static preview image of Swamiji.
+    
+    This endpoint is for admin use to quickly see a preview.
+    It does not involve D-ID or ElevenLabs. It is now safe from race conditions.
+    """
+    # REFRESH.MD: Use configurable paths and unique filenames to fix hardcoding and race conditions.
+    base_image_path = Path(BASE_IMAGE_PATH)
+    output_dir = Path(PREVIEW_OUTPUT_DIR)
+    
+    if not base_image_path.exists():
+        logger.error(f"Base image not found at: {base_image_path}")
+        raise HTTPException(status_code=404, detail="Base image asset not found.")
+
+    # Create a unique temporary file path to prevent race conditions.
+    unique_filename = f"preview-{uuid.uuid4()}.png"
+    preview_image_path = output_dir / unique_filename
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    temp_file_created = False
+    try:
+        # Open the base image
+        with Image.open(base_image_path) as img:
+            img.save(preview_image_path, "PNG")
+        temp_file_created = True
+
+        # Add a background task to clean up the temporary file after the response is sent.
+        background_tasks.add_task(cleanup_temp_file, preview_image_path)
+
+        return FileResponse(
+            path=str(preview_image_path),
+            media_type='image/png',
+            filename="swamiji_preview.png",
+            background=background_tasks
+        )
+        
+    except Exception as e:
+        logger.error(f"❌ Image preview generation failed: {e}")
+        # If a temp file was created before the error, try to clean it up.
+        if temp_file_created:
+            cleanup_temp_file(preview_image_path)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Image preview generation failed: {str(e)}"
+        )
+
 
 @avatar_router.post("/generate", response_model=AvatarGenerationResponse)
 async def generate_avatar_video(
