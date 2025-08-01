@@ -1,0 +1,19 @@
+name: CI Checks
+
+on:
+  pull_request:
+    branches: [ "master", "main" ]
+
+jobs:
+  validate-cascade-file:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Check for <stages> tag in Haar Cascade XML
+        run: |
+          if ! grep -q "<stages>" backend/assets/haarcascade_frontalface_default.xml; then
+            echo "Error: The <stages> tag is missing from the Haar Cascade XML file."
+            exit 1
+          fi
