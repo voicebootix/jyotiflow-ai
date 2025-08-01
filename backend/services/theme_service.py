@@ -14,14 +14,14 @@ import httpx
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
+import os # CORE.MD: Import 'os' for path operations.
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
-import db # For database connection
+import db
 
 logger = logging.getLogger(__name__)
 
-# REFRESH.MD: Prompts now focus on attire and background, as the head is preserved.
 THEMES = {
     0: {"name": "Meditative Monday", "description": "wearing serene white robes, meditating on a peaceful mountain peak at sunrise"},
     1: {"name": "Teaching Tuesday", "description": "wearing traditional saffron robes, giving a discourse in a vibrant ashram hall"},
@@ -44,77 +44,99 @@ class ThemeService:
         self.stability_service = stability_service
         self.storage_service = storage_service
         self.db_conn = db_conn
-        # CORE.MD: Load the pre-trained face and body detector models once.
-        # These files must be present in the `backend/assets` directory.
-        cascade_path = "backend/assets/"
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        
+        # REFRESH.MD: Load the cascade from the local assets directory for reliability.
+        cascade_file = "backend/assets/haarcascade_frontalface_default.xml"
+        if not os.path.exists(cascade_file):
+            logger.error(f"Haar Cascade file not found at {cascade_file}. Face detection will fail.")
+            # CORE.MD: Raise an exception during initialization if a critical dependency is missing.
+            raise RuntimeError(f"Missing critical asset: {cascade_file}")
+            
+        self.face_cascade = cv2.CascadeClassifier(cascade_file)
 
     async def _get_base_image_bytes(self) -> bytes:
         """Fetches the uploaded Swamiji image URL from the DB and downloads the image."""
+        image_url = None
         try:
             record = await self.db_conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
             if not record or not record['value']:
                 raise HTTPException(status_code=404, detail="Swamiji base image not found. Please upload a photo first.")
             
-            image_url = json.loads(record['value'])
-            
+            raw_value = record['value']
+            # REFRESH.MD: Handle both JSON-encoded strings and plain URL strings robustly.
+            try:
+                # Attempt to parse as JSON first
+                parsed_value = json.loads(raw_value)
+                if isinstance(parsed_value, str):
+                    image_url = parsed_value
+                else:
+                    # If it's some other JSON type, we can't use it as a URL.
+                    raise TypeError("Parsed JSON value is not a string.")
+            except (json.JSONDecodeError, TypeError):
+                # Fallback for plain string URLs
+                if isinstance(raw_value, str) and raw_value.startswith('http'):
+                    image_url = raw_value
+                else:
+                    raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.")
+
+            if not image_url:
+                 raise HTTPException(status_code=500, detail="Could not determine a valid image URL from database.")
+
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url)
                 response.raise_for_status()
             return response.content
-        except (json.JSONDecodeError, httpx.HTTPStatusError) as e:
-            logger.error(f"Failed to fetch or download the base Swamiji image: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not retrieve the base Swamiji image.") from e
+        # CORE.MD: Added comprehensive exception handling for all failure modes.
+        except asyncpg.PostgresError as e:
+            logger.error(f"Database error while fetching Swamiji image URL: {e}", exc_info=True)
+            raise HTTPException(status_code=503, detail="A database error occurred.") from e
+        except httpx.HTTPStatusError as e:
+            logger.error(f"Failed to download the base Swamiji image from {image_url}: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail="Could not download the base Swamiji image.") from e
+        except Exception as e:
+            logger.error(f"An unexpected error occurred in _get_base_image_bytes: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
         """Detects the head and creates a black mask to protect it."""
         try:
-            # Decode the image
             np_arr = np.frombuffer(image_bytes, np.uint8)
             img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            if img is None:
+                raise ValueError("Could not decode image bytes.")
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             
-            # Create a black mask with the same dimensions as the image
-            mask = np.full(img.shape[:2], 255, dtype=np.uint8) # Start with a white mask (all changeable)
+            mask = np.full(img.shape[:2], 255, dtype=np.uint8)
 
-            # Detect faces
-            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+            faces = self.face_cascade.detectMultiScale(gray, 1.1, 5)
             
             if len(faces) == 0:
                 logger.warning("No face detected in the image. Masking cannot be applied.")
-                # Return a fully white mask, which means the whole image is editable
                 _, mask_bytes = cv2.imencode('.png', mask)
                 return mask_bytes.tobytes()
 
-            # Assume the largest detected face is the correct one
             x, y, w, h = max(faces, key=lambda item: item[2] * item[3])
             
-            # CORE.MD: Expand the mask to include the entire head, hair, and shoulders.
-            # These values can be tuned for better results.
-            y_expand = int(h * 0.5) # Expand upwards to cover hair
-            h_expand = int(h * 0.8) # Expand downwards to cover beard and neck
-            x_expand = int(w * 0.3) # Expand sideways
+            y_expand = int(h * 0.5)
+            h_expand = int(h * 0.8)
+            x_expand = int(w * 0.3)
             
             y_start = max(0, y - y_expand)
             y_end = min(img.shape[0], y + h + h_expand)
             x_start = max(0, x - x_expand)
             x_end = min(img.shape[1], x + w + x_expand)
 
-            # Set the head area to black (0) to protect it from changes
             mask[y_start:y_end, x_start:x_end] = 0
             
-            # Encode the mask back to bytes
             _, mask_bytes = cv2.imencode('.png', mask)
             return mask_bytes.tobytes()
             
         except Exception as e:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not process image to create head mask.")
+            raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
     async def get_daily_themed_image_url(self, custom_prompt: str = None) -> dict:
-        """
-        Generates a themed image using masking to preserve Swamiji's head.
-        """
+        """Generates a themed image using masking to preserve Swamiji's head."""
         try:
             base_image_bytes = await self._get_base_image_bytes()
             
@@ -129,7 +151,6 @@ class ThemeService:
                     raise HTTPException(status_code=500, detail="Server theme configuration is missing.")
                 theme_description = theme['description']
 
-            # REFRESH.MD: Prompt is now more direct, describing the changes to be made.
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
 
@@ -157,6 +178,7 @@ class ThemeService:
             logger.error(f"Failed to create the daily themed avatar image with masking: {e}", exc_info=True)
             if isinstance(e, HTTPException):
                 raise e
+            # REFRESH.MD: Preserve original exception context with `from e`.
             raise HTTPException(status_code=500, detail="Failed to create themed image.") from e
 
 # --- FastAPI Dependency Injection ---
