@@ -15,6 +15,8 @@ from typing import AsyncGenerator, Optional
 import asyncio
 
 from fastapi import HTTPException
+from PIL import Image
+import io
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -24,6 +26,47 @@ API_HOST = os.getenv("STABILITY_API_HOST", "https://api.stability.ai")
 # REFRESH.MD: Use the engine ID that supports inpainting/masking.
 ENGINE_ID = "stable-diffusion-xl-1024-v1-0"
 MASKING_ENGINE_ID = "stable-diffusion-v2-2-2-inpainting" # A dedicated engine for masking
+
+
+def _resize_image_if_needed(image_bytes: bytes, max_pixels: int = 1048576) -> bytes:
+    """
+    Resize image if it exceeds the maximum pixel count for StabilityAI API.
+    Max pixels: 1,048,576 (typically 1024x1024)
+    """
+    try:
+        # Open image from bytes
+        image = Image.open(io.BytesIO(image_bytes))
+        width, height = image.size
+        current_pixels = width * height
+        
+        # Check if resize is needed
+        if current_pixels <= max_pixels:
+            logger.info(f"Image size OK: {width}x{height} = {current_pixels} pixels")
+            return image_bytes
+        
+        # Calculate new dimensions while maintaining aspect ratio
+        ratio = (max_pixels / current_pixels) ** 0.5
+        new_width = int(width * ratio)
+        new_height = int(height * ratio)
+        
+        # Ensure dimensions are even numbers (some APIs prefer this)
+        new_width = new_width - (new_width % 2)
+        new_height = new_height - (new_height % 2)
+        
+        logger.info(f"Resizing image from {width}x{height} ({current_pixels}) to {new_width}x{new_height} ({new_width*new_height})")
+        
+        # Resize image
+        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Convert back to bytes
+        output_bytes = io.BytesIO()
+        resized_image.save(output_bytes, format='PNG')
+        return output_bytes.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Failed to resize image: {e}")
+        raise HTTPException(status_code=400, detail=f"Failed to process image: {e}")
+
 
 class StabilityAiService:
     def __init__(self):
@@ -71,6 +114,10 @@ class StabilityAiService:
             raise HTTPException(status_code=400, detail="Initial image and mask must be provided as bytes.")
         if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
+
+        # --- Image Resizing (FIX: StabilityAI pixel limit) ---
+        image_bytes = _resize_image_if_needed(image_bytes)
+        mask_bytes = _resize_image_if_needed(mask_bytes)
 
         # --- API Request ---
         url = f"{self.api_host}/v1/generation/{self.masking_engine_id}/image-to-image/masking"
