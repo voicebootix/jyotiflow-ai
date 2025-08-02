@@ -782,6 +782,7 @@ async def get_test_status():
             data={}
         )
 
+
 @router.get("/test-sessions")
 async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency)):
     """Get test execution sessions history"""

@@ -52,6 +52,7 @@ const TestResultsDashboard = () => {
     }, []);
 
     const fetchTestData = async () => {
+        setLoading(true);
         try {
             setError(null);
             
