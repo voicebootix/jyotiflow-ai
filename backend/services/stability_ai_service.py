@@ -53,21 +53,34 @@ def _resize_image_if_needed(image_bytes: bytes, max_pixels: int = 1048576) -> by
         new_width = int(width * ratio)
         new_height = int(height * ratio)
         
-        # CORE.MD: Ensure minimum dimensions to prevent zero-size images
-        min_dimension = 2  # Minimum 2 pixels to handle even number adjustment
-        new_width = max(new_width, min_dimension)
-        new_height = max(new_height, min_dimension)
-        
-        # Ensure dimensions are even numbers (some APIs prefer this)
-        # REFRESH.MD: Only adjust if dimension > 1 to prevent zero dimensions
-        if new_width > 1:
-            new_width = new_width - (new_width % 2)
-        if new_height > 1:
-            new_height = new_height - (new_height % 2)
-        
-        # Final safety check to prevent zero dimensions
+        # CORE.MD: Prevent zero dimensions but maintain pixel limit compliance
         new_width = max(new_width, 1)
         new_height = max(new_height, 1)
+        
+        # REFRESH.MD: Re-check pixel limit after minimum enforcement
+        adjusted_pixels = new_width * new_height
+        if adjusted_pixels > max_pixels:
+            # If minimum dimensions exceed limit, recalculate with stricter constraints
+            logger.warning(f"Minimum dimensions ({new_width}x{new_height}={adjusted_pixels}) exceed pixel limit {max_pixels}")
+            # Use the largest square that fits within the limit
+            max_dimension = int(max_pixels ** 0.5)
+            if width >= height:
+                new_width = max_dimension
+                new_height = max(1, int(max_dimension * height / width))
+            else:
+                new_height = max_dimension
+                new_width = max(1, int(max_dimension * width / height))
+            logger.info(f"Adjusted to square-based dimensions: {new_width}x{new_height}")
+        
+        # Ensure dimensions are even numbers (some APIs prefer this)
+        # Only adjust if it doesn't violate pixel limit
+        temp_width = new_width - (new_width % 2) if new_width > 1 else new_width
+        temp_height = new_height - (new_height % 2) if new_height > 1 else new_height
+        
+        # Final validation: ensure even adjustment doesn't exceed pixel limit
+        if temp_width * temp_height <= max_pixels and temp_width > 0 and temp_height > 0:
+            new_width = temp_width
+            new_height = temp_height
         
         logger.info(f"Resizing image from {width}x{height} ({current_pixels}) to {new_width}x{new_height} ({new_width*new_height})")
         
