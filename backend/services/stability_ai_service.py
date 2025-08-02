@@ -269,6 +269,20 @@ class StabilityAiService:
         # --- Synchronized Image & Mask Resizing (FIX: Dimension mismatch + pixel limit) ---
         image_bytes, mask_bytes = _resize_image_and_mask_synchronized(image_bytes, mask_bytes)
 
+        # --- Extract Actual Dimensions (CORE.MD: Prevent dimension mismatch) ---
+        try:
+            from PIL import Image as PILImage
+            import io
+            
+            # Get actual dimensions from resized image
+            image_pil = PILImage.open(io.BytesIO(image_bytes))
+            actual_width, actual_height = image_pil.size
+            logger.info(f"Using actual image dimensions: {actual_width}x{actual_height}")
+            
+        except Exception as e:
+            logger.error(f"Failed to extract image dimensions: {e}", exc_info=True)
+            raise HTTPException(status_code=400, detail="Failed to process image dimensions") from e
+
         # --- Convert to Base64 for StableDiffusionAPI.com ---
         try:
             init_image_b64 = base64.b64encode(image_bytes).decode('utf-8')
@@ -290,8 +304,8 @@ class StabilityAiService:
             "negative_prompt": negative_prompt or "blurry, low-resolution, deformed, disfigured, bad anatomy",
             "init_image": f"data:image/png;base64,{init_image_b64}",
             "mask_image": f"data:image/png;base64,{mask_image_b64}",
-            "width": "512",
-            "height": "512", 
+            "width": str(actual_width),  # CORE.MD: Use actual image dimensions
+            "height": str(actual_height),  # REFRESH.MD: Prevent dimension mismatch
             "samples": "1",
             "num_inference_steps": "25",
             "safety_checker": "no",
@@ -361,7 +375,8 @@ class StabilityAiService:
 
     async def generate_image_from_text(self, text_prompt: str, negative_prompt: Optional[str] = None) -> bytes:
         """
-        Generates an image using the Stability.ai text-to-image endpoint.
+        Generates an image using StableDiffusionAPI.com text-to-image endpoint.
+        REFRESH.MD: Complete migration from deprecated Stability.ai API.
         """
         if not self.is_configured:
             raise HTTPException(status_code=501, detail="Image generation service is not configured.")
@@ -369,27 +384,30 @@ class StabilityAiService:
         if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
 
-        url = f"{self.api_host}/v1/generation/{self.engine_id}/text-to-image"
+        # REFRESH.MD: Complete migration to StableDiffusionAPI.com text-to-image
+        url = f"{self.api_host}/api/v3/text2img"
         
         headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json",
-            "Authorization": f"Bearer {self.api_key}"
         }
 
+        # CORE.MD: Use StableDiffusionAPI.com v3 format
         payload = {
-            "text_prompts": [
-                {"text": text_prompt, "weight": 1.0}
-            ],
-            "cfg_scale": 10,
-            "height": 1024,
-            "width": 1024,
-            "samples": 1,
-            "steps": 30,
+            "key": self.api_key,
+            "prompt": text_prompt,
+            "negative_prompt": negative_prompt or "blurry, low-resolution, deformed, disfigured, bad anatomy",
+            "width": "512",
+            "height": "512",
+            "samples": "1",
+            "num_inference_steps": "25",
+            "safety_checker": "no",
+            "enhance_prompt": "yes",
+            "guidance_scale": 7.5,
+            "base64": "no",
+            "seed": None
         }
         
-        if negative_prompt:
-            payload["text_prompts"].append({"text": negative_prompt, "weight": -1.0})
+        # REFRESH.MD: negative_prompt already handled in payload above
 
         max_retries = 3
         base_delay = 1
@@ -401,24 +419,28 @@ class StabilityAiService:
                 response.raise_for_status()
 
                 response_data = response.json()
-                artifacts = response_data.get("artifacts")
                 
-                if not artifacts or not isinstance(artifacts, list):
-                    raise HTTPException(status_code=500, detail="Invalid or empty artifacts received from image generation service.")
+                # CORE.MD: Handle StableDiffusionAPI.com v3 response format
+                if response_data.get("status") != "success":
+                    error_msg = response_data.get("message", "Unknown error from text-to-image API")
+                    logger.error(f"Text-to-image API returned error: {error_msg}")
+                    raise HTTPException(status_code=500, detail=f"Text-to-image API Error: {error_msg}")
                 
-                if not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
-                    raise HTTPException(status_code=500, detail="Invalid artifact structure in response.")
+                # Get the output image URL
+                output_urls = response_data.get("output", [])
+                if not output_urls or not isinstance(output_urls, list):
+                    raise HTTPException(status_code=500, detail="No output images received from text-to-image API")
                 
-                image_base64 = artifacts[0]["base64"]
+                image_url = output_urls[0]
                 
-                try:
-                    image_bytes = base64.b64decode(image_base64)
-                except (binascii.Error, TypeError) as e:
-                    logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
-                    raise HTTPException(status_code=500, detail="Could not decode image data from generation service.") from e
+                # Download the generated image
+                image_response = await client.get(image_url)
+                image_response.raise_for_status()
+                
+                generated_image_bytes = image_response.content
 
                 logger.info("✅ Successfully generated image from text.")
-                return image_bytes
+                return generated_image_bytes
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429 and attempt < max_retries - 1:
@@ -427,20 +449,22 @@ class StabilityAiService:
                     await asyncio.sleep(delay)
                     continue
                 else:
-                    logger.error(f"Stability.ai API request failed: {e.response.status_code} - {e.response.text}", exc_info=True)
-                    raise HTTPException(status_code=500, detail=f"Failed to generate image: {e.response.text}") from e
+                    error_response = e.response.text
+                    logger.error(f"Text-to-image API error - Status: {e.response.status_code}")
+                    logger.error(f"Error response: {error_response}")
+                    raise HTTPException(status_code=500, detail=f"Text-to-image API Error: {error_response}") from e
             
             except HTTPException:
                 raise
             except httpx.RequestError as e:
-                logger.error(f"Network error while contacting Stability.ai: {e}", exc_info=True)
-                raise HTTPException(status_code=502, detail="A network error occurred while generating the image.") from e
+                logger.error(f"Network error on text-to-image: {e}", exc_info=True)
+                raise HTTPException(status_code=502, detail="A network error occurred during text-to-image generation.") from e
 
             except Exception as e:
                 logger.error(f"An unexpected error occurred during text-to-image generation: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.") from e
         
-        raise HTTPException(status_code=500, detail="Failed to generate image after all retries.")
+        raise HTTPException(status_code=500, detail="Failed to generate image from text after all retries.")
 
 
 # --- FastAPI Dependency Injection ---
