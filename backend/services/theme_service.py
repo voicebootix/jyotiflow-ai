@@ -45,8 +45,11 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
+        # CORE.MD: Reverted to a robust, file-relative path. The initial SystemError
+        # was due to a corrupt XML file, which has since been replaced with a valid one.
+        # This path logic is environment-agnostic and correct.
         base_path = Path(__file__).parent.parent
-        cascade_file = base_path / "assets" / "haarcascade_frontalface_default.xml"
+        cascade_file = (base_path / "assets" / "haarcascade_frontalface_default.xml")
         
         if not cascade_file.is_file():
             logger.error(f"Haar Cascade file not found at {cascade_file}. Face detection will fail.")
