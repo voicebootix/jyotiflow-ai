@@ -8,7 +8,6 @@ It now uses advanced image masking to preserve Swamiji's head while changing the
 import logging
 from datetime import datetime
 import uuid
-import cv2
 import numpy as np
 import httpx
 from fastapi import HTTPException, Depends
