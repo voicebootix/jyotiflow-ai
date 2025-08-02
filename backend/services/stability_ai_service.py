@@ -19,6 +19,7 @@ import base64
 import logging
 import httpx
 import binascii
+import json
 from typing import AsyncGenerator, Optional
 import asyncio
 
@@ -293,30 +294,37 @@ class StabilityAiService:
             logger.error(f"Failed to encode images to base64: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail="Failed to process images for API") from e
 
-        # --- RESTORED: Original Stability.ai API Request ---
+        # --- FIXED: Stability.ai API with multipart/form-data ---
         url = f"{self.api_host}/v1/generation/{self.inpainting_engine_id}/image-to-image/masking"
         
         headers = {
-            "Content-Type": "application/json",
             "Accept": "application/json", 
             "Authorization": f"Bearer {self.api_key}"
+            # No Content-Type - httpx sets multipart/form-data automatically
         }
 
-        payload = {
-            "text_prompts": [
-                {"text": text_prompt, "weight": 1.0}
-            ],
-            "cfg_scale": 7,
-            "samples": 1,
-            "steps": 25,
-            "init_image": init_image_b64,
-            "mask_source": "MASK_IMAGE_BLACK",
-            "mask_image": mask_image_b64
+        # Convert base64 back to bytes for multipart upload
+        init_image_bytes = base64.b64decode(init_image_b64)
+        mask_image_bytes = base64.b64decode(mask_image_b64)
+
+        # Prepare text_prompts JSON string
+        text_prompts = [{"text": text_prompt, "weight": 1.0}]
+        if negative_prompt:
+            text_prompts.append({"text": negative_prompt, "weight": -1.0})
+        
+        # CORE.MD: Use multipart/form-data format as required by API
+        files = {
+            "init_image": ("init_image.png", init_image_bytes, "image/png"),
+            "mask_image": ("mask_image.png", mask_image_bytes, "image/png"),
         }
         
-        # Add negative prompt if provided
-        if negative_prompt:
-            payload["text_prompts"].append({"text": negative_prompt, "weight": -1.0})
+        data = {
+            "text_prompts": json.dumps(text_prompts),  # Proper JSON formatting
+            "cfg_scale": "7",
+            "samples": "1", 
+            "steps": "25",
+            "mask_source": "MASK_IMAGE_BLACK"
+        }
 
         max_retries = 3
         base_delay = 2
@@ -324,7 +332,7 @@ class StabilityAiService:
         for attempt in range(max_retries):
             try:
                 client = await self.get_client()
-                response = await client.post(url, headers=headers, json=payload)
+                response = await client.post(url, headers=headers, files=files, data=data)
                 response.raise_for_status()
 
                 response_data = response.json()
