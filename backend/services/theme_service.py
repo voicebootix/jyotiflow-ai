@@ -46,7 +46,7 @@ class ThemeService:
         self.db_conn = db_conn
         
         base_path = Path(__file__).parent.parent
-        cascade_file = base_path / "assets" / "haarcascade_frontalface_default.xml"
+        cascade_file = (base_path / "assets" / "haarcascade_frontalface_default.xml").resolve()
         
         if not cascade_file.is_file():
             logger.error(f"Haar Cascade file not found at {cascade_file}. Face detection will fail.")
