@@ -131,10 +131,13 @@ def _resize_image_and_mask_synchronized(image_bytes: bytes, mask_bytes: bytes, m
         
         # Check if resize is needed
         if ref_pixels <= max_pixels:
-            # No resize needed, but ensure both have same dimensions
-            if image_width != mask_width or image_height != mask_height:
-                logger.info(f"Resizing mask to match image: {image_width}x{image_height}")
-                mask = mask.resize((image_width, image_height), Image.Resampling.LANCZOS)
+            # No resize needed, but ensure both have same dimensions as reference
+            if image_width != ref_width or image_height != ref_height:
+                logger.info(f"Resizing image to match reference: {ref_width}x{ref_height}")
+                image = image.resize((ref_width, ref_height), Image.Resampling.LANCZOS)
+            if mask_width != ref_width or mask_height != ref_height:
+                logger.info(f"Resizing mask to match reference: {ref_width}x{ref_height}")
+                mask = mask.resize((ref_width, ref_height), Image.Resampling.LANCZOS)
             
             # Convert back to bytes with original formats
             image_format = image.format or 'PNG'
