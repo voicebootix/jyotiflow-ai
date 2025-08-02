@@ -1,13 +1,13 @@
 """
-🎨 INPAINTING SERVICE
+🎨 STABILITY AI SERVICE
 
-This service provides a centralized interface for image inpainting operations
-with automatic face preservation for Swamiji avatars using StableDiffusionAPI.com.
+RESTORED: This service provides a centralized interface for interacting with the Stability.ai API
+for text-to-image and image-to-image generation, including masking/inpainting.
 It follows CORE.MD and REFRESH.MD principles.
 
 ENVIRONMENT VARIABLES:
-- STABLEDIFFUSION_API_KEY: Required API key for StableDiffusionAPI.com
-  Get your API key from: https://stablediffusionapi.com/
+- STABILITY_API_KEY: Required API key for Stability.ai
+  Get your API key from: https://platform.stability.ai/
 
 FACE PRESERVATION:
 - Black mask areas (0) = Preserved (Swamiji's face protected)
@@ -30,10 +30,11 @@ import io
 logger = logging.getLogger(__name__)
 
 # --- Constants ---
-# Using StableDiffusionAPI.com - working v3 inpainting endpoint
-API_HOST = "https://stablediffusionapi.com"
-INPAINTING_ENDPOINT = "/api/v3/inpaint"
-API_KEY = os.getenv("STABLEDIFFUSION_API_KEY")  # New API key environment variable
+# RESTORED: Original Stability.ai setup with user's existing API key
+API_HOST = "https://api.stability.ai"
+ENGINE_ID = "stable-diffusion-xl-1024-v1-0"  # Try working SDXL engine
+INPAINTING_ENGINE_ID = "stable-diffusion-xl-1024-v1-0"  # Same engine for inpainting  
+API_KEY = os.getenv("STABILITY_API_KEY")  # User's original environment variable
 
 
 def _resize_image_if_needed(image_bytes: bytes, max_pixels: int = 1048576) -> bytes:
@@ -223,13 +224,14 @@ class StabilityAiService:
     def __init__(self):
         self.api_key = API_KEY
         self.api_host = API_HOST
-        self.inpainting_endpoint = INPAINTING_ENDPOINT
+        self.engine_id = ENGINE_ID
+        self.inpainting_engine_id = INPAINTING_ENGINE_ID
         self.is_configured = bool(self.api_key)
         self._async_client: Optional[httpx.AsyncClient] = None
         self._client_lock = asyncio.Lock()
 
         if not self.is_configured:
-            logger.warning("StableDiffusionAPI.com API key not configured. Set STABLEDIFFUSION_API_KEY environment variable.")
+            logger.warning("RESTORED: Stability.ai API key not configured. Set STABILITY_API_KEY environment variable.")
 
     async def get_client(self) -> httpx.AsyncClient:
         """Provides a lazily initialized, thread-safe httpx.AsyncClient instance."""
@@ -291,30 +293,30 @@ class StabilityAiService:
             logger.error(f"Failed to encode images to base64: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail="Failed to process images for API") from e
 
-        # --- API Request to StableDiffusionAPI.com ---
-        url = f"{self.api_host}{self.inpainting_endpoint}"
+        # --- RESTORED: Original Stability.ai API Request ---
+        url = f"{self.api_host}/v1/generation/{self.inpainting_engine_id}/image-to-image/masking"
         
         headers = {
             "Content-Type": "application/json",
+            "Accept": "application/json", 
+            "Authorization": f"Bearer {self.api_key}"
         }
 
         payload = {
-            "key": self.api_key,
-            "prompt": text_prompt,
-            "negative_prompt": negative_prompt or "blurry, low-resolution, deformed, disfigured, bad anatomy",
-            "init_image": f"data:image/png;base64,{init_image_b64}",
-            "mask_image": f"data:image/png;base64,{mask_image_b64}",
-            "width": str(actual_width),  # CORE.MD: Use actual image dimensions
-            "height": str(actual_height),  # REFRESH.MD: Prevent dimension mismatch
-            "samples": "1",
-            "num_inference_steps": "25",
-            "safety_checker": "no",
-            "enhance_prompt": "yes",
-            "guidance_scale": 7.5,
-            "strength": 0.7,
-            "base64": "no",
-            "seed": None
+            "text_prompts": [
+                {"text": text_prompt, "weight": 1.0}
+            ],
+            "cfg_scale": 7,
+            "samples": 1,
+            "steps": 25,
+            "init_image": init_image_b64,
+            "mask_source": "MASK_IMAGE_BLACK",
+            "mask_image": mask_image_b64
         }
+        
+        # Add negative prompt if provided
+        if negative_prompt:
+            payload["text_prompts"].append({"text": negative_prompt, "weight": -1.0})
 
         max_retries = 3
         base_delay = 2
@@ -327,24 +329,21 @@ class StabilityAiService:
 
                 response_data = response.json()
                 
-                # Check for success status
-                if response_data.get("status") != "success":
-                    error_msg = response_data.get("message", "Unknown error from inpainting API")
-                    logger.error(f"Inpainting API returned error: {error_msg}")
-                    raise HTTPException(status_code=500, detail=f"Inpainting API Error: {error_msg}")
+                # RESTORED: Original Stability.ai API response format
+                artifacts = response_data.get("artifacts")
+                if not artifacts or not isinstance(artifacts, list):
+                    raise HTTPException(status_code=500, detail="Invalid or empty artifacts received from Stability.ai")
                 
-                # Get the output image URL
-                output_urls = response_data.get("output", [])
-                if not output_urls or not isinstance(output_urls, list):
-                    raise HTTPException(status_code=500, detail="No output images received from inpainting API")
+                if not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
+                    raise HTTPException(status_code=500, detail="Invalid artifact structure in Stability.ai response")
                 
-                image_url = output_urls[0]
+                image_base64 = artifacts[0]["base64"]
                 
-                # Download the generated image
-                image_response = await client.get(image_url)
-                image_response.raise_for_status()
-                
-                generated_image_bytes = image_response.content
+                try:
+                    generated_image_bytes = base64.b64decode(image_base64)
+                except (binascii.Error, TypeError) as e:
+                    logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
+                    raise HTTPException(status_code=500, detail="Could not decode image data from Stability.ai") from e
 
                 logger.info("✅ Successfully generated image with inpainting (face preserved).")
                 return generated_image_bytes
@@ -384,30 +383,30 @@ class StabilityAiService:
         if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
 
-        # REFRESH.MD: Complete migration to StableDiffusionAPI.com text-to-image
-        url = f"{self.api_host}/api/v3/text2img"
+        # RESTORED: Original Stability.ai text-to-image endpoint
+        url = f"{self.api_host}/v1/generation/{self.engine_id}/text-to-image"
         
         headers = {
             "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
         }
 
-        # CORE.MD: Use StableDiffusionAPI.com v3 format
+        # RESTORED: Original Stability.ai payload format  
         payload = {
-            "key": self.api_key,
-            "prompt": text_prompt,
-            "negative_prompt": negative_prompt or "blurry, low-resolution, deformed, disfigured, bad anatomy",
-            "width": "512",
-            "height": "512",
-            "samples": "1",
-            "num_inference_steps": "25",
-            "safety_checker": "no",
-            "enhance_prompt": "yes",
-            "guidance_scale": 7.5,
-            "base64": "no",
-            "seed": None
+            "text_prompts": [
+                {"text": text_prompt, "weight": 1.0}
+            ],
+            "cfg_scale": 10,
+            "height": 1024,
+            "width": 1024,
+            "samples": 1,
+            "steps": 30,
         }
         
-        # REFRESH.MD: negative_prompt already handled in payload above
+        # Add negative prompt if provided
+        if negative_prompt:
+            payload["text_prompts"].append({"text": negative_prompt, "weight": -1.0})
 
         max_retries = 3
         base_delay = 1
@@ -420,24 +419,21 @@ class StabilityAiService:
 
                 response_data = response.json()
                 
-                # CORE.MD: Handle StableDiffusionAPI.com v3 response format
-                if response_data.get("status") != "success":
-                    error_msg = response_data.get("message", "Unknown error from text-to-image API")
-                    logger.error(f"Text-to-image API returned error: {error_msg}")
-                    raise HTTPException(status_code=500, detail=f"Text-to-image API Error: {error_msg}")
+                # RESTORED: Original Stability.ai artifacts response format
+                artifacts = response_data.get("artifacts")
+                if not artifacts or not isinstance(artifacts, list):
+                    raise HTTPException(status_code=500, detail="Invalid or empty artifacts received from Stability.ai")
                 
-                # Get the output image URL
-                output_urls = response_data.get("output", [])
-                if not output_urls or not isinstance(output_urls, list):
-                    raise HTTPException(status_code=500, detail="No output images received from text-to-image API")
+                if not isinstance(artifacts[0], dict) or "base64" not in artifacts[0]:
+                    raise HTTPException(status_code=500, detail="Invalid artifact structure in Stability.ai response")
                 
-                image_url = output_urls[0]
+                image_base64 = artifacts[0]["base64"]
                 
-                # Download the generated image
-                image_response = await client.get(image_url)
-                image_response.raise_for_status()
-                
-                generated_image_bytes = image_response.content
+                try:
+                    generated_image_bytes = base64.b64decode(image_base64)
+                except (binascii.Error, TypeError) as e:
+                    logger.error(f"Failed to decode base64 image from Stability.ai: {e}", exc_info=True)
+                    raise HTTPException(status_code=500, detail="Could not decode image data from Stability.ai") from e
 
                 logger.info("✅ Successfully generated image from text.")
                 return generated_image_bytes
