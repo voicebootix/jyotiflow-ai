@@ -90,7 +90,6 @@ class StabilityAiService:
             "text_prompts[0][text]": text_prompt,
             "text_prompts[0][weight]": 1.0,
             "cfg_scale": 10,
-            "style_preset": "photographic",
             "samples": 1,
             "steps": 40,
         }
@@ -174,7 +173,6 @@ class StabilityAiService:
             "cfg_scale": 10,
             "height": 1024,
             "width": 1024,
-            "style_preset": "photographic",
             "samples": 1,
             "steps": 30,
         }
