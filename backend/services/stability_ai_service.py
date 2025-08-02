@@ -32,12 +32,16 @@ def _resize_image_if_needed(image_bytes: bytes, max_pixels: int = 1048576) -> by
     """
     Resize image if it exceeds the maximum pixel count for StabilityAI API.
     Max pixels: 1,048,576 (typically 1024x1024)
+    
+    CORE.MD: Robust handling of edge cases and format preservation
+    REFRESH.MD: Exception chaining for better debugging
     """
     try:
         # Open image from bytes
         image = Image.open(io.BytesIO(image_bytes))
         width, height = image.size
         current_pixels = width * height
+        original_format = image.format or 'PNG'  # Preserve original format
         
         # Check if resize is needed
         if current_pixels <= max_pixels:
@@ -49,23 +53,40 @@ def _resize_image_if_needed(image_bytes: bytes, max_pixels: int = 1048576) -> by
         new_width = int(width * ratio)
         new_height = int(height * ratio)
         
+        # CORE.MD: Ensure minimum dimensions to prevent zero-size images
+        min_dimension = 2  # Minimum 2 pixels to handle even number adjustment
+        new_width = max(new_width, min_dimension)
+        new_height = max(new_height, min_dimension)
+        
         # Ensure dimensions are even numbers (some APIs prefer this)
-        new_width = new_width - (new_width % 2)
-        new_height = new_height - (new_height % 2)
+        # REFRESH.MD: Only adjust if dimension > 1 to prevent zero dimensions
+        if new_width > 1:
+            new_width = new_width - (new_width % 2)
+        if new_height > 1:
+            new_height = new_height - (new_height % 2)
+        
+        # Final safety check to prevent zero dimensions
+        new_width = max(new_width, 1)
+        new_height = max(new_height, 1)
         
         logger.info(f"Resizing image from {width}x{height} ({current_pixels}) to {new_width}x{new_height} ({new_width*new_height})")
         
         # Resize image
         resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         
-        # Convert back to bytes
+        # Convert back to bytes with original format preservation
         output_bytes = io.BytesIO()
-        resized_image.save(output_bytes, format='PNG')
+        # Use original format if supported, fallback to PNG
+        save_format = original_format if original_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+        resized_image.save(output_bytes, format=save_format)
+        
+        logger.info(f"Image resized and saved in {save_format} format")
         return output_bytes.getvalue()
         
     except Exception as e:
-        logger.error(f"Failed to resize image: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to process image: {e}")
+        logger.error(f"Failed to resize image: {e}", exc_info=True)
+        # REFRESH.MD: Exception chaining to preserve original traceback
+        raise HTTPException(status_code=400, detail=f"Failed to process image: {e}") from e
 
 
 class StabilityAiService:
