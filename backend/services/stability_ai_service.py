@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 API_HOST = os.getenv("STABILITY_API_HOST", "https://api.stability.ai")
 # REFRESH.MD: Use the engine ID that supports inpainting/masking.
 ENGINE_ID = "stable-diffusion-xl-1024-v1-0"
-MASKING_ENGINE_ID = "stable-diffusion-v2-2-2-inpainting" # A dedicated engine for masking
+MASKING_ENGINE_ID = "stable-diffusion-512-v2-1" # Known working inpainting engine (v2-2-2-inpainting deprecated)
 
 
 def _resize_image_if_needed(image_bytes: bytes, max_pixels: int = 1048576) -> bytes:
