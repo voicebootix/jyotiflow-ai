@@ -102,6 +102,111 @@ def _resize_image_if_needed(image_bytes: bytes, max_pixels: int = 1048576) -> by
         raise HTTPException(status_code=400, detail=f"Failed to process image: {e}") from e
 
 
+def _resize_image_and_mask_synchronized(image_bytes: bytes, mask_bytes: bytes, max_pixels: int = 1048576) -> tuple[bytes, bytes]:
+    """
+    Resize image and mask to identical dimensions ensuring perfect synchronization.
+    CORE.MD: Prevents dimension mismatch that causes API rejections
+    REFRESH.MD: Synchronized processing for spatial correspondence
+    """
+    try:
+        # Open both images
+        image = Image.open(io.BytesIO(image_bytes))
+        mask = Image.open(io.BytesIO(mask_bytes))
+        
+        # Get dimensions - use the larger image as reference for pixel calculation
+        image_width, image_height = image.size
+        mask_width, mask_height = mask.size
+        image_pixels = image_width * image_height
+        mask_pixels = mask_width * mask_height
+        
+        # Use the image with larger pixel count as the reference for dimension calculation
+        if image_pixels >= mask_pixels:
+            ref_width, ref_height = image_width, image_height
+            ref_pixels = image_pixels
+            logger.info(f"Using image dimensions as reference: {ref_width}x{ref_height}")
+        else:
+            ref_width, ref_height = mask_width, mask_height
+            ref_pixels = mask_pixels
+            logger.info(f"Using mask dimensions as reference: {ref_width}x{ref_height}")
+        
+        # Check if resize is needed
+        if ref_pixels <= max_pixels:
+            # No resize needed, but ensure both have same dimensions
+            if image_width != mask_width or image_height != mask_height:
+                logger.info(f"Resizing mask to match image: {image_width}x{image_height}")
+                mask = mask.resize((image_width, image_height), Image.Resampling.LANCZOS)
+            
+            # Convert back to bytes with original formats
+            image_format = image.format or 'PNG'
+            mask_format = mask.format or 'PNG'
+            
+            image_output = io.BytesIO()
+            mask_output = io.BytesIO()
+            
+            save_format_image = image_format if image_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+            save_format_mask = mask_format if mask_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+            
+            image.save(image_output, format=save_format_image)
+            mask.save(mask_output, format=save_format_mask)
+            
+            return image_output.getvalue(), mask_output.getvalue()
+        
+        # Calculate synchronized new dimensions
+        ratio = (max_pixels / ref_pixels) ** 0.5
+        new_width = int(ref_width * ratio)
+        new_height = int(ref_height * ratio)
+        
+        # CORE.MD: Prevent zero dimensions with consistent minimums
+        new_width = max(new_width, 1)
+        new_height = max(new_height, 1)
+        
+        # REFRESH.MD: Re-validate pixel limit after minimum enforcement
+        adjusted_pixels = new_width * new_height
+        if adjusted_pixels > max_pixels:
+            logger.warning(f"Synchronized dimensions ({new_width}x{new_height}={adjusted_pixels}) exceed limit {max_pixels}")
+            max_dimension = int(max_pixels ** 0.5)
+            if ref_width >= ref_height:
+                new_width = max_dimension
+                new_height = max(1, int(max_dimension * ref_height / ref_width))
+            else:
+                new_height = max_dimension
+                new_width = max(1, int(max_dimension * ref_width / ref_height))
+        
+        # Try even number adjustment if safe
+        temp_width = new_width - (new_width % 2) if new_width > 1 else new_width
+        temp_height = new_height - (new_height % 2) if new_height > 1 else new_height
+        
+        if temp_width * temp_height <= max_pixels and temp_width > 0 and temp_height > 0:
+            new_width = temp_width
+            new_height = temp_height
+        
+        logger.info(f"Synchronizing both image and mask to: {new_width}x{new_height} ({new_width*new_height} pixels)")
+        
+        # Resize both to IDENTICAL dimensions
+        resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        resized_mask = mask.resize((new_width, new_height), Image.Resampling.LANCZOS)
+        
+        # Convert back to bytes with format preservation
+        image_format = image.format or 'PNG'
+        mask_format = mask.format or 'PNG'
+        
+        image_output = io.BytesIO()
+        mask_output = io.BytesIO()
+        
+        save_format_image = image_format if image_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+        save_format_mask = mask_format if mask_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+        
+        resized_image.save(image_output, format=save_format_image)
+        resized_mask.save(mask_output, format=save_format_mask)
+        
+        logger.info(f"Synchronized resize complete - Image: {save_format_image}, Mask: {save_format_mask}")
+        return image_output.getvalue(), mask_output.getvalue()
+        
+    except Exception as e:
+        logger.error(f"Failed to synchronize image and mask resize: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Failed to synchronize image processing: {e}") from e
+
+
 class StabilityAiService:
     def __init__(self):
         self.api_key = os.getenv("STABILITY_API_KEY")
@@ -149,9 +254,8 @@ class StabilityAiService:
         if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
             raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
 
-        # --- Image Resizing (FIX: StabilityAI pixel limit) ---
-        image_bytes = _resize_image_if_needed(image_bytes)
-        mask_bytes = _resize_image_if_needed(mask_bytes)
+        # --- Synchronized Image & Mask Resizing (FIX: Dimension mismatch + pixel limit) ---
+        image_bytes, mask_bytes = _resize_image_and_mask_synchronized(image_bytes, mask_bytes)
 
         # --- API Request ---
         url = f"{self.api_host}/v1/generation/{self.masking_engine_id}/image-to-image/masking"
