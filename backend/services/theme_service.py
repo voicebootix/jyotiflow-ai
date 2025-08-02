@@ -51,35 +51,22 @@ class ThemeService:
         base_path = Path(__file__).parent.parent
         cascade_file = (base_path / "assets" / "haarcascade_frontalface_default.xml")
 
-        # CORE.MD: ADDING TEMPORARY DEBUGGING to get definitive diagnostics from the server.
-        # This will log the file's status before attempting to load it with OpenCV.
-        logger.info("--- [START] Haar Cascade File Diagnostics ---")
-        try:
-            abs_path = str(cascade_file.resolve())
-            logger.info(f"Checking for file at absolute path: {abs_path}")
-            
-            is_file = Path(abs_path).is_file()
-            logger.info(f"Path.is_file() check result: {is_file}")
-
-            if is_file:
-                with open(abs_path, 'r') as f:
-                    content_sample = f.read(100).strip()
-                    logger.info(f"Successfully opened and read content sample: {content_sample}")
-            else:
-                logger.warning("File not found at the specified absolute path during diagnostic.")
-        except Exception as e:
-            logger.error(f"DIAGNOSTIC ERROR during file check: {e}", exc_info=True)
-        logger.info("--- [END] Haar Cascade File Diagnostics ---")
-        
+        # Simple path check without resolve() to avoid Render platform issues
         if not cascade_file.is_file():
-            logger.error(f"Haar Cascade file not found at {cascade_file}. Face detection will fail.")
+            logger.error(f"Haar Cascade file not found at {cascade_file}")
             raise RuntimeError(f"Missing critical asset: {cascade_file}")
-            
-        self.face_cascade = cv2.CascadeClassifier(str(cascade_file))
+        
+        # Initialize face cascade - using simple string conversion
+        try:
+            self.face_cascade = cv2.CascadeClassifier(str(cascade_file))
+            if self.face_cascade.empty():
+                raise RuntimeError(f"Failed to load cascade from {cascade_file}")
+            logger.info("Face cascade loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize face cascade: {e}")
+            raise
 
-        if self.face_cascade.empty():
-            logger.error(f"Failed to load Haar Cascade classifier from {cascade_file}. The file might be corrupt or invalid.")
-            raise RuntimeError(f"Failed to load Haar Cascade from {cascade_file}")
+
 
 
     async def _get_base_image_bytes(self) -> bytes:
