@@ -126,5 +126,5 @@ sqlparse==0.4.4  # SQL parsing for robust query analysis
 # Added for Supabase integration
 supabase==2.5.0
 
-# CORE.MD: Add OpenCV for face detection to enable inpainting.
-opencv-python==4.9.0.80
+# CORE.MD: OpenCV removed due to C++ compatibility issues on Render platform
+# Using PIL-based image processing instead for better platform compatibility
