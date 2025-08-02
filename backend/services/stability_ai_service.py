@@ -134,8 +134,12 @@ class StabilityAiService:
                     await asyncio.sleep(delay)
                     continue
                 else:
-                    logger.error(f"Stability.ai masking API failed: {e.response.status_code} - {e.response.text}", exc_info=True)
-                    raise HTTPException(status_code=500, detail=f"Failed to generate masked image: {e.response.text}") from e
+                    error_response = e.response.text
+                    logger.error(f"StabilityAI masking API error - Status: {e.response.status_code}")
+                    logger.error(f"StabilityAI error response: {error_response}")
+                    logger.error(f"Request URL: {e.request.url}")
+                    logger.error(f"Request data keys: {list(data.keys()) if 'data' in locals() else 'Unknown'}")
+                    raise HTTPException(status_code=500, detail=f"StabilityAI API Error: {error_response}") from e
             
             except HTTPException:
                 raise
