@@ -19,6 +19,7 @@ import base64
 import logging
 import httpx
 import binascii
+import json
 from typing import AsyncGenerator, Optional
 import asyncio
 
@@ -285,38 +286,52 @@ class StabilityAiService:
             logger.error(f"Failed to extract image dimensions: {e}", exc_info=True)
             raise HTTPException(status_code=400, detail="Failed to process image dimensions") from e
 
-        # --- Convert to Base64 for StableDiffusionAPI.com ---
-        try:
-            init_image_b64 = base64.b64encode(image_bytes).decode('utf-8')
-            mask_image_b64 = base64.b64encode(mask_bytes).decode('utf-8')
-        except Exception as e:
-            logger.error(f"Failed to encode images to base64: {e}", exc_info=True)
-            raise HTTPException(status_code=400, detail="Failed to process images for API") from e
+        # --- OPTIMIZED: Detect MIME types and use original bytes directly ---
+        def _detect_image_format(image_bytes: bytes) -> tuple[str, str]:
+            """Detect image format from bytes and return (extension, mime_type)"""
+            if image_bytes.startswith(b'\xff\xd8\xff'):
+                return "jpg", "image/jpeg"
+            elif image_bytes.startswith(b'\x89PNG\r\n\x1a\n'):
+                return "png", "image/png"
+            elif image_bytes.startswith(b'RIFF') and b'WEBP' in image_bytes[:12]:
+                return "webp", "image/webp"
+            else:
+                # Default to PNG if detection fails
+                return "png", "image/png"
 
-        # --- RESTORED: Original Stability.ai API Request ---
+        # Detect actual image formats
+        init_ext, init_mime = _detect_image_format(image_bytes)
+        mask_ext, mask_mime = _detect_image_format(mask_bytes)
+        
+        logger.info(f"Detected formats - Init: {init_mime}, Mask: {mask_mime}")
+
+        # --- FIXED: Stability.ai API with multipart/form-data ---
         url = f"{self.api_host}/v1/generation/{self.inpainting_engine_id}/image-to-image/masking"
         
         headers = {
-            "Content-Type": "application/json",
             "Accept": "application/json", 
             "Authorization": f"Bearer {self.api_key}"
+            # No Content-Type - httpx sets multipart/form-data automatically
         }
 
-        payload = {
-            "text_prompts": [
-                {"text": text_prompt, "weight": 1.0}
-            ],
-            "cfg_scale": 7,
-            "samples": 1,
-            "steps": 25,
-            "init_image": init_image_b64,
-            "mask_source": "MASK_IMAGE_BLACK",
-            "mask_image": mask_image_b64
+        # Prepare text_prompts JSON string
+        text_prompts = [{"text": text_prompt, "weight": 1.0}]
+        if negative_prompt:
+            text_prompts.append({"text": negative_prompt, "weight": -1.0})
+        
+        # CORE.MD: Use original bytes directly with proper MIME types (no base64 roundtrip)
+        files = {
+            "init_image": (f"init_image.{init_ext}", image_bytes, init_mime),
+            "mask_image": (f"mask_image.{mask_ext}", mask_bytes, mask_mime),
         }
         
-        # Add negative prompt if provided
-        if negative_prompt:
-            payload["text_prompts"].append({"text": negative_prompt, "weight": -1.0})
+        data = {
+            "text_prompts": json.dumps(text_prompts),  # Proper JSON formatting
+            "cfg_scale": "7",
+            "samples": "1", 
+            "steps": "25",
+            "mask_source": "MASK_IMAGE_BLACK"
+        }
 
         max_retries = 3
         base_delay = 2
@@ -324,7 +339,7 @@ class StabilityAiService:
         for attempt in range(max_retries):
             try:
                 client = await self.get_client()
-                response = await client.post(url, headers=headers, json=payload)
+                response = await client.post(url, headers=headers, files=files, data=data)
                 response.raise_for_status()
 
                 response_data = response.json()
