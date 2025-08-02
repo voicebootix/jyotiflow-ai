@@ -127,4 +127,4 @@ sqlparse==0.4.4  # SQL parsing for robust query analysis
 supabase==2.5.0
 
 # CORE.MD: Add OpenCV for face detection to enable inpainting.
-opencv-python-headless==4.9.0.80
+opencv-python==4.9.0.80
