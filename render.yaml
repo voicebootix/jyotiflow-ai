@@ -2,10 +2,10 @@ services:
   - type: web
     name: jyotiflow-backend
     env: python
-    # CORE.MD: Installing the complete set of OpenCV development libraries to provide
-    # full system-level support for all cv2 functions, including CascadeClassifier,
-    # which was failing due to missing underlying dependencies on the server.
-    buildCommand: "apt-get update && apt-get install -y libgl1-mesa-glx libsm6 libxext6 libxrender-dev ffmpeg libopencv-dev && cd backend && pip install -r requirements.txt && python3 auto_deploy_migration.py && python3 populate_service_endpoints.py"
+    # CORE.MD: Per user feedback and deep analysis of the SystemError, installing the
+    # full set of OpenCV's system-level dependencies ("the kitchen sink") to resolve
+    # the underlying C++ linkage issue on the Render platform definitively.
+    buildCommand: "apt-get update && apt-get install -y --no-install-recommends libgl1-mesa-glx libglib2.0-0 libsm6 libxext6 libxrender-dev ffmpeg libgtk2.0-dev && rm -rf /var/lib/apt/lists/* && cd backend && pip install -r requirements.txt && python3 auto_deploy_migration.py && python3 populate_service_endpoints.py"
     startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION
