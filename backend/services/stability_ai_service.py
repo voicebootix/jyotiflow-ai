@@ -113,6 +113,11 @@ def _resize_image_and_mask_synchronized(image_bytes: bytes, mask_bytes: bytes, m
         image = Image.open(io.BytesIO(image_bytes))
         mask = Image.open(io.BytesIO(mask_bytes))
         
+        # CORE.MD: Capture original formats BEFORE any resize operations
+        original_image_format = image.format or 'PNG'
+        original_mask_format = mask.format or 'PNG'
+        logger.info(f"Original formats - Image: {original_image_format}, Mask: {original_mask_format}")
+        
         # Get dimensions - use the larger image as reference for pixel calculation
         image_width, image_height = image.size
         mask_width, mask_height = mask.size
@@ -139,15 +144,13 @@ def _resize_image_and_mask_synchronized(image_bytes: bytes, mask_bytes: bytes, m
                 logger.info(f"Resizing mask to match reference: {ref_width}x{ref_height}")
                 mask = mask.resize((ref_width, ref_height), Image.Resampling.LANCZOS)
             
-            # Convert back to bytes with original formats
-            image_format = image.format or 'PNG'
-            mask_format = mask.format or 'PNG'
-            
+            # Convert back to bytes with original formats preserved
             image_output = io.BytesIO()
             mask_output = io.BytesIO()
             
-            save_format_image = image_format if image_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
-            save_format_mask = mask_format if mask_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+            # REFRESH.MD: Use captured original formats instead of post-resize formats
+            save_format_image = original_image_format if original_image_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+            save_format_mask = original_mask_format if original_mask_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
             
             image.save(image_output, format=save_format_image)
             mask.save(mask_output, format=save_format_mask)
@@ -189,15 +192,13 @@ def _resize_image_and_mask_synchronized(image_bytes: bytes, mask_bytes: bytes, m
         resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         resized_mask = mask.resize((new_width, new_height), Image.Resampling.LANCZOS)
         
-        # Convert back to bytes with format preservation
-        image_format = image.format or 'PNG'
-        mask_format = mask.format or 'PNG'
-        
+        # Convert back to bytes with original format preservation
         image_output = io.BytesIO()
         mask_output = io.BytesIO()
         
-        save_format_image = image_format if image_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
-        save_format_mask = mask_format if mask_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+        # REFRESH.MD: Use captured original formats (resized images lose format info)
+        save_format_image = original_image_format if original_image_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
+        save_format_mask = original_mask_format if original_mask_format in ['JPEG', 'PNG', 'WEBP'] else 'PNG'
         
         resized_image.save(image_output, format=save_format_image)
         resized_mask.save(mask_output, format=save_format_mask)
