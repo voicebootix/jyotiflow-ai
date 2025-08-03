@@ -100,9 +100,9 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - Further reduce preserved area to face/head only (not body)
-            head_width = int(width * 0.30)  # Further reduced from 0.35 to 0.30
-            head_height = int(height * 0.35)  # Further reduced from 0.45 to 0.35  
+            # CORE.MD: FIX - Drastically reduce to face/head only (no body/torso)
+            head_width = int(width * 0.25)  # Drastically reduced to 0.25 for face only
+            head_height = int(height * 0.25)  # Drastically reduced to 0.25 for face only
             head_x = int((width - head_width) / 2)
             head_y = int(height * 0.05)  # Keep head position at top
 
