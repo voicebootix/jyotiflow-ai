@@ -106,7 +106,10 @@ class EnhancedAPI {
         
         const blob = await response.blob();
         // REFRESH.MD: FIX - Extract the prompt from the custom header.
-        const prompt = response.headers.get('X-Generated-Prompt') || 'Prompt not available.';
+        const prompt = response.headers.get('X-Generated-Prompt') || 'Daily theme image generated successfully';
+        
+        // CORE.MD: FIX - Debug log for prompt extraction
+        console.log('🔍 API Debug - X-Generated-Prompt header:', prompt);
         
         return { success: true, blob, prompt };
 
