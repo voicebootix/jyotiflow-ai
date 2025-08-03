@@ -82,10 +82,12 @@ class StabilityAiService:
             "Accept": "image/png" # Request the image directly
         }
 
-        # Prepare the multipart/form-data payload
+        # REFRESH.MD: FIX - Correctly format the files for httpx multipart/form-data.
+        # The payload should be a dictionary where values are tuples:
+        # (filename, file-like-object, content_type)
         files = {
-            'image': init_image_bytes,
-            'mask': mask_image_bytes
+            'image': ('init_image.png', init_image_bytes, 'image/png'),
+            'mask': ('mask_image.png', mask_image_bytes, 'image/png')
         }
         
         data = {
