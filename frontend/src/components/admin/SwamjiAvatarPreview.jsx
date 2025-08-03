@@ -101,7 +101,7 @@ const SwamjiAvatarPreview = () => {
       });
 
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
-      if (response.success && response.blob) {
+      if (response.blob) {
         const imageUrl = URL.createObjectURL(response.blob);
         setPreviewImage(imageUrl);
         setPromptText(response.prompt); // Set the prompt received from the backend
