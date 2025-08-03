@@ -51,7 +51,6 @@ class EnhancedAPI {
       }
       
       if (!response.ok) {
-        // Try to parse error message from body for better feedback
         const errorData = await response.json().catch(() => null);
         const errorMessage = errorData?.detail || `Server error: ${response.status}`;
         console.error(`API Error: ${response.status} - ${errorMessage}`);
@@ -66,7 +65,7 @@ class EnhancedAPI {
     }
   }
 
-  // REFRESH.MD: New method to handle non-JSON (blob) responses, like images.
+  // REFRESH.MD: FIX - Aligned 401 handling and made method dynamic.
   async requestBlob(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const headers = {
@@ -76,7 +75,7 @@ class EnhancedAPI {
     };
 
     const config = {
-      method: 'POST', // Assuming blob requests are POST
+      method: 'POST', // Default to POST, but can be overridden
       headers,
       credentials: 'include',
       ...options,
@@ -86,9 +85,16 @@ class EnhancedAPI {
         const response = await fetch(url, config);
 
         if (response.status === 401) {
-            console.error('🔐 Authentication failed - token may have expired');
-            // Handle re-authentication as in the standard request
-            window.location.href = '/login?admin=true&redirect=' + encodeURIComponent(window.location.pathname);
+            console.error('🔐 Authentication failed in blob request - token may have expired');
+            localStorage.removeItem('jyotiflow_token');
+            localStorage.removeItem('jyotiflow_user');
+            
+            if (endpoint.includes('/admin/')) {
+              console.log('🔐 Redirecting to admin login due to token expiry');
+              window.location.href = '/login?admin=true&redirect=' + encodeURIComponent(window.location.pathname);
+              return { success: false, message: 'Authentication expired - redirecting to login', status: 401 };
+            }
+
             return { success: false, message: 'Authentication expired', status: 401 };
         }
 
@@ -98,7 +104,6 @@ class EnhancedAPI {
             return { success: false, message: errorData.detail, status: response.status };
         }
         
-        // Instead of .json(), we get the raw data as a blob
         const blob = await response.blob();
         return { success: true, blob: blob };
 
@@ -221,7 +226,6 @@ class EnhancedAPI {
     });
   }
 
-  // REFRESH.MD: Updated to use requestBlob for direct image response
   async generateImagePreview(previewData) {
     return this.requestBlob('/api/admin/social-marketing/generate-image-preview', {
         body: JSON.stringify(previewData),

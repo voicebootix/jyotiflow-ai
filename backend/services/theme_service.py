@@ -44,17 +44,14 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        # CORE.MD: CRITICAL FIX - OpenCV has deep C++ compatibility issues on Render
-        # Implementing fallback face detection without OpenCV CascadeClassifier
-        # This avoids the persistent SystemError while maintaining functionality
-        self.face_cascade = None  # Will use PIL-based face detection fallback
+        self.face_cascade = None
         logger.info("Initialized ThemeService with OpenCV-free face detection fallback")
 
-
-
-
-    async def _get_base_image_bytes(self) -> bytes:
-        """Fetches the uploaded Swamiji image URL from the DB and downloads the image."""
+    async def _get_base_image_data(self) -> tuple[bytes, str]:
+        """
+        Fetches the uploaded Swamiji image URL from the DB, downloads the image,
+        and returns both the bytes and the public URL.
+        """
         image_url = None
         try:
             record = await self.db_conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
@@ -63,16 +60,16 @@ class ThemeService:
             
             raw_value = record['value']
             try:
-                parsed_value = json.loads(raw_value)
-                if isinstance(parsed_value, str):
-                    image_url = parsed_value
-                else:
-                    raise TypeError("Parsed JSON value is not a string.")
-            except (json.JSONDecodeError, TypeError) as e:
+                # Handles cases where the URL is stored as a JSON string literal
+                image_url = json.loads(raw_value)
+                if not isinstance(image_url, str):
+                    raise TypeError("Parsed JSON value is not a string URL.")
+            except (json.JSONDecodeError, TypeError):
+                # Fallback for plain string URLs
                 if isinstance(raw_value, str) and raw_value.startswith('http'):
                     image_url = raw_value
                 else:
-                    raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.") from e
+                    raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.")
 
             if not image_url:
                  raise HTTPException(status_code=500, detail="Could not determine a valid image URL from database.")
@@ -80,7 +77,7 @@ class ThemeService:
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url)
                 response.raise_for_status()
-                return response.content
+                return response.content, image_url
                 
         except asyncpg.PostgresError as e:
             logger.error(f"Database error while fetching Swamiji image URL: {e}", exc_info=True)
@@ -89,7 +86,7 @@ class ThemeService:
             logger.error(f"Failed to download the base Swamiji image from {image_url}: {e}", exc_info=True)
             raise HTTPException(status_code=502, detail="Could not download the base Swamiji image.") from e
         except Exception as e:
-            logger.error(f"An unexpected error occurred in _get_base_image_bytes: {e}", exc_info=True)
+            logger.error(f"An unexpected error occurred in _get_base_image_data: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
@@ -98,25 +95,19 @@ class ThemeService:
             from PIL import Image
             import io
             
-            # Convert bytes to PIL Image
             image = Image.open(io.BytesIO(image_bytes))
             width, height = image.size
             
-            # Create a white mask (no masking)
             mask = Image.new('L', (width, height), 255)
             
-            # FALLBACK: Create a conservative head region mask in the upper center
-            # This provides basic head protection without needing face detection
-            head_width = int(width * 0.4)  # 40% of image width
-            head_height = int(height * 0.6)  # 60% of image height
-            head_x = int((width - head_width) / 2)  # Center horizontally
-            head_y = int(height * 0.1)  # Start from top 10%
+            head_width = int(width * 0.4)
+            head_height = int(height * 0.6)
+            head_x = int((width - head_width) / 2)
+            head_y = int(height * 0.1)
             
-            # Create black region (masked area) for the head
             mask_array = np.array(mask)
             mask_array[head_y:head_y + head_height, head_x:head_x + head_width] = 0
             
-            # Convert back to PIL and then to bytes
             mask_image = Image.fromarray(mask_array, 'L')
             mask_bytes_io = io.BytesIO()
             mask_image.save(mask_bytes_io, format='PNG')
@@ -131,9 +122,19 @@ class ThemeService:
     async def get_daily_themed_image_url(self, custom_prompt: str = None) -> dict:
         """Generates a themed image using masking to preserve Swamiji's head."""
         try:
-            base_image_bytes = await self._get_base_image_bytes()
+            base_image_bytes, base_image_url = await self._get_base_image_data()
             
             head_mask_bytes = self._create_head_mask(base_image_bytes)
+
+            # REFRESH.MD: FIX - Upload mask to get a public URL for the inpainting API
+            mask_filename = f"public/masks/swamiji_mask_{uuid.uuid4()}.png"
+            mask_url = self.storage_service.upload_file(
+                bucket_name="avatars",
+                file_path_in_bucket=mask_filename,
+                file=head_mask_bytes,
+                content_type="image/png"
+            )
+            logger.info(f"Uploaded temporary mask to {mask_url}")
 
             if custom_prompt:
                 theme_description = custom_prompt
@@ -147,9 +148,10 @@ class ThemeService:
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
 
+            # REFRESH.MD: FIX - Pass URLs to the service instead of bytes
             generated_image_bytes = await self.stability_service.generate_image_with_mask(
-                image_bytes=base_image_bytes,
-                mask_bytes=head_mask_bytes,
+                init_image_url=base_image_url,
+                mask_image_url=mask_url,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt
             )

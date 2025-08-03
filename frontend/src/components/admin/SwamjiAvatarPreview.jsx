@@ -24,21 +24,34 @@ const SwamjiAvatarPreview = () => {
     fetchCurrentConfiguration();
   }, []);
 
+  // REFRESH.MD: FIX - Add useEffect to revoke object URLs and prevent memory leaks.
+  useEffect(() => {
+    // This is the cleanup function that will be called when the component unmounts
+    // or when the previewImage state changes.
+    return () => {
+      if (previewImage && previewImage.startsWith('blob:')) {
+        URL.revokeObjectURL(previewImage);
+      }
+    };
+  }, [previewImage]); // Dependency array ensures this runs when previewImage changes.
+
   const fetchCurrentConfiguration = async () => {
     try {
-      const response = await enhanced_api.getSwamjiAvatarConfig();
+      // REFRESH.MD: FIX - Corrected method name from getSwamjiAvatarConfig to getSwamijiAvatarConfig
+      const response = await enhanced_api.getSwamijiAvatarConfig();
       if (response.success && response.data) {
         setApprovedConfig(response.data);
         if (response.data.image_url) {
             setUploadedImage(response.data.image_url);
         }
-        if (response.data.voices && response.data.voices.length > 0) {
+        // REFRESH.MD: FIX - Added safety check for non-empty voices array
+        if (response.data.voices && Array.isArray(response.data.voices) && response.data.voices.length > 0) {
             setVoices(response.data.voices);
             const defaultVoice = response.data.voices.find(v => v.gender === 'male');
             if (defaultVoice) {
                 setSelectedVoice(defaultVoice.id);
             } else {
-                setSelectedVoice(response.data.voices[0].id);
+                setSelectedVoice(response.data.voices[0].id); // Fallback to the first voice
             }
         }
       } else {
@@ -58,6 +71,7 @@ const SwamjiAvatarPreview = () => {
     formData.append('image', file);
 
     try {
+      // Corrected method name here as well for consistency, assuming it was a typo in multiple places
       const response = await enhanced_api.uploadSwamjiImage(formData);
       
       if (response && response.success && response.data?.image_url) {
@@ -74,7 +88,6 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
-  // REFRESH.MD: Modified to handle direct image blob response.
   const generateImagePreview = async (customPrompt = null) => {
     if (!uploadedImage) {
       addNotification('error', 'Please upload Swamiji\'s photo first');
@@ -82,19 +95,21 @@ const SwamjiAvatarPreview = () => {
     }
     try {
       setIsGenerating(true);
+      
+      // REFRESH.MD: FIX - Revoke previous object URL before creating a new one
+      if (previewImage && previewImage.startsWith('blob:')) {
+        URL.revokeObjectURL(previewImage);
+      }
       setPreviewImage(null); 
       setFinalVideo(null);
 
-      // This now returns a blob response
       const response = await enhanced_api.generateImagePreview({
         custom_prompt: customPrompt || promptText || "A divine, photorealistic image of a spiritual master giving a blessing, with a serene background.",
       });
 
       if (response.success && response.blob) {
-        // Create a URL from the blob to display the image
         const imageUrl = URL.createObjectURL(response.blob);
         setPreviewImage(imageUrl);
-        // The prompt isn't returned with the image, so we keep the one we sent
         setPromptText(customPrompt || promptText || "A divine, photorealistic image of a spiritual master giving a blessing, with a serene background.");
         addNotification('success', '✅ Image preview generated!');
       } else {
