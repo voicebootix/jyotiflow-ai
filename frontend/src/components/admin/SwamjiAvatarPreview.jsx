@@ -103,9 +103,13 @@ const SwamjiAvatarPreview = () => {
 
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
       if (response.blob) {
+        // CORE.MD: FIX - Force cache refresh by always creating fresh blob URL
         const imageUrl = URL.createObjectURL(response.blob);
         setPreviewImage(imageUrl);
-        setPromptText(response.prompt); // Set the prompt received from the backend
+        
+        // CORE.MD: FIX - Debug log the prompt extraction
+        console.log('🔍 Debug - Received prompt:', response.prompt);
+        setPromptText(response.prompt || 'Daily theme generated successfully'); 
         addNotification('success', '✅ Image preview generated!');
       } else {
         const errorMessage = response?.message || 'Failed to generate image preview.';
