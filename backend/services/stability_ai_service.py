@@ -172,8 +172,8 @@ class StabilityAiService:
         if not (0.0 <= strength <= 1.0):
             raise HTTPException(status_code=400, detail="Strength must be between 0.0 and 1.0.")
 
-        # v2beta image-to-image endpoint
-        url = f"{STABILITY_AI_HOST}/v2beta/stable-image/generate/sd3"
+        # v2beta image-to-image endpoint  
+        url = f"{STABILITY_AI_HOST}/v2beta/stable-image/generate/core"
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -192,8 +192,7 @@ class StabilityAiService:
         data = {
             "prompt": text_prompt,
             "strength": strength,
-            "output_format": "png",
-            "mode": "image-to-image"
+            "output_format": "png"
         }
         
         if negative_prompt:
