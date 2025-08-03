@@ -240,7 +240,13 @@ async def generate_image_preview(
 ):
     try:
         image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(custom_prompt=request.custom_prompt)
-        headers = {"X-Generated-Prompt": final_prompt, "Access-Control-Expose-Headers": "X-Generated-Prompt"}
+        headers = {
+            "X-Generated-Prompt": final_prompt, 
+            "Access-Control-Expose-Headers": "X-Generated-Prompt",
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+            "Pragma": "no-cache",
+            "Expires": "0"
+        }
         return Response(content=image_bytes, media_type="image/png", headers=headers)
     except Exception as e:
         logger.error(f"Image preview generation failed: {e}", exc_info=True)
