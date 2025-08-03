@@ -100,9 +100,9 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - Balanced face preservation area (face + minimal neck/shoulder)
-            head_width = int(width * 0.30)  # Increased to 0.30 for better face coverage
-            head_height = int(height * 0.30)  # Increased to 0.30 for face + minimal neck
+            # CORE.MD: FIX - Increase preserve area for better inpainting results
+            head_width = int(width * 0.35)  # Increased to 0.35 for more coverage
+            head_height = int(height * 0.40)  # Increased to 0.40 for head + neck + upper chest
             head_x = int((width - head_width) / 2)
             head_y = int(height * 0.05)  # Keep head position at top
 
@@ -114,12 +114,18 @@ class ThemeService:
             mask_bytes_io = io.BytesIO()
             mask_image.save(mask_bytes_io, format='PNG')
             
-            # CORE.MD: DEBUG - Log mask details for debugging
+            # CORE.MD: DEBUG - Enhanced debugging for mask analysis
             white_pixels = np.sum(body_mask == 255)
             black_pixels = np.sum(body_mask == 0)
             total_pixels = body_mask.size
+            preserve_percentage = (white_pixels / total_pixels) * 100
             logger.info(f"Created mask: {white_pixels} white pixels (preserve), {black_pixels} black pixels (change), total: {total_pixels}")
             logger.info(f"Mask area - Width: {head_width}px ({head_width/body_mask.shape[1]*100:.1f}%), Height: {head_height}px ({head_height/body_mask.shape[0]*100:.1f}%)")
+            logger.info(f"Preserve percentage: {preserve_percentage:.1f}% | Image size: {width}x{height} | Mask position: x={head_x}, y={head_y}")
+            
+            # CORE.MD: DEBUG - Log actual mask bytes size and format
+            mask_size_kb = len(mask_bytes_io.getvalue()) / 1024
+            logger.info(f"Generated mask: {mask_size_kb:.1f}KB PNG format")
             
             return mask_bytes_io.getvalue()
             
@@ -134,7 +140,9 @@ class ThemeService:
         """
         try:
             base_image_bytes, _ = await self._get_base_image_data()
+            logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
             head_mask_bytes = self._create_head_mask(base_image_bytes)
+            logger.info(f"Head mask created: {len(head_mask_bytes)/1024:.1f}KB")
 
             if custom_prompt:
                 theme_description = custom_prompt
