@@ -106,8 +106,9 @@ class ThemeService:
             head_x = int((width - head_width) / 2)
             head_y = int(height * 0.05)  # Keep head position at top
 
-            body_mask = np.full_like(mask_array, 255)
-            body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0
+            # CORE.MD: FIX - Reverse mask: White=preserve, Black=change (Stability.ai format)
+            body_mask = np.full_like(mask_array, 0)  # Black = change everything  
+            body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 255  # White = preserve face
             
             mask_image = Image.fromarray(body_mask, 'L')
             mask_bytes_io = io.BytesIO()
