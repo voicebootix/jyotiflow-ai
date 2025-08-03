@@ -100,11 +100,11 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (based on user's guide feedback)
-            head_width = int(width * 0.35)  # Face + minimal neck coverage  
-            head_height = int(height * 0.40)  # Head + neck area
+            # CORE.MD: FIX - INCREASED mask: Bigger face protection to prevent background bleed
+            head_width = int(width * 0.45)  # Increased face coverage
+            head_height = int(height * 0.55)  # Increased head + neck area  
             head_x = int((width - head_width) / 2)
-            head_y = int(height * 0.05)  # Head position at top
+            head_y = int(height * 0.02)  # Higher position for better face coverage
 
             # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (Stability.ai actual format)
             body_mask = np.full_like(mask_array, 255)  # White = change everything (body/background)
@@ -141,7 +141,9 @@ class ThemeService:
         try:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
-            # CORE.MD: Following user guide - img2img approach for identity preservation (no masks needed)
+            # CORE.MD: REVERT - img2img changing face, back to inpainting with face protection mask
+            head_mask_bytes = self._create_head_mask(base_image_bytes)
+            logger.info(f"Head mask created: {len(head_mask_bytes)/1024:.1f}KB")
 
             if custom_prompt:
                 theme_description = custom_prompt
@@ -157,13 +159,12 @@ class ThemeService:
             logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
 
-            # CORE.MD: USER GUIDE APPROACH - img2img with moderate strength for background/attire change
-            # "Base Swamiji Image + Prompt → Stability.ai (img2img mode) → Same face, new background"
-            image_bytes = await self.stability_service.generate_image_to_image(
+            # CORE.MD: BACK TO INPAINTING - img2img was changing face, inpainting protects face with mask
+            image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
+                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
-                negative_prompt=negative_prompt,
-                strength=0.65  # Increased to 0.65 to ensure clothing/attire changes (background changing, need more for attire)
+                negative_prompt=negative_prompt
             )
             return image_bytes, final_prompt
 
