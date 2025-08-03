@@ -100,10 +100,11 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            head_width = int(width * 0.4)
-            head_height = int(height * 0.6)
+            # CORE.MD: FIX - Reduce preserved area to face/head/beard only
+            head_width = int(width * 0.35)  # Reduced from 0.4 to focus on face area
+            head_height = int(height * 0.45)  # Reduced from 0.6 to avoid full body preservation
             head_x = int((width - head_width) / 2)
-            head_y = int(height * 0.1)
+            head_y = int(height * 0.05)  # Moved up to better capture head area
 
             body_mask = np.full_like(mask_array, 255)
             body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0
@@ -130,12 +131,15 @@ class ThemeService:
 
             if custom_prompt:
                 theme_description = custom_prompt
+                logger.info(f"Using custom prompt: {custom_prompt}")
             else:
                 day_of_week = datetime.now().weekday()
                 theme = THEMES.get(day_of_week, THEMES.get(0, {"description": "in a serene setting"}))
                 theme_description = theme['description']
+                logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
+            logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
 
             image_bytes = await self.stability_service.generate_image_with_mask(
