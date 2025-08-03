@@ -114,7 +114,13 @@ class ThemeService:
             mask_bytes_io = io.BytesIO()
             mask_image.save(mask_bytes_io, format='PNG')
             
-            logger.info("Created head mask using PIL fallback method for inpainting.")
+            # CORE.MD: DEBUG - Log mask details for debugging
+            white_pixels = np.sum(body_mask == 255)
+            black_pixels = np.sum(body_mask == 0)
+            total_pixels = body_mask.size
+            logger.info(f"Created mask: {white_pixels} white pixels (preserve), {black_pixels} black pixels (change), total: {total_pixels}")
+            logger.info(f"Mask area - Width: {head_width}px ({head_width/body_mask.shape[1]*100:.1f}%), Height: {head_height}px ({head_height/body_mask.shape[0]*100:.1f}%)")
+            
             return mask_bytes_io.getvalue()
             
         except Exception as e:
