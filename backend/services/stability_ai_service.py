@@ -82,6 +82,11 @@ class StabilityAiService:
             "Accept": "image/*, application/json" # Request images on success, JSON on errors
         }
 
+        # CORE.MD: DEBUG - Log file sizes before sending to API
+        init_size_kb = len(init_image_bytes) / 1024
+        mask_size_kb = len(mask_image_bytes) / 1024
+        logger.info(f"Sending to Stability.ai - Init image: {init_size_kb:.1f}KB | Mask: {mask_size_kb:.1f}KB")
+        
         # REFRESH.MD: FIX - Correctly format the files for httpx multipart/form-data.
         files = {
             'image': ('init_image.png', init_image_bytes, 'image/png'),
@@ -108,7 +113,9 @@ class StabilityAiService:
                 
                 # REFRESH.MD: FIX - Check for any 2xx success status code, not just 200.
                 if 200 <= response.status_code < 300:
+                    result_size_kb = len(response.content) / 1024
                     logger.info(f"✅ Inpainting generation successful with status {response.status_code}.")
+                    logger.info(f"✅ Generated image size: {result_size_kb:.1f}KB | Content-Type: {response.headers.get('content-type', 'unknown')}")
                     return response.content
 
                 # For any other status, raise an exception to be handled below.
