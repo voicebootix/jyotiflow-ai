@@ -13,7 +13,7 @@ import httpx
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
-from pathlib import Path # CORE.MD: Import 'pathlib' for robust path resolution.
+from typing import Optional, Tuple
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -44,17 +44,14 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        # CORE.MD: CRITICAL FIX - OpenCV has deep C++ compatibility issues on Render
-        # Implementing fallback face detection without OpenCV CascadeClassifier
-        # This avoids the persistent SystemError while maintaining functionality
-        self.face_cascade = None  # Will use PIL-based face detection fallback
+        self.face_cascade = None
         logger.info("Initialized ThemeService with OpenCV-free face detection fallback")
 
-
-
-
-    async def _get_base_image_bytes(self) -> bytes:
-        """Fetches the uploaded Swamiji image URL from the DB and downloads the image."""
+    async def _get_base_image_data(self) -> tuple[bytes, str]:
+        """
+        Fetches the uploaded Swamiji image URL from the DB, downloads the image,
+        and returns both the bytes and the public URL.
+        """
         image_url = None
         try:
             record = await self.db_conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
@@ -63,16 +60,14 @@ class ThemeService:
             
             raw_value = record['value']
             try:
-                parsed_value = json.loads(raw_value)
-                if isinstance(parsed_value, str):
-                    image_url = parsed_value
-                else:
-                    raise TypeError("Parsed JSON value is not a string.")
-            except (json.JSONDecodeError, TypeError) as e:
+                image_url = json.loads(raw_value)
+                if not isinstance(image_url, str):
+                    raise TypeError("Parsed JSON value is not a string URL.")
+            except (json.JSONDecodeError, TypeError):
                 if isinstance(raw_value, str) and raw_value.startswith('http'):
                     image_url = raw_value
                 else:
-                    raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.") from e
+                    raise HTTPException(status_code=500, detail="Invalid format for Swamiji image URL in database.")
 
             if not image_url:
                  raise HTTPException(status_code=500, detail="Could not determine a valid image URL from database.")
@@ -80,7 +75,7 @@ class ThemeService:
             async with httpx.AsyncClient() as client:
                 response = await client.get(image_url)
                 response.raise_for_status()
-                return response.content
+                return response.content, image_url
                 
         except asyncpg.PostgresError as e:
             logger.error(f"Database error while fetching Swamiji image URL: {e}", exc_info=True)
@@ -89,7 +84,7 @@ class ThemeService:
             logger.error(f"Failed to download the base Swamiji image from {image_url}: {e}", exc_info=True)
             raise HTTPException(status_code=502, detail="Could not download the base Swamiji image.") from e
         except Exception as e:
-            logger.error(f"An unexpected error occurred in _get_base_image_bytes: {e}", exc_info=True)
+            logger.error(f"An unexpected error occurred in _get_base_image_data: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
@@ -98,61 +93,72 @@ class ThemeService:
             from PIL import Image
             import io
             
-            # Convert bytes to PIL Image
             image = Image.open(io.BytesIO(image_bytes))
             width, height = image.size
             
-            # Create a white mask (no masking)
-            mask = Image.new('L', (width, height), 255)
+            mask = Image.new('L', (width, height), 0)
             
-            # FALLBACK: Create a conservative head region mask in the upper center
-            # This provides basic head protection without needing face detection
-            head_width = int(width * 0.4)  # 40% of image width
-            head_height = int(height * 0.6)  # 60% of image height
-            head_x = int((width - head_width) / 2)  # Center horizontally
-            head_y = int(height * 0.1)  # Start from top 10%
-            
-            # Create black region (masked area) for the head
             mask_array = np.array(mask)
-            mask_array[head_y:head_y + head_height, head_x:head_x + head_width] = 0
             
-            # Convert back to PIL and then to bytes
-            mask_image = Image.fromarray(mask_array, 'L')
+            head_width = int(width * 0.4)
+            head_height = int(height * 0.6)
+            head_x = int((width - head_width) / 2)
+            head_y = int(height * 0.1)
+
+            body_mask = np.full_like(mask_array, 255)
+            body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0
+            
+            mask_image = Image.fromarray(body_mask, 'L')
             mask_bytes_io = io.BytesIO()
             mask_image.save(mask_bytes_io, format='PNG')
             
-            logger.info("Created head mask using PIL fallback method")
+            logger.info("Created head mask using PIL fallback method for inpainting.")
             return mask_bytes_io.getvalue()
             
         except Exception as e:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
-    async def get_daily_themed_image_url(self, custom_prompt: str = None) -> dict:
-        """Generates a themed image using masking to preserve Swamiji's head."""
+    async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
+        """
+        REFRESH.MD: FIX - Now returns a tuple of (image_bytes, final_prompt).
+        This allows the caller to get both the image and the exact prompt used.
+        """
         try:
-            base_image_bytes = await self._get_base_image_bytes()
-            
+            base_image_bytes, _ = await self._get_base_image_data()
             head_mask_bytes = self._create_head_mask(base_image_bytes)
 
             if custom_prompt:
                 theme_description = custom_prompt
             else:
                 day_of_week = datetime.now().weekday()
-                theme = THEMES.get(day_of_week, THEMES.get(0))
-                if theme is None:
-                    raise HTTPException(status_code=500, detail="Server theme configuration is missing.")
+                theme = THEMES.get(day_of_week, THEMES.get(0, {"description": "in a serene setting"}))
                 theme_description = theme['description']
 
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
 
-            generated_image_bytes = await self.stability_service.generate_image_with_mask(
-                image_bytes=base_image_bytes,
-                mask_bytes=head_mask_bytes,
+            image_bytes = await self.stability_service.generate_image_with_mask(
+                init_image_bytes=base_image_bytes,
+                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt
             )
+            return image_bytes, final_prompt
+
+        except Exception as e:
+            logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(status_code=500, detail="Failed to generate themed image bytes.") from e
+
+    async def generate_and_upload_themed_image(self, custom_prompt: Optional[str] = None) -> dict:
+        """
+        Generates a themed image, uploads it, and returns the public URL and the prompt used.
+        """
+        try:
+            # REFRESH.MD: FIX - Get both the image and the actual prompt used.
+            generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(custom_prompt)
 
             unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
             file_path_in_bucket = f"daily_themes/{unique_filename}"
@@ -165,13 +171,14 @@ class ThemeService:
             )
             
             logger.info(f"✅ Successfully uploaded masked themed image to {public_url}")
+            # REFRESH.MD: FIX - Return the actual prompt instead of a placeholder.
             return {"image_url": public_url, "prompt_used": final_prompt}
 
         except Exception as e:
-            logger.error(f"Failed to create the daily themed avatar image with masking: {e}", exc_info=True)
+            logger.error(f"Failed to create and upload the daily themed avatar image: {e}", exc_info=True)
             if isinstance(e, HTTPException):
                 raise e
-            raise HTTPException(status_code=500, detail="Failed to create themed image.") from e
+            raise HTTPException(status_code=500, detail="Failed to create and upload themed image.") from e
 
 # --- FastAPI Dependency Injection ---
 def get_theme_service(

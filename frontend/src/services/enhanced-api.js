@@ -23,7 +23,6 @@ class EnhancedAPI {
       ...(options.headers || {})
     };
 
-    // CORE.MD: Do not set Content-Type for FormData, let the browser handle it.
     if (options.body instanceof FormData) {
       delete headers['Content-Type'];
     }
@@ -37,15 +36,11 @@ class EnhancedAPI {
     try {
       const response = await fetch(url, config);
       
-      // CRITICAL FIX: Handle 401 Unauthorized (token expiry) with auto-redirect
       if (response.status === 401) {
         console.error('🔐 Authentication failed - token may have expired');
-        
-        // Clear expired token
         localStorage.removeItem('jyotiflow_token');
         localStorage.removeItem('jyotiflow_user');
         
-        // Redirect to admin login for admin endpoints
         if (endpoint.includes('/admin/')) {
           console.log('🔐 Redirecting to admin login due to token expiry');
           window.location.href = '/login?admin=true&redirect=' + encodeURIComponent(window.location.pathname);
@@ -56,8 +51,10 @@ class EnhancedAPI {
       }
       
       if (!response.ok) {
-        console.error(`API Error: ${response.status} - ${response.statusText}`);
-        return { success: false, message: `Server error: ${response.status}`, status: response.status };
+        const errorData = await response.json().catch(() => null);
+        const errorMessage = errorData?.detail || `Server error: ${response.status}`;
+        console.error(`API Error: ${response.status} - ${errorMessage}`);
+        return { success: false, message: errorMessage, status: response.status };
       }
       
       const data = await response.json();
@@ -65,6 +62,57 @@ class EnhancedAPI {
     } catch (error) {
       console.error('API request failed:', error);
       return { success: false, message: 'Network connection failed', error: error.message };
+    }
+  }
+
+  // REFRESH.MD: FIX - Updated to extract the prompt from the response header.
+  async requestBlob(endpoint, options = {}) {
+    const url = `${this.baseURL}${endpoint}`;
+    const headers = {
+        'Content-Type': 'application/json',
+        ...this.getAuthHeaders(),
+        ...(options.headers || {}),
+    };
+
+    const config = {
+      method: 'POST',
+      headers,
+      credentials: 'include',
+      ...options,
+    };
+
+    try {
+        const response = await fetch(url, config);
+
+        if (response.status === 401) {
+            console.error('🔐 Authentication failed in blob request - token may have expired');
+            localStorage.removeItem('jyotiflow_token');
+            localStorage.removeItem('jyotiflow_user');
+            
+            if (endpoint.includes('/admin/')) {
+              console.log('🔐 Redirecting to admin login due to token expiry');
+              window.location.href = '/login?admin=true&redirect=' + encodeURIComponent(window.location.pathname);
+              return { success: false, message: 'Authentication expired - redirecting to login', status: 401 };
+            }
+
+            return { success: false, message: 'Authentication expired', status: 401 };
+        }
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({ detail: `Image generation failed with status: ${response.status}` }));
+            console.error('API Blob Error:', errorData);
+            return { success: false, message: errorData.detail, status: response.status };
+        }
+        
+        const blob = await response.blob();
+        // REFRESH.MD: FIX - Extract the prompt from the custom header.
+        const prompt = response.headers.get('X-Generated-Prompt') || 'Prompt not available.';
+        
+        return { success: true, blob, prompt };
+
+    } catch (error) {
+        console.error('API blob request failed:', error);
+        return { success: false, message: 'Network connection failed while fetching image.', error: error.message };
     }
   }
 
@@ -170,7 +218,7 @@ class EnhancedAPI {
   }
 
   // Avatar Methods
-  getSwamjiAvatarConfig() {
+  getSwamijiAvatarConfig() {
     return this.get('/api/admin/social-marketing/swamiji-avatar-config');
   }
 
@@ -182,7 +230,9 @@ class EnhancedAPI {
   }
 
   async generateImagePreview(previewData) {
-    return this.post('/api/admin/social-marketing/generate-image-preview', previewData);
+    return this.requestBlob('/api/admin/social-marketing/generate-image-preview', {
+        body: JSON.stringify(previewData),
+    });
   }
 
   async generateVideoFromPreview(videoData) {

@@ -13,7 +13,6 @@ const SwamjiAvatarPreview = () => {
   const [isGenerating, setIsGenerating] = useState(false);
   const [approvedConfig, setApprovedConfig] = useState(null);
   
-  // New states for the interactive process
   const [previewImage, setPreviewImage] = useState(null);
   const [promptText, setPromptText] = useState('');
   const [finalVideo, setFinalVideo] = useState(null);
@@ -21,32 +20,36 @@ const SwamjiAvatarPreview = () => {
   
   const { addNotification } = useNotification();
 
-  // REFRESH.MD: Removed the hardcoded avatarStyles object. The theme is now dynamic from the backend.
-
   useEffect(() => {
     fetchCurrentConfiguration();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (previewImage && previewImage.startsWith('blob:')) {
+        URL.revokeObjectURL(previewImage);
+      }
+    };
+  }, [previewImage]);
+
   const fetchCurrentConfiguration = async () => {
     try {
-      const response = await enhanced_api.getSwamjiAvatarConfig();
+      const response = await enhanced_api.getSwamijiAvatarConfig();
       if (response.success && response.data) {
         setApprovedConfig(response.data);
         if (response.data.image_url) {
             setUploadedImage(response.data.image_url);
         }
-        if (response.data.voices && response.data.voices.length > 0) {
+        if (response.data.voices && Array.isArray(response.data.voices) && response.data.voices.length > 0) {
             setVoices(response.data.voices);
-            // REFRESH.MD: Default to the first available male voice for better suitability.
             const defaultVoice = response.data.voices.find(v => v.gender === 'male');
             if (defaultVoice) {
                 setSelectedVoice(defaultVoice.id);
             } else {
-                setSelectedVoice(response.data.voices[0].id); // Fallback to the first voice if no male voice is found
+                setSelectedVoice(response.data.voices[0].id);
             }
         }
       } else {
-        // If no config is found, ensure we don't show a broken image
         setUploadedImage(null);
       }
     } catch (error) {
@@ -63,15 +66,12 @@ const SwamjiAvatarPreview = () => {
     formData.append('image', file);
 
     try {
-      // Use the dedicated upload function
       const response = await enhanced_api.uploadSwamjiImage(formData);
       
-      // REFRESH.MD: Check nested properties safely to avoid runtime errors
       if (response && response.success && response.data?.image_url) {
         setUploadedImage(response.data.image_url);
         addNotification('success', '✅ Swamiji photo uploaded successfully!');
       } else {
-        // Provide more specific feedback
         const errorMessage = response?.message || 'Unknown error occurred';
         console.error('Error uploading image:', errorMessage);
         addNotification('error', `❌ Failed to upload image: ${errorMessage}`);
@@ -89,23 +89,29 @@ const SwamjiAvatarPreview = () => {
     }
     try {
       setIsGenerating(true);
-      setPreviewImage(null); // Clear previous image
-      setFinalVideo(null); // Clear previous video
+      
+      if (previewImage && previewImage.startsWith('blob:')) {
+        URL.revokeObjectURL(previewImage);
+      }
+      setPreviewImage(null); 
+      setFinalVideo(null);
 
       const response = await enhanced_api.generateImagePreview({
-        custom_prompt: customPrompt || promptText || null,
+        custom_prompt: customPrompt || promptText || null, // Pass null to let the backend decide the daily theme
       });
 
-      if (response.success && response.data) {
-        setPreviewImage(response.data.image_url);
-        setPromptText(response.data.prompt_used);
+      // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
+      if (response.success && response.blob) {
+        const imageUrl = URL.createObjectURL(response.blob);
+        setPreviewImage(imageUrl);
+        setPromptText(response.prompt); // Set the prompt received from the backend
         addNotification('success', '✅ Image preview generated!');
       } else {
         const errorMessage = response?.message || 'Failed to generate image preview.';
         addNotification('error', `❌ ${errorMessage}`);
       }
     } catch (error) {
-      addNotification('error', '❌ An unexpected error occurred.');
+      addNotification('error', '❌ An unexpected error occurred during image generation.');
     } finally {
       setIsGenerating(false);
     }
@@ -154,7 +160,6 @@ const SwamjiAvatarPreview = () => {
         image_url: uploadedImage,
         video_url: finalVideo.video_url,
         prompt: promptText,
-        // Add other relevant data if needed by the backend
       });
 
       if (response.success) {
@@ -262,7 +267,6 @@ const SwamjiAvatarPreview = () => {
             </h3>
             
             <div className="space-y-4">
-              {/* REFRESH.MD: Replaced two buttons with a single daily theme generation button. */}
               <button
                 onClick={() => generateImagePreview()}
                 disabled={!uploadedImage || isGenerating}
@@ -288,7 +292,6 @@ const SwamjiAvatarPreview = () => {
           </div>
         </div>
 
-        {/* Right Panel - Style Selection & Previews */}
         {/* Right Panel - Interactive Preview and Generation */}
         <div className="space-y-6">
           {/* Interactive Image Preview */}
