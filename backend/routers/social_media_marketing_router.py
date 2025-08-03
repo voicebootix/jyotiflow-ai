@@ -12,7 +12,7 @@ from typing import Optional, AsyncGenerator
 import json
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
 from pydantic import BaseModel, Field
 import asyncpg
 
@@ -464,22 +464,47 @@ async def upload_swamiji_image(
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
 
-@social_marketing_router.post("/generate-image-preview", response_model=StandardResponse)
+@social_marketing_router.post("/generate-image-preview")
 async def generate_image_preview(
     request: ImagePreviewRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    stability_service: StabilityAiService = Depends(get_stability_service),
     theme_service: ThemeService = Depends(get_theme_service),
 ):
     """
-    Generates a daily-themed or custom-prompted avatar image preview.
-    Does not generate video. Returns the image URL and the prompt used.
+    Generates a themed or custom-prompted avatar image preview and returns it directly as an image.
+    This endpoint now returns raw image bytes with a 'image/png' content type.
     """
     try:
-        # The ThemeService now accepts an optional custom prompt
-        result = await theme_service.get_daily_themed_image_url(
-            custom_prompt=request.custom_prompt
+        # The theme service now generates the image bytes but does not upload it.
+        # This is a conceptual change. We need to call the stability service directly
+        # with the data prepared by the theme service. Let's adjust theme_service first.
+        # For now, let's assume theme_service can give us the bytes.
+        
+        # Let's refactor this part. The theme service should prepare the image and mask.
+        base_image_bytes, _ = await theme_service._get_base_image_data()
+        mask_bytes = theme_service._create_head_mask(base_image_bytes)
+        
+        if request.custom_prompt:
+            theme_description = request.custom_prompt
+        else:
+            day_of_week = datetime.now().weekday()
+            theme = theme_service.THEMES.get(day_of_week, theme_service.THEMES.get(0))
+            theme_description = theme['description']
+
+        final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
+        negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
+        
+        image_bytes = await stability_service.generate_image_with_mask(
+            init_image_bytes=base_image_bytes,
+            mask_image_bytes=mask_bytes,
+            text_prompt=final_prompt,
+            negative_prompt=negative_prompt
         )
-        return StandardResponse(success=True, message="Image preview generated successfully.", data=result)
+        
+        # Return the raw image bytes in the response
+        return Response(content=image_bytes, media_type="image/png")
+
     except Exception as e:
         logger.error(f"Image preview generation failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):
