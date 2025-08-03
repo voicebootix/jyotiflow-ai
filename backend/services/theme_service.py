@@ -157,13 +157,13 @@ class ThemeService:
             logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
 
-            # CORE.MD: USER GUIDE APPROACH - img2img with low strength for identity preservation
+            # CORE.MD: USER GUIDE APPROACH - img2img with moderate strength for background/attire change
             # "Base Swamiji Image + Prompt → Stability.ai (img2img mode) → Same face, new background"
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.25  # User guide: 0.2-0.3 range for identity preservation
+                strength=0.45  # Increased from 0.25 to allow background/attire changes while preserving face
             )
             return image_bytes, final_prompt
 
