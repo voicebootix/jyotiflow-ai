@@ -163,7 +163,7 @@ class ThemeService:
                 init_image_bytes=base_image_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.45  # Increased from 0.25 to allow background/attire changes while preserving face
+                strength=0.65  # Increased to 0.65 to ensure clothing/attire changes (background changing, need more for attire)
             )
             return image_bytes, final_prompt
 
