@@ -145,6 +145,101 @@ class StabilityAiService:
         
         raise HTTPException(status_code=500, detail="Failed to generate inpainted image after all retries.")
 
+    async def generate_image_to_image(
+        self, 
+        init_image_bytes: bytes, 
+        text_prompt: str, 
+        negative_prompt: Optional[str] = None,
+        strength: float = 0.35
+    ) -> bytes:
+        """
+        Generates an image using the Stability.ai v2beta image-to-image endpoint.
+        This method preserves the identity/structure of the init image while applying theme changes.
+        
+        Args:
+            init_image_bytes: The base image to transform
+            text_prompt: The prompt describing desired changes
+            negative_prompt: What to avoid in the generation
+            strength: Denoising strength (0.0-1.0). Lower values preserve more of original image.
+                     0.3-0.4 recommended for identity preservation with theme changes.
+        """
+        if not self.is_configured:
+            raise HTTPException(status_code=501, detail="Image-to-image service is not configured (missing STABILITY_API_KEY).")
+
+        if not text_prompt or not isinstance(text_prompt, str) or len(text_prompt.strip()) == 0:
+            raise HTTPException(status_code=400, detail="Text prompt cannot be empty.")
+
+        if not (0.0 <= strength <= 1.0):
+            raise HTTPException(status_code=400, detail="Strength must be between 0.0 and 1.0.")
+
+        # v2beta image-to-image endpoint
+        url = f"{STABILITY_AI_HOST}/v2beta/stable-image/generate/sd3"
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Accept": "image/*, application/json"
+        }
+
+        # CORE.MD: DEBUG - Log parameters for img2img
+        init_size_kb = len(init_image_bytes) / 1024
+        logger.info(f"Img2img - Init image: {init_size_kb:.1f}KB | Strength: {strength} | Prompt: {text_prompt[:100]}...")
+        
+        # Format files for httpx multipart/form-data
+        files = {
+            'image': ('init_image.png', init_image_bytes, 'image/png')
+        }
+        
+        data = {
+            "prompt": text_prompt,
+            "strength": strength,
+            "output_format": "png",
+            "mode": "image-to-image"
+        }
+        
+        if negative_prompt:
+            data["negative_prompt"] = negative_prompt
+
+        max_retries = 3
+        base_delay = 2
+
+        for attempt in range(max_retries):
+            try:
+                client = await self.get_client()
+                logger.info(f"Posting to Stability.ai img2img API, attempt {attempt + 1}")
+                
+                response = await client.post(url, headers=headers, files=files, data=data)
+                
+                if 200 <= response.status_code < 300:
+                    result_size_kb = len(response.content) / 1024
+                    logger.info(f"✅ Img2img generation successful with status {response.status_code}.")
+                    logger.info(f"✅ Generated image size: {result_size_kb:.1f}KB | Content-Type: {response.headers.get('content-type', 'unknown')}")
+                    return response.content
+
+                response.raise_for_status()
+
+            except httpx.HTTPStatusError as e:
+                try:
+                    error_details = e.response.json()
+                    error_message = error_details.get("message", json.dumps(error_details))
+                except json.JSONDecodeError:
+                    error_message = e.response.text
+
+                logger.error(f"Img2img API HTTP error - Status: {e.response.status_code}, Response: {error_message}")
+
+                if e.response.status_code == 429 and attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(f"Rate limit exceeded (429). Retrying in {delay}s...")
+                    await asyncio.sleep(delay)
+                    continue
+                else:
+                    raise HTTPException(status_code=e.response.status_code, detail=f"Img2img API Call Failed: {error_message}") from e
+            
+            except Exception as e:
+                logger.error(f"Unexpected error during img2img: {e}", exc_info=True)
+                raise HTTPException(status_code=500, detail="An unexpected error occurred during image-to-image generation.") from e
+        
+        raise HTTPException(status_code=500, detail="Failed to generate img2img image after all retries.")
+
     async def generate_image_from_text(self, text_prompt: str, negative_prompt: Optional[str] = None) -> bytes:
         """
         Generates an image using the Stability.ai v1 text-to-image endpoint.
