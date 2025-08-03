@@ -65,7 +65,7 @@ class EnhancedAPI {
     }
   }
 
-  // REFRESH.MD: FIX - Aligned 401 handling and made method dynamic.
+  // REFRESH.MD: FIX - Updated to extract the prompt from the response header.
   async requestBlob(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const headers = {
@@ -75,7 +75,7 @@ class EnhancedAPI {
     };
 
     const config = {
-      method: 'POST', // Default to POST, but can be overridden
+      method: 'POST',
       headers,
       credentials: 'include',
       ...options,
@@ -105,7 +105,10 @@ class EnhancedAPI {
         }
         
         const blob = await response.blob();
-        return { success: true, blob: blob };
+        // REFRESH.MD: FIX - Extract the prompt from the custom header.
+        const prompt = response.headers.get('X-Generated-Prompt') || 'Prompt not available.';
+        
+        return { success: true, blob, prompt };
 
     } catch (error) {
         console.error('API blob request failed:', error);

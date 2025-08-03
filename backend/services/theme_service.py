@@ -13,7 +13,6 @@ import httpx
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
-from pathlib import Path 
 from typing import Optional, Tuple
 
 from services.stability_ai_service import StabilityAiService, get_stability_service

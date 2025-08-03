@@ -24,34 +24,29 @@ const SwamjiAvatarPreview = () => {
     fetchCurrentConfiguration();
   }, []);
 
-  // REFRESH.MD: FIX - Add useEffect to revoke object URLs and prevent memory leaks.
   useEffect(() => {
-    // This is the cleanup function that will be called when the component unmounts
-    // or when the previewImage state changes.
     return () => {
       if (previewImage && previewImage.startsWith('blob:')) {
         URL.revokeObjectURL(previewImage);
       }
     };
-  }, [previewImage]); // Dependency array ensures this runs when previewImage changes.
+  }, [previewImage]);
 
   const fetchCurrentConfiguration = async () => {
     try {
-      // REFRESH.MD: FIX - Corrected method name from getSwamjiAvatarConfig to getSwamijiAvatarConfig
       const response = await enhanced_api.getSwamijiAvatarConfig();
       if (response.success && response.data) {
         setApprovedConfig(response.data);
         if (response.data.image_url) {
             setUploadedImage(response.data.image_url);
         }
-        // REFRESH.MD: FIX - Added safety check for non-empty voices array
         if (response.data.voices && Array.isArray(response.data.voices) && response.data.voices.length > 0) {
             setVoices(response.data.voices);
             const defaultVoice = response.data.voices.find(v => v.gender === 'male');
             if (defaultVoice) {
                 setSelectedVoice(defaultVoice.id);
             } else {
-                setSelectedVoice(response.data.voices[0].id); // Fallback to the first voice
+                setSelectedVoice(response.data.voices[0].id);
             }
         }
       } else {
@@ -71,7 +66,6 @@ const SwamjiAvatarPreview = () => {
     formData.append('image', file);
 
     try {
-      // Corrected method name here as well for consistency, assuming it was a typo in multiple places
       const response = await enhanced_api.uploadSwamjiImage(formData);
       
       if (response && response.success && response.data?.image_url) {
@@ -96,7 +90,6 @@ const SwamjiAvatarPreview = () => {
     try {
       setIsGenerating(true);
       
-      // REFRESH.MD: FIX - Revoke previous object URL before creating a new one
       if (previewImage && previewImage.startsWith('blob:')) {
         URL.revokeObjectURL(previewImage);
       }
@@ -104,13 +97,14 @@ const SwamjiAvatarPreview = () => {
       setFinalVideo(null);
 
       const response = await enhanced_api.generateImagePreview({
-        custom_prompt: customPrompt || promptText || "A divine, photorealistic image of a spiritual master giving a blessing, with a serene background.",
+        custom_prompt: customPrompt || promptText || null, // Pass null to let the backend decide the daily theme
       });
 
+      // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
       if (response.success && response.blob) {
         const imageUrl = URL.createObjectURL(response.blob);
         setPreviewImage(imageUrl);
-        setPromptText(customPrompt || promptText || "A divine, photorealistic image of a spiritual master giving a blessing, with a serene background.");
+        setPromptText(response.prompt); // Set the prompt received from the backend
         addNotification('success', '✅ Image preview generated!');
       } else {
         const errorMessage = response?.message || 'Failed to generate image preview.';
