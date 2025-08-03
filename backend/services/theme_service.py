@@ -88,7 +88,11 @@ class ThemeService:
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
-        """Creates a head mask using PIL-based approach to avoid OpenCV issues."""
+        """
+        Creates a head mask using PIL-based approach to avoid OpenCV issues.
+        NOTE: This method is currently UNUSED - we switched to img2img approach for better identity preservation.
+        Keeping for potential future use or fallback scenarios.
+        """
         try:
             from PIL import Image
             import io
@@ -141,8 +145,7 @@ class ThemeService:
         try:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
-            head_mask_bytes = self._create_head_mask(base_image_bytes)
-            logger.info(f"Head mask created: {len(head_mask_bytes)/1024:.1f}KB")
+            # CORE.MD: SWITCH TO IMG2IMG - No mask needed for identity preservation
 
             if custom_prompt:
                 theme_description = custom_prompt
@@ -153,16 +156,17 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: FIX - Strengthen prompt for better inpainting results
+            # CORE.MD: FIX - IMG2IMG approach for identity preservation with theme transformation
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Professional photography, detailed textures, vibrant colors, authentic spiritual setting."
             logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
 
-            image_bytes = await self.stability_service.generate_image_with_mask(
+            # CORE.MD: USE IMG2IMG - Preserves identity while applying theme changes
+            image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
-                negative_prompt=negative_prompt
+                negative_prompt=negative_prompt,
+                strength=0.35  # Low strength preserves Swamiji's identity while allowing theme changes
             )
             return image_bytes, final_prompt
 
