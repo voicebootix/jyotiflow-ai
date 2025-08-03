@@ -238,8 +238,6 @@ async def test_platform_connection(
     if not request.config:
         raise HTTPException(status_code=400, detail="Configuration data is missing.")
     try:
-        # This part remains complex due to different service credential needs
-        # but is out of scope for the current fix.
         result = {"success": False, "error": "Platform not implemented"}
         return StandardResponse(success=False, message="Connection test failed.", data=result)
     except Exception as e:
@@ -310,11 +308,11 @@ async def generate_image_preview(
     theme_service: ThemeService = Depends(get_theme_service),
 ):
     """
-    REFRESH.MD: FIX - This endpoint is now clean and robust.
-    It calls the refactored theme service to get the image bytes and returns them directly.
+    Generates a themed avatar image preview and returns it directly as an image.
     """
     try:
-        image_bytes = await theme_service.generate_themed_image_bytes(
+        # REFRESH.MD: FIX - Call the correct method and unpack the tuple.
+        image_bytes, _ = await theme_service.generate_themed_image_bytes(
             custom_prompt=request.custom_prompt
         )
         return Response(content=image_bytes, media_type="image/png")
@@ -358,7 +356,7 @@ async def generate_all_avatar_previews(
     theme_service: ThemeService = Depends(get_theme_service),
 ):
     try:
-        # REFRESH.MD: FIX - Use the refactored service method.
+        # REFRESH.MD: FIX - Use the refactored service method that handles uploads.
         theme_result = await theme_service.generate_and_upload_themed_image()
         themed_image_url = theme_result.get("image_url")
         if not themed_image_url:

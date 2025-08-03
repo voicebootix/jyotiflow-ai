@@ -14,7 +14,7 @@ from fastapi import HTTPException, Depends
 import asyncpg
 import json
 from pathlib import Path 
-from typing import Optional
+from typing import Optional, Tuple
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -120,10 +120,10 @@ class ThemeService:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
-    async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> bytes:
+    async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        REFRESH.MD: FIX - New public method to generate image bytes without uploading.
-        This encapsulates the logic and is called by the router for previews.
+        REFRESH.MD: FIX - Now returns a tuple of (image_bytes, final_prompt).
+        This allows the caller to get both the image and the exact prompt used.
         """
         try:
             base_image_bytes, _ = await self._get_base_image_data()
@@ -139,12 +139,14 @@ class ThemeService:
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
 
-            return await self.stability_service.generate_image_with_mask(
+            image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
                 mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt
             )
+            return image_bytes, final_prompt
+
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
             if isinstance(e, HTTPException):
@@ -153,11 +155,11 @@ class ThemeService:
 
     async def generate_and_upload_themed_image(self, custom_prompt: Optional[str] = None) -> dict:
         """
-        REFRESH.MD: FIX - Renamed from get_daily_themed_image_url for clarity.
-        Generates a themed image and uploads it, returning the public URL.
+        Generates a themed image, uploads it, and returns the public URL and the prompt used.
         """
         try:
-            generated_image_bytes = await self.generate_themed_image_bytes(custom_prompt)
+            # REFRESH.MD: FIX - Get both the image and the actual prompt used.
+            generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(custom_prompt)
 
             unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
             file_path_in_bucket = f"daily_themes/{unique_filename}"
@@ -170,7 +172,7 @@ class ThemeService:
             )
             
             logger.info(f"✅ Successfully uploaded masked themed image to {public_url}")
-            final_prompt = f"A photorealistic, high-resolution portrait..." # Simplified for this context
+            # REFRESH.MD: FIX - Return the actual prompt instead of a placeholder.
             return {"image_url": public_url, "prompt_used": final_prompt}
 
         except Exception as e:
