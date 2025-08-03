@@ -79,7 +79,7 @@ class StabilityAiService:
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
-            "Accept": "image/png" # Request the image directly
+            "Accept": "image/png, application/json" # Request the image directly, but also accept JSON for errors.
         }
 
         # REFRESH.MD: FIX - Correctly format the files for httpx multipart/form-data.
