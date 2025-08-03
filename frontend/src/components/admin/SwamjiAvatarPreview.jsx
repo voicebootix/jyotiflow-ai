@@ -98,6 +98,7 @@ const SwamjiAvatarPreview = () => {
 
       const response = await enhanced_api.generateImagePreview({
         custom_prompt: customPrompt || promptText || null, // Pass null to let the backend decide the daily theme
+        timestamp: Date.now() // Cache busting
       });
 
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
