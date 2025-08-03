@@ -100,11 +100,11 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - INCREASED mask: Bigger face protection to prevent background bleed
-            head_width = int(width * 0.45)  # Increased face coverage
-            head_height = int(height * 0.55)  # Increased head + neck area  
+            # CORE.MD: BALANCED FIX - Optimized mask: Perfect balance for face preserve + background change
+            head_width = int(width * 0.50)  # 50% - Balanced face coverage (not too big, not too small)
+            head_height = int(height * 0.60)  # 60% - Focused head area only  
             head_x = int((width - head_width) / 2)
-            head_y = int(height * 0.02)  # Higher position for better face coverage
+            head_y = int(height * 0.05)  # 5% - Better face positioning
 
             # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (Stability.ai actual format)
             body_mask = np.full_like(mask_array, 255)  # White = change everything (body/background)
