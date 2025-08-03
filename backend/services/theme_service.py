@@ -106,22 +106,22 @@ class ThemeService:
             head_x = int((width - head_width) / 2)
             head_y = int(height * 0.05)  # Keep head position at top
 
-            # CORE.MD: FIX - Reverse mask: White=preserve, Black=change (Stability.ai format)
-            body_mask = np.full_like(mask_array, 0)  # Black = change everything  
-            body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 255  # White = preserve face
+            # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (Stability.ai actual format)
+            body_mask = np.full_like(mask_array, 255)  # White = change everything (body/background)
+            body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0  # Black = preserve face
             
             mask_image = Image.fromarray(body_mask, 'L')
             mask_bytes_io = io.BytesIO()
             mask_image.save(mask_bytes_io, format='PNG')
             
-            # CORE.MD: DEBUG - Enhanced debugging for mask analysis
-            white_pixels = np.sum(body_mask == 255)
-            black_pixels = np.sum(body_mask == 0)
+            # CORE.MD: DEBUG - Enhanced debugging for mask analysis (CORRECTED LOGIC)
+            white_pixels = np.sum(body_mask == 255)  # White = change body/background
+            black_pixels = np.sum(body_mask == 0)    # Black = preserve face
             total_pixels = body_mask.size
-            preserve_percentage = (white_pixels / total_pixels) * 100
-            logger.info(f"Created mask: {white_pixels} white pixels (preserve), {black_pixels} black pixels (change), total: {total_pixels}")
-            logger.info(f"Mask area - Width: {head_width}px ({head_width/body_mask.shape[1]*100:.1f}%), Height: {head_height}px ({head_height/body_mask.shape[0]*100:.1f}%)")
-            logger.info(f"Preserve percentage: {preserve_percentage:.1f}% | Image size: {width}x{height} | Mask position: x={head_x}, y={head_y}")
+            preserve_percentage = (black_pixels / total_pixels) * 100  # Now black pixels = preserve
+            logger.info(f"Created mask: {black_pixels} black pixels (preserve face), {white_pixels} white pixels (change body), total: {total_pixels}")
+            logger.info(f"Face preserve area - Width: {head_width}px ({head_width/body_mask.shape[1]*100:.1f}%), Height: {head_height}px ({head_height/body_mask.shape[0]*100:.1f}%)")
+            logger.info(f"Face preserve percentage: {preserve_percentage:.1f}% | Image size: {width}x{height} | Face position: x={head_x}, y={head_y}")
             
             # CORE.MD: DEBUG - Log actual mask bytes size and format
             mask_size_kb = len(mask_bytes_io.getvalue()) / 1024
