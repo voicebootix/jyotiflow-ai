@@ -100,11 +100,11 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - Reduce preserved area to face/head/beard only
-            head_width = int(width * 0.35)  # Reduced from 0.4 to focus on face area
-            head_height = int(height * 0.45)  # Reduced from 0.6 to avoid full body preservation
+            # CORE.MD: FIX - Further reduce preserved area to face/head only (not body)
+            head_width = int(width * 0.30)  # Further reduced from 0.35 to 0.30
+            head_height = int(height * 0.35)  # Further reduced from 0.45 to 0.35  
             head_x = int((width - head_width) / 2)
-            head_y = int(height * 0.05)  # Moved up to better capture head area
+            head_y = int(height * 0.05)  # Keep head position at top
 
             body_mask = np.full_like(mask_array, 255)
             body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0
