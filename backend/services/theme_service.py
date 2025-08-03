@@ -100,9 +100,9 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - Drastically reduce to face/head only (no body/torso)
-            head_width = int(width * 0.25)  # Drastically reduced to 0.25 for face only
-            head_height = int(height * 0.25)  # Drastically reduced to 0.25 for face only
+            # CORE.MD: FIX - Balanced face preservation area (face + minimal neck/shoulder)
+            head_width = int(width * 0.30)  # Increased to 0.30 for better face coverage
+            head_height = int(height * 0.30)  # Increased to 0.30 for face + minimal neck
             head_x = int((width - head_width) / 2)
             head_y = int(height * 0.05)  # Keep head position at top
 
@@ -145,9 +145,10 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
+            # CORE.MD: FIX - Strengthen prompt for better inpainting results
+            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Professional photography, detailed textures, vibrant colors, authentic spiritual setting."
             logger.info(f"Final prompt generated: {final_prompt}")
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
 
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
