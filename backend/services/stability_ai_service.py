@@ -83,8 +83,6 @@ class StabilityAiService:
         }
 
         # REFRESH.MD: FIX - Correctly format the files for httpx multipart/form-data.
-        # The payload should be a dictionary where values are tuples:
-        # (filename, file-like-object, content_type)
         files = {
             'image': ('init_image.png', init_image_bytes, 'image/png'),
             'mask': ('mask_image.png', mask_image_bytes, 'image/png')
@@ -108,12 +106,12 @@ class StabilityAiService:
                 
                 response = await client.post(url, headers=headers, files=files, data=data)
                 
-                # Successful response returns the image bytes directly
-                if response.status_code == 200:
-                    logger.info("✅ Inpainting generation successful.")
+                # REFRESH.MD: FIX - Check for any 2xx success status code, not just 200.
+                if 200 <= response.status_code < 300:
+                    logger.info(f"✅ Inpainting generation successful with status {response.status_code}.")
                     return response.content
 
-                # Handle other status codes by raising an exception, which will be caught below
+                # For any other status, raise an exception to be handled below.
                 response.raise_for_status()
 
             except httpx.HTTPStatusError as e:
@@ -132,7 +130,6 @@ class StabilityAiService:
                     await asyncio.sleep(delay)
                     continue
                 else:
-                    # Pass a more informative error message to the client
                     raise HTTPException(status_code=e.response.status_code, detail=f"Inpainting API Call Failed: {error_message}") from e
             
             except Exception as e:
@@ -175,19 +172,23 @@ class StabilityAiService:
             try:
                 client = await self.get_client()
                 response = await client.post(url, headers=headers, json=payload)
+                
+                # REFRESH.MD: FIX - Also check for any 2xx success status code here.
+                if 200 <= response.status_code < 300:
+                    response_data = response.json()
+                    artifacts = response_data.get("artifacts")
+                    if not artifacts or not isinstance(artifacts, list):
+                        raise HTTPException(status_code=500, detail="Invalid artifacts from Stability.ai text2image")
+                    
+                    image_base64 = artifacts[0]["base64"]
+                    
+                    try:
+                        return base64.b64decode(image_base64)
+                    except (binascii.Error, TypeError) as e:
+                        raise HTTPException(status_code=500, detail="Could not decode image data from Stability.ai text2image") from e
+                
+                # For any other status, raise an exception.
                 response.raise_for_status()
-                response_data = response.json()
-                
-                artifacts = response_data.get("artifacts")
-                if not artifacts or not isinstance(artifacts, list):
-                    raise HTTPException(status_code=500, detail="Invalid artifacts from Stability.ai text2image")
-                
-                image_base64 = artifacts[0]["base64"]
-                
-                try:
-                    return base64.b64decode(image_base64)
-                except (binascii.Error, TypeError) as e:
-                    raise HTTPException(status_code=500, detail="Could not decode image data from Stability.ai text2image") from e
 
             except httpx.HTTPStatusError as e:
                 if e.response.status_code == 429 and attempt < max_retries - 1:

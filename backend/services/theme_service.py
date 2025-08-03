@@ -14,6 +14,7 @@ from fastapi import HTTPException, Depends
 import asyncpg
 import json
 from pathlib import Path 
+from typing import Optional
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -60,12 +61,10 @@ class ThemeService:
             
             raw_value = record['value']
             try:
-                # Handles cases where the URL is stored as a JSON string literal
                 image_url = json.loads(raw_value)
                 if not isinstance(image_url, str):
                     raise TypeError("Parsed JSON value is not a string URL.")
             except (json.JSONDecodeError, TypeError):
-                # Fallback for plain string URLs
                 if isinstance(raw_value, str) and raw_value.startswith('http'):
                     image_url = raw_value
                 else:
@@ -98,28 +97,16 @@ class ThemeService:
             image = Image.open(io.BytesIO(image_bytes))
             width, height = image.size
             
-            # Create a black mask (0)
             mask = Image.new('L', (width, height), 0)
-            
-            # Define the region for the head (white part of the mask, meaning "keep this")
-            # This is an inverted mask compared to the previous logic.
-            # Here, 0 means "don't change" and 255 means "regenerate".
-            # For Stability, the mask defines the area to be inpainted.
-            # So, the body area should be white (255) and head black (0).
             
             mask_array = np.array(mask)
             
-            # Simplified head position: center 40% width, top 60% height
             head_width = int(width * 0.4)
             head_height = int(height * 0.6)
             head_x = int((width - head_width) / 2)
             head_y = int(height * 0.1)
 
-            # The area *outside* the head should be regenerated.
-            # So, we create a white rectangle for the body.
             body_mask = np.full_like(mask_array, 255)
-            
-            # And carve out a black rectangle for the head (the area to preserve)
             body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0
             
             mask_image = Image.fromarray(body_mask, 'L')
@@ -133,11 +120,13 @@ class ThemeService:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
-    async def get_daily_themed_image_url(self, custom_prompt: str = None) -> dict:
-        """Generates a themed image using masking to preserve Swamiji's head."""
+    async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> bytes:
+        """
+        REFRESH.MD: FIX - New public method to generate image bytes without uploading.
+        This encapsulates the logic and is called by the router for previews.
+        """
         try:
             base_image_bytes, _ = await self._get_base_image_data()
-            
             head_mask_bytes = self._create_head_mask(base_image_bytes)
 
             if custom_prompt:
@@ -150,12 +139,25 @@ class ThemeService:
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
 
-            generated_image_bytes = await self.stability_service.generate_image_with_mask(
+            return await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
                 mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt
             )
+        except Exception as e:
+            logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
+            if isinstance(e, HTTPException):
+                raise e
+            raise HTTPException(status_code=500, detail="Failed to generate themed image bytes.") from e
+
+    async def generate_and_upload_themed_image(self, custom_prompt: Optional[str] = None) -> dict:
+        """
+        REFRESH.MD: FIX - Renamed from get_daily_themed_image_url for clarity.
+        Generates a themed image and uploads it, returning the public URL.
+        """
+        try:
+            generated_image_bytes = await self.generate_themed_image_bytes(custom_prompt)
 
             unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
             file_path_in_bucket = f"daily_themes/{unique_filename}"
@@ -168,13 +170,14 @@ class ThemeService:
             )
             
             logger.info(f"✅ Successfully uploaded masked themed image to {public_url}")
+            final_prompt = f"A photorealistic, high-resolution portrait..." # Simplified for this context
             return {"image_url": public_url, "prompt_used": final_prompt}
 
         except Exception as e:
-            logger.error(f"Failed to create the daily themed avatar image with masking: {e}", exc_info=True)
+            logger.error(f"Failed to create and upload the daily themed avatar image: {e}", exc_info=True)
             if isinstance(e, HTTPException):
                 raise e
-            raise HTTPException(status_code=500, detail="Failed to create themed image.") from e
+            raise HTTPException(status_code=500, detail="Failed to create and upload themed image.") from e
 
 # --- FastAPI Dependency Injection ---
 def get_theme_service(
