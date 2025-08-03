@@ -51,6 +51,7 @@ except ImportError:
     class StabilityAiService: pass
     async def get_stability_service() -> AsyncGenerator[None, None]:
         raise HTTPException(status_code=501, detail="Stability AI service is not available.")
+        yield # REFRESH.MD: FIX - This is unreachable but required for the function to be a valid generator.
 
 logger = logging.getLogger(__name__)
 social_marketing_router = APIRouter(
@@ -78,7 +79,6 @@ async def generate_image_preview(
         
         headers = {
             "X-Generated-Prompt": final_prompt,
-            # REFRESH.MD: Ensure CORS policies on the web server expose this custom header.
             "Access-Control-Expose-Headers": "X-Generated-Prompt",
         }
         
