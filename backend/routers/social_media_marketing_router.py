@@ -61,6 +61,42 @@ except ImportError:
     class SupabaseStorageService: pass
     def get_storage_service():
         raise HTTPException(status_code=501, detail="Storage service is not available.")
+        
+try:
+    from services.youtube_service import youtube_service
+    YOUTUBE_SERVICE_AVAILABLE = True
+except ImportError:
+    YOUTUBE_SERVICE_AVAILABLE = False
+
+try:
+    from services.facebook_service import facebook_service
+    FACEBOOK_SERVICE_AVAILABLE = True
+except ImportError:
+    FACEBOOK_SERVICE_AVAILABLE = False
+
+try:
+    from services.instagram_service import instagram_service
+    INSTAGRAM_SERVICE_AVAILABLE = True
+except ImportError:
+    INSTAGRAM_SERVICE_AVAILABLE = False
+
+try:
+    from services.tiktok_service import tiktok_service
+    TIKTOK_SERVICE_AVAILABLE = True
+except ImportError:
+    TIKTOK_SERVICE_AVAILABLE = False
+
+try:
+    from social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
+    AUTOMATION_ENGINE_AVAILABLE = True
+except ImportError as e:
+    AUTOMATION_ENGINE_AVAILABLE = False
+    logging.error(f"Failed to import SocialMediaMarketingEngine: {e}", exc_info=True)
+    class SocialMediaMarketingEngine:
+        pass
+    def get_social_media_engine():
+        raise HTTPException(status_code=501, detail="The Social Media Automation Engine is not available.")
+
 
 logger = logging.getLogger(__name__)
 social_marketing_router = APIRouter(
@@ -233,3 +269,19 @@ async def generate_video_from_preview(
         logger.error(f"Video generation from preview failed: {e}", exc_info=True)
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=f"Error generating video from preview: {e}") from e
+
+@social_marketing_router.post("/generate-daily-content", response_model=StandardResponse)
+async def generate_daily_content(
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
+    conn = Depends(db.get_db)
+):
+    try:
+        daily_plan = await social_engine.generate_daily_content_plan()
+        await social_engine._store_content_plan_in_db(daily_plan, conn)
+        summary = {p: f"{len(posts)} posts planned" for p, posts in daily_plan.items()}
+        serializable_plan = {p: [post.dict() for post in posts] for p, posts in daily_plan.items()}
+        return StandardResponse(success=True, message="Daily content plan generated.", data={"plan_summary": summary, "full_plan": serializable_plan})
+    except Exception as e:
+        logger.error(f"Error in daily content generation endpoint: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to generate daily content plan: {e}")
