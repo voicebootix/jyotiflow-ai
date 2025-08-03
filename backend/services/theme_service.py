@@ -100,11 +100,11 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - Increase preserve area for better inpainting results
-            head_width = int(width * 0.35)  # Increased to 0.35 for more coverage
-            head_height = int(height * 0.40)  # Increased to 0.40 for head + neck + upper chest
+            # CORE.MD: FIX - Larger preserve area for full head + natural transition
+            head_width = int(width * 0.40)   # Increased to 0.40 for full head coverage
+            head_height = int(height * 0.50)  # Increased to 0.50 for head + neck + upper shoulders
             head_x = int((width - head_width) / 2)
-            head_y = int(height * 0.05)  # Keep head position at top
+            head_y = int(height * 0.03)  # Moved slightly down for better head positioning
 
             # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (Stability.ai actual format)
             body_mask = np.full_like(mask_array, 255)  # White = change everything (body/background)
