@@ -172,8 +172,8 @@ class StabilityAiService:
         if not (0.0 <= strength <= 1.0):
             raise HTTPException(status_code=400, detail="Strength must be between 0.0 and 1.0.")
 
-        # v2beta image-to-image endpoint  
-        url = f"{STABILITY_AI_HOST}/v2beta/stable-image/generate/core"
+        # v2beta img2img endpoint - Ultra only supports text-to-image, SD3 required for img2img
+        url = f"{STABILITY_AI_HOST}/v2beta/stable-image/generate/sd3"
         
         headers = {
             "Authorization": f"Bearer {self.api_key}",
@@ -192,6 +192,7 @@ class StabilityAiService:
         data = {
             "prompt": text_prompt,
             "strength": strength,
+            "mode": "image-to-image",
             "output_format": "png"
         }
         
