@@ -88,11 +88,7 @@ class ThemeService:
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
-        """
-        Creates a head mask using PIL-based approach to avoid OpenCV issues.
-        NOTE: This method is currently UNUSED - we switched to img2img approach for better identity preservation.
-        Keeping for potential future use or fallback scenarios.
-        """
+        """Creates a head mask using PIL-based approach to avoid OpenCV issues."""
         try:
             from PIL import Image
             import io
@@ -104,11 +100,11 @@ class ThemeService:
             
             mask_array = np.array(mask)
             
-            # CORE.MD: FIX - Larger preserve area for full head + natural transition
-            head_width = int(width * 0.40)   # Increased to 0.40 for full head coverage
-            head_height = int(height * 0.50)  # Increased to 0.50 for head + neck + upper shoulders
+            # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (based on user's guide feedback)
+            head_width = int(width * 0.35)  # Face + minimal neck coverage  
+            head_height = int(height * 0.40)  # Head + neck area
             head_x = int((width - head_width) / 2)
-            head_y = int(height * 0.03)  # Moved slightly down for better head positioning
+            head_y = int(height * 0.05)  # Head position at top
 
             # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (Stability.ai actual format)
             body_mask = np.full_like(mask_array, 255)  # White = change everything (body/background)
@@ -145,7 +141,8 @@ class ThemeService:
         try:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
-            # CORE.MD: SWITCH TO IMG2IMG - No mask needed for identity preservation
+            head_mask_bytes = self._create_head_mask(base_image_bytes)
+            logger.info(f"Head mask created: {len(head_mask_bytes)/1024:.1f}KB")
 
             if custom_prompt:
                 theme_description = custom_prompt
@@ -161,12 +158,12 @@ class ThemeService:
             logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
 
-            # CORE.MD: USE IMG2IMG - Preserves identity while applying theme changes
-            image_bytes = await self.stability_service.generate_image_to_image(
+            # CORE.MD: FIX - Use inpainting with correct mask (black=preserve, white=change) based on user guide
+            image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
+                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
-                negative_prompt=negative_prompt,
-                strength=0.35  # Low strength preserves Swamiji's identity while allowing theme changes
+                negative_prompt=negative_prompt
             )
             return image_bytes, final_prompt
 
