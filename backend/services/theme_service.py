@@ -141,8 +141,7 @@ class ThemeService:
         try:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
-            head_mask_bytes = self._create_head_mask(base_image_bytes)
-            logger.info(f"Head mask created: {len(head_mask_bytes)/1024:.1f}KB")
+            # CORE.MD: Following user guide - img2img approach for identity preservation (no masks needed)
 
             if custom_prompt:
                 theme_description = custom_prompt
@@ -158,12 +157,13 @@ class ThemeService:
             logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
 
-            # CORE.MD: FIX - Use inpainting with correct mask (black=preserve, white=change) based on user guide
-            image_bytes = await self.stability_service.generate_image_with_mask(
+            # CORE.MD: USER GUIDE APPROACH - img2img with low strength for identity preservation
+            # "Base Swamiji Image + Prompt → Stability.ai (img2img mode) → Same face, new background"
+            image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
-                negative_prompt=negative_prompt
+                negative_prompt=negative_prompt,
+                strength=0.25  # User guide: 0.2-0.3 range for identity preservation
             )
             return image_bytes, final_prompt
 
