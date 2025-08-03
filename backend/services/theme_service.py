@@ -13,7 +13,7 @@ import httpx
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
-from pathlib import Path # CORE.MD: Import 'pathlib' for robust path resolution.
+from pathlib import Path 
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -98,21 +98,35 @@ class ThemeService:
             image = Image.open(io.BytesIO(image_bytes))
             width, height = image.size
             
-            mask = Image.new('L', (width, height), 255)
+            # Create a black mask (0)
+            mask = Image.new('L', (width, height), 0)
             
+            # Define the region for the head (white part of the mask, meaning "keep this")
+            # This is an inverted mask compared to the previous logic.
+            # Here, 0 means "don't change" and 255 means "regenerate".
+            # For Stability, the mask defines the area to be inpainted.
+            # So, the body area should be white (255) and head black (0).
+            
+            mask_array = np.array(mask)
+            
+            # Simplified head position: center 40% width, top 60% height
             head_width = int(width * 0.4)
             head_height = int(height * 0.6)
             head_x = int((width - head_width) / 2)
             head_y = int(height * 0.1)
+
+            # The area *outside* the head should be regenerated.
+            # So, we create a white rectangle for the body.
+            body_mask = np.full_like(mask_array, 255)
             
-            mask_array = np.array(mask)
-            mask_array[head_y:head_y + head_height, head_x:head_x + head_width] = 0
+            # And carve out a black rectangle for the head (the area to preserve)
+            body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0
             
-            mask_image = Image.fromarray(mask_array, 'L')
+            mask_image = Image.fromarray(body_mask, 'L')
             mask_bytes_io = io.BytesIO()
             mask_image.save(mask_bytes_io, format='PNG')
             
-            logger.info("Created head mask using PIL fallback method")
+            logger.info("Created head mask using PIL fallback method for inpainting.")
             return mask_bytes_io.getvalue()
             
         except Exception as e:
@@ -122,36 +136,23 @@ class ThemeService:
     async def get_daily_themed_image_url(self, custom_prompt: str = None) -> dict:
         """Generates a themed image using masking to preserve Swamiji's head."""
         try:
-            base_image_bytes, base_image_url = await self._get_base_image_data()
+            base_image_bytes, _ = await self._get_base_image_data()
             
             head_mask_bytes = self._create_head_mask(base_image_bytes)
-
-            # REFRESH.MD: FIX - Upload mask to get a public URL for the inpainting API
-            mask_filename = f"public/masks/swamiji_mask_{uuid.uuid4()}.png"
-            mask_url = self.storage_service.upload_file(
-                bucket_name="avatars",
-                file_path_in_bucket=mask_filename,
-                file=head_mask_bytes,
-                content_type="image/png"
-            )
-            logger.info(f"Uploaded temporary mask to {mask_url}")
 
             if custom_prompt:
                 theme_description = custom_prompt
             else:
                 day_of_week = datetime.now().weekday()
-                theme = THEMES.get(day_of_week, THEMES.get(0))
-                if theme is None:
-                    raise HTTPException(status_code=500, detail="Server theme configuration is missing.")
+                theme = THEMES.get(day_of_week, THEMES.get(0, {"description": "in a serene setting"}))
                 theme_description = theme['description']
 
             final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}."
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads"
 
-            # REFRESH.MD: FIX - Pass URLs to the service instead of bytes
             generated_image_bytes = await self.stability_service.generate_image_with_mask(
-                init_image_url=base_image_url,
-                mask_image_url=mask_url,
+                init_image_bytes=base_image_bytes,
+                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt
             )
