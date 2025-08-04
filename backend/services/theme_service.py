@@ -90,7 +90,8 @@ class ThemeService:
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
         """
         Creates a comprehensive gradient preservation mask for complete identity retention.
-        Preserves facial features, hair style, and beard/mustache to maintain exact person identity.
+        NOTE: Currently not used - switched to img2img 0.6 strength for natural proportions.
+        Kept for potential future use if inpainting approach is needed again.
         Uses 12% inner radius (face+hair+beard) and 24% outer radius (complete head coverage) for total preservation.
         """
         try:
@@ -155,16 +156,13 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        REFRESH.MD: FIX - Now returns a tuple of (image_bytes, final_prompt).
-        This allows the caller to get both the image and the exact prompt used.
+        Generates themed image using img2img approach with optimal strength for natural results.
+        Uses enhanced identity preservation prompts to maintain exact facial features, hair, and beard.
+        Returns a tuple of (image_bytes, final_prompt) with 60% transformation for visible changes.
         """
         try:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
-            
-            # CORE.MD: COMPREHENSIVE PRESERVATION - Create complete identity preservation mask (face+hair+beard)
-            head_mask_bytes = self._create_head_mask(base_image_bytes)
-            logger.info(f"Comprehensive identity preservation mask created: {len(head_mask_bytes)/1024:.1f}KB")
             
             if custom_prompt:
                 theme_description = custom_prompt
@@ -175,18 +173,18 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: COMPREHENSIVE PRESERVATION - Preserve complete identity including hair and facial hair
+            # CORE.MD: OPTIMAL IMG2IMG - Natural proportions with enhanced identity preservation prompts
             final_prompt = f"EXACT SAME PERSON: A photorealistic portrait of the IDENTICAL wise Indian spiritual master, {theme_description}. PRESERVE exact facial features, same face shape, same eyes, same nose, same mouth, same skin tone, same facial structure, IDENTICAL hair style, SAME hair color, EXACT mustache/beard style, SAME facial hair shape and length, SAME head hair length and texture. ONLY change background and clothing. Professional photography, detailed textures, vibrant colors."
             logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, different person, changed facial features, different face shape, different eyes, different nose, different mouth, face replacement, face swap, altered facial structure, different beard style, different mustache, face hallucination, changed hair style, different hair color, bald, clean shaven, hair transformation, beard removal, mustache removal, different hair length, altered hair texture, hair style change, facial hair modification"
 
-            # CORE.MD: COMPREHENSIVE INPAINTING - Complete identity preservation with hair+beard+face coverage
-            logger.info("Using inpainting with comprehensive preservation mask and complete identity directives")
-            image_bytes = await self.stability_service.generate_image_with_mask(
+            # CORE.MD: IMG2IMG OPTIMAL STRENGTH - Natural head-body proportions with strong identity preservation
+            logger.info("Using img2img with 0.6 strength for natural proportions and enhanced identity preservation")
+            image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
-                negative_prompt=negative_prompt
+                negative_prompt=negative_prompt,
+                strength=0.6  # Optimal strength: 60% transformation, 40% preservation
             )
             return image_bytes, final_prompt
 
