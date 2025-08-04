@@ -171,18 +171,18 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: IMG2IMG APPROACH - Switch to img2img with very low strength for natural face preservation + consistent lighting
-            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Maintain original facial features, consistent lighting throughout image, natural skin tone, seamless portrait, professional photography."
+            # CORE.MD: IMG2IMG APPROACH - Balanced strength for face preservation with visible theme transformation
+            final_prompt = f"TRANSFORM: A photorealistic portrait of a wise Indian spiritual master, {theme_description}. PRESERVE original facial features exactly, CHANGE background and clothing to match theme, maintain natural lighting and skin tone, seamless professional portrait."
             logger.info(f"Final prompt generated: {final_prompt}")
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, mismatched lighting, different skin tones, artificial boundaries, harsh transitions"
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, mismatched lighting, different skin tones, artificial boundaries, harsh transitions, unchanged image, static background, no transformation, identical copy"
 
-            # CORE.MD: IMG2IMG with very low strength - Natural face preservation with head-body consistency  
-            logger.info("Using img2img approach with strength=0.25 for natural face preservation and lighting consistency")
+            # CORE.MD: IMG2IMG with balanced strength - Face preservation with proper theme transformation  
+            logger.info("Using img2img approach with strength=0.45 for face preservation with visible theme changes")
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.25  # Very low strength for face preservation + natural blending
+                strength=0.45  # Balanced strength for face preservation + visible transformation
             )
             return image_bytes, final_prompt
 
