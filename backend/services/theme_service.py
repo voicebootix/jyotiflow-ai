@@ -88,44 +88,60 @@ class ThemeService:
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
-        """Creates a head mask using PIL-based approach to avoid OpenCV issues."""
+        """Creates a gradient head mask for smooth face preservation with natural background blending."""
         try:
-            from PIL import Image
+            from PIL import Image, ImageDraw
             import io
             
             image = Image.open(io.BytesIO(image_bytes))
             width, height = image.size
             
-            mask = Image.new('L', (width, height), 0)
+            # CORE.MD: ADVANCED FIX - Gradient mask: Smooth transition from face preserve to background change
+            mask_array = np.full((height, width), 255, dtype=np.uint8)  # Start with white (change everything)
             
-            mask_array = np.array(mask)
+            # Face center positioning - typically upper portion of image
+            face_center_x = width // 2
+            face_center_y = int(height * 0.25)  # Face usually in upper 25% of portrait
             
-            # CORE.MD: BALANCED FIX - Optimized mask: Perfect balance for face preserve + background change
-            head_width = int(width * 0.50)  # 50% - Balanced face coverage (not too big, not too small)
-            head_height = int(height * 0.60)  # 60% - Focused head area only  
-            head_x = int((width - head_width) / 2)
-            head_y = int(height * 0.05)  # 5% - Better face positioning
-
-            # CORE.MD: FIX - CORRECT mask: Black=preserve face, White=change body (Stability.ai actual format)
-            body_mask = np.full_like(mask_array, 255)  # White = change everything (body/background)
-            body_mask[head_y:head_y + head_height, head_x:head_x + head_width] = 0  # Black = preserve face
+            # Gradient radial mask parameters
+            inner_radius = min(width, height) * 0.12  # Core face area (black = preserve 100%)
+            outer_radius = min(width, height) * 0.25  # Transition edge (white = change 100%)
             
-            mask_image = Image.fromarray(body_mask, 'L')
+            # Create gradient mask using distance-based blending
+            for y in range(height):
+                for x in range(width):
+                    # Calculate distance from face center
+                    distance = np.sqrt((x - face_center_x)**2 + (y - face_center_y)**2)
+                    
+                    if distance <= inner_radius:
+                        # Core face area: Black (preserve completely)
+                        mask_array[y, x] = 0
+                    elif distance <= outer_radius:
+                        # Transition area: Gradient from black to white
+                        transition_ratio = (distance - inner_radius) / (outer_radius - inner_radius)
+                        mask_array[y, x] = int(255 * transition_ratio)
+                    # Outer area remains white (change completely)
+            
+            # Convert numpy array to PIL Image
+            mask_image = Image.fromarray(mask_array, 'L')
             mask_bytes_io = io.BytesIO()
             mask_image.save(mask_bytes_io, format='PNG')
             
-            # CORE.MD: DEBUG - Enhanced debugging for mask analysis (CORRECTED LOGIC)
-            white_pixels = np.sum(body_mask == 255)  # White = change body/background
-            black_pixels = np.sum(body_mask == 0)    # Black = preserve face
-            total_pixels = body_mask.size
-            preserve_percentage = (black_pixels / total_pixels) * 100  # Now black pixels = preserve
-            logger.info(f"Created mask: {black_pixels} black pixels (preserve face), {white_pixels} white pixels (change body), total: {total_pixels}")
-            logger.info(f"Face preserve area - Width: {head_width}px ({head_width/body_mask.shape[1]*100:.1f}%), Height: {head_height}px ({head_height/body_mask.shape[0]*100:.1f}%)")
-            logger.info(f"Face preserve percentage: {preserve_percentage:.1f}% | Image size: {width}x{height} | Face position: x={head_x}, y={head_y}")
+            # CORE.MD: DEBUG - Enhanced debugging for gradient mask analysis
+            white_pixels = np.sum(mask_array == 255)  # White = change body/background
+            black_pixels = np.sum(mask_array == 0)    # Black = preserve face
+            gray_pixels = np.sum((mask_array > 0) & (mask_array < 255))  # Gray = transition area
+            total_pixels = mask_array.size
+            preserve_percentage = (black_pixels / total_pixels) * 100
+            transition_percentage = (gray_pixels / total_pixels) * 100
+            
+            logger.info(f"Created gradient mask: {black_pixels} black pixels (preserve), {gray_pixels} gray pixels (transition), {white_pixels} white pixels (change)")
+            logger.info(f"Face preserve: {preserve_percentage:.1f}% | Transition blend: {transition_percentage:.1f}% | Background change: {(white_pixels/total_pixels)*100:.1f}%")
+            logger.info(f"Gradient mask - Center: ({face_center_x}, {face_center_y}) | Inner radius: {inner_radius:.1f}px | Outer radius: {outer_radius:.1f}px")
             
             # CORE.MD: DEBUG - Log actual mask bytes size and format
             mask_size_kb = len(mask_bytes_io.getvalue()) / 1024
-            logger.info(f"Generated mask: {mask_size_kb:.1f}KB PNG format")
+            logger.info(f"Generated gradient mask: {mask_size_kb:.1f}KB PNG format")
             
             return mask_bytes_io.getvalue()
             
