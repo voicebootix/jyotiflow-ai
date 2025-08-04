@@ -13,6 +13,7 @@ Key features:
 
 import logging
 import os
+import asyncio
 import httpx
 from fastapi import HTTPException
 from typing import Optional
@@ -129,12 +130,39 @@ class DeepImageAiService:
                         return download_response.content
                         
                 elif result.get("job"):
-                    # Processing is taking longer, would need to poll for results
+                    # Processing is taking longer, poll for results
                     job_id = result["job"]
-                    logger.warning(f"Deep Image AI job queued: {job_id}. Polling not implemented yet.")
+                    logger.info(f"Deep Image AI job queued: {job_id}. Polling for results...")
+                    
+                    # Poll for up to 60 seconds (12 attempts, 5 seconds apart)
+                    for attempt in range(12):
+                        await asyncio.sleep(5)  # Wait 5 seconds between polls
+                        
+                        async with httpx.AsyncClient() as poll_client:
+                            poll_response = await poll_client.get(
+                                f"{self.base_url}/result/{job_id}",
+                                headers={"X-API-KEY": self.api_key}
+                            )
+                            
+                            if poll_response.status_code == 200:
+                                poll_result = poll_response.json()
+                                logger.debug(f"Poll attempt {attempt + 1}: {poll_result.get('status')}")
+                                
+                                if poll_result.get("status") == "complete" and poll_result.get("result_url"):
+                                    # Download the completed image
+                                    image_url = poll_result["result_url"]
+                                    logger.info(f"Deep Image AI processing complete after {(attempt + 1) * 5} seconds: {image_url}")
+                                    
+                                    async with httpx.AsyncClient() as download_client:
+                                        download_response = await download_client.get(image_url)
+                                        download_response.raise_for_status()
+                                        return download_response.content
+                    
+                    # If we reach here, polling timed out
+                    logger.warning(f"Deep Image AI job {job_id} timed out after 60 seconds")
                     raise HTTPException(
                         status_code=503, 
-                        detail="Image processing is taking longer than expected. Please try again."
+                        detail="Image processing timed out. Please try again."
                     )
                 else:
                     logger.error(f"Unexpected Deep Image AI response: {result}")
