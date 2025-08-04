@@ -7,6 +7,7 @@ It now uses advanced image masking to preserve Swamiji's head while changing the
 
 import logging
 from datetime import datetime
+import os
 import uuid
 import numpy as np
 import httpx
@@ -49,6 +50,36 @@ class ThemeService:
         
         self.face_cascade = None
         logger.info("Initialized ThemeService with Deep Image AI and Stability AI services")
+    
+    def _get_cascade_file_path(self) -> str:
+        """
+        🛡️ ROBUST CASCADE PATH: Get Haar Cascade file path from environment or default.
+        Supports different deployment environments (Docker, Render, local dev).
+        """
+        # Try environment variable first (for deployment flexibility)
+        cascade_path = os.environ.get('HAAR_CASCADE_PATH')
+        
+        if cascade_path:
+            logger.info(f"Using Haar Cascade from environment: {cascade_path}")
+            return cascade_path
+        
+        # Default paths to try (in order of preference)
+        possible_paths = [
+            "backend/assets/haarcascade_frontalface_default.xml",  # Current working directory
+            "assets/haarcascade_frontalface_default.xml",         # Deployed assets
+            "/app/backend/assets/haarcascade_frontalface_default.xml",  # Docker container
+            os.path.join(os.path.dirname(__file__), "../assets/haarcascade_frontalface_default.xml"),  # Relative to this file
+        ]
+        
+        for path in possible_paths:
+            if os.path.isfile(path):
+                logger.info(f"Found Haar Cascade at: {path}")
+                return path
+        
+        # If no file found, log all attempted paths and raise error
+        error_msg = f"Haar Cascade file not found. Tried paths: {possible_paths}"
+        logger.error(error_msg)
+        raise FileNotFoundError(error_msg)
 
     async def _get_base_image_data(self) -> tuple[bytes, str]:
         """
@@ -175,9 +206,22 @@ class ThemeService:
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             height, width = gray.shape
             
-            # Load Haar Cascade for face detection (using the asset file)
-            cascade_path = "backend/assets/haarcascade_frontalface_default.xml"
-            face_cascade = cv2.CascadeClassifier(cascade_path)
+            # Load Haar Cascade for face detection with robust path handling
+            try:
+                cascade_path = self._get_cascade_file_path()
+                face_cascade = cv2.CascadeClassifier(cascade_path)
+                
+                # Verify cascade loaded successfully
+                if face_cascade.empty():
+                    raise ValueError(f"Failed to load Haar Cascade from {cascade_path}")
+                    
+                logger.info(f"✅ Successfully loaded Haar Cascade from: {cascade_path}")
+                
+            except (FileNotFoundError, ValueError) as e:
+                logger.error(f"❌ Haar Cascade loading failed: {e}")
+                logger.warning("🔄 Falling back to simple center-based face detection")
+                # Return fallback mask immediately if cascade fails
+                return self._create_simple_face_mask(image_bytes)
             
             # Detect faces with optimized parameters for portrait photos
             faces = face_cascade.detectMultiScale(
