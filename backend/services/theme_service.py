@@ -157,10 +157,11 @@ class ThemeService:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
-    def _create_clothing_mask(self, image_bytes: bytes) -> bytes:
+    def _create_face_only_mask(self, image_bytes: bytes) -> bytes:
         """
-        Creates a precise clothing-only mask to preserve face and background.
-        White areas = clothing to be changed, Black areas = face and background to preserve.
+        Creates a face-only preservation mask for aggressive transformation.
+        Black areas = Face only (PRESERVE), White areas = Everything else (TRANSFORM).
+        Allows complete clothing + background transformation while protecting core face.
         """
         try:
             from PIL import Image, ImageDraw, ImageFilter
@@ -170,44 +171,52 @@ class ThemeService:
             input_image = Image.open(io.BytesIO(image_bytes))
             width, height = input_image.size
             
-            # Create mask for clothing area only (torso/body area, avoid face)
-            mask = Image.new("RGB", (width, height), "black")  # Start with black (preserve)
+            # Create mask - start with white (transform everything)
+            mask = Image.new("RGB", (width, height), "white")  # Start with white (transform)
             draw = ImageDraw.Draw(mask)
             
-            # Define clothing area (lower 60% of image, center 80% width)
-            # This avoids face area (top 40%) and background edges
-            clothing_left = int(width * 0.1)    # 10% margin from left
-            clothing_right = int(width * 0.9)   # 10% margin from right  
-            clothing_top = int(height * 0.4)    # Start below face (40% down)
-            clothing_bottom = int(height * 0.95) # Almost to bottom (95% down)
+            # Define face-only area to preserve (center face area only)
+            # Much smaller area - just core facial features
+            face_center_x = width // 2
+            face_center_y = int(height * 0.25)  # Face center at 25% down from top
             
-            # Draw white rectangle for clothing area to be changed
-            draw.rectangle(
-                [clothing_left, clothing_top, clothing_right, clothing_bottom],
-                fill="white"
+            # Face preservation area - core face only
+            face_width = int(width * 0.25)   # 25% of image width  
+            face_height = int(height * 0.2)  # 20% of image height
+            
+            face_left = face_center_x - face_width // 2
+            face_right = face_center_x + face_width // 2
+            face_top = face_center_y - face_height // 2  
+            face_bottom = face_center_y + face_height // 2
+            
+            # Draw black oval for face area to be preserved
+            draw.ellipse(
+                [face_left, face_top, face_right, face_bottom],
+                fill="black"
             )
             
-            # Feather the edges for smooth blending
-            mask = mask.filter(ImageFilter.GaussianBlur(radius=3))
+            # Create gradient mask for smooth blending
+            # Add feathering around face edges
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=8))
             
             # Convert mask to bytes
             mask_bytes_io = io.BytesIO()
             mask.save(mask_bytes_io, format="PNG")
             
-            logger.info(f"Created clothing-only mask: {width}x{height}, clothing area: {clothing_left},{clothing_top} to {clothing_right},{clothing_bottom}")
+            logger.info(f"Created face-only mask: {width}x{height}, face area: {face_left},{face_top} to {face_right},{face_bottom} (core face: {face_width}x{face_height})")
             
             return mask_bytes_io.getvalue()
             
         except Exception as e:
-            logger.error(f"Failed to create clothing mask: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not process image to create clothing mask.") from e
+            logger.error(f"Failed to create face-only mask: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Could not process image to create face-only mask.") from e
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        🎯 PROVEN SOLUTION: Stability AI inpainting with precise clothing mask.
-        Creates clothing-only mask to preserve face and background perfectly.
-        Uses inpainting for targeted clothing transformation only.
-        Returns a tuple of (image_bytes, final_prompt) - definitive clothing change solution.
+        🎯 AGGRESSIVE TRANSFORMATION: Stability AI inpainting with face-only mask.
+        Creates face-only mask to preserve core facial features only.
+        Uses inpainting for complete clothing + background transformation.
+        Returns a tuple of (image_bytes, final_prompt) - maximum transformation with face protection.
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -222,29 +231,29 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # PROVEN APPROACH: Stability AI Inpainting with Clothing Mask
-            logger.info("🎯 Using Stability AI inpainting with precise clothing mask for guaranteed clothing transformation")
+            # AGGRESSIVE APPROACH: Stability AI Inpainting with Face-Only Mask
+            logger.info("🚀 Using Stability AI inpainting with face-only mask for complete transformation")
             
-            # Create precise clothing mask (preserve face + background)
-            clothing_mask_bytes = self._create_clothing_mask(base_image_bytes)
+            # Create face-only mask (preserve core face, transform everything else)
+            face_mask_bytes = self._create_face_only_mask(base_image_bytes)
             
-            # Strong clothing transformation prompt
-            clothing_prompt = f"Transform clothing to match: {theme_description}. Change robes, garments, and attire completely. Professional spiritual clothing, detailed fabric textures, realistic lighting. High quality portrait photography."
-            logger.info(f"Clothing transformation prompt: {clothing_prompt}")
+            # Complete transformation prompt - clothing + background
+            transformation_prompt = f"A photorealistic portrait of a South Indian spiritual guru, {theme_description}. Transform clothing completely to match theme. Change background environment to spiritual setting. Professional portrait photography, realistic style, detailed textures, vibrant colors."
+            logger.info(f"Complete transformation prompt: {transformation_prompt}")
             
-            # Negative prompt to prevent face changes
-            negative_prompt = "face change, facial modification, different person, altered features, different beard, different hair, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, orange robes, orange clothing, saffron robes, same clothing"
+            # Strong negative prompt to prevent face changes and preserve identity
+            negative_prompt = "face change, facial modification, different person, altered features, different eyes, different nose, different mouth, different beard, different hair, face replacement, face swap, AI hallucination, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, orange robes, orange clothing, saffron robes, same clothing, unchanged clothing"
 
-            # Use Stability AI inpainting for precise clothing transformation
+            # Use Stability AI inpainting for complete transformation
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=clothing_mask_bytes,
-                text_prompt=clothing_prompt,
+                mask_image_bytes=face_mask_bytes,
+                text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt
             )
             
-            logger.info("✅ Stability AI clothing inpainting successful - guaranteed clothing transformation")
-            return image_bytes, clothing_prompt
+            logger.info("✅ Stability AI face-only inpainting successful - complete clothing + background transformation")
+            return image_bytes, transformation_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
