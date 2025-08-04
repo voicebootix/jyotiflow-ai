@@ -72,9 +72,9 @@ class DeepImageAiService:
                 "Content-Type": "application/json"
             }
             
-            # Deep Image AI payload with BALANCED control for face preservation + clothing change
-            # Reduced conditioning scale to allow clothing transformation while preserving face
-            enhanced_description = f"Transform to: {theme_description}. COMPLETELY CHANGE clothing and background to match theme. PRESERVE ONLY the face, eyes, nose, mouth, beard pattern, hair style. Change robes, attire, garments, dress, background, environment, setting. Professional portrait photography, realistic lighting, detailed textures."
+            # Deep Image AI payload with LOW control for face preservation + maximum clothing change
+            # Very low conditioning scale to allow complete clothing/background transformation
+            enhanced_description = f"COMPLETELY TRANSFORM scene: {theme_description}. DRASTICALLY CHANGE all clothing, robes, garments, attire, dress, background, environment, setting, pose, lighting. PRESERVE ONLY facial features - same face, same eyes, same nose, same mouth, same beard, same hair. Transform everything else completely. Professional portrait photography, dramatic transformation, realistic style."
             
             payload = {
                 "url": image_url,
@@ -83,8 +83,8 @@ class DeepImageAiService:
                 "background": {
                     "generate": {
                         "description": enhanced_description,
-                        "adapter_type": "control",  # Use control mode for balanced preservation
-                        "controlnet_conditioning_scale": 0.6,  # Reduced to 60% - preserve face, change clothing
+                        "adapter_type": "control",  # Use control mode with minimal preservation
+                        "controlnet_conditioning_scale": 0.4,  # Very low - 40% preserve face only, 60% transform everything else
                         "model_type": model_type # Realistic model for portraits
                     }
                 },
