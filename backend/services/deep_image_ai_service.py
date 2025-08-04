@@ -72,16 +72,19 @@ class DeepImageAiService:
                 "Content-Type": "application/json"
             }
             
-            # Deep Image AI payload for face-preserving background transformation
+            # Deep Image AI payload with EXACT original feature preservation
+            # Enhanced description for strict original feature retention
+            enhanced_description = f"PRESERVE EXACT ORIGINAL: {theme_description}. Keep identical hair length, identical beard pattern, identical facial features from uploaded photo. Do not add extra hair, do not modify beard length, do not change facial hair style. Only change background environment and clothing to match theme."
+            
             payload = {
                 "url": image_url,
                 "width": width,
                 "height": height,
                 "background": {
                     "generate": {
-                        "description": theme_description,
+                        "description": enhanced_description,
                         "adapter_type": "face",  # Use face from input image
-                        "face_id": True,         # Preserve detailed facial features
+                        "face_id": True,         # Preserve detailed facial features EXACTLY
                         "model_type": model_type # Realistic model for portraits
                     }
                 },
