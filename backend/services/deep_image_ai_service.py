@@ -72,9 +72,9 @@ class DeepImageAiService:
                 "Content-Type": "application/json"
             }
             
-            # Deep Image AI payload with CONTROL mode for EXACT original preservation
-            # Use control mode instead of face mode for better feature retention
-            enhanced_description = f"Transform background to: {theme_description}. Change only background environment and clothing to match spiritual theme. Professional portrait photography, realistic lighting, detailed textures."
+            # Deep Image AI payload with BALANCED control for face preservation + clothing change
+            # Reduced conditioning scale to allow clothing transformation while preserving face
+            enhanced_description = f"Transform to: {theme_description}. COMPLETELY CHANGE clothing and background to match theme. PRESERVE ONLY the face, eyes, nose, mouth, beard pattern, hair style. Change robes, attire, garments, dress, background, environment, setting. Professional portrait photography, realistic lighting, detailed textures."
             
             payload = {
                 "url": image_url,
@@ -83,8 +83,8 @@ class DeepImageAiService:
                 "background": {
                     "generate": {
                         "description": enhanced_description,
-                        "adapter_type": "control",  # Use control mode for better preservation
-                        "controlnet_conditioning_scale": 0.85,  # High preservation rate (85%)
+                        "adapter_type": "control",  # Use control mode for balanced preservation
+                        "controlnet_conditioning_scale": 0.6,  # Reduced to 60% - preserve face, change clothing
                         "model_type": model_type # Realistic model for portraits
                     }
                 },
