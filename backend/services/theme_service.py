@@ -89,9 +89,9 @@ class ThemeService:
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
         """
-        Creates an ultra-small gradient face mask for precise core facial feature preservation.
-        Only preserves eyes, nose, mouth area - everything else (background, clothing, hair) changes.
-        Uses 6% inner radius (preserve) and 12% outer radius (transition) for tight control.
+        Creates a comprehensive gradient preservation mask for complete identity retention.
+        Preserves facial features, hair style, and beard/mustache to maintain exact person identity.
+        Uses 12% inner radius (face+hair+beard) and 24% outer radius (complete head coverage) for total preservation.
         """
         try:
             from PIL import Image, ImageDraw
@@ -107,9 +107,9 @@ class ThemeService:
             face_center_x = width // 2
             face_center_y = int(height * 0.25)  # Face usually in upper 25% of portrait
             
-            # ULTRA-SMALL mask parameters - preserve only core facial features
-            inner_radius = min(width, height) * 0.06  # Tiny core face area (eyes, nose, mouth only)
-            outer_radius = min(width, height) * 0.12  # Tight transition edge (hair, clothing change)
+            # COMPREHENSIVE PRESERVATION MASK - Cover face, hair, and beard for complete identity retention
+            inner_radius = min(width, height) * 0.12  # Core preservation area (face + hair + beard)
+            outer_radius = min(width, height) * 0.24  # Transition edge (complete head coverage)
             
             # Create gradient mask using distance-based blending
             for y in range(height):
@@ -139,13 +139,13 @@ class ThemeService:
             preserve_percentage = (black_pixels / total_pixels) * 100
             transition_percentage = (gray_pixels / total_pixels) * 100
             
-            logger.info(f"Created ultra-small face mask: {black_pixels} black pixels (core face only), {gray_pixels} gray pixels (transition), {white_pixels} white pixels (everything else changes)")
-            logger.info(f"Core face preserve: {preserve_percentage:.1f}% | Smooth transition: {transition_percentage:.1f}% | Background/clothing change: {(white_pixels/total_pixels)*100:.1f}%")
-            logger.info(f"Ultra-small mask - Center: ({face_center_x}, {face_center_y}) | Core radius: {inner_radius:.1f}px | Transition radius: {outer_radius:.1f}px")
+            logger.info(f"Created comprehensive preservation mask: {black_pixels} black pixels (face+hair+beard preserved), {gray_pixels} gray pixels (smooth transition), {white_pixels} white pixels (background/clothing change)")
+            logger.info(f"Complete identity preserve: {preserve_percentage:.1f}% | Smooth transition: {transition_percentage:.1f}% | Theme transformation: {(white_pixels/total_pixels)*100:.1f}%")
+            logger.info(f"Comprehensive mask - Center: ({face_center_x}, {face_center_y}) | Preservation radius: {inner_radius:.1f}px | Transition radius: {outer_radius:.1f}px")
             
             # CORE.MD: DEBUG - Log actual mask bytes size and format
             mask_size_kb = len(mask_bytes_io.getvalue()) / 1024
-            logger.info(f"Generated ultra-small face mask: {mask_size_kb:.1f}KB PNG format")
+            logger.info(f"Generated comprehensive preservation mask: {mask_size_kb:.1f}KB PNG format")
             
             return mask_bytes_io.getvalue()
             
@@ -162,9 +162,9 @@ class ThemeService:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
             
-            # CORE.MD: ULTRA-SMALL MASK - Create tiny face-only mask for precise preservation
+            # CORE.MD: COMPREHENSIVE PRESERVATION - Create complete identity preservation mask (face+hair+beard)
             head_mask_bytes = self._create_head_mask(base_image_bytes)
-            logger.info(f"Ultra-small face mask created: {len(head_mask_bytes)/1024:.1f}KB")
+            logger.info(f"Comprehensive identity preservation mask created: {len(head_mask_bytes)/1024:.1f}KB")
             
             if custom_prompt:
                 theme_description = custom_prompt
@@ -175,13 +175,13 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: INPAINTING APPROACH - Ultra-small mask preserves only core facial features
-            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Professional photography, detailed textures, vibrant colors, authentic spiritual setting, dramatic scene transformation."
+            # CORE.MD: COMPREHENSIVE PRESERVATION - Preserve complete identity including hair and facial hair
+            final_prompt = f"EXACT SAME PERSON: A photorealistic portrait of the IDENTICAL wise Indian spiritual master, {theme_description}. PRESERVE exact facial features, same face shape, same eyes, same nose, same mouth, same skin tone, same facial structure, IDENTICAL hair style, SAME hair color, EXACT mustache/beard style, SAME facial hair shape and length, SAME head hair length and texture. ONLY change background and clothing. Professional photography, detailed textures, vibrant colors."
             logger.info(f"Final prompt generated: {final_prompt}")
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, different person, changed facial features, different face shape, different eyes, different nose, different mouth, face replacement, face swap, altered facial structure, different beard style, different mustache, face hallucination, changed hair style, different hair color, bald, clean shaven, hair transformation, beard removal, mustache removal, different hair length, altered hair texture, hair style change, facial hair modification"
 
-            # CORE.MD: INPAINTING with ultra-small mask - Core face preservation with complete background transformation
-            logger.info("Using inpainting with ultra-small face mask for core facial feature preservation")
+            # CORE.MD: COMPREHENSIVE INPAINTING - Complete identity preservation with hair+beard+face coverage
+            logger.info("Using inpainting with comprehensive preservation mask and complete identity directives")
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
                 mask_image_bytes=head_mask_bytes,
