@@ -89,9 +89,9 @@ class ThemeService:
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
         """
-        Creates an ultra-small gradient face mask for precise core facial feature preservation.
-        Only preserves eyes, nose, mouth area - everything else (background, clothing, hair) changes.
-        Uses 6% inner radius (preserve) and 12% outer radius (transition) for tight control.
+        Creates an enhanced gradient face mask for robust facial identity preservation.
+        Preserves core facial features with optimized coverage to maintain person's identity.
+        Uses 8% inner radius (identity preserve) and 16% outer radius (smooth transition) for better face retention.
         """
         try:
             from PIL import Image, ImageDraw
@@ -107,9 +107,9 @@ class ThemeService:
             face_center_x = width // 2
             face_center_y = int(height * 0.25)  # Face usually in upper 25% of portrait
             
-            # ULTRA-SMALL mask parameters - preserve only core facial features
-            inner_radius = min(width, height) * 0.06  # Tiny core face area (eyes, nose, mouth only)
-            outer_radius = min(width, height) * 0.12  # Tight transition edge (hair, clothing change)
+            # ENHANCED FACE MASK - Slightly larger to better preserve facial identity
+            inner_radius = min(width, height) * 0.08  # Core face area (preserve facial features better)
+            outer_radius = min(width, height) * 0.16  # Transition edge (maintain face boundaries)
             
             # Create gradient mask using distance-based blending
             for y in range(height):
@@ -139,13 +139,13 @@ class ThemeService:
             preserve_percentage = (black_pixels / total_pixels) * 100
             transition_percentage = (gray_pixels / total_pixels) * 100
             
-            logger.info(f"Created ultra-small face mask: {black_pixels} black pixels (core face only), {gray_pixels} gray pixels (transition), {white_pixels} white pixels (everything else changes)")
-            logger.info(f"Core face preserve: {preserve_percentage:.1f}% | Smooth transition: {transition_percentage:.1f}% | Background/clothing change: {(white_pixels/total_pixels)*100:.1f}%")
-            logger.info(f"Ultra-small mask - Center: ({face_center_x}, {face_center_y}) | Core radius: {inner_radius:.1f}px | Transition radius: {outer_radius:.1f}px")
+            logger.info(f"Created enhanced face preservation mask: {black_pixels} black pixels (facial identity preserved), {gray_pixels} gray pixels (smooth transition), {white_pixels} white pixels (background/clothing change)")
+            logger.info(f"Facial identity preserve: {preserve_percentage:.1f}% | Smooth transition: {transition_percentage:.1f}% | Theme transformation: {(white_pixels/total_pixels)*100:.1f}%")
+            logger.info(f"Enhanced face mask - Center: ({face_center_x}, {face_center_y}) | Identity radius: {inner_radius:.1f}px | Transition radius: {outer_radius:.1f}px")
             
             # CORE.MD: DEBUG - Log actual mask bytes size and format
             mask_size_kb = len(mask_bytes_io.getvalue()) / 1024
-            logger.info(f"Generated ultra-small face mask: {mask_size_kb:.1f}KB PNG format")
+            logger.info(f"Generated enhanced face preservation mask: {mask_size_kb:.1f}KB PNG format")
             
             return mask_bytes_io.getvalue()
             
@@ -162,9 +162,9 @@ class ThemeService:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
             
-            # CORE.MD: ULTRA-SMALL MASK - Create tiny face-only mask for precise preservation
+            # CORE.MD: ENHANCED FACE PRESERVATION - Create optimized mask for facial identity preservation
             head_mask_bytes = self._create_head_mask(base_image_bytes)
-            logger.info(f"Ultra-small face mask created: {len(head_mask_bytes)/1024:.1f}KB")
+            logger.info(f"Enhanced face preservation mask created: {len(head_mask_bytes)/1024:.1f}KB")
             
             if custom_prompt:
                 theme_description = custom_prompt
@@ -175,13 +175,13 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: INPAINTING APPROACH - Ultra-small mask preserves only core facial features
-            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Professional photography, detailed textures, vibrant colors, authentic spiritual setting, dramatic scene transformation."
+            # CORE.MD: ENHANCED FACE PRESERVATION - Strong directives to maintain exact facial identity
+            final_prompt = f"EXACT SAME PERSON: A photorealistic portrait of the IDENTICAL wise Indian spiritual master, {theme_description}. PRESERVE exact facial features, same face shape, same eyes, same nose, same mouth, same skin tone, same facial structure, same mustache/beard style. ONLY change background and clothing. Professional photography, detailed textures, vibrant colors."
             logger.info(f"Final prompt generated: {final_prompt}")
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, different person, changed facial features, different face shape, different eyes, different nose, different mouth, face replacement, face swap, altered facial structure, different beard style, different mustache, face hallucination"
 
-            # CORE.MD: INPAINTING with ultra-small mask - Core face preservation with complete background transformation
-            logger.info("Using inpainting with ultra-small face mask for core facial feature preservation")
+            # CORE.MD: ENHANCED INPAINTING - Facial identity preservation with strong prompt directives
+            logger.info("Using inpainting with enhanced face preservation mask and identity-specific prompts")
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
                 mask_image_bytes=head_mask_bytes,
