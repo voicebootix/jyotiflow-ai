@@ -156,13 +156,16 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        Generates themed image using img2img approach with balanced background transformation.
-        Uses enhanced face protection prompts with strong background change directives.
-        Returns a tuple of (image_bytes, final_prompt) with 70% transformation - optimal balance for face safety.
+        Generates themed image using optimal face preservation strategy based on technical analysis.
+        Uses strength=0.3 (30% transformation, 70% retention) to prevent AI hallucination.
+        Implements face detail emphasis prompts with (mudi, thadi) specifics for South Indian guru preservation.
+        Returns a tuple of (image_bytes, final_prompt) with maximum face safety and minimal background change.
         """
         try:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
+            
+
             
             if custom_prompt:
                 theme_description = custom_prompt
@@ -173,18 +176,18 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: BACKGROUND TRANSFORMATION - Strong background change with enhanced face protection
-            final_prompt = f"TRANSFORM BACKGROUND COMPLETELY: A photorealistic portrait of a wise Indian spiritual master, {theme_description}. NEVER CHANGE the face - keep EXACT same facial features, IDENTICAL person, same beard pattern, same hair. COMPLETELY CHANGE ONLY the background setting, environment, and clothing. New location, new surroundings, new attire to match the theme. Professional photography, detailed textures, vibrant colors."
-            logger.info(f"Final prompt generated: {final_prompt}")
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, different person, changed facial features, different face shape, different eyes, different nose, different mouth, face replacement, face swap, altered facial structure, different beard style, different mustache, face hallucination, original background, unchanged background, same setting, no transformation"
+            # CORE.MD: FACE PRESERVATION STRATEGY - Based on user's technical analysis for preventing AI hallucination
+            final_prompt = f"A South Indian spiritual guru facing front, with long hair and thick beard (mudi, thadi), {theme_description}. PRESERVE exact face details from uploaded photo - same facial features, same beard pattern, same hair style, same expression. Change only background and clothing. Professional portrait photography, realistic style. (face details from uploaded photo:1.4)"
+            logger.info(f"Face preservation prompt generated: {final_prompt}")
+            negative_prompt = "different person, face change, facial modification, altered features, different beard, different hair, hair color change, bald, clean shaven, face replacement, face swap, AI hallucination, changed facial expression, different eyes, different nose, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, 3d render"
 
-            # CORE.MD: BALANCED TRANSFORMATION - Optimal balance between background change and face preservation
-            logger.info("Using img2img with 0.7 strength for strong background transformation while protecting face")
+            # CORE.MD: OPTIMAL FACE PRESERVATION - Strength 0.3 as recommended for accurate face retention
+            logger.info("Using img2img with 0.3 strength for maximum face preservation with minimal AI hallucination")
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.7  # Balanced transformation: 70% change, 30% face preservation
+                strength=0.3  # Optimal face preservation: 30% transformation, 70% original retention
             )
             return image_bytes, final_prompt
 
