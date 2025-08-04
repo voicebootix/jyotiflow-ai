@@ -73,9 +73,15 @@ class DeepImageAiService:
                 "Content-Type": "application/json"
             }
             
+<<<<<<< HEAD
             # Deep Image AI payload with BALANCED control for face preservation + clothing transformation
             # Reduced control scale to ensure clothing changes while preserving face
             enhanced_description = f"Transform completely: {theme_description}. CHANGE clothing and background to match theme exactly. PRESERVE ONLY face, eyes, nose, mouth, beard pattern, hair style - keep these identical. TRANSFORM clothing color, style, and design. CHANGE background environment completely. Professional portrait photography, realistic lighting, detailed textures."
+=======
+            # Deep Image AI payload with LOW control for face preservation + maximum clothing change
+            # Very low conditioning scale to allow complete clothing/background transformation
+            enhanced_description = f"COMPLETELY TRANSFORM scene: {theme_description}. DRASTICALLY CHANGE all clothing, robes, garments, attire, dress, background, environment, setting, pose, lighting. PRESERVE ONLY facial features - same face, same eyes, same nose, same mouth, same beard, same hair. Transform everything else completely. Professional portrait photography, dramatic transformation, realistic style."
+>>>>>>> a586709e222130ac1dc7da33c9fc83c667dc017b
             
             payload = {
                 "url": image_url,
@@ -84,8 +90,13 @@ class DeepImageAiService:
                 "background": {
                     "generate": {
                         "description": enhanced_description,
+<<<<<<< HEAD
                         "adapter_type": "control",  # Use control mode for balanced preservation
                         "controlnet_conditioning_scale": 0.65,  # Reduced to 65% to allow clothing transformation
+=======
+                        "adapter_type": "control",  # Use control mode with minimal preservation
+                        "controlnet_conditioning_scale": 0.4,  # Very low - 40% preserve face only, 60% transform everything else
+>>>>>>> a586709e222130ac1dc7da33c9fc83c667dc017b
                         "model_type": model_type # Realistic model for portraits
                     }
                 },
