@@ -5,6 +5,8 @@ This service is the creative engine that generates daily visual themes for Swami
 It now uses advanced image masking to preserve Swamiji's head while changing the background and attire.
 """
 
+#Am new!
+
 import logging
 from datetime import datetime
 import uuid
