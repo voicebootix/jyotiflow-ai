@@ -156,9 +156,9 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        Generates themed image using img2img approach with strong background transformation.
-        Uses balanced prompts to preserve face while completely changing background and clothing.
-        Returns a tuple of (image_bytes, final_prompt) with 75% transformation for visible background changes.
+        Generates themed image using img2img approach with balanced background transformation.
+        Uses enhanced face protection prompts with strong background change directives.
+        Returns a tuple of (image_bytes, final_prompt) with 70% transformation - optimal balance for face safety.
         """
         try:
             base_image_bytes, _ = await self._get_base_image_data()
@@ -173,18 +173,18 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: BACKGROUND TRANSFORMATION - Stronger transformation with face preservation balance
-            final_prompt = f"TRANSFORM BACKGROUND COMPLETELY: A photorealistic portrait of a wise Indian spiritual master, {theme_description}. Keep the same person's face, maintain beard and hair, but COMPLETELY CHANGE the background setting, environment, and clothing. New location, new surroundings, new attire to match the theme. Professional photography, detailed textures, vibrant colors."
+            # CORE.MD: BACKGROUND TRANSFORMATION - Strong background change with enhanced face protection
+            final_prompt = f"TRANSFORM BACKGROUND COMPLETELY: A photorealistic portrait of a wise Indian spiritual master, {theme_description}. NEVER CHANGE the face - keep EXACT same facial features, IDENTICAL person, same beard pattern, same hair. COMPLETELY CHANGE ONLY the background setting, environment, and clothing. New location, new surroundings, new attire to match the theme. Professional photography, detailed textures, vibrant colors."
             logger.info(f"Final prompt generated: {final_prompt}")
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, different person, changed facial features, different face shape, different eyes, different nose, different mouth, face replacement, face swap, altered facial structure, different beard style, different mustache, face hallucination, original background, unchanged background, same setting, no transformation"
 
-            # CORE.MD: STRONGER TRANSFORMATION - Higher strength for visible background changes
-            logger.info("Using img2img with 0.75 strength for stronger background transformation while preserving face")
+            # CORE.MD: BALANCED TRANSFORMATION - Optimal balance between background change and face preservation
+            logger.info("Using img2img with 0.7 strength for strong background transformation while protecting face")
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.75  # Stronger transformation: 75% change, 25% preservation
+                strength=0.7  # Balanced transformation: 70% change, 30% face preservation
             )
             return image_bytes, final_prompt
 
