@@ -159,57 +159,137 @@ class ThemeService:
 
     def _create_face_only_mask(self, image_bytes: bytes) -> bytes:
         """
-        Creates a face-only preservation mask for aggressive transformation.
-        Black areas = Face only (PRESERVE), White areas = Everything else (TRANSFORM).
-        Allows complete clothing + background transformation while protecting core face.
+        🎯 REAL SWAMIJI FACE PRESERVATION: Advanced OpenCV face detection + precise masking.
+        Uses Haar Cascade to detect actual face location for perfect Swamiji preservation.
+        Creates larger protection zone with proper grayscale mask for realistic results.
         """
         try:
             from PIL import Image, ImageDraw, ImageFilter
+            import cv2
+            import numpy as np
             import io
             
-            # Load the image
-            input_image = Image.open(io.BytesIO(image_bytes))
-            width, height = input_image.size
+            # Load the image for face detection
+            image_array = np.frombuffer(image_bytes, dtype=np.uint8)
+            cv_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+            gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+            height, width = gray.shape
             
-            # Create mask - start with white (transform everything)
-            mask = Image.new("RGB", (width, height), "white")  # Start with white (transform)
-            draw = ImageDraw.Draw(mask)
+            # Load Haar Cascade for face detection (using the asset file)
+            cascade_path = "backend/assets/haarcascade_frontalface_default.xml"
+            face_cascade = cv2.CascadeClassifier(cascade_path)
             
-            # Define face-only area to preserve (center face area only)
-            # Much smaller area - just core facial features
-            face_center_x = width // 2
-            face_center_y = int(height * 0.25)  # Face center at 25% down from top
-            
-            # Face preservation area - core face only
-            face_width = int(width * 0.25)   # 25% of image width  
-            face_height = int(height * 0.2)  # 20% of image height
-            
-            face_left = face_center_x - face_width // 2
-            face_right = face_center_x + face_width // 2
-            face_top = face_center_y - face_height // 2  
-            face_bottom = face_center_y + face_height // 2
-            
-            # Draw black oval for face area to be preserved
-            draw.ellipse(
-                [face_left, face_top, face_right, face_bottom],
-                fill="black"
+            # Detect faces with optimized parameters for portrait photos
+            faces = face_cascade.detectMultiScale(
+                gray,
+                scaleFactor=1.1,
+                minNeighbors=5,
+                minSize=(int(width*0.15), int(height*0.15)),  # Face must be at least 15% of image
+                flags=cv2.CASCADE_SCALE_IMAGE
             )
             
-            # Create gradient mask for smooth blending
-            # Add feathering around face edges
-            mask = mask.filter(ImageFilter.GaussianBlur(radius=8))
+            # Create grayscale mask for proper inpainting (not RGB!)
+            mask = Image.new("L", (width, height), 255)  # Start with white (transform) - GRAYSCALE
+            draw = ImageDraw.Draw(mask)
             
-            # Convert mask to bytes
+            if len(faces) > 0:
+                # Use detected face (take the largest one if multiple detected)
+                x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+                
+                # Expand protection zone for complete face + hair + beard preservation
+                expansion_factor = 1.4  # 40% larger than detected face
+                expanded_w = int(w * expansion_factor)
+                expanded_h = int(h * expansion_factor)
+                
+                # Center the expanded area on the detected face
+                face_center_x = x + w // 2
+                face_center_y = y + h // 2
+                
+                # Calculate expanded boundaries
+                face_left = max(0, face_center_x - expanded_w // 2)
+                face_right = min(width, face_center_x + expanded_w // 2)
+                face_top = max(0, face_center_y - expanded_h // 2)
+                face_bottom = min(height, face_center_y + expanded_h // 2)
+                
+                logger.info(f"🎯 DETECTED Swamiji face at: ({x},{y}) size: {w}x{h}")
+                logger.info(f"🛡️ EXPANDED protection zone: ({face_left},{face_top}) to ({face_right},{face_bottom}) size: {expanded_w}x{expanded_h}")
+                
+            else:
+                # Fallback to center-based detection if OpenCV fails
+                logger.warning("⚠️ Face detection failed, using center-based fallback")
+                face_center_x = width // 2
+                face_center_y = int(height * 0.3)  # Slightly lower for better coverage
+                
+                # Larger fallback protection area
+                expanded_w = int(width * 0.4)   # 40% of image width
+                expanded_h = int(height * 0.35)  # 35% of image height
+                
+                face_left = max(0, face_center_x - expanded_w // 2)
+                face_right = min(width, face_center_x + expanded_w // 2)
+                face_top = max(0, face_center_y - expanded_h // 2)
+                face_bottom = min(height, face_center_y + expanded_h // 2)
+                
+                logger.info(f"🔄 FALLBACK protection zone: ({face_left},{face_top}) to ({face_right},{face_bottom})")
+            
+            # Draw black oval for PRECISE face preservation (grayscale: 0 = preserve)
+            draw.ellipse(
+                [face_left, face_top, face_right, face_bottom],
+                fill=0  # Black (0) in grayscale = preserve this area
+            )
+            
+            # Gentle feathering for natural blending (reduced from radius=8 to radius=4)
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=4))
+            
+            # Convert to bytes
             mask_bytes_io = io.BytesIO()
             mask.save(mask_bytes_io, format="PNG")
             
-            logger.info(f"Created face-only mask: {width}x{height}, face area: {face_left},{face_top} to {face_right},{face_bottom} (core face: {face_width}x{face_height})")
+            logger.info(f"✅ Created REAL SWAMIJI face preservation mask: {width}x{height} (grayscale format)")
+            logger.info(f"🎭 Face protection zone: {face_right-face_left}x{face_bottom-face_top} pixels")
             
             return mask_bytes_io.getvalue()
             
         except Exception as e:
-            logger.error(f"Failed to create face-only mask: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not process image to create face-only mask.") from e
+            logger.error(f"Failed to create advanced face mask: {e}", exc_info=True)
+            # Fallback to simple center mask if advanced detection fails
+            return self._create_simple_face_mask(image_bytes)
+    
+    def _create_simple_face_mask(self, image_bytes: bytes) -> bytes:
+        """Fallback simple face mask if OpenCV detection fails."""
+        try:
+            from PIL import Image, ImageDraw, ImageFilter
+            import io
+            
+            input_image = Image.open(io.BytesIO(image_bytes))
+            width, height = input_image.size
+            
+            # Grayscale mask (proper format for inpainting)
+            mask = Image.new("L", (width, height), 255)  # White = transform
+            draw = ImageDraw.Draw(mask)
+            
+            # Larger center face area
+            face_center_x = width // 2
+            face_center_y = int(height * 0.3)
+            face_width = int(width * 0.4)
+            face_height = int(height * 0.35)
+            
+            face_left = face_center_x - face_width // 2
+            face_right = face_center_x + face_width // 2
+            face_top = face_center_y - face_height // 2
+            face_bottom = face_center_y + face_height // 2
+            
+            draw.ellipse([face_left, face_top, face_right, face_bottom], fill=0)  # Black = preserve
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=4))
+            
+            mask_bytes_io = io.BytesIO()
+            mask.save(mask_bytes_io, format="PNG")
+            
+            logger.info(f"🔄 Simple fallback mask created: {width}x{height}")
+            return mask_bytes_io.getvalue()
+            
+        except Exception as e:
+            logger.error(f"Even simple mask creation failed: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Could not create any face mask.") from e
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
@@ -241,15 +321,38 @@ class ThemeService:
             transformation_prompt = f"A photorealistic portrait of a South Indian spiritual guru, {theme_description}. Transform clothing completely to match theme. Change background environment to spiritual setting. Professional portrait photography, realistic style, detailed textures, vibrant colors."
             logger.info(f"Complete transformation prompt: {transformation_prompt}")
             
-            # Strong negative prompt to prevent face changes and preserve identity
-            negative_prompt = "face change, facial modification, different person, altered features, different eyes, different nose, different mouth, different beard, different hair, face replacement, face swap, AI hallucination, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, orange robes, orange clothing, saffron robes, same clothing, unchanged clothing"
+            # Dynamic negative prompt based on theme requirements
+            def _get_theme_aware_negative_prompt(theme_desc: str) -> str:
+                """Create negative prompt that doesn't conflict with theme colors."""
+                base_negative = "face change, facial modification, different person, altered features, different eyes, different nose, different mouth, different beard, different hair, face replacement, face swap, AI hallucination, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, same clothing, unchanged clothing"
+                
+                # Color-specific negatives - only add if theme doesn't require these colors
+                color_negatives = []
+                
+                theme_lower = theme_desc.lower()
+                if "orange" not in theme_lower and "saffron" not in theme_lower:
+                    color_negatives.extend(["orange robes", "orange clothing", "saffron robes"])
+                if "white" not in theme_lower and "serene white" not in theme_lower:
+                    color_negatives.extend(["unchanged white clothing"])
+                if "gold" not in theme_lower:
+                    color_negatives.extend(["unchanged gold"])
+                    
+                # Combine base negatives with appropriate color negatives
+                if color_negatives:
+                    return base_negative + ", " + ", ".join(color_negatives)
+                else:
+                    return base_negative
+            
+            negative_prompt = _get_theme_aware_negative_prompt(theme_description)
 
-            # Use Stability AI inpainting for complete transformation
+            # Use Stability AI inpainting for complete transformation with enhanced parameters
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
                 mask_image_bytes=face_mask_bytes,
                 text_prompt=transformation_prompt,
-                negative_prompt=negative_prompt
+                negative_prompt=negative_prompt,
+                cfg_scale=12,  # Higher guidance scale for better prompt adherence
+                steps=30       # More steps for higher quality
             )
             
             logger.info("✅ Stability AI face-only inpainting successful - complete clothing + background transformation")

@@ -62,7 +62,9 @@ class StabilityAiService:
         init_image_bytes: bytes, 
         mask_image_bytes: bytes, 
         text_prompt: str, 
-        negative_prompt: Optional[str] = None
+        negative_prompt: Optional[str] = None,
+        cfg_scale: Optional[float] = None,
+        steps: Optional[int] = None
     ) -> bytes:
         """
         Generates an image using the Stability.ai v2beta inpainting endpoint.
@@ -82,10 +84,11 @@ class StabilityAiService:
             "Accept": "image/*, application/json" # Request images on success, JSON on errors
         }
 
-        # CORE.MD: DEBUG - Log file sizes before sending to API
+        # CORE.MD: DEBUG - Log file sizes and parameters before sending to API
         init_size_kb = len(init_image_bytes) / 1024
         mask_size_kb = len(mask_image_bytes) / 1024
-        logger.info(f"Sending to Stability.ai - Init image: {init_size_kb:.1f}KB | Mask: {mask_size_kb:.1f}KB")
+        logger.info(f"🎯 Stability.ai REAL SWAMIJI INPAINTING - Init image: {init_size_kb:.1f}KB | Mask: {mask_size_kb:.1f}KB")
+        logger.info(f"🎨 Enhanced parameters - CFG Scale: {cfg_scale}, Steps: {steps}, Prompt: {text_prompt[:100]}...")
         
         # REFRESH.MD: FIX - Correctly format the files for httpx multipart/form-data.
         files = {
@@ -100,6 +103,13 @@ class StabilityAiService:
         
         if negative_prompt:
             data["negative_prompt"] = negative_prompt
+            
+        # Add enhanced parameters for better control
+        if cfg_scale is not None:
+            data["cfg_scale"] = cfg_scale
+            
+        if steps is not None:
+            data["steps"] = steps
 
         max_retries = 3
         base_delay = 2
