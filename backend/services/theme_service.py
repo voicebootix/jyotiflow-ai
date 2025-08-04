@@ -156,10 +156,10 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        Generates themed image using balanced approach - excellent face preservation + background transformation.
-        Uses strength=0.4 (40% transformation, 60% retention) for optimal balance after user testing.
-        Face preservation achieved 99% accuracy with mudi/thadi specifics, now optimizing background change.
-        Returns a tuple of (image_bytes, final_prompt) with proven face safety and enhanced background transformation.
+        Generates themed image using advanced attention weighting strategy for optimal control.
+        Uses strength=0.55 with attention syntax: ((background:)) for emphasis, (PRESERVE face:1.3) for protection.
+        Implements priority-based prompting to achieve strong background transformation while maintaining face safety.
+        Returns a tuple of (image_bytes, final_prompt) with attention-controlled dual objectives.
         """
         try:
             base_image_bytes, _ = await self._get_base_image_data()
@@ -176,18 +176,18 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: BALANCED STRATEGY - Face preservation + background transformation optimization
-            final_prompt = f"COMPLETELY TRANSFORM background scene: {theme_description}. Change background environment drastically. A South Indian spiritual guru facing front, with long hair and thick beard (mudi, thadi). PRESERVE exact face details from uploaded photo - same facial features, same beard pattern, same hair style, same expression. Professional portrait photography, realistic style. (face details from uploaded photo:1.4)"
-            logger.info(f"Balanced transformation prompt generated: {final_prompt}")
+            # CORE.MD: ATTENTION WEIGHTING STRATEGY - Advanced prompt priority with attention syntax
+            final_prompt = f"((background: {theme_description}, spiritual aura, dramatic lighting)), South Indian spiritual guru with long hair and thick beard (mudi, thadi), (PRESERVE original face details:1.3), same beard pattern, same facial expression, same hair style, same pose. Professional portrait photography, realistic style, detailed textures."
+            logger.info(f"Attention weighting prompt generated: {final_prompt}")
             negative_prompt = "different person, face change, facial modification, altered features, different beard, different hair, hair color change, bald, clean shaven, face replacement, face swap, AI hallucination, changed facial expression, different eyes, different nose, original background, unchanged background, same setting, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, 3d render"
 
-            # CORE.MD: BALANCED TRANSFORMATION - Slightly higher strength for background change while maintaining face safety
-            logger.info("Using img2img with 0.4 strength for balanced face preservation and background transformation")
+            # CORE.MD: OPTIMAL STRENGTH - Higher strength with attention weighting for background transformation
+            logger.info("Using img2img with 0.55 strength with attention weighting for enhanced background transformation")
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=final_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.4  # Balanced approach: 40% transformation for background, 60% retention for face
+                strength=0.55  # Optimal strength: 55% transformation with attention control
             )
             return image_bytes, final_prompt
 
