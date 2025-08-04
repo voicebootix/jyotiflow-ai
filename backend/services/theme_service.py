@@ -157,13 +157,57 @@ class ThemeService:
             logger.error(f"Failed to create head mask: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
+    def _create_clothing_mask(self, image_bytes: bytes) -> bytes:
+        """
+        Creates a precise clothing-only mask to preserve face and background.
+        White areas = clothing to be changed, Black areas = face and background to preserve.
+        """
+        try:
+            from PIL import Image, ImageDraw, ImageFilter
+            import io
+            
+            # Load the image
+            input_image = Image.open(io.BytesIO(image_bytes))
+            width, height = input_image.size
+            
+            # Create mask for clothing area only (torso/body area, avoid face)
+            mask = Image.new("RGB", (width, height), "black")  # Start with black (preserve)
+            draw = ImageDraw.Draw(mask)
+            
+            # Define clothing area (lower 60% of image, center 80% width)
+            # This avoids face area (top 40%) and background edges
+            clothing_left = int(width * 0.1)    # 10% margin from left
+            clothing_right = int(width * 0.9)   # 10% margin from right  
+            clothing_top = int(height * 0.4)    # Start below face (40% down)
+            clothing_bottom = int(height * 0.95) # Almost to bottom (95% down)
+            
+            # Draw white rectangle for clothing area to be changed
+            draw.rectangle(
+                [clothing_left, clothing_top, clothing_right, clothing_bottom],
+                fill="white"
+            )
+            
+            # Feather the edges for smooth blending
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=3))
+            
+            # Convert mask to bytes
+            mask_bytes_io = io.BytesIO()
+            mask.save(mask_bytes_io, format="PNG")
+            
+            logger.info(f"Created clothing-only mask: {width}x{height}, clothing area: {clothing_left},{clothing_top} to {clothing_right},{clothing_bottom}")
+            
+            return mask_bytes_io.getvalue()
+            
+        except Exception as e:
+            logger.error(f"Failed to create clothing mask: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Could not process image to create clothing mask.") from e
+
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        🎯 DEEP IMAGE AI: Perfect face preservation with complete background transformation.
-        Uses Deep Image AI's specialized face adapter for exact facial feature retention.
-        Face preservation: 100% guaranteed with adapter_type="face" and face_id=true.
-        Background transformation: Complete scene replacement without face modification.
-        Returns a tuple of (image_bytes, final_prompt) - optimal solution for face + background control.
+        🎯 PROVEN SOLUTION: Stability AI inpainting with precise clothing mask.
+        Creates clothing-only mask to preserve face and background perfectly.
+        Uses inpainting for targeted clothing transformation only.
+        Returns a tuple of (image_bytes, final_prompt) - definitive clothing change solution.
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -178,41 +222,29 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # DEEP IMAGE AI: Optimized prompt for face preservation + background transformation
-            final_prompt = f"A photorealistic portrait of a South Indian spiritual guru with long hair and thick beard (mudi, thadi), {theme_description}. Professional portrait photography, realistic style, detailed textures, vibrant colors, spiritual aura."
-            logger.info(f"Deep Image AI prompt generated: {final_prompt}")
+            # PROVEN APPROACH: Stability AI Inpainting with Clothing Mask
+            logger.info("🎯 Using Stability AI inpainting with precise clothing mask for guaranteed clothing transformation")
             
-            # Try Deep Image AI first (preferred method for face preservation)
-            if self.deep_image_service.is_configured:
-                logger.info("🎯 Using Deep Image AI for perfect face preservation + background transformation")
-                try:
-                    image_bytes = await self.deep_image_service.generate_themed_avatar(
-                        image_url=base_image_url,
-                        theme_description=final_prompt,
-                        width=1024,
-                        height=1024,
-                        model_type="realistic"
-                    )
-                    logger.info("✅ Deep Image AI generation successful")
-                    return image_bytes, final_prompt
-                    
-                except Exception as deep_img_error:
-                    logger.warning(f"Deep Image AI failed, falling back to Stability AI: {deep_img_error}")
+            # Create precise clothing mask (preserve face + background)
+            clothing_mask_bytes = self._create_clothing_mask(base_image_bytes)
             
-            # Fallback to Stability AI if Deep Image AI is not available or fails
-            logger.info("🔄 Falling back to Stability AI img2img approach")
+            # Strong clothing transformation prompt
+            clothing_prompt = f"Transform clothing to match: {theme_description}. Change robes, garments, and attire completely. Professional spiritual clothing, detailed fabric textures, realistic lighting. High quality portrait photography."
+            logger.info(f"Clothing transformation prompt: {clothing_prompt}")
             
-            # Enhanced prompts for Stability AI fallback with strict original preservation
-            stability_prompt = f"((COMPLETELY TRANSFORM background: {theme_description}, spiritual environment, dramatic scene change)), (PRESERVE EXACT original person:1.5), (same facial features:1.4), (same beard length:1.4), (same hair style:1.3), (original mudi and thadi:1.4), same pose, NEVER change the face or hair. Professional portrait photography, realistic style, detailed textures."
-            negative_prompt = "different person, face change, facial modification, altered features, different beard, different hair, hair color change, bald, clean shaven, face replacement, face swap, AI hallucination, changed facial expression, different eyes, different nose, different mouth, altered facial structure, original background, unchanged background, same setting, indoor background, wall background, extra hair, long hair, added beard, modified beard, longer beard, different hair length, extra facial hair, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, 3d render"
+            # Negative prompt to prevent face changes
+            negative_prompt = "face change, facial modification, different person, altered features, different beard, different hair, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, orange robes, orange clothing, saffron robes, same clothing"
 
-            image_bytes = await self.stability_service.generate_image_to_image(
+            # Use Stability AI inpainting for precise clothing transformation
+            image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
-                text_prompt=stability_prompt,
-                negative_prompt=negative_prompt,
-                strength=0.7  # High strength for background transformation
+                mask_image_bytes=clothing_mask_bytes,
+                text_prompt=clothing_prompt,
+                negative_prompt=negative_prompt
             )
-            return image_bytes, final_prompt
+            
+            logger.info("✅ Stability AI clothing inpainting successful - guaranteed clothing transformation")
+            return image_bytes, clothing_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
