@@ -193,7 +193,8 @@ class StabilityAiService:
             "prompt": text_prompt,
             "strength": strength,
             "mode": "image-to-image",
-            "output_format": "png"
+            "output_format": "png",
+            "cfg_scale": 10  # Guidance scale 9-12 range for better prompt adherence as recommended
         }
         
         if negative_prompt:
