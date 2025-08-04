@@ -89,9 +89,9 @@ class ThemeService:
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
         """
-        Creates a gradient head mask for smooth face preservation with natural background blending.
-        NOTE: Currently not used - switched to img2img approach for better head-body consistency.
-        Kept for potential future use if inpainting approach is needed again.
+        Creates an ultra-small gradient face mask for precise core facial feature preservation.
+        Only preserves eyes, nose, mouth area - everything else (background, clothing, hair) changes.
+        Uses 6% inner radius (preserve) and 12% outer radius (transition) for tight control.
         """
         try:
             from PIL import Image, ImageDraw
@@ -107,9 +107,9 @@ class ThemeService:
             face_center_x = width // 2
             face_center_y = int(height * 0.25)  # Face usually in upper 25% of portrait
             
-            # Gradient radial mask parameters
-            inner_radius = min(width, height) * 0.12  # Core face area (black = preserve 100%)
-            outer_radius = min(width, height) * 0.25  # Transition edge (white = change 100%)
+            # ULTRA-SMALL mask parameters - preserve only core facial features
+            inner_radius = min(width, height) * 0.06  # Tiny core face area (eyes, nose, mouth only)
+            outer_radius = min(width, height) * 0.12  # Tight transition edge (hair, clothing change)
             
             # Create gradient mask using distance-based blending
             for y in range(height):
@@ -139,13 +139,13 @@ class ThemeService:
             preserve_percentage = (black_pixels / total_pixels) * 100
             transition_percentage = (gray_pixels / total_pixels) * 100
             
-            logger.info(f"Created gradient mask: {black_pixels} black pixels (preserve), {gray_pixels} gray pixels (transition), {white_pixels} white pixels (change)")
-            logger.info(f"Face preserve: {preserve_percentage:.1f}% | Transition blend: {transition_percentage:.1f}% | Background change: {(white_pixels/total_pixels)*100:.1f}%")
-            logger.info(f"Gradient mask - Center: ({face_center_x}, {face_center_y}) | Inner radius: {inner_radius:.1f}px | Outer radius: {outer_radius:.1f}px")
+            logger.info(f"Created ultra-small face mask: {black_pixels} black pixels (core face only), {gray_pixels} gray pixels (transition), {white_pixels} white pixels (everything else changes)")
+            logger.info(f"Core face preserve: {preserve_percentage:.1f}% | Smooth transition: {transition_percentage:.1f}% | Background/clothing change: {(white_pixels/total_pixels)*100:.1f}%")
+            logger.info(f"Ultra-small mask - Center: ({face_center_x}, {face_center_y}) | Core radius: {inner_radius:.1f}px | Transition radius: {outer_radius:.1f}px")
             
             # CORE.MD: DEBUG - Log actual mask bytes size and format
             mask_size_kb = len(mask_bytes_io.getvalue()) / 1024
-            logger.info(f"Generated gradient mask: {mask_size_kb:.1f}KB PNG format")
+            logger.info(f"Generated ultra-small face mask: {mask_size_kb:.1f}KB PNG format")
             
             return mask_bytes_io.getvalue()
             
@@ -162,6 +162,10 @@ class ThemeService:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
             
+            # CORE.MD: ULTRA-SMALL MASK - Create tiny face-only mask for precise preservation
+            head_mask_bytes = self._create_head_mask(base_image_bytes)
+            logger.info(f"Ultra-small face mask created: {len(head_mask_bytes)/1024:.1f}KB")
+            
             if custom_prompt:
                 theme_description = custom_prompt
                 logger.info(f"Using custom prompt: {custom_prompt}")
@@ -171,18 +175,18 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: IMG2IMG APPROACH - Balanced strength for face preservation with visible theme transformation
-            final_prompt = f"TRANSFORM: A photorealistic portrait of a wise Indian spiritual master, {theme_description}. PRESERVE original facial features exactly, CHANGE background and clothing to match theme, maintain natural lighting and skin tone, seamless professional portrait."
+            # CORE.MD: INPAINTING APPROACH - Ultra-small mask preserves only core facial features
+            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Professional photography, detailed textures, vibrant colors, authentic spiritual setting, dramatic scene transformation."
             logger.info(f"Final prompt generated: {final_prompt}")
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, mismatched lighting, different skin tones, artificial boundaries, harsh transitions, unchanged image, static background, no transformation, identical copy"
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
 
-            # CORE.MD: IMG2IMG with balanced strength - Face preservation with proper theme transformation  
-            logger.info("Using img2img approach with strength=0.45 for face preservation with visible theme changes")
-            image_bytes = await self.stability_service.generate_image_to_image(
+            # CORE.MD: INPAINTING with ultra-small mask - Core face preservation with complete background transformation
+            logger.info("Using inpainting with ultra-small face mask for core facial feature preservation")
+            image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
+                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
-                negative_prompt=negative_prompt,
-                strength=0.45  # Balanced strength for face preservation + visible transformation
+                negative_prompt=negative_prompt
             )
             return image_bytes, final_prompt
 
