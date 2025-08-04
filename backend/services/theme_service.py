@@ -193,18 +193,32 @@ class ThemeService:
         🎯 REAL SWAMIJI FACE PRESERVATION: Advanced OpenCV face detection + precise masking.
         Uses Haar Cascade to detect actual face location for perfect Swamiji preservation.
         Creates larger protection zone with proper grayscale mask for realistic results.
+        
+        🛡️ COMPREHENSIVE ERROR HANDLING: Catches all OpenCV, import, and decoding errors.
         """
         try:
+            # Import OpenCV and related modules (may fail if not installed)
             from PIL import Image, ImageDraw, ImageFilter
             import cv2
             import numpy as np
             import io
             
-            # Load the image for face detection
+            # 🔧 ROBUST IMAGE PROCESSING PIPELINE with comprehensive error handling
+            logger.info("🎯 Starting advanced OpenCV face detection...")
+            
+            # Load and decode image (may fail if corrupted or invalid format)
             image_array = np.frombuffer(image_bytes, dtype=np.uint8)
             cv_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+            
+            # Validate image decoding success
+            if cv_image is None:
+                raise ValueError("Failed to decode image - corrupted or invalid format")
+            
+            # Convert to grayscale (may fail if image format unexpected)
             gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
             height, width = gray.shape
+            
+            logger.info(f"📸 Successfully processed image: {width}x{height} pixels")
             
             # Load Haar Cascade for face detection with robust path handling
             try:
@@ -217,13 +231,13 @@ class ThemeService:
                     
                 logger.info(f"✅ Successfully loaded Haar Cascade from: {cascade_path}")
                 
-            except (FileNotFoundError, ValueError) as e:
+            except (FileNotFoundError, ValueError, OSError) as e:
                 logger.error(f"❌ Haar Cascade loading failed: {e}")
                 logger.warning("🔄 Falling back to simple center-based face detection")
                 # Return fallback mask immediately if cascade fails
                 return self._create_simple_face_mask(image_bytes)
             
-            # Detect faces with optimized parameters for portrait photos
+            # Detect faces with optimized parameters for portrait photos (may fail with cv2.error)
             faces = face_cascade.detectMultiScale(
                 gray,
                 scaleFactor=1.1,
@@ -231,6 +245,8 @@ class ThemeService:
                 minSize=(int(width*0.15), int(height*0.15)),  # Face must be at least 15% of image
                 flags=cv2.CASCADE_SCALE_IMAGE
             )
+            
+            logger.info(f"🔍 Face detection completed: {len(faces)} faces detected")
             
             # Create grayscale mask for proper inpainting (not RGB!)
             mask = Image.new("L", (width, height), 255)  # Start with white (transform) - GRAYSCALE
@@ -293,16 +309,28 @@ class ThemeService:
             
             return mask_bytes_io.getvalue()
             
+        except (cv2.error, ImportError, ValueError, OSError, TypeError, AttributeError) as e:
+            # 🛡️ COMPREHENSIVE ERROR HANDLING for all OpenCV-related failures
+            logger.error(f"❌ OpenCV face detection failed: {type(e).__name__}: {e}", exc_info=True)
+            logger.warning("🔄 Falling back to simple center-based face detection due to OpenCV error")
+            return self._create_simple_face_mask(image_bytes)
+            
         except Exception as e:
-            logger.error(f"Failed to create advanced face mask: {e}", exc_info=True)
-            # Fallback to simple center mask if advanced detection fails
+            # 🔥 UNEXPECTED ERROR FALLBACK - catch any other unforeseen issues
+            logger.error(f"❌ Unexpected error in advanced face detection: {type(e).__name__}: {e}", exc_info=True)
+            logger.warning("🔄 Falling back to simple center-based face detection due to unexpected error")
             return self._create_simple_face_mask(image_bytes)
     
     def _create_simple_face_mask(self, image_bytes: bytes) -> bytes:
-        """Fallback simple face mask if OpenCV detection fails."""
+        """
+        🔄 FALLBACK SIMPLE FACE MASK: Used when OpenCV detection fails.
+        Creates center-based face protection with robust error handling.
+        """
         try:
             from PIL import Image, ImageDraw, ImageFilter
             import io
+            
+            logger.info("🔄 Creating simple center-based face mask (OpenCV fallback)")
             
             input_image = Image.open(io.BytesIO(image_bytes))
             width, height = input_image.size
@@ -311,29 +339,35 @@ class ThemeService:
             mask = Image.new("L", (width, height), 255)  # White = transform
             draw = ImageDraw.Draw(mask)
             
-            # Larger center face area
+            # Larger center face area for safety
             face_center_x = width // 2
-            face_center_y = int(height * 0.3)
-            face_width = int(width * 0.4)
-            face_height = int(height * 0.35)
+            face_center_y = int(height * 0.3)  # Slightly lower than top center
+            face_width = int(width * 0.4)    # 40% of image width
+            face_height = int(height * 0.35)  # 35% of image height
             
             face_left = face_center_x - face_width // 2
             face_right = face_center_x + face_width // 2
             face_top = face_center_y - face_height // 2
             face_bottom = face_center_y + face_height // 2
             
+            # Draw black oval for face preservation
             draw.ellipse([face_left, face_top, face_right, face_bottom], fill=0)  # Black = preserve
             mask = mask.filter(ImageFilter.GaussianBlur(radius=4))
             
             mask_bytes_io = io.BytesIO()
             mask.save(mask_bytes_io, format="PNG")
             
-            logger.info(f"🔄 Simple fallback mask created: {width}x{height}")
+            logger.info(f"✅ Simple fallback mask created successfully: {width}x{height} pixels")
+            logger.info(f"🛡️ Protection zone: {face_width}x{face_height} pixels at center")
             return mask_bytes_io.getvalue()
             
+        except (ImportError, OSError, ValueError, TypeError) as e:
+            logger.error(f"❌ Simple mask creation failed: {type(e).__name__}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Could not create any face mask: {e}") from e
+            
         except Exception as e:
-            logger.error(f"Even simple mask creation failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not create any face mask.") from e
+            logger.error(f"❌ Unexpected error in simple mask creation: {type(e).__name__}: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="Could not create any face mask due to unexpected error.") from e
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
