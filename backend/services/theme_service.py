@@ -202,9 +202,9 @@ class ThemeService:
             # Fallback to Stability AI if Deep Image AI is not available or fails
             logger.info("🔄 Falling back to Stability AI img2img approach")
             
-            # Enhanced prompts for Stability AI fallback
-            stability_prompt = f"((COMPLETELY TRANSFORM background: {theme_description}, spiritual environment, dramatic scene change)), South Indian spiritual guru with long hair and thick beard (mudi, thadi), (PRESERVE EXACT original face details:1.5), (same beard pattern:1.4), (same facial expression:1.4), (same hair style:1.3), same pose, NEVER change the face. Professional portrait photography, realistic style, detailed textures."
-            negative_prompt = "different person, face change, facial modification, altered features, different beard, different hair, hair color change, bald, clean shaven, face replacement, face swap, AI hallucination, changed facial expression, different eyes, different nose, different mouth, altered facial structure, original background, unchanged background, same setting, indoor background, wall background, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, 3d render"
+            # Enhanced prompts for Stability AI fallback with strict original preservation
+            stability_prompt = f"((COMPLETELY TRANSFORM background: {theme_description}, spiritual environment, dramatic scene change)), (PRESERVE EXACT original person:1.5), (same facial features:1.4), (same beard length:1.4), (same hair style:1.3), (original mudi and thadi:1.4), same pose, NEVER change the face or hair. Professional portrait photography, realistic style, detailed textures."
+            negative_prompt = "different person, face change, facial modification, altered features, different beard, different hair, hair color change, bald, clean shaven, face replacement, face swap, AI hallucination, changed facial expression, different eyes, different nose, different mouth, altered facial structure, original background, unchanged background, same setting, indoor background, wall background, extra hair, long hair, added beard, modified beard, longer beard, different hair length, extra facial hair, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, 3d render"
 
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,

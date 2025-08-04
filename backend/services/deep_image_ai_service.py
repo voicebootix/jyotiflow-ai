@@ -72,9 +72,9 @@ class DeepImageAiService:
                 "Content-Type": "application/json"
             }
             
-            # Deep Image AI payload with EXACT original feature preservation
-            # Enhanced description for strict original feature retention
-            enhanced_description = f"PRESERVE EXACT ORIGINAL: {theme_description}. Keep identical hair length, identical beard pattern, identical facial features from uploaded photo. Do not add extra hair, do not modify beard length, do not change facial hair style. Only change background environment and clothing to match theme."
+            # Deep Image AI payload with CONTROL mode for EXACT original preservation
+            # Use control mode instead of face mode for better feature retention
+            enhanced_description = f"Transform background to: {theme_description}. Change only background environment and clothing to match spiritual theme. Professional portrait photography, realistic lighting, detailed textures."
             
             payload = {
                 "url": image_url,
@@ -83,8 +83,8 @@ class DeepImageAiService:
                 "background": {
                     "generate": {
                         "description": enhanced_description,
-                        "adapter_type": "face",  # Use face from input image
-                        "face_id": True,         # Preserve detailed facial features EXACTLY
+                        "adapter_type": "control",  # Use control mode for better preservation
+                        "controlnet_conditioning_scale": 0.85,  # High preservation rate (85%)
                         "model_type": model_type # Realistic model for portraits
                     }
                 },
