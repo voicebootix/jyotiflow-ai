@@ -88,7 +88,11 @@ class ThemeService:
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
     def _create_head_mask(self, image_bytes: bytes) -> bytes:
-        """Creates a gradient head mask for smooth face preservation with natural background blending."""
+        """
+        Creates a gradient head mask for smooth face preservation with natural background blending.
+        NOTE: Currently not used - switched to img2img approach for better head-body consistency.
+        Kept for potential future use if inpainting approach is needed again.
+        """
         try:
             from PIL import Image, ImageDraw
             import io
@@ -157,10 +161,7 @@ class ThemeService:
         try:
             base_image_bytes, _ = await self._get_base_image_data()
             logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB")
-            # CORE.MD: REVERT - img2img changing face, back to inpainting with face protection mask
-            head_mask_bytes = self._create_head_mask(base_image_bytes)
-            logger.info(f"Head mask created: {len(head_mask_bytes)/1024:.1f}KB")
-
+            
             if custom_prompt:
                 theme_description = custom_prompt
                 logger.info(f"Using custom prompt: {custom_prompt}")
@@ -170,17 +171,18 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # CORE.MD: FIX - IMG2IMG approach for identity preservation with theme transformation
-            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Professional photography, detailed textures, vibrant colors, authentic spiritual setting."
+            # CORE.MD: IMG2IMG APPROACH - Switch to img2img with very low strength for natural face preservation + consistent lighting
+            final_prompt = f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}. Maintain original facial features, consistent lighting throughout image, natural skin tone, seamless portrait, professional photography."
             logger.info(f"Final prompt generated: {final_prompt}")
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face"
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, disfigured, poor anatomy, bad hands, extra limbs, cartoon, 3d render, duplicate head, two heads, distorted face, mismatched lighting, different skin tones, artificial boundaries, harsh transitions"
 
-            # CORE.MD: BACK TO INPAINTING - img2img was changing face, inpainting protects face with mask
-            image_bytes = await self.stability_service.generate_image_with_mask(
+            # CORE.MD: IMG2IMG with very low strength - Natural face preservation with head-body consistency  
+            logger.info("Using img2img approach with strength=0.25 for natural face preservation and lighting consistency")
+            image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=head_mask_bytes,
                 text_prompt=final_prompt,
-                negative_prompt=negative_prompt
+                negative_prompt=negative_prompt,
+                strength=0.25  # Very low strength for face preservation + natural blending
             )
             return image_bytes, final_prompt
 
