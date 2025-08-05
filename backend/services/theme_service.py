@@ -93,15 +93,20 @@ class ThemeService:
 
 
 
-    async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
+    async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None, theme_day: Optional[int] = None) -> Tuple[bytes, str]:
         """
         🎯 PRIORITY 3: ENHANCED PROMPT ENGINEERING - Explicit face preservation + detailed themes.
         Uses ultra-specific identity anchoring commands + enhanced theme descriptions + strength 0.4 (maximum safe).
         Returns a tuple of (image_bytes, final_prompt) - Professional face preservation with dramatic theme transformations.
         
+        Args:
+            custom_prompt: Optional custom prompt to override theme-based generation
+            theme_day: Optional day override (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.
+        
         Priority 3 Enhancements:
         - Explicit face preservation commands with ultra-specific feature descriptions
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
+        - Theme day selection for testing all 7 daily themes
         - Follows stability_ai_service.py documentation: 0.3-0.4 recommended for identity preservation
         """
         try:
@@ -112,10 +117,18 @@ class ThemeService:
                 theme_description = custom_prompt
                 logger.info(f"Using custom prompt: {custom_prompt}")
             else:
-                day_of_week = datetime.now().weekday()
+                # Use theme_day override if provided, otherwise use current day
+                if theme_day is not None and 0 <= theme_day <= 6:
+                    day_of_week = theme_day
+                    logger.info(f"🎯 THEME OVERRIDE: Using theme_day={theme_day} instead of current day")
+                else:
+                    day_of_week = datetime.now().weekday()
+                    logger.info(f"📅 Using current day: {day_of_week}")
+                
                 theme = THEMES.get(day_of_week, THEMES.get(0, {"description": "in a serene setting"}))
                 theme_description = theme['description']
-                logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
+                day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
             # PRIORITY 3 APPROACH: Enhanced prompt engineering + ultra-detailed theme descriptions for optimal results
             logger.info("🚀 PRIORITY 3: Enhanced prompt engineering + detailed theme descriptions + explicit face preservation commands")
