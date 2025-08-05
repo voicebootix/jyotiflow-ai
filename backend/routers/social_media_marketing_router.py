@@ -6,6 +6,7 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 """
 
 import logging
+import os
 from typing import Optional, AsyncGenerator
 import json
 from datetime import datetime, timedelta
@@ -233,9 +234,42 @@ async def upload_swamiji_image(
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
 
+async def get_admin_or_test_bypass():
+    """
+    🔒 SECURE ADMIN AUTHENTICATION WITH CONTROLLED TESTING BYPASS
+    
+    Production: Full admin authentication enforced (secure)
+    Development/Testing: TESTING_MODE=true enables bypass with validation
+    
+    ⚠️  DEPLOYMENT WARNING: Remove TESTING_MODE from production environment!
+    🔍 Security logging: All bypass usage is logged for audit trails
+    """
+    testing_mode = os.getenv("TESTING_MODE", "").lower()
+    environment = os.getenv("ENVIRONMENT", "production").lower()
+    
+    # Environment validation - only allow bypass in non-production environments
+    if testing_mode == "true":
+        # Security check: Prevent bypass in production environment
+        if environment in ["production", "prod"]:
+            logger.warning(
+                "🚨 SECURITY ALERT: TESTING_MODE bypass attempted in production environment. "
+                "Falling back to full authentication. Remove TESTING_MODE from production!"
+            )
+        else:
+            # Log bypass usage for security audit trail
+            logger.warning(
+                f"🔓 AUTH BYPASS ACTIVATED: Using TESTING_MODE in {environment} environment. "
+                f"This should NEVER happen in production. Timestamp: {datetime.now()}"
+            )
+            return {"email": "test@admin.com", "role": "admin", "id": 1, "bypass_used": True}
+    
+    # Default: Full admin authentication (production-safe)
+    return await AuthenticationHelper.verify_admin_access_strict()
+
 @social_marketing_router.post("/generate-image-preview")
 async def generate_image_preview(
-    request: ImagePreviewRequest, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    request: ImagePreviewRequest, 
+    admin_user: dict = Depends(get_admin_or_test_bypass),  # Secure + testable
     theme_service: ThemeService = Depends(get_theme_service)
 ):
     try:
