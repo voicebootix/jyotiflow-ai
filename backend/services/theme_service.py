@@ -95,9 +95,9 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        🎯 PRIORITY 1 FACE PRESERVATION: Stability AI img2img with optimized 0.25 strength for maximum face preservation.
-        Uses enhanced prompts and reduced strength (0.25) to keep Swamiji's face completely identical while changing clothing/background.
-        Returns a tuple of (image_bytes, final_prompt) - 80% improved face preservation with themed transformations.
+        🎯 PRIORITY 2 ADVANCED PROMPT ENGINEERING: Enhanced identity anchoring + optimized strength balance.
+        Uses advanced prompt engineering with identity preservation + transformation directives + strength 0.35 sweet spot.
+        Returns a tuple of (image_bytes, final_prompt) - Professional face preservation with visible theme transformations.
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -112,25 +112,42 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # PRIORITY 1 APPROACH: Maximum face preservation with optimized parameters
-            logger.info("🚀 PRIORITY 1: Using enhanced face preservation (strength=0.25 + comprehensive prompts)")
+            # PRIORITY 2 APPROACH: Advanced prompt engineering + optimized strength balance
+            logger.info("🚀 PRIORITY 2: Advanced prompt engineering + optimized strength (0.35) for face preservation + visible changes")
             
-            # PRIORITY 1: ENHANCED FACE PRESERVATION - Optimized parameters for maximum face preservation
-            transformation_prompt = f"PRESERVE EXACTLY: the same person's face, identical facial features, same eyes (exact shape, color, expression), same nose structure, same mouth and smile, same beard pattern and color, same hair texture and style, same skin tone. CHANGE ONLY: clothing to {theme_description}, background environment to match theme. Professional portrait photography, realistic style, detailed textures, vibrant colors."
-            logger.info(f"Priority 1 face preservation prompt: {transformation_prompt}")
+            # PRIORITY 2: ADVANCED PROMPT ENGINEERING - Enhanced identity anchoring + transformation directives
+            # Identity anchor with specific facial feature preservation
+            identity_anchor = f"""PRESERVE EXACTLY: the same person's face from the reference image, 
+            identical facial features, same eyes (exact shape, color, expression), same nose structure, 
+            same mouth and natural smile, same beard pattern and color, same hair texture and style, 
+            same skin tone and complexion, same facial bone structure, same eyebrows, same forehead, 
+            same facial expressions and spiritual character."""
             
-            # PRIORITY 1: ENHANCED NEGATIVE PROMPT - Comprehensive face preservation
+            # Transformation scope with specific instructions
+            transformation_scope = f"""CHANGE COMPLETELY: clothing to {theme_description}, 
+            background environment to match the spiritual theme, lighting to enhance the new setting, 
+            overall atmosphere to create the daily theme mood."""
+            
+            # Quality directives for professional results
+            quality_directives = """Professional portrait photography, photorealistic style, 
+            high detail, sharp focus, natural lighting that enhances features, vibrant colors, 
+            detailed fabric textures, spiritual atmosphere, realistic rendering."""
+            
+            transformation_prompt = f"{identity_anchor} {transformation_scope} {quality_directives}"
+            logger.info(f"Priority 2 advanced prompt engineering: {transformation_prompt[:150]}...")
+            
+            # PRIORITY 2: ENHANCED NEGATIVE PROMPT - Comprehensive face preservation (from Priority 1)
             negative_prompt = "different face, face swap, altered facial features, changed identity, different person, modified eyes, changed nose, altered mouth, different beard, changed hair, face modification, facial reconstruction, different skin tone, altered bone structure, changed eyebrows, different forehead, face replacement, identity change, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon"
 
-            # PRIORITY 1: CRITICAL STRENGTH REDUCTION - 0.45 → 0.25 for maximum face preservation
+            # PRIORITY 2: OPTIMIZED STRENGTH - Sweet spot for face preservation + visible transformation
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.25  # PRIORITY 1: Reduced from 0.45 to 0.25 for 80% better face preservation
+                strength=0.35  # PRIORITY 2: 0.35 sweet spot - face preserved + clothing/background changes visible
             )
             
-            logger.info("✅ PRIORITY 1 SUCCESS: Maximum face preservation (strength=0.25) + enhanced prompts applied")
+            logger.info("✅ PRIORITY 2 SUCCESS: Advanced prompt engineering + optimized strength (0.35) for balanced results")
             return image_bytes, transformation_prompt
 
         except Exception as e:
