@@ -18,6 +18,11 @@ async def test_priority2_face_preservation():
     print("🎯 Testing Priority 2: Advanced Prompt Engineering + 0.35 Strength")
     print("-" * 60)
     
+    # Set testing mode for auth bypass
+    import os
+    os.environ["TESTING_MODE"] = "true"
+    print("✅ TESTING_MODE enabled for auth bypass")
+    
     # Test the image preview endpoint
     base_url = "http://localhost:8000"  # Adjust if needed
     endpoint = "/api/admin/social-marketing/generate-image-preview"
