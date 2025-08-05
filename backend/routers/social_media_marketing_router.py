@@ -11,7 +11,7 @@ from typing import Optional, AsyncGenerator
 import json
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Request
 from pydantic import BaseModel, Field
 import asyncpg
 
@@ -234,7 +234,7 @@ async def upload_swamiji_image(
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
 
-async def get_admin_or_test_bypass():
+async def get_admin_or_test_bypass(request: Request):
     """
     🔒 SECURE ADMIN AUTHENTICATION WITH CONTROLLED TESTING BYPASS
     
@@ -264,7 +264,7 @@ async def get_admin_or_test_bypass():
             return {"email": "test@admin.com", "role": "admin", "id": 1, "bypass_used": True}
     
     # Default: Full admin authentication (production-safe)
-    return await AuthenticationHelper.verify_admin_access_strict()
+    return await AuthenticationHelper.verify_admin_access_strict(request)
 
 @social_marketing_router.post("/generate-image-preview")
 async def generate_image_preview(
