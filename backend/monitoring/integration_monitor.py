@@ -572,13 +572,14 @@ class IntegrationMonitor:
             
         except Exception as e:
             logger.error(f"❌ Failed to get system health: {e}")
-            # Log this system health failure to database
+            # Log this system health failure to database with recursive prevention
             await self._log_integration_issue(
                 integration_point="system_health",
                 issue_type="system_monitoring_failure",
                 severity="high",
                 description=f"Failed to retrieve system health status: {str(e)}",
-                auto_fixable=False
+                auto_fixable=False,
+                _prevent_recursion=True
             )
             return {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -589,8 +590,9 @@ class IntegrationMonitor:
     # Private helper methods
     
     async def _log_integration_issue(self, integration_point: str, issue_type: str, 
-                                   severity: str, description: str, auto_fixable: bool = False) -> None:
-        """Log integration issues to database for tracking"""
+                                   severity: str, description: str, auto_fixable: bool = False,
+                                   _prevent_recursion: bool = False) -> None:
+        """Log integration issues to database for tracking with recursive error prevention"""
         try:
             conn = await db_manager.get_connection()
             try:
@@ -604,7 +606,13 @@ class IntegrationMonitor:
             finally:
                 await db_manager.release_connection(conn)
         except Exception as e:
-            logger.error(f"Failed to log integration issue to database: {e}")
+            # Fallback logging mechanism - prevents recursive database logging attempts
+            if not _prevent_recursion:
+                logger.error(f"Failed to log integration issue to database: {e}")
+                logger.warning(f"📋 Fallback log - {severity.upper()} issue for {integration_point}: {issue_type} - {description}")
+            else:
+                # Already in recursive prevention mode - only log to application logger
+                logger.error(f"Database logging failed during recursive prevention for {integration_point}: {e}")
     async def _attempt_auto_fix(self, session_id: str, 
                                integration_point: IntegrationPoint,
                                validation_result: Dict) -> Dict:
