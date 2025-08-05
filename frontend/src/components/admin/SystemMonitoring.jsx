@@ -116,6 +116,10 @@ const SystemMonitoring = () => {
           status: response.data.system_health?.system_status || "healthy",
           integrations: response.data.system_health?.integration_points || {},
           recent_issues: response.data.system_health?.recent_issues || [],
+          metrics: response.data.metrics || {
+            success_rates: {},
+            avg_response_times: {},
+          },
         };
         console.log("✅ Normalized monitoring data:", normalizedData);
         setMonitoringData(normalizedData);
