@@ -95,9 +95,9 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        🎯 SIMPLE TRANSFORMATION: Stability AI img2img for natural theme transformation.
-        Uses image-to-image generation with balanced strength for face preservation + clothing/background change.
-        Returns a tuple of (image_bytes, final_prompt) - balanced transformation with natural face preservation.
+        🎯 FACE PRESERVATION TRANSFORMATION: Stability AI img2img with low strength for maximum face preservation.
+        Uses image-to-image generation with 0.3 strength to keep Swamiji's face identical while only changing clothing/background.
+        Returns a tuple of (image_bytes, final_prompt) - complete face preservation with clothing/background transformation only.
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -115,22 +115,22 @@ class ThemeService:
             # SIMPLE APPROACH: Stability AI img2img with balanced strength
             logger.info("🚀 Using Stability AI img2img for natural transformation")
             
-            # Balanced transformation prompt - preserves identity while changing attire/background
-            transformation_prompt = f"A photorealistic portrait of a South Indian spiritual guru, {theme_description}. Change clothing and background to match theme while preserving the person's facial features, expressions, and identity. Professional portrait photography, realistic style, detailed textures, vibrant colors."
-            logger.info(f"Transformation prompt: {transformation_prompt}")
+            # FACE PRESERVATION FOCUSED: Only change clothing and background, keep face identical
+            transformation_prompt = f"Transform the clothing and background only: {theme_description}. Keep the person's face, facial features, expressions, skin tone, eyes, nose, mouth, beard, hair EXACTLY the same. Only change robes/clothing colors and background environment. Professional portrait photography, realistic style, detailed textures, vibrant colors."
+            logger.info(f"Face-preserving transformation prompt: {transformation_prompt}")
             
-            # Simple negative prompt for quality
-            negative_prompt = "face change, different person, altered facial features, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon"
+            # STRONG face preservation negative prompt
+            negative_prompt = "face change, different face, altered facial features, different person, different eyes, different nose, different mouth, different beard, different hair, face swap, facial modification, changed identity, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon"
 
-            # Use Stability AI img2img with balanced strength for natural transformation
+            # Use Stability AI img2img with LOW strength for maximum face preservation
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.6  # Balanced: preserves face identity, transforms clothing/background
+                strength=0.3  # LOW strength: preserves face completely, only changes clothing/background
             )
             
-            logger.info("✅ Stability AI img2img successful - natural theme transformation with face preservation")
+            logger.info("✅ Stability AI img2img successful - FACE PRESERVED, only clothing/background transformed")
             return image_bytes, transformation_prompt
 
         except Exception as e:
