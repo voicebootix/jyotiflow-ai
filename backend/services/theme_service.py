@@ -2,14 +2,14 @@
 🌟 THEME SERVICE
 
 This service is the creative engine that generates daily visual themes for Swamiji's avatar.
-It now uses advanced image masking to preserve Swamiji's head while changing the background and attire.
+It uses Stability AI's image-to-image generation with balanced strength for natural transformation 
+while preserving Swamiji's identity and changing clothing/background according to daily themes.
 """
 
 import logging
 from datetime import datetime
 import os
 import uuid
-import numpy as np
 import httpx
 from fastapi import HTTPException, Depends
 import asyncpg
@@ -17,7 +17,6 @@ import json
 from typing import Optional, Tuple
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
-from services.deep_image_ai_service import DeepImageAiService, get_deep_image_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 import db
 
@@ -34,52 +33,21 @@ THEMES = {
 }
 
 class ThemeService:
-    """Orchestrates the generation of daily themes using advanced image masking."""
+    """Orchestrates the generation of daily themes using Stability AI img2img."""
 
     def __init__(
         self,
         stability_service: StabilityAiService,
-        deep_image_service: DeepImageAiService,
         storage_service: SupabaseStorageService,
         db_conn: asyncpg.Connection,
     ):
         self.stability_service = stability_service
-        self.deep_image_service = deep_image_service
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        self.face_cascade = None
-        logger.info("Initialized ThemeService with Deep Image AI and Stability AI services")
+        logger.info("Initialized ThemeService with Stability AI img2img service")
     
-    def _get_cascade_file_path(self) -> str:
-        """
-        🛡️ ROBUST CASCADE PATH: Get Haar Cascade file path from environment or default.
-        Supports different deployment environments (Docker, Render, local dev).
-        """
-        # Try environment variable first (for deployment flexibility)
-        cascade_path = os.environ.get('HAAR_CASCADE_PATH')
-        
-        if cascade_path:
-            logger.info(f"Using Haar Cascade from environment: {cascade_path}")
-            return cascade_path
-        
-        # Default paths to try (in order of preference)
-        possible_paths = [
-            "backend/assets/haarcascade_frontalface_default.xml",  # Current working directory
-            "assets/haarcascade_frontalface_default.xml",         # Deployed assets
-            "/app/backend/assets/haarcascade_frontalface_default.xml",  # Docker container
-            os.path.join(os.path.dirname(__file__), "../assets/haarcascade_frontalface_default.xml"),  # Relative to this file
-        ]
-        
-        for path in possible_paths:
-            if os.path.isfile(path):
-                logger.info(f"Found Haar Cascade at: {path}")
-                return path
-        
-        # If no file found, log all attempted paths and raise error
-        error_msg = f"Haar Cascade file not found. Tried paths: {possible_paths}"
-        logger.error(error_msg)
-        raise FileNotFoundError(error_msg)
+
 
     async def _get_base_image_data(self) -> tuple[bytes, str]:
         """
@@ -121,260 +89,15 @@ class ThemeService:
             logger.error(f"An unexpected error occurred in _get_base_image_data: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
-    def _create_head_mask(self, image_bytes: bytes) -> bytes:
-        """
-        Creates a comprehensive gradient preservation mask for complete identity retention.
-        NOTE: Currently not used - switched to img2img 0.6 strength for natural proportions.
-        Kept for potential future use if inpainting approach is needed again.
-        Uses 12% inner radius (face+hair+beard) and 24% outer radius (complete head coverage) for total preservation.
-        """
-        try:
-            from PIL import Image, ImageDraw
-            import io
-            
-            image = Image.open(io.BytesIO(image_bytes))
-            width, height = image.size
-            
-            # CORE.MD: ADVANCED FIX - Gradient mask: Smooth transition from face preserve to background change
-            mask_array = np.full((height, width), 255, dtype=np.uint8)  # Start with white (change everything)
-            
-            # Face center positioning - typically upper portion of image
-            face_center_x = width // 2
-            face_center_y = int(height * 0.25)  # Face usually in upper 25% of portrait
-            
-            # COMPREHENSIVE PRESERVATION MASK - Cover face, hair, and beard for complete identity retention
-            inner_radius = min(width, height) * 0.12  # Core preservation area (face + hair + beard)
-            outer_radius = min(width, height) * 0.24  # Transition edge (complete head coverage)
-            
-            # Create gradient mask using distance-based blending
-            for y in range(height):
-                for x in range(width):
-                    # Calculate distance from face center
-                    distance = np.sqrt((x - face_center_x)**2 + (y - face_center_y)**2)
-                    
-                    if distance <= inner_radius:
-                        # Core face area: Black (preserve completely)
-                        mask_array[y, x] = 0
-                    elif distance <= outer_radius:
-                        # Transition area: Gradient from black to white
-                        transition_ratio = (distance - inner_radius) / (outer_radius - inner_radius)
-                        mask_array[y, x] = int(255 * transition_ratio)
-                    # Outer area remains white (change completely)
-            
-            # Convert numpy array to PIL Image
-            mask_image = Image.fromarray(mask_array, 'L')
-            mask_bytes_io = io.BytesIO()
-            mask_image.save(mask_bytes_io, format='PNG')
-            
-            # CORE.MD: DEBUG - Enhanced debugging for gradient mask analysis
-            white_pixels = np.sum(mask_array == 255)  # White = change body/background
-            black_pixels = np.sum(mask_array == 0)    # Black = preserve face
-            gray_pixels = np.sum((mask_array > 0) & (mask_array < 255))  # Gray = transition area
-            total_pixels = mask_array.size
-            preserve_percentage = (black_pixels / total_pixels) * 100
-            transition_percentage = (gray_pixels / total_pixels) * 100
-            
-            logger.info(f"Created comprehensive preservation mask: {black_pixels} black pixels (face+hair+beard preserved), {gray_pixels} gray pixels (smooth transition), {white_pixels} white pixels (background/clothing change)")
-            logger.info(f"Complete identity preserve: {preserve_percentage:.1f}% | Smooth transition: {transition_percentage:.1f}% | Theme transformation: {(white_pixels/total_pixels)*100:.1f}%")
-            logger.info(f"Comprehensive mask - Center: ({face_center_x}, {face_center_y}) | Preservation radius: {inner_radius:.1f}px | Transition radius: {outer_radius:.1f}px")
-            
-            # CORE.MD: DEBUG - Log actual mask bytes size and format
-            mask_size_kb = len(mask_bytes_io.getvalue()) / 1024
-            logger.info(f"Generated comprehensive preservation mask: {mask_size_kb:.1f}KB PNG format")
-            
-            return mask_bytes_io.getvalue()
-            
-        except Exception as e:
-            logger.error(f"Failed to create head mask: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not process image to create head mask.") from e
 
-    def _create_face_only_mask(self, image_bytes: bytes) -> bytes:
-        """
-        🎯 REAL SWAMIJI FACE PRESERVATION: Advanced OpenCV face detection + precise masking.
-        Uses Haar Cascade to detect actual face location for perfect Swamiji preservation.
-        Creates larger protection zone with proper grayscale mask for realistic results.
-        
-        🛡️ COMPREHENSIVE ERROR HANDLING: Catches all OpenCV, import, and decoding errors.
-        """
-        try:
-            # Import OpenCV and related modules (may fail if not installed)
-            from PIL import Image, ImageDraw, ImageFilter
-            import cv2
-            import numpy as np
-            import io
-            
-            # 🔧 ROBUST IMAGE PROCESSING PIPELINE with comprehensive error handling
-            logger.info("🎯 Starting advanced OpenCV face detection...")
-            
-            # Load and decode image (may fail if corrupted or invalid format)
-            image_array = np.frombuffer(image_bytes, dtype=np.uint8)
-            cv_image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-            
-            # Validate image decoding success
-            if cv_image is None:
-                raise ValueError("Failed to decode image - corrupted or invalid format")
-            
-            # Convert to grayscale (may fail if image format unexpected)
-            gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
-            height, width = gray.shape
-            
-            logger.info(f"📸 Successfully processed image: {width}x{height} pixels")
-            
-            # Load Haar Cascade for face detection with robust path handling
-            try:
-                cascade_path = self._get_cascade_file_path()
-                face_cascade = cv2.CascadeClassifier(cascade_path)
-                
-                # Verify cascade loaded successfully
-                if face_cascade.empty():
-                    raise ValueError(f"Failed to load Haar Cascade from {cascade_path}")
-                    
-                logger.info(f"✅ Successfully loaded Haar Cascade from: {cascade_path}")
-                
-            except (FileNotFoundError, ValueError, OSError) as e:
-                logger.error(f"❌ Haar Cascade loading failed: {e}")
-                logger.warning("🔄 Falling back to simple center-based face detection")
-                # Return fallback mask immediately if cascade fails
-                return self._create_simple_face_mask(image_bytes)
-            
-            # Detect faces with optimized parameters for portrait photos (may fail with cv2.error)
-            faces = face_cascade.detectMultiScale(
-                gray,
-                scaleFactor=1.1,
-                minNeighbors=5,
-                minSize=(int(width*0.15), int(height*0.15)),  # Face must be at least 15% of image
-                flags=cv2.CASCADE_SCALE_IMAGE
-            )
-            
-            logger.info(f"🔍 Face detection completed: {len(faces)} faces detected")
-            
-            # Create grayscale mask for proper inpainting (not RGB!)
-            mask = Image.new("L", (width, height), 255)  # Start with white (transform) - GRAYSCALE
-            draw = ImageDraw.Draw(mask)
-            
-            if len(faces) > 0:
-                # Use detected face (take the largest one if multiple detected)
-                x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
-                
-                # Expand protection zone for complete face + hair + beard preservation
-                expansion_factor = 1.4  # 40% larger than detected face
-                expanded_w = int(w * expansion_factor)
-                expanded_h = int(h * expansion_factor)
-                
-                # Center the expanded area on the detected face
-                face_center_x = x + w // 2
-                face_center_y = y + h // 2
-                
-                # Calculate expanded boundaries
-                face_left = max(0, face_center_x - expanded_w // 2)
-                face_right = min(width, face_center_x + expanded_w // 2)
-                face_top = max(0, face_center_y - expanded_h // 2)
-                face_bottom = min(height, face_center_y + expanded_h // 2)
-                
-                logger.info(f"🎯 DETECTED Swamiji face at: ({x},{y}) size: {w}x{h}")
-                logger.info(f"🛡️ EXPANDED protection zone: ({face_left},{face_top}) to ({face_right},{face_bottom}) size: {expanded_w}x{expanded_h}")
-                
-            else:
-                # Fallback to center-based detection if OpenCV fails
-                logger.warning("⚠️ Face detection failed, using center-based fallback")
-                face_center_x = width // 2
-                face_center_y = int(height * 0.3)  # Slightly lower for better coverage
-                
-                # Larger fallback protection area
-                expanded_w = int(width * 0.4)   # 40% of image width
-                expanded_h = int(height * 0.35)  # 35% of image height
-                
-                face_left = max(0, face_center_x - expanded_w // 2)
-                face_right = min(width, face_center_x + expanded_w // 2)
-                face_top = max(0, face_center_y - expanded_h // 2)
-                face_bottom = min(height, face_center_y + expanded_h // 2)
-                
-                logger.info(f"🔄 FALLBACK protection zone: ({face_left},{face_top}) to ({face_right},{face_bottom})")
-            
-            # Draw black oval for PRECISE face preservation (grayscale: 0 = preserve)
-            draw.ellipse(
-                [face_left, face_top, face_right, face_bottom],
-                fill=0  # Black (0) in grayscale = preserve this area
-            )
-            
-            # Gentle feathering for natural blending (reduced from radius=8 to radius=4)
-            mask = mask.filter(ImageFilter.GaussianBlur(radius=4))
-            
-            # Convert to bytes
-            mask_bytes_io = io.BytesIO()
-            mask.save(mask_bytes_io, format="PNG")
-            
-            logger.info(f"✅ Created REAL SWAMIJI face preservation mask: {width}x{height} (grayscale format)")
-            logger.info(f"🎭 Face protection zone: {face_right-face_left}x{face_bottom-face_top} pixels")
-            
-            return mask_bytes_io.getvalue()
-            
-        except (cv2.error, ImportError, ValueError, OSError, TypeError, AttributeError) as e:
-            # 🛡️ COMPREHENSIVE ERROR HANDLING for all OpenCV-related failures
-            logger.error(f"❌ OpenCV face detection failed: {type(e).__name__}: {e}", exc_info=True)
-            logger.warning("🔄 Falling back to simple center-based face detection due to OpenCV error")
-            return self._create_simple_face_mask(image_bytes)
-            
-        except Exception as e:
-            # 🔥 UNEXPECTED ERROR FALLBACK - catch any other unforeseen issues
-            logger.error(f"❌ Unexpected error in advanced face detection: {type(e).__name__}: {e}", exc_info=True)
-            logger.warning("🔄 Falling back to simple center-based face detection due to unexpected error")
-            return self._create_simple_face_mask(image_bytes)
-    
-    def _create_simple_face_mask(self, image_bytes: bytes) -> bytes:
-        """
-        🔄 FALLBACK SIMPLE FACE MASK: Used when OpenCV detection fails.
-        Creates center-based face protection with robust error handling.
-        """
-        try:
-            from PIL import Image, ImageDraw, ImageFilter
-            import io
-            
-            logger.info("🔄 Creating simple center-based face mask (OpenCV fallback)")
-            
-            input_image = Image.open(io.BytesIO(image_bytes))
-            width, height = input_image.size
-            
-            # Grayscale mask (proper format for inpainting)
-            mask = Image.new("L", (width, height), 255)  # White = transform
-            draw = ImageDraw.Draw(mask)
-            
-            # Larger center face area for safety
-            face_center_x = width // 2
-            face_center_y = int(height * 0.3)  # Slightly lower than top center
-            face_width = int(width * 0.4)    # 40% of image width
-            face_height = int(height * 0.35)  # 35% of image height
-            
-            face_left = face_center_x - face_width // 2
-            face_right = face_center_x + face_width // 2
-            face_top = face_center_y - face_height // 2
-            face_bottom = face_center_y + face_height // 2
-            
-            # Draw black oval for face preservation
-            draw.ellipse([face_left, face_top, face_right, face_bottom], fill=0)  # Black = preserve
-            mask = mask.filter(ImageFilter.GaussianBlur(radius=4))
-            
-            mask_bytes_io = io.BytesIO()
-            mask.save(mask_bytes_io, format="PNG")
-            
-            logger.info(f"✅ Simple fallback mask created successfully: {width}x{height} pixels")
-            logger.info(f"🛡️ Protection zone: {face_width}x{face_height} pixels at center")
-            return mask_bytes_io.getvalue()
-            
-        except (ImportError, OSError, ValueError, TypeError) as e:
-            logger.error(f"❌ Simple mask creation failed: {type(e).__name__}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Could not create any face mask: {e}") from e
-            
-        except Exception as e:
-            logger.error(f"❌ Unexpected error in simple mask creation: {type(e).__name__}: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="Could not create any face mask due to unexpected error.") from e
+
+
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        🎯 AGGRESSIVE TRANSFORMATION: Stability AI inpainting with face-only mask.
-        Creates face-only mask to preserve core facial features only.
-        Uses inpainting for complete clothing + background transformation.
-        Returns a tuple of (image_bytes, final_prompt) - maximum transformation with face protection.
+        🎯 SIMPLE TRANSFORMATION: Stability AI img2img for natural theme transformation.
+        Uses image-to-image generation with balanced strength for face preservation + clothing/background change.
+        Returns a tuple of (image_bytes, final_prompt) - balanced transformation with natural face preservation.
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -389,51 +112,25 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # AGGRESSIVE APPROACH: Stability AI Inpainting with Face-Only Mask
-            logger.info("🚀 Using Stability AI inpainting with face-only mask for complete transformation")
+            # SIMPLE APPROACH: Stability AI img2img with balanced strength
+            logger.info("🚀 Using Stability AI img2img for natural transformation")
             
-            # Create face-only mask (preserve core face, transform everything else)
-            face_mask_bytes = self._create_face_only_mask(base_image_bytes)
+            # Balanced transformation prompt - preserves identity while changing attire/background
+            transformation_prompt = f"A photorealistic portrait of a South Indian spiritual guru, {theme_description}. Change clothing and background to match theme while preserving the person's facial features, expressions, and identity. Professional portrait photography, realistic style, detailed textures, vibrant colors."
+            logger.info(f"Transformation prompt: {transformation_prompt}")
             
-            # Complete transformation prompt - clothing + background
-            transformation_prompt = f"A photorealistic portrait of a South Indian spiritual guru, {theme_description}. Transform clothing completely to match theme. Change background environment to spiritual setting. Professional portrait photography, realistic style, detailed textures, vibrant colors."
-            logger.info(f"Complete transformation prompt: {transformation_prompt}")
-            
-            # Dynamic negative prompt based on theme requirements
-            def _get_theme_aware_negative_prompt(theme_desc: str) -> str:
-                """Create negative prompt that doesn't conflict with theme colors."""
-                base_negative = "face change, facial modification, different person, altered features, different eyes, different nose, different mouth, different beard, different hair, face replacement, face swap, AI hallucination, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, same clothing, unchanged clothing"
-                
-                # Color-specific negatives - only add if theme doesn't require these colors
-                color_negatives = []
-                
-                theme_lower = theme_desc.lower()
-                if "orange" not in theme_lower and "saffron" not in theme_lower:
-                    color_negatives.extend(["orange robes", "orange clothing", "saffron robes"])
-                if "white" not in theme_lower and "serene white" not in theme_lower:
-                    color_negatives.extend(["unchanged white clothing"])
-                if "gold" not in theme_lower:
-                    color_negatives.extend(["unchanged gold"])
-                    
-                # Combine base negatives with appropriate color negatives
-                if color_negatives:
-                    return base_negative + ", " + ", ".join(color_negatives)
-                else:
-                    return base_negative
-            
-            negative_prompt = _get_theme_aware_negative_prompt(theme_description)
+            # Simple negative prompt for quality
+            negative_prompt = "face change, different person, altered facial features, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon"
 
-            # Use Stability AI inpainting for complete transformation with enhanced parameters
-            image_bytes = await self.stability_service.generate_image_with_mask(
+            # Use Stability AI img2img with balanced strength for natural transformation
+            image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=face_mask_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                cfg_scale=12,  # Higher guidance scale for better prompt adherence
-                steps=30       # More steps for higher quality
+                strength=0.6  # Balanced: preserves face identity, transforms clothing/background
             )
             
-            logger.info("✅ Stability AI face-only inpainting successful - complete clothing + background transformation")
+            logger.info("✅ Stability AI img2img successful - natural theme transformation with face preservation")
             return image_bytes, transformation_prompt
 
         except Exception as e:
@@ -473,9 +170,8 @@ class ThemeService:
 # --- FastAPI Dependency Injection ---
 def get_theme_service(
     stability_service: StabilityAiService = Depends(get_stability_service),
-    deep_image_service: DeepImageAiService = Depends(get_deep_image_service),
     storage_service: SupabaseStorageService = Depends(get_storage_service),
     db_conn: asyncpg.Connection = Depends(db.get_db),
 ) -> "ThemeService":
     """Creates an instance of the ThemeService with its required dependencies."""
-    return ThemeService(stability_service, deep_image_service, storage_service, db_conn)
+    return ThemeService(stability_service, storage_service, db_conn)
