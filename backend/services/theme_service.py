@@ -173,15 +173,18 @@ class ThemeService:
             # PRIORITY 2: ENHANCED NEGATIVE PROMPT - Comprehensive face preservation (from Priority 1)
             negative_prompt = "different face, face swap, altered facial features, changed identity, different person, modified eyes, changed nose, altered mouth, different beard, changed hair, face modification, facial reconstruction, different skin tone, altered bone structure, changed eyebrows, different forehead, face replacement, identity change, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon"
 
-            # PRIORITY 2+: MAXIMUM SAFE STRENGTH - Following stability_ai_service.py documentation (0.3-0.4 range)
+            # 🚀 OPTION A: AGGRESSIVE STRENGTH TEST (0.8) - EXPERIMENTAL
+            # WARNING: This WILL likely change face, but should prove themes work dramatically
+            # If face changes too much, we'll implement Phase 2 inpainting approach
+            # This exceeds documented safe range (0.3-0.4) but needed to test theme transformation limits
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.4  # PRIORITY 2+: 0.4 maximum safe - top of documented range for identity preservation
+                strength=0.8  # 🧪 AGGRESSIVE TEST: 80% transformation - will change face but prove themes work
             )
             
-            logger.info("✅ PRIORITY 3 SUCCESS: Enhanced prompt engineering + detailed themes + explicit face preservation commands")
+            logger.info("✅ OPTION A SUCCESS: Aggressive strength 0.8 test - expecting dramatic theme changes (face may change)")
             return image_bytes, transformation_prompt
 
         except Exception as e:
