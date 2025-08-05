@@ -275,8 +275,20 @@ async def generate_image_preview(
     try:
         image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(custom_prompt=request.custom_prompt)
         
-        # Clean prompt for HTTP header (remove newlines, limit length, encode properly)
-        clean_prompt = final_prompt.replace('\n', ' ').replace('\r', ' ').strip()[:500]
+        # Robust HTTP header sanitization (core.md: explain complex logic)
+        # 1. Handle None/non-string values defensively
+        if final_prompt is None or not isinstance(final_prompt, str):
+            clean_prompt = "Generated image preview"
+        else:
+            # 2. Remove ALL HTTP-invalid control characters (0x00–0x1F and 0x7F)
+            # This includes \n, \r, \t, and all other control chars that break headers
+            import re
+            clean_prompt = re.sub(r'[\x00-\x1F\x7F]', ' ', final_prompt)
+            # 3. Normalize whitespace and trim to valid length
+            clean_prompt = ' '.join(clean_prompt.split()).strip()[:500]
+            # 4. Fallback if cleaning resulted in empty string
+            if not clean_prompt:
+                clean_prompt = "Generated image preview"
         
         headers = {
             "X-Generated-Prompt": clean_prompt, 
