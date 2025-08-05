@@ -270,21 +270,20 @@ class IntegrationMonitor:
                 }
                 
                 # Attempt auto-fix
-                print(f"🔧 Attempting auto-fix for {integration_point.value} with error: {validation_result.get('error')}")
+                logger.debug(f"🔧 Attempting auto-fix for {integration_point.value} with error: {validation_result.get('error')}")
                 auto_fix_result = await self._attempt_auto_fix(
                     session_id, integration_point, validation_result
                 )
-                print(f"🔧 Auto-fix result: {auto_fix_result}")
+                logger.debug(f"🔧 Auto-fix result: {auto_fix_result}")
                 
                 validation_result["auto_fix_applied"] = auto_fix_result.get("fixed", False)
                 validation_result["fix_description"] = auto_fix_result.get("fix_description", "")
                 
                 if auto_fix_result.get("fixed"):
                     validation_result["status"] = "fixed"
-                    print(f"✅ Auto-fixed issue for {integration_point.value}: {auto_fix_result['fix_description']}")
                     logger.info(f"✅ Auto-fixed issue for {integration_point.value}: {auto_fix_result['fix_description']}")
                 else:
-                    print(f"⚠️ Auto-fix not applied for {integration_point.value}: {auto_fix_result.get('reason', 'Unknown reason')}")
+                    logger.debug(f"⚠️ Auto-fix not applied for {integration_point.value}: {auto_fix_result.get('reason', 'Unknown reason')}")
                     
             else:
                 # Get validator for this integration point
@@ -553,8 +552,8 @@ class IntegrationMonitor:
             issue_type = validation_result.get('status', 'unknown')
             error_message = validation_result.get('error', '').lower()
             
-            print(f"🔧 Generic auto-fix called for {integration_point.value}")
-            print(f"🔧 Issue type: {issue_type}, Error: {error_message}")
+            logger.debug(f"🔧 Generic auto-fix called for {integration_point.value}")
+            logger.debug(f"🔧 Issue type: {issue_type}, Error: {error_message}")
             
             # Auto-fix for API timeouts
             if 'timeout' in error_message or 'rate limit' in error_message:
@@ -564,7 +563,7 @@ class IntegrationMonitor:
                     "auto_fix_type": "retry_with_backoff",
                     "next_retry_seconds": 30
                 }
-                print(f"🔧 Timeout/Rate limit fix applied: {result}")
+                logger.info(f"🔧 Timeout/Rate limit fix applied: {result}")
                 return result
             
             # Auto-fix for service unavailable
@@ -575,7 +574,7 @@ class IntegrationMonitor:
                     "auto_fix_type": "fallback_mode",
                     "fallback_enabled": True
                 }
-                print(f"🔧 Service unavailable fix applied: {result}")
+                logger.info(f"🔧 Service unavailable fix applied: {result}")
                 return result
             
             # Auto-fix for validation failures
@@ -586,17 +585,17 @@ class IntegrationMonitor:
                     "auto_fix_type": "data_sanitization",
                     "sanitized": True
                 }
-                print(f"🔧 Validation failure fix applied: {result}")
+                logger.info(f"🔧 Validation failure fix applied: {result}")
                 return result
             
-            # Default fallback - ALWAYS try to fix something
+            # Default fallback - Conservative approach for unknown issues
             result = {
-                "fixed": True,
-                "fix_description": f"Applied generic recovery for {integration_point.value}",
-                "auto_fix_type": "generic_recovery",
-                "reason": f"Default auto-fix for issue type: {issue_type}"
+                "fixed": False,
+                "fix_description": f"No specific auto-fix available for {integration_point.value}",
+                "auto_fix_type": "none",
+                "reason": f"Unknown issue type '{issue_type}' - no automatic fix applied to avoid false success indication"
             }
-            print(f"🔧 Default auto-fix applied: {result}")
+            logger.debug(f"⚠️ No auto-fix available for unknown issue: {result}")
             return result
             
         except Exception as e:
@@ -797,15 +796,5 @@ class IntegrationMonitor:
                 "error": str(e)
             }
 
-# Singleton instance - initialize only when needed
-integration_monitor = None
-
-def get_integration_monitor():
-    """Get the singleton integration monitor instance"""
-    global integration_monitor
-    if integration_monitor is None:
-        integration_monitor = IntegrationMonitor()
-    return integration_monitor
-
-# Initialize the integration monitor immediately for dashboard access
+# Singleton instance - initialized immediately for dashboard access
 integration_monitor = IntegrationMonitor()

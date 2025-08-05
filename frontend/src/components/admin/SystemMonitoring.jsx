@@ -373,7 +373,7 @@ const SystemMonitoring = () => {
                         </div>
                       )}
 
-                      {key === "rag" && data.relevance_avg && (
+                      {key === "rag_knowledge" && data.relevance_avg && (
                         <div className="flex items-center justify-between">
                           <span>Relevance:</span>
                           <span
