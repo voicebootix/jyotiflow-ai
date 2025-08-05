@@ -512,7 +512,7 @@ class IntegrationMonitor:
                 # Get integration validation failures
                 integration_issues = await conn.fetch("""
                     SELECT 
-                        CONCAT(integration_name, '_', validation_type) as type,
+                        LEFT(CONCAT(integration_name, '_', COALESCE(validation_type, 'unknown')), 100) as type,
                         CASE 
                             WHEN status = 'error' THEN 'high'
                             WHEN status = 'warning' THEN 'medium'
