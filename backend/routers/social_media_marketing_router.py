@@ -234,6 +234,7 @@ async def upload_swamiji_image(
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
     theme_day: Optional[int] = Field(None, description="Override daily theme with specific day (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.")
+    strength_param: float = Field(0.4, ge=0.0, le=1.0, description="Transformation strength (0.0-1.0). Default 0.4 (safe). Higher values enable aggressive testing controlled by feature flags.")
 
 async def get_admin_or_test_bypass(request: Request):
     """
@@ -276,7 +277,8 @@ async def generate_image_preview(
     try:
         image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(
             custom_prompt=request.custom_prompt, 
-            theme_day=request.theme_day
+            theme_day=request.theme_day,
+            strength_param=request.strength_param  # 🎯 Configurable strength with feature flag control
         )
         
         # Robust HTTP header sanitization (core.md: explain complex logic)

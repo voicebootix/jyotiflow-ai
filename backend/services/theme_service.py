@@ -51,6 +51,58 @@ class ThemeService:
     
 
 
+    async def _determine_safe_strength(self, requested_strength: float) -> float:
+        """
+        🎯 FEATURE FLAG CONTROLLED STRENGTH DETERMINATION - CORE.MD & REFRESH.MD COMPLIANCE
+        Implements A/B testing and controlled rollout for aggressive transformation parameters.
+        
+        Args:
+            requested_strength: The requested strength parameter (default 0.4)
+            
+        Returns:
+            float: The final strength to use, controlled by feature flags and safety checks
+            
+        Feature Flag Logic:
+        - AGGRESSIVE_THEME_TESTING=true: Enables controlled aggressive testing (0.6-0.8)
+        - TESTING_MODE=true: Allows higher strength for development testing
+        - Default: Uses safe range (0.3-0.4) for production
+        - A/B Testing: Future enhancement for user subset testing
+        """
+        # Environment-based feature flags
+        aggressive_testing_enabled = os.getenv("AGGRESSIVE_THEME_TESTING", "false").lower() == "true"
+        testing_mode = os.getenv("TESTING_MODE", "false").lower() == "true"
+        environment = os.getenv("ENVIRONMENT", "production").lower()
+        
+        # Safety validation - ensure strength is within valid range
+        if not (0.0 <= requested_strength <= 1.0):
+            logger.error(f"❌ INVALID STRENGTH: {requested_strength} outside range 0.0-1.0, defaulting to 0.4")
+            return 0.4
+            
+        # Feature flag decision tree
+        if aggressive_testing_enabled and environment in ["development", "staging", "testing"]:
+            # Controlled aggressive testing in non-production environments
+            if requested_strength > 0.4:
+                logger.warning(f"🧪 FEATURE FLAG ACTIVE: Aggressive testing enabled, using requested strength {requested_strength}")
+                return min(requested_strength, 0.8)  # Cap at 0.8 maximum
+            else:
+                return requested_strength
+                
+        elif testing_mode and environment != "production":
+            # Development testing mode - allow requested strength but with logging
+            if requested_strength > 0.4:
+                logger.warning(f"🔧 TESTING MODE: Using requested strength {requested_strength} in {environment}")
+                return min(requested_strength, 0.8)  # Cap at 0.8 maximum
+            else:
+                return requested_strength
+                
+        else:
+            # Production safety - enforce safe range
+            if requested_strength > 0.4:
+                logger.warning(f"🔒 PRODUCTION SAFETY: Requested strength {requested_strength} exceeds safe range, capping at 0.4")
+                return 0.4
+            else:
+                return max(requested_strength, 0.3)  # Minimum 0.3 for some transformation
+    
     async def _get_base_image_data(self) -> tuple[bytes, str]:
         """
         Fetches the uploaded Swamiji image URL from the DB, downloads the image,
@@ -95,21 +147,30 @@ class ThemeService:
 
 
 
-    async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None, theme_day: Optional[int] = None) -> Tuple[bytes, str]:
+    async def generate_themed_image_bytes(
+        self, 
+        custom_prompt: Optional[str] = None, 
+        theme_day: Optional[int] = None,
+        strength_param: float = 0.4
+    ) -> Tuple[bytes, str]:
         """
-        🎯 PRIORITY 3: ENHANCED PROMPT ENGINEERING - Explicit face preservation + detailed themes.
-        Uses ultra-specific identity anchoring commands + enhanced theme descriptions + strength 0.4 (maximum safe).
+        🎯 CONFIGURABLE STRENGTH WITH FEATURE FLAGS - Professional face preservation + controlled testing.
+        Uses ultra-specific identity anchoring commands + enhanced theme descriptions + configurable strength.
         Returns a tuple of (image_bytes, final_prompt) - Professional face preservation with dramatic theme transformations.
         
         Args:
             custom_prompt: Optional custom prompt to override theme-based generation
             theme_day: Optional day override (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.
+            strength_param: Transformation strength (0.0-1.0). Default 0.4 (safe range). 
+                          Higher values (0.6-0.8) enable aggressive testing but may alter face identity.
         
-        Priority 3 Enhancements:
+        Feature Flag Enhancements:
+        - Configurable strength parameter for A/B testing controlled rollouts
+        - Default 0.4 preserves identity (follows stability_ai_service.py recommendations: 0.3-0.4)
+        - Higher strength values controlled by feature flags and user subset testing
         - Explicit face preservation commands with ultra-specific feature descriptions
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
-        - Follows stability_ai_service.py documentation: 0.3-0.4 recommended for identity preservation
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -173,15 +234,24 @@ class ThemeService:
             # PRIORITY 2: ENHANCED NEGATIVE PROMPT - Comprehensive face preservation (from Priority 1)
             negative_prompt = "different face, face swap, altered facial features, changed identity, different person, modified eyes, changed nose, altered mouth, different beard, changed hair, face modification, facial reconstruction, different skin tone, altered bone structure, changed eyebrows, different forehead, face replacement, identity change, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon"
 
-            # PRIORITY 2+: MAXIMUM SAFE STRENGTH - Following stability_ai_service.py documentation (0.3-0.4 range)
+            # 🎯 CONFIGURABLE STRENGTH WITH FEATURE FLAGS - CORE.MD & REFRESH.MD COMPLIANCE
+            # Controlled A/B testing approach - no hard-coded risky values
+            final_strength = await self._determine_safe_strength(strength_param)
+            
+            # Log strength decision for monitoring and debugging
+            if final_strength > 0.4:
+                logger.warning(f"🧪 FEATURE FLAG: Using aggressive strength {final_strength} - may alter face identity")
+            else:
+                logger.info(f"✅ SAFE STRENGTH: Using {final_strength} - preserves face identity")
+            
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.4  # PRIORITY 2+: 0.4 maximum safe - top of documented range for identity preservation
+                strength=final_strength  # 🎯 Configurable strength with feature flag control
             )
             
-            logger.info("✅ PRIORITY 3 SUCCESS: Enhanced prompt engineering + detailed themes + explicit face preservation commands")
+            logger.info(f"✅ CONFIGURABLE SUCCESS: Generated with strength {final_strength} - balanced approach")
             return image_bytes, transformation_prompt
 
         except Exception as e:
@@ -196,7 +266,11 @@ class ThemeService:
         """
         try:
             # REFRESH.MD: FIX - Get both the image and the actual prompt used.
-            generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(custom_prompt)
+            # Using default strength 0.4 for safe generation in upload scenario
+            generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(
+                custom_prompt=custom_prompt,
+                strength_param=0.4  # Default safe strength for upload scenarios
+            )
 
             unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
             file_path_in_bucket = f"daily_themes/{unique_filename}"
