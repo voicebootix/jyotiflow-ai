@@ -136,6 +136,9 @@ class MonitoringDashboard:
             # Calculate overall metrics
             overall_metrics = await self._calculate_overall_metrics()
             
+            # Calculate per-integration metrics for frontend display
+            integration_metrics = await self._calculate_integration_metrics()
+            
             dashboard_data = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "system_health": system_health,
@@ -145,6 +148,7 @@ class MonitoringDashboard:
                 "critical_issues": critical_issues,
                 "social_media_health": social_media_health,
                 "overall_metrics": overall_metrics,
+                "metrics": integration_metrics,
                 "alerts": await self._get_active_alerts()
             }
             
@@ -578,6 +582,76 @@ class MonitoringDashboard:
                 "success_rate": 0,
                 "avg_session_duration": 0,
                 "quality_scores": {}
+            }
+    
+    async def _calculate_integration_metrics(self) -> Dict:
+        """Calculate per-integration success rates and response times for frontend display"""
+        try:
+            conn = await db_manager.get_connection()
+            try:
+                # Get per-integration success rates and response times from last 24 hours
+                integration_stats = await conn.fetch("""
+                    SELECT 
+                        integration_name,
+                        COUNT(*) as total_validations,
+                        COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_validations,
+                        ROUND(
+                            COUNT(CASE WHEN status = 'success' THEN 1 END)::float / 
+                            NULLIF(COUNT(*), 0) * 100, 1
+                        ) as success_rate,
+                        ROUND(AVG(
+                            CASE 
+                                WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
+                                THEN (actual_value->>'duration_ms')::INTEGER 
+                                ELSE NULL
+                            END
+                        )) as avg_response_time_ms
+                    FROM integration_validations
+                    WHERE validation_time > NOW() - INTERVAL '24 hours'
+                    GROUP BY integration_name
+                    ORDER BY integration_name
+                """)
+                
+                success_rates = {}
+                avg_response_times = {}
+                
+                for row in integration_stats:
+                    integration_name = row['integration_name']
+                    success_rates[integration_name] = float(row['success_rate'] or 0)
+                    avg_response_times[integration_name] = int(row['avg_response_time_ms'] or 0)
+                
+                # Get all integration points dynamically from the system
+                from backend.monitoring.integration_monitor import IntegrationPoint
+                
+                # Only include integrations that have actual data or are currently monitored
+                system_integration_points = [point.value for point in IntegrationPoint 
+                                           if point not in [IntegrationPoint.USER_INPUT, IntegrationPoint.FINAL_RESPONSE]]
+                
+                # Add any integrations that have data but aren't in current system (for backward compatibility)
+                for integration in success_rates.keys():
+                    if integration not in system_integration_points:
+                        system_integration_points.append(integration)
+                
+                # Only add fallback zeros for integrations that are actively monitored
+                for integration in system_integration_points:
+                    if integration not in success_rates:
+                        success_rates[integration] = 0.0
+                        avg_response_times[integration] = 0
+                
+                return {
+                    "success_rates": success_rates,
+                    "avg_response_times": avg_response_times
+                }
+                
+            finally:
+                await db_manager.release_connection(conn)
+                
+        except Exception as e:
+            logger.error(f"Failed to calculate integration metrics: {e}")
+            # Return completely empty metrics - no hardcoded fallbacks
+            return {
+                "success_rates": {},
+                "avg_response_times": {}
             }
     
     async def _get_active_alerts(self) -> List[Dict]:
