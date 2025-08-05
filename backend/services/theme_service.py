@@ -23,13 +23,13 @@ import db
 logger = logging.getLogger(__name__)
 
 THEMES = {
-    0: {"name": "Meditative Monday", "description": "wearing serene white robes, meditating on a peaceful mountain peak at sunrise"},
-    1: {"name": "Teaching Tuesday", "description": "wearing traditional saffron robes, giving a discourse in a vibrant ashram hall"},
-    2: {"name": "Wisdom Wednesday", "description": "wearing simple cotton attire, writing ancient scriptures on palm leaves under a banyan tree"},
-    3: {"name": "Thankful Thursday", "description": "wearing humble orange robes, offering flowers at a serene riverbank"},
-    4: {"name": "Festive Friday", "description": "adorned in bright, festive saffron and gold robes, celebrating amidst temple festivities"},
-    5: {"name": "Silent Saturday", "description": "wearing muted, earthy-toned robes, in deep meditation inside a quiet, rustic cave"},
-    6: {"name": "Serene Sunday", "description": "wearing a simple, cream-colored dhoti, walking peacefully along a sunlit beach at dawn"},
+    0: {"name": "Meditative Monday", "description": "wearing pristine white ceremonial robes with flowing fabric and silver borders, sitting in lotus position on a snow-capped Himalayan mountain peak at golden sunrise, surrounded by swirling morning mist and ancient prayer flags, with soft ethereal lighting illuminating the serene meditation pose"},
+    1: {"name": "Teaching Tuesday", "description": "wearing rich saffron-colored traditional robes with intricate golden embroidery and sacred symbols, seated on an ornate wooden throne in a magnificent ashram hall with carved pillars, colorful tapestries, brass oil lamps, and devoted disciples seated on the marble floor, warm temple lighting creating a divine atmosphere"},
+    2: {"name": "Wisdom Wednesday", "description": "wearing earth-toned simple cotton kurta with natural hemp threads, sitting cross-legged under a massive ancient banyan tree with sprawling roots, surrounded by palm leaf manuscripts, traditional ink pots, wooden writing stylus, dappled sunlight filtering through dense green foliage creating a scholarly forest retreat"},
+    3: {"name": "Thankful Thursday", "description": "wearing humble burnt orange robes with simple rope belt, kneeling gracefully by a sacred crystal-clear river with lotus flowers floating on the surface, holding a brass plate filled with marigold offerings, coconut, incense, surrounded by ancient stone ghats and temple spires in the misty distance"},
+    4: {"name": "Festive Friday", "description": "adorned in magnificent bright saffron and gold silk robes with elaborate zari work, ruby gemstones, sacred rudraksha beads, standing in a grand temple courtyard during festival celebrations with colorful rangoli patterns, hanging marigold garlands, burning oil lamps, devotees with musical instruments, vibrant festival atmosphere"},
+    5: {"name": "Silent Saturday", "description": "wearing simple muted brown and ochre meditation robes with rough handwoven texture, sitting in perfect stillness inside a dimly lit ancient cave with smooth stone walls, flickering butter lamps casting dancing shadows, stalactites overhead, complete silence and spiritual solitude, minimal natural lighting from cave entrance"},
+    6: {"name": "Serene Sunday", "description": "wearing flowing cream-colored cotton dhoti with subtle golden threads, walking barefoot on pristine white sand along an endless ocean beach at peaceful dawn, gentle waves lapping the shore, seagulls in the distance, palm trees swaying, soft morning sunlight creating a heavenly coastal sanctuary"},
 }
 
 class ThemeService:
@@ -95,10 +95,14 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        🎯 PRIORITY 2+ MAXIMUM SAFE TRANSFORMATION: Enhanced identity anchoring + visible changes.
-        Uses advanced prompt engineering with identity preservation + transformation directives + strength 0.4 (maximum safe).
-        Returns a tuple of (image_bytes, final_prompt) - Professional face preservation with clearly visible theme transformations.
-        Follows stability_ai_service.py documentation: 0.3-0.4 recommended for identity preservation.
+        🎯 PRIORITY 3: ENHANCED PROMPT ENGINEERING - Explicit face preservation + detailed themes.
+        Uses ultra-specific identity anchoring commands + enhanced theme descriptions + strength 0.4 (maximum safe).
+        Returns a tuple of (image_bytes, final_prompt) - Professional face preservation with dramatic theme transformations.
+        
+        Priority 3 Enhancements:
+        - Explicit face preservation commands with ultra-specific feature descriptions
+        - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
+        - Follows stability_ai_service.py documentation: 0.3-0.4 recommended for identity preservation
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -113,21 +117,23 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # PRIORITY 2+ APPROACH: Advanced prompt engineering + maximum safe strength for visible transformations
-            logger.info("🚀 PRIORITY 2+: Advanced prompt engineering + maximum safe strength (0.4) for face preservation + VISIBLE changes")
+            # PRIORITY 3 APPROACH: Enhanced prompt engineering + ultra-detailed theme descriptions for optimal results
+            logger.info("🚀 PRIORITY 3: Enhanced prompt engineering + detailed theme descriptions + explicit face preservation commands")
             
-            # PRIORITY 2: ADVANCED PROMPT ENGINEERING - Enhanced identity anchoring + transformation directives
-            # Identity anchor with specific facial feature preservation
-            identity_anchor = f"""PRESERVE EXACTLY: the same person's face from the reference image, 
-            identical facial features, same eyes (exact shape, color, expression), same nose structure, 
-            same mouth and natural smile, same beard pattern and color, same hair texture and style, 
-            same skin tone and complexion, same facial bone structure, same eyebrows, same forehead, 
-            same facial expressions and spiritual character."""
+            # PRIORITY 3: EXPLICIT FACE PRESERVATION - Ultra-specific identity anchoring commands
+            # Enhanced identity anchor with explicit AI instructions
+            identity_anchor = f"""CRITICAL INSTRUCTION: Keep the same person's face 100% identical to the reference image. 
+            PRESERVE EXACTLY without any changes: the same eyes (identical shape, size, color, pupil position, eyebrow arch), 
+            the same nose (identical bridge, nostrils, tip shape), the same mouth (identical lip shape, smile, teeth), 
+            the same beard (identical pattern, color, thickness, style), the same hair (identical texture, color, hairline), 
+            the same skin tone and complexion, the same facial bone structure, the same forehead and cheekbones, 
+            the same facial expressions and spiritual character. The person's identity must remain completely unchanged."""
             
-            # Transformation scope with specific instructions
-            transformation_scope = f"""CHANGE COMPLETELY: clothing to {theme_description}, 
-            background environment to match the spiritual theme, lighting to enhance the new setting, 
-            overall atmosphere to create the daily theme mood."""
+            # Enhanced transformation scope with detailed theme instructions  
+            transformation_scope = f"""TRANSFORM COMPLETELY: Replace the clothing with {theme_description}, 
+            change the background environment to match the spiritual theme with rich details, 
+            adjust lighting to enhance the new setting atmosphere, modify props and surroundings, 
+            create the daily theme mood while keeping the person's face absolutely identical."""
             
             # Quality directives for professional results
             quality_directives = """Professional portrait photography, photorealistic style, 
@@ -148,7 +154,7 @@ class ThemeService:
                 strength=0.4  # PRIORITY 2+: 0.4 maximum safe - top of documented range for identity preservation
             )
             
-            logger.info("✅ PRIORITY 2+ SUCCESS: Advanced prompt engineering + maximum safe strength (0.4) for visible changes + face preservation")
+            logger.info("✅ PRIORITY 3 SUCCESS: Enhanced prompt engineering + detailed themes + explicit face preservation commands")
             return image_bytes, transformation_prompt
 
         except Exception as e:
