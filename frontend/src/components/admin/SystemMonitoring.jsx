@@ -127,46 +127,22 @@ const SystemMonitoring = () => {
     } catch (error) {
       console.error("❌ Failed to fetch monitoring data:", error);
 
-      // Set mock data when API fails
-      const mockData = {
-        status: "healthy",
-        integrations: {
-          prokerala: {
-            status: "healthy",
-            success_rate: 98.5,
-            avg_duration_ms: 1200,
+      // Show error state instead of mock data
+      const errorData = {
+        status: "error",
+        integrations: {},
+        recent_issues: [
+          {
+            type: "api_error",
+            message: "Failed to fetch monitoring data",
+            timestamp: new Date().toISOString(),
           },
-          rag_knowledge: {
-            status: "healthy",
-            success_rate: 99.1,
-            avg_duration_ms: 800,
-          },
-          openai_guidance: {
-            status: "healthy",
-            success_rate: 97.3,
-            avg_duration_ms: 2100,
-          },
-          elevenlabs_voice: {
-            status: "healthy",
-            success_rate: 96.8,
-            avg_duration_ms: 1800,
-          },
-          did_avatar: {
-            status: "healthy",
-            success_rate: 94.2,
-            avg_duration_ms: 3500,
-          },
-          social_media: {
-            status: "healthy",
-            success_rate: 99.5,
-            avg_duration_ms: 900,
-          },
-        },
-        recent_issues: [],
+        ],
         active_sessions: 0,
+        error: error.message,
       };
-      console.log("🔄 Using mock data:", mockData);
-      setMonitoringData(mockData);
+      console.log("⚠️ Using error state:", errorData);
+      setMonitoringData(errorData);
       setLoading(false);
     }
   };
