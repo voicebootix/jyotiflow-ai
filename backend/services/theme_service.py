@@ -68,8 +68,6 @@ class ThemeService:
         - Default: Uses safe range (0.3-0.4) for production
         - A/B Testing: Future enhancement for user subset testing
         """
-        import os
-        
         # Environment-based feature flags
         aggressive_testing_enabled = os.getenv("AGGRESSIVE_THEME_TESTING", "false").lower() == "true"
         testing_mode = os.getenv("TESTING_MODE", "false").lower() == "true"
