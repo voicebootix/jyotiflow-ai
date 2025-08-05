@@ -233,6 +233,7 @@ async def upload_swamiji_image(
 
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
+    theme_day: Optional[int] = Field(None, description="Override daily theme with specific day (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.")
 
 async def get_admin_or_test_bypass(request: Request):
     """
@@ -273,7 +274,10 @@ async def generate_image_preview(
     theme_service: ThemeService = Depends(get_theme_service)
 ):
     try:
-        image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(custom_prompt=request.custom_prompt)
+        image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(
+            custom_prompt=request.custom_prompt, 
+            theme_day=request.theme_day
+        )
         
         # Robust HTTP header sanitization (core.md: explain complex logic)
         # 1. Handle None/non-string values defensively
@@ -298,6 +302,10 @@ async def generate_image_preview(
             "Expires": "0"
         }
         return Response(content=image_bytes, media_type="image/png", headers=headers)
+    except ValueError as e:
+        # CORE.MD & REFRESH.MD: Handle validation errors with HTTP 400 (Bad Request)
+        logger.warning(f"⚠️  VALIDATION ERROR in image preview generation: {e}")
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Image preview generation failed: {e}", exc_info=True)
         if isinstance(e, HTTPException): raise e
