@@ -492,20 +492,66 @@ class IntegrationMonitor:
                 point_health = await self._check_integration_point_health(point)
                 health_status["integration_points"][point.value] = point_health
             
-            # Get recent issues from database
+            # Get recent issues from database - combine business logic issues and integration failures
             conn = await db_manager.get_connection()
             try:
-                recent_issues = await conn.fetch("""
-                    SELECT issue_type, severity, description, created_at
+                # Get business logic issues
+                business_issues = await conn.fetch("""
+                    SELECT 
+                        issue_type as type,
+                        severity,
+                        description as message,
+                        created_at as timestamp,
+                        'business_logic' as source
                     FROM business_logic_issues
                     WHERE created_at > NOW() - INTERVAL '1 hour'
                     ORDER BY created_at DESC
-                    LIMIT 10
+                    LIMIT 5
                 """)
                 
+                # Get integration validation failures
+                integration_issues = await conn.fetch("""
+                    SELECT 
+                        LEFT(CONCAT(integration_name, '_', COALESCE(validation_type, 'unknown')), 100) as type,
+                        CASE 
+                            WHEN status = 'error' THEN 'high'
+                            WHEN status = 'warning' THEN 'medium'
+                            ELSE 'low'
+                        END as severity,
+                        COALESCE(error_message, CONCAT('Integration ', integration_name, ' validation failed')) as message,
+                        validation_time as timestamp,
+                        'integration_validation' as source
+                    FROM integration_validations
+                    WHERE status IN ('error', 'warning')
+                    AND validation_time > NOW() - INTERVAL '1 hour'
+                    ORDER BY validation_time DESC
+                    LIMIT 5
+                """)
+                
+                # Combine and sort all issues by timestamp
+                all_issues = list(business_issues) + list(integration_issues)
+                all_issues.sort(key=lambda x: x['timestamp'], reverse=True)
+                
+                # Convert to dict and limit to 10 most recent
                 health_status["recent_issues"] = [
-                    dict(issue) for issue in recent_issues
+                    dict(issue) for issue in all_issues[:10]
                 ]
+                
+            except Exception as e:
+                logger.error(f"Failed to fetch recent issues from database: {e}")
+                # Fallback: create issues based on current integration health
+                recent_issues = []
+                for point_name, point_data in health_status["integration_points"].items():
+                    if point_data.get("status") == "error":
+                        recent_issues.append({
+                            "type": f"{point_name}_health_check",
+                            "severity": "high",
+                            "message": f"{point_name} integration is currently failing health checks",
+                            "timestamp": health_status["timestamp"],
+                            "source": "real_time_health_check"
+                        })
+                
+                health_status["recent_issues"] = recent_issues
             finally:
                 await db_manager.release_connection(conn)
             
@@ -526,6 +572,15 @@ class IntegrationMonitor:
             
         except Exception as e:
             logger.error(f"❌ Failed to get system health: {e}")
+            # Log this system health failure to database with recursive prevention
+            await self._log_integration_issue(
+                integration_point="system_health",
+                issue_type="system_monitoring_failure",
+                severity="high",
+                description=f"Failed to retrieve system health status: {str(e)}",
+                auto_fixable=False,
+                _prevent_recursion=True
+            )
             return {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "system_status": "error",
@@ -533,6 +588,31 @@ class IntegrationMonitor:
             }
     
     # Private helper methods
+    
+    async def _log_integration_issue(self, integration_point: str, issue_type: str, 
+                                   severity: str, description: str, auto_fixable: bool = False,
+                                   _prevent_recursion: bool = False) -> None:
+        """Log integration issues to database for tracking with recursive error prevention"""
+        try:
+            conn = await db_manager.get_connection()
+            try:
+                await conn.execute("""
+                    INSERT INTO business_logic_issues 
+                    (issue_type, severity, description, auto_fixable, created_at)
+                    VALUES ($1, $2, $3, $4, NOW())
+                """, issue_type, severity, description, auto_fixable)
+                
+                logger.debug(f"📝 Logged {severity} issue for {integration_point}: {issue_type}")
+            finally:
+                await db_manager.release_connection(conn)
+        except Exception as e:
+            # Fallback logging mechanism - prevents recursive database logging attempts
+            if not _prevent_recursion:
+                logger.error(f"Failed to log integration issue to database: {e}")
+                logger.warning(f"📋 Fallback log - {severity.upper()} issue for {integration_point}: {issue_type} - {description}")
+            else:
+                # Already in recursive prevention mode - only log to application logger
+                logger.error(f"Database logging failed during recursive prevention for {integration_point}: {e}")
     async def _attempt_auto_fix(self, session_id: str, 
                                integration_point: IntegrationPoint,
                                validation_result: Dict) -> Dict:
@@ -769,6 +849,14 @@ class IntegrationMonitor:
                     "total_validations": 0
                 }
             else:
+                # Log missing API key issue to database
+                await self._log_integration_issue(
+                    integration_point=integration_point.value,
+                    issue_type="missing_api_key",
+                    severity="high",
+                    description=f"Missing required environment variable {required_key} for {integration_point.value}",
+                    auto_fixable=False
+                )
                 return {
                     "status": "error",
                     "message": f"Missing {required_key} for {integration_point.value}",
@@ -780,6 +868,14 @@ class IntegrationMonitor:
         except Exception as e:
             duration_ms = int((time.time() - start_time) * 1000)
             logger.error(f"Health check failed for {integration_point.value}: {e}")
+            # Log health check failure to database
+            await self._log_integration_issue(
+                integration_point=integration_point.value,
+                issue_type="health_check_failure",
+                severity="high",
+                description=f"Real-time health check failed for {integration_point.value}: {str(e)}",
+                auto_fixable=False
+            )
             return {
                 "status": "error",
                 "message": f"Health check failed: {str(e)}",
