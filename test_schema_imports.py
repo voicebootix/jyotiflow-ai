@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 Test script to verify schema imports work correctly
-"""
 
-import sys
-sys.path.append('backend')
+⚠️  SETUP: Set PYTHONPATH=backend or run from project root
+Example: PYTHONPATH=backend python test_schema_imports.py
+"""
 
 try:
     # Test direct imports from schemas

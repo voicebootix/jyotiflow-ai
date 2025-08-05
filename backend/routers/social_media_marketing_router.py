@@ -236,12 +236,34 @@ class ImagePreviewRequest(BaseModel):
 
 async def get_admin_or_test_bypass():
     """
-    Admin authentication with testing mode bypass - follows core.md security rules.
-    Production: Full admin auth enforced
-    Testing: TESTING_MODE=true allows bypass for validation
+    🔒 SECURE ADMIN AUTHENTICATION WITH CONTROLLED TESTING BYPASS
+    
+    Production: Full admin authentication enforced (secure)
+    Development/Testing: TESTING_MODE=true enables bypass with validation
+    
+    ⚠️  DEPLOYMENT WARNING: Remove TESTING_MODE from production environment!
+    🔍 Security logging: All bypass usage is logged for audit trails
     """
-    if os.getenv("TESTING_MODE") == "true":
-        return {"email": "test@admin.com", "role": "admin", "id": 1}  # Test mode only
+    testing_mode = os.getenv("TESTING_MODE", "").lower()
+    environment = os.getenv("ENVIRONMENT", "production").lower()
+    
+    # Environment validation - only allow bypass in non-production environments
+    if testing_mode == "true":
+        # Security check: Prevent bypass in production environment
+        if environment in ["production", "prod"]:
+            logger.warning(
+                "🚨 SECURITY ALERT: TESTING_MODE bypass attempted in production environment. "
+                "Falling back to full authentication. Remove TESTING_MODE from production!"
+            )
+        else:
+            # Log bypass usage for security audit trail
+            logger.warning(
+                f"🔓 AUTH BYPASS ACTIVATED: Using TESTING_MODE in {environment} environment. "
+                f"This should NEVER happen in production. Timestamp: {datetime.now()}"
+            )
+            return {"email": "test@admin.com", "role": "admin", "id": 1, "bypass_used": True}
+    
+    # Default: Full admin authentication (production-safe)
     return await AuthenticationHelper.verify_admin_access_strict()
 
 @social_marketing_router.post("/generate-image-preview")

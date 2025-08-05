@@ -2,15 +2,13 @@
 """
 🎯 PRIORITY 2 FACE PRESERVATION TEST
 Quick test script to verify our Priority 2 improvements work
-"""
 
-import sys
-import os
-sys.path.append('backend')
+⚠️  SETUP: Set PYTHONPATH=backend or run from project root
+Example: PYTHONPATH=backend python test_priority2_fix.py
+"""
 
 import asyncio
 import httpx
-import json
 
 async def test_priority2_face_preservation():
     """Test Priority 2 face preservation improvements"""
@@ -18,10 +16,14 @@ async def test_priority2_face_preservation():
     print("🎯 Testing Priority 2: Advanced Prompt Engineering + 0.35 Strength")
     print("-" * 60)
     
-    # Set testing mode for auth bypass
+    # Check if testing mode is set (should be set externally)
     import os
-    os.environ["TESTING_MODE"] = "true"
-    print("✅ TESTING_MODE enabled for auth bypass")
+    testing_mode = os.getenv("TESTING_MODE", "false")
+    if testing_mode.lower() == "true":
+        print("✅ TESTING_MODE detected - auth bypass enabled")
+    else:
+        print("⚠️  TESTING_MODE not set - admin auth required")
+        print("   Set TESTING_MODE=true to enable auth bypass")
     
     # Test the image preview endpoint
     base_url = "http://localhost:8000"  # Adjust if needed
