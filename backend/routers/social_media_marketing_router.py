@@ -274,8 +274,12 @@ async def generate_image_preview(
 ):
     try:
         image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(custom_prompt=request.custom_prompt)
+        
+        # Clean prompt for HTTP header (remove newlines, limit length, encode properly)
+        clean_prompt = final_prompt.replace('\n', ' ').replace('\r', ' ').strip()[:500]
+        
         headers = {
-            "X-Generated-Prompt": final_prompt, 
+            "X-Generated-Prompt": clean_prompt, 
             "Access-Control-Expose-Headers": "X-Generated-Prompt",
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
