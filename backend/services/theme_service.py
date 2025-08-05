@@ -95,9 +95,10 @@ class ThemeService:
 
     async def generate_themed_image_bytes(self, custom_prompt: Optional[str] = None) -> Tuple[bytes, str]:
         """
-        🎯 PRIORITY 2 ADVANCED PROMPT ENGINEERING: Enhanced identity anchoring + optimized strength balance.
-        Uses advanced prompt engineering with identity preservation + transformation directives + strength 0.35 sweet spot.
-        Returns a tuple of (image_bytes, final_prompt) - Professional face preservation with visible theme transformations.
+        🎯 PRIORITY 2+ MAXIMUM SAFE TRANSFORMATION: Enhanced identity anchoring + visible changes.
+        Uses advanced prompt engineering with identity preservation + transformation directives + strength 0.4 (maximum safe).
+        Returns a tuple of (image_bytes, final_prompt) - Professional face preservation with clearly visible theme transformations.
+        Follows stability_ai_service.py documentation: 0.3-0.4 recommended for identity preservation.
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -112,8 +113,8 @@ class ThemeService:
                 theme_description = theme['description']
                 logger.info(f"Using daily theme for {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'][day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description}")
 
-            # PRIORITY 2 APPROACH: Advanced prompt engineering + optimized strength balance
-            logger.info("🚀 PRIORITY 2: Advanced prompt engineering + optimized strength (0.35) for face preservation + visible changes")
+            # PRIORITY 2+ APPROACH: Advanced prompt engineering + maximum safe strength for visible transformations
+            logger.info("🚀 PRIORITY 2+: Advanced prompt engineering + maximum safe strength (0.4) for face preservation + VISIBLE changes")
             
             # PRIORITY 2: ADVANCED PROMPT ENGINEERING - Enhanced identity anchoring + transformation directives
             # Identity anchor with specific facial feature preservation
@@ -139,15 +140,15 @@ class ThemeService:
             # PRIORITY 2: ENHANCED NEGATIVE PROMPT - Comprehensive face preservation (from Priority 1)
             negative_prompt = "different face, face swap, altered facial features, changed identity, different person, modified eyes, changed nose, altered mouth, different beard, changed hair, face modification, facial reconstruction, different skin tone, altered bone structure, changed eyebrows, different forehead, face replacement, identity change, blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon"
 
-            # PRIORITY 2: OPTIMIZED STRENGTH - Sweet spot for face preservation + visible transformation
+            # PRIORITY 2+: MAXIMUM SAFE STRENGTH - Following stability_ai_service.py documentation (0.3-0.4 range)
             image_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.35  # PRIORITY 2: 0.35 sweet spot - face preserved + clothing/background changes visible
+                strength=0.4  # PRIORITY 2+: 0.4 maximum safe - top of documented range for identity preservation
             )
             
-            logger.info("✅ PRIORITY 2 SUCCESS: Advanced prompt engineering + optimized strength (0.35) for balanced results")
+            logger.info("✅ PRIORITY 2+ SUCCESS: Advanced prompt engineering + maximum safe strength (0.4) for visible changes + face preservation")
             return image_bytes, transformation_prompt
 
         except Exception as e:
