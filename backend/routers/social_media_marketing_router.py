@@ -302,6 +302,10 @@ async def generate_image_preview(
             "Expires": "0"
         }
         return Response(content=image_bytes, media_type="image/png", headers=headers)
+    except ValueError as e:
+        # CORE.MD & REFRESH.MD: Handle validation errors with HTTP 400 (Bad Request)
+        logger.warning(f"⚠️  VALIDATION ERROR in image preview generation: {e}")
+        raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
         logger.error(f"Image preview generation failed: {e}", exc_info=True)
         if isinstance(e, HTTPException): raise e

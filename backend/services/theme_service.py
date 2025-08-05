@@ -117,11 +117,23 @@ class ThemeService:
                 theme_description = custom_prompt
                 logger.info(f"Using custom prompt: {custom_prompt}")
             else:
-                # Use theme_day override if provided, otherwise use current day
-                if theme_day is not None and 0 <= theme_day <= 6:
+                # CORE.MD & REFRESH.MD: Explicit validation instead of silent fallback
+                if theme_day is not None:
+                    # Validate theme_day is within valid range 0-6 (Monday=0, Sunday=6)
+                    if not isinstance(theme_day, int) or theme_day < 0 or theme_day > 6:
+                        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+                        valid_range = ', '.join([f"{i}={day_names[i]}" for i in range(7)])
+                        error_msg = (
+                            f"Invalid theme_day={theme_day}. Must be an integer between 0-6 "
+                            f"({valid_range}). Received: {theme_day} (type: {type(theme_day).__name__})"
+                        )
+                        logger.error(f"❌ THEME_DAY VALIDATION ERROR: {error_msg}")
+                        raise ValueError(error_msg)
+                    
                     day_of_week = theme_day
                     logger.info(f"🎯 THEME OVERRIDE: Using theme_day={theme_day} instead of current day")
                 else:
+                    # Only use current day when theme_day is None (not provided)
                     day_of_week = datetime.now().weekday()
                     logger.info(f"📅 Using current day: {day_of_week}")
                 
