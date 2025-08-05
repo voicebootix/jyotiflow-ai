@@ -11,8 +11,26 @@ from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional
 from enum import Enum
 
-from db import db_manager
-from database_timezone_fixer import safe_utc_now
+try:
+    from db import db_manager
+except ImportError:
+    # Fallback for testing without database
+    class MockDBManager:
+        async def execute_query(self, *args, **kwargs):
+            return {"success": True, "data": []}
+    db_manager = MockDBManager()
+try:
+    from database_timezone_fixer import safe_utc_now
+except ImportError:
+    # Fallback for timezone handling
+    def safe_utc_now():
+        return datetime.now(timezone.utc).replace(tzinfo=None)
+
+def json_serialize_datetime(obj):
+    """Convert datetime objects to JSON serializable format"""
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    return obj
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +134,7 @@ class ContextTracker:
                 "success": True,
                 "data_preserved": transformation["data_preserved"],
                 "data_loss": data_loss,
-                "context_size": len(json.dumps(current_context))
+                "context_size": len(json.dumps(current_context, default=str))
             }
             
         except Exception as e:
@@ -209,7 +227,7 @@ class ContextTracker:
                     "integration_point": chain_item["integration_point"],
                     "timestamp": chain_item["timestamp"],
                     "context_keys": list(chain_item["context_snapshot"].keys()),
-                    "context_size": len(json.dumps(chain_item["context_snapshot"]))
+                    "context_size": len(json.dumps(chain_item["context_snapshot"], default=str))
                 }
                 
                 # Check what changed from previous step
@@ -296,7 +314,7 @@ class ContextTracker:
             if isinstance(value, (str, int, float, bool, list, dict)):
                 if key not in ["audio_data", "video_data", "image_data"]:  # Exclude binary
                     if isinstance(value, (dict, list)):
-                        snapshot[key] = json.loads(json.dumps(value))  # Deep copy
+                        snapshot[key] = json.loads(json.dumps(value, default=str))  # Deep copy
                     else:
                         snapshot[key] = value
         return snapshot
@@ -305,7 +323,7 @@ class ContextTracker:
         """Store context snapshot in database for debugging"""
         try:
             snapshot = self._create_snapshot(context)
-            context_hash = hashlib.md5(json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+            context_hash = hashlib.md5(json.dumps(snapshot, sort_keys=True, default=str).encode()).hexdigest()
             
             conn = await db_manager.get_connection()
             try:
@@ -313,7 +331,7 @@ class ContextTracker:
                     INSERT INTO context_snapshots 
                     (session_id, integration_point, context_data, context_hash, created_at)
                     VALUES ($1, $2, $3, $4, $5)
-                """, session_id, integration_point, json.dumps(snapshot), 
+                """, session_id, integration_point, json.dumps(snapshot, default=str), 
                     context_hash, safe_utc_now())
             finally:
                 await db_manager.release_connection(conn)
@@ -323,8 +341,8 @@ class ContextTracker:
     
     def _calculate_context_growth(self, session_context: Dict) -> Dict:
         """Calculate how context size grew through the chain"""
-        initial_size = len(json.dumps(session_context["initial"]))
-        current_size = len(json.dumps(session_context["current"]))
+        initial_size = len(json.dumps(session_context["initial"], default=str))
+        current_size = len(json.dumps(session_context["current"], default=str))
         
         return {
             "initial_size_bytes": initial_size,
@@ -338,7 +356,7 @@ class ContextTracker:
         modified = []
         
         for key in set(prev_snapshot.keys()) & set(curr_snapshot.keys()):
-            if json.dumps(prev_snapshot[key]) != json.dumps(curr_snapshot[key]):
+            if json.dumps(prev_snapshot[key], default=str) != json.dumps(curr_snapshot[key], default=str):
                 modified.append(key)
         
         return modified
