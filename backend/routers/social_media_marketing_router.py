@@ -264,7 +264,7 @@ async def get_admin_or_test_bypass(request: Request):
             return {"email": "test@admin.com", "role": "admin", "id": 1, "bypass_used": True}
     
     # Default: Full admin authentication (production-safe)
-    return await AuthenticationHelper.verify_admin_access_strict(request)
+    return AuthenticationHelper.verify_admin_access_strict(request)
 
 @social_marketing_router.post("/generate-image-preview")
 async def generate_image_preview(
