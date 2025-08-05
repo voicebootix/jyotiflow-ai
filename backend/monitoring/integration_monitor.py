@@ -7,6 +7,7 @@ with real-time validation and silent failure detection.
 import asyncio
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
@@ -99,6 +100,16 @@ class IntegrationMonitor:
     Production-ready integration monitoring system that tracks
     and validates the entire spiritual guidance flow.
     """
+    
+    # Class-level constant for environment key mapping
+    ENV_KEY_MAP = {
+        IntegrationPoint.PROKERALA: 'PROKERALA_API_KEY',
+        IntegrationPoint.OPENAI_GUIDANCE: 'OPENAI_API_KEY', 
+        IntegrationPoint.ELEVENLABS_VOICE: 'ELEVENLABS_API_KEY',
+        IntegrationPoint.DID_AVATAR: 'DID_API_KEY',
+        IntegrationPoint.RAG_KNOWLEDGE: None,  # No API key needed
+        IntegrationPoint.SOCIAL_MEDIA: 'FACEBOOK_ACCESS_TOKEN'  # Check one social media key
+    }
     
     def __init__(self):
         # Initialize validators with fallbacks for missing API keys
@@ -729,6 +740,55 @@ class IntegrationMonitor:
         
         return recommendations
     
+    async def _perform_realtime_health_check(self, integration_point: IntegrationPoint) -> Dict:
+        """Perform real-time health check by checking environment configuration"""
+        start_time = time.time()
+        
+        try:
+            duration_ms = int((time.time() - start_time) * 1000)
+            required_key = self.ENV_KEY_MAP.get(integration_point)
+            
+            if required_key is None:
+                # For integrations that don't need API keys (like RAG)
+                return {
+                    "status": "healthy",
+                    "message": f"{integration_point.value} ready",
+                    "success_rate": 100.0,
+                    "avg_duration_ms": duration_ms,
+                    "total_validations": 0
+                }
+            
+            # Check if API key is configured
+            api_key = os.getenv(required_key)
+            if api_key:
+                return {
+                    "status": "healthy",
+                    "message": f"API key configured for {integration_point.value}",
+                    "success_rate": 100.0,
+                    "avg_duration_ms": duration_ms,
+                    "total_validations": 0
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"Missing {required_key} for {integration_point.value}",
+                    "success_rate": 0.0,
+                    "avg_duration_ms": duration_ms,
+                    "total_validations": 0
+                }
+                
+        except Exception as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.error(f"Health check failed for {integration_point.value}: {e}")
+            return {
+                "status": "error",
+                "message": f"Health check failed: {str(e)}",
+                "success_rate": 0.0,
+                "avg_duration_ms": duration_ms,
+                "total_validations": 0,
+                "error": str(e)
+            }
+    
     async def _check_integration_point_health(self, integration_point: IntegrationPoint) -> Dict:
         """Check health of a specific integration point"""
         try:
@@ -747,14 +807,9 @@ class IntegrationMonitor:
                 success = sum(row['count'] for row in recent_validations if row['status'] == 'success')
                 
                 if total == 0:
-                    # Return mock healthy status for integrations with no data
-                    return {
-                        "status": "healthy", 
-                        "message": "No recent data - assuming healthy",
-                        "success_rate": 100.0,
-                        "avg_duration_ms": 1500,
-                        "total_validations": 0
-                    }
+                    # No recent validation data - perform real-time health check
+                    logger.debug(f"No recent data for {integration_point.value}, performing real-time health check")
+                    return await self._perform_realtime_health_check(integration_point)
                 
                 success_rate = (success / total) * 100
                 
@@ -786,15 +841,9 @@ class IntegrationMonitor:
                 
         except Exception as e:
             logger.error(f"Failed to check integration health: {e}")
-            # Return mock data when database fails
-            return {
-                "status": "healthy",
-                "message": "Database unavailable - mock data",
-                "success_rate": 95.0,
-                "avg_duration_ms": 2000,
-                "total_validations": 0,
-                "error": str(e)
-            }
+            # Database unavailable - perform real-time health check instead
+            logger.debug(f"Database unavailable for {integration_point.value}, falling back to real-time check")
+            return await self._perform_realtime_health_check(integration_point)
 
 # Singleton instance - initialized immediately for dashboard access
 integration_monitor = IntegrationMonitor()
