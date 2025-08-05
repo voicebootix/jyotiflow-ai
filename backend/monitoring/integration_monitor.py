@@ -7,6 +7,7 @@ with real-time validation and silent failure detection.
 import asyncio
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
@@ -99,6 +100,16 @@ class IntegrationMonitor:
     Production-ready integration monitoring system that tracks
     and validates the entire spiritual guidance flow.
     """
+    
+    # Class-level constant for environment key mapping
+    ENV_KEY_MAP = {
+        IntegrationPoint.PROKERALA: 'PROKERALA_API_KEY',
+        IntegrationPoint.OPENAI_GUIDANCE: 'OPENAI_API_KEY', 
+        IntegrationPoint.ELEVENLABS_VOICE: 'ELEVENLABS_API_KEY',
+        IntegrationPoint.DID_AVATAR: 'DID_API_KEY',
+        IntegrationPoint.RAG_KNOWLEDGE: None,  # No API key needed
+        IntegrationPoint.SOCIAL_MEDIA: 'FACEBOOK_ACCESS_TOKEN'  # Check one social media key
+    }
     
     def __init__(self):
         # Initialize validators with fallbacks for missing API keys
@@ -731,23 +742,11 @@ class IntegrationMonitor:
     
     async def _perform_realtime_health_check(self, integration_point: IntegrationPoint) -> Dict:
         """Perform real-time health check by checking environment configuration"""
-        import time
-        import os
         start_time = time.time()
         
         try:
-            # Simple unified approach - check if required environment variables exist
-            env_key_map = {
-                IntegrationPoint.PROKERALA_API: 'PROKERALA_API_KEY',
-                IntegrationPoint.OPENAI_GUIDANCE: 'OPENAI_API_KEY', 
-                IntegrationPoint.ELEVENLABS_VOICE: 'ELEVENLABS_API_KEY',
-                IntegrationPoint.DID_AVATAR: 'DID_API_KEY',
-                IntegrationPoint.RAG_KNOWLEDGE: None,  # No API key needed
-                IntegrationPoint.SOCIAL_MEDIA: 'FACEBOOK_ACCESS_TOKEN'  # Check one social media key
-            }
-            
             duration_ms = int((time.time() - start_time) * 1000)
-            required_key = env_key_map.get(integration_point)
+            required_key = self.ENV_KEY_MAP.get(integration_point)
             
             if required_key is None:
                 # For integrations that don't need API keys (like RAG)
