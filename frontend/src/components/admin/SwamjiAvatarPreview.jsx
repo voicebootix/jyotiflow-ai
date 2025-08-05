@@ -82,7 +82,7 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
-  const generateImagePreview = async (customPrompt = null) => {
+  const generateImagePreview = async (customPrompt = null, themeDay = null) => {
     if (!uploadedImage) {
       addNotification('error', 'Please upload Swamiji\'s photo first');
       return;
@@ -98,6 +98,7 @@ const SwamjiAvatarPreview = () => {
 
       const response = await enhanced_api.generateImagePreview({
         custom_prompt: customPrompt || promptText || null, // Pass null to let the backend decide the daily theme
+        theme_day: themeDay, // Pass the theme day override
         timestamp: Date.now() // Cache busting
       });
 
@@ -272,14 +273,47 @@ const SwamjiAvatarPreview = () => {
             </h3>
             
             <div className="space-y-4">
+              {/* Current Daily Theme Button */}
               <button
                 onClick={() => generateImagePreview()}
                 disabled={!uploadedImage || isGenerating}
                 className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2 text-base"
               >
                 <Star size={18} />
-                <span>Generate Daily Image Preview</span>
+                <span>Generate Today's Daily Theme</span>
               </button>
+
+              {/* 7 Theme Preview Buttons */}
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-3">🎨 Test All 7 Daily Themes:</h4>
+                <div className="grid grid-cols-1 gap-2">
+                  {[
+                    { day: 0, name: 'Monday', theme: 'Meditative', icon: '🤍', color: 'bg-gray-100 hover:bg-gray-200 text-gray-800' },
+                    { day: 1, name: 'Tuesday', theme: 'Teaching', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
+                    { day: 2, name: 'Wednesday', theme: 'Wisdom', icon: '🤎', color: 'bg-amber-100 hover:bg-amber-200 text-amber-800' },
+                    { day: 3, name: 'Thursday', theme: 'Thankful', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
+                    { day: 4, name: 'Friday', theme: 'Festive', icon: '🟡', color: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' },
+                    { day: 5, name: 'Saturday', theme: 'Silent', icon: '🤎', color: 'bg-stone-100 hover:bg-stone-200 text-stone-800' },
+                    { day: 6, name: 'Sunday', theme: 'Serene', icon: '🤍', color: 'bg-blue-50 hover:bg-blue-100 text-blue-800' }
+                  ].map((themeButton) => (
+                    <button
+                      key={themeButton.day}
+                      onClick={() => generateImagePreview(null, themeButton.day)}
+                      disabled={!uploadedImage || isGenerating}
+                      className={`w-full px-3 py-2 rounded-lg disabled:opacity-50 flex items-center justify-between text-sm font-medium ${themeButton.color}`}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <span>{themeButton.icon}</span>
+                        <span>{themeButton.name}</span>
+                      </div>
+                      <span className="text-xs">{themeButton.theme}</span>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Click any day to preview how Swamiji will appear with that theme's clothing and background
+                </p>
+              </div>
 
               {isGenerating && (
                 <div className="text-center py-4">
