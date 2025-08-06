@@ -153,6 +153,11 @@ class IntegrationMonitor:
             self.validators[IntegrationPoint.SOCIAL_MEDIA] = None
         self.context_tracker = ContextTracker()
         
+        # Throttling mechanism to prevent system overload
+        self._health_check_cache = {}
+        self._health_check_interval = 60  # Cache health checks for 60 seconds
+        self._last_health_checks = {}
+        
         # Safe business validator initialization
         try:
             self.business_validator = BusinessLogicValidator()
@@ -600,6 +605,14 @@ class IntegrationMonitor:
             
             conn = await db_manager.get_connection()
             try:
+                # First, ensure the session exists in validation_sessions table to satisfy foreign key constraint
+                await conn.execute("""
+                    INSERT INTO validation_sessions (session_id, created_at)
+                    VALUES ($1, NOW())
+                    ON CONFLICT (session_id) DO NOTHING
+                """, session_id)
+                
+                # Now insert the issue
                 await conn.execute("""
                     INSERT INTO business_logic_issues 
                     (session_id, issue_type, severity, description, auto_fixable, created_at)
@@ -890,7 +903,18 @@ class IntegrationMonitor:
             }
     
     async def _check_integration_point_health(self, integration_point: IntegrationPoint) -> Dict:
-        """Check health of a specific integration point"""
+        """Check health of a specific integration point with throttling"""
+        import time
+        current_time = time.time()
+        cache_key = integration_point.value
+        
+        # Check if we have a recent cached result
+        if (cache_key in self._health_check_cache and 
+            cache_key in self._last_health_checks and
+            current_time - self._last_health_checks[cache_key] < self._health_check_interval):
+            logger.debug(f"Using cached health check for {integration_point.value}")
+            return self._health_check_cache[cache_key]
+        
         try:
             # Get recent validation results for this integration
             conn = await db_manager.get_connection()
@@ -930,12 +954,18 @@ class IntegrationMonitor:
                 else:
                     status = "error"
                 
-                return {
+                result = {
                     "status": status,
                     "success_rate": round(success_rate, 1),
                     "avg_duration_ms": int(avg_duration),
                     "total_validations": total
                 }
+                
+                # Cache the result to reduce database load
+                self._health_check_cache[cache_key] = result
+                self._last_health_checks[cache_key] = current_time
+                
+                return result
             finally:
                 await db_manager.release_connection(conn)
                 
