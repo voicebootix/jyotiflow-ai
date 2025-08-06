@@ -9,6 +9,8 @@ import json
 import logging
 import os
 import time
+import threading
+from collections import OrderedDict
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Tuple
 from enum import Enum
@@ -29,6 +31,79 @@ except ImportError:
     db_manager = MockDBManager()
 
 logger = logging.getLogger(__name__)
+
+class ThreadSafeLRUCache:
+    """Thread-safe LRU cache with size limits and periodic cleanup"""
+    
+    def __init__(self, max_size: int = 100, cleanup_interval: int = 300):
+        self.max_size = max_size
+        self.cleanup_interval = cleanup_interval  # 5 minutes default
+        self._cache = OrderedDict()
+        self._lock = threading.RLock()
+        self._last_cleanup = time.time()
+    
+    def get(self, key: str, default=None):
+        """Get item from cache, moving it to end (most recent)"""
+        with self._lock:
+            if key in self._cache:
+                # Move to end (most recent)
+                value = self._cache.pop(key)
+                self._cache[key] = value
+                return value
+            return default
+    
+    def set(self, key: str, value, timestamp: float = None):
+        """Set item in cache with optional timestamp"""
+        if timestamp is None:
+            timestamp = time.time()
+            
+        with self._lock:
+            # Remove if exists to update position
+            if key in self._cache:
+                del self._cache[key]
+            
+            # Add to end
+            self._cache[key] = {'value': value, 'timestamp': timestamp}
+            
+            # Evict oldest if over max size
+            while len(self._cache) > self.max_size:
+                oldest_key = next(iter(self._cache))
+                del self._cache[oldest_key]
+                logger.debug(f"LRU cache evicted oldest entry: {oldest_key}")
+    
+    def cleanup_stale(self, max_age: int = 3600):
+        """Remove entries older than max_age seconds"""
+        current_time = time.time()
+        
+        # Only cleanup periodically to avoid overhead
+        if current_time - self._last_cleanup < self.cleanup_interval:
+            return
+            
+        with self._lock:
+            stale_keys = []
+            for key, data in self._cache.items():
+                if current_time - data['timestamp'] > max_age:
+                    stale_keys.append(key)
+            
+            for key in stale_keys:
+                del self._cache[key]
+                logger.debug(f"Cache cleanup removed stale entry: {key}")
+            
+            self._last_cleanup = current_time
+            
+            if stale_keys:
+                logger.info(f"Cache cleanup removed {len(stale_keys)} stale entries")
+    
+    def size(self) -> int:
+        """Get current cache size"""
+        with self._lock:
+            return len(self._cache)
+    
+    def clear(self):
+        """Clear all cache entries"""
+        with self._lock:
+            self._cache.clear()
+            logger.debug("Cache cleared")
 
 # Import validators with fallbacks
 try:
@@ -65,18 +140,12 @@ except ImportError:
 try:
     from .context_tracker import ContextTracker
 except ImportError:
-    class MockContextTracker:
-        def track_context(self, *args, **kwargs):
-            return {"status": "mocked"}
-    ContextTracker = MockContextTracker
+    ContextTracker = None
 
 try:
     from .business_validator import BusinessLogicValidator
 except ImportError:
-    class MockBusinessValidator:
-        async def validate(self, *args, **kwargs):
-            return {"valid": True, "message": "mocked validation"}
-    BusinessLogicValidator = MockBusinessValidator
+    BusinessLogicValidator = None
 
 class IntegrationStatus(Enum):
     SUCCESS = "success"
@@ -151,27 +220,45 @@ class IntegrationMonitor:
                 self.validators[IntegrationPoint.SOCIAL_MEDIA] = SocialMediaValidator()
         except Exception:
             self.validators[IntegrationPoint.SOCIAL_MEDIA] = None
-        self.context_tracker = ContextTracker()
-        
-        # Safe business validator initialization
+        # Context tracker initialization - no fallback (database-only approach)
         try:
-            self.business_validator = BusinessLogicValidator()
-        except Exception:
-            # Fallback business validator
-            class MockBusinessValidator:
-                async def validate(self, *args, **kwargs):
-                    return {"valid": True, "message": "mock validation - no API key"}
-                async def validate_session(self, session_id: str) -> Dict:
-                    return {"valid": True, "issues_found": [], "message": "mock session validation"}
-            self.business_validator = MockBusinessValidator()
+            if ContextTracker is not None:
+                self.context_tracker = ContextTracker()
+            else:
+                logger.warning("ContextTracker not available - import failed")
+                self.context_tracker = None
+        except Exception as e:
+            logger.warning(f"ContextTracker initialization failed: {e}")
+            self.context_tracker = None
+        
+        # Thread-safe throttling mechanism to prevent system overload
+        self._health_check_cache = ThreadSafeLRUCache(max_size=50, cleanup_interval=300)
+        self._health_check_interval = 60  # Cache health checks for 60 seconds
+        
+        # Thread-safe log rate limiting to prevent log flooding  
+        self._log_rate_limiter = ThreadSafeLRUCache(max_size=200, cleanup_interval=600)
+        self._log_rate_limit_interval = 30  # Only log same error once per 30 seconds
+        
+        # Business validator initialization - no fallback (database-only approach)
+        try:
+            if BusinessLogicValidator is not None:
+                self.business_validator = BusinessLogicValidator()
+            else:
+                logger.warning("BusinessLogicValidator not available - import failed")
+                self.business_validator = None
+        except Exception as e:
+            logger.warning(f"BusinessLogicValidator initialization failed: {e}")
+            self.business_validator = None
         self.active_sessions = {}
         self.metrics = {}  # Store metrics for each integration
         
     async def start_monitoring(self):
-        """Start background monitoring tasks"""
+        """Start background monitoring tasks with cache management"""
         logger.info("🚀 Starting integration monitoring background tasks...")
         # Start periodic health checks
         asyncio.create_task(self._periodic_health_check())
+        # Start periodic cache cleanup task
+        asyncio.create_task(self._periodic_cache_cleanup())
         
     async def update_metrics(self, integration_name: str, metric_type: str, 
                            value: float, metadata: Optional[Dict] = None):
@@ -202,6 +289,49 @@ class IntegrationMonitor:
                 logger.info(f"📊 System health check: {health_status['overall_status']}")
             except Exception as e:
                 logger.error(f"Error in periodic health check: {e}")
+    
+    async def _periodic_cache_cleanup(self):
+        """Periodic cleanup of caches to prevent memory bloat"""
+        while True:
+            try:
+                await asyncio.sleep(300)  # Run every 5 minutes
+                
+                # Cleanup health check cache (entries older than 2 hours)
+                self._health_check_cache.cleanup_stale(max_age=7200)
+                
+                # Cleanup log rate limiter cache (entries older than 1 hour) 
+                self._log_rate_limiter.cleanup_stale(max_age=3600)
+                
+                # Log cache statistics periodically (every 30 minutes)
+                if int(time.time()) % 1800 == 0:  # Every 30 minutes
+                    health_cache_size = self._health_check_cache.size()
+                    log_cache_size = self._log_rate_limiter.size()
+                    
+                    if health_cache_size > 0 or log_cache_size > 0:
+                        logger.info(f"🗄️ Cache stats - Health: {health_cache_size}/{self._health_check_cache.max_size}, Log: {log_cache_size}/{self._log_rate_limiter.max_size}")
+                    
+            except Exception as e:
+                logger.error(f"Cache cleanup error: {e}")
+                # Continue the cleanup loop even if there's an error
+    
+    def clear_all_caches(self):
+        """Manually clear all caches (for testing/debugging)"""
+        self._health_check_cache.clear()
+        self._log_rate_limiter.clear()
+        logger.info("🧹 All caches cleared manually")
+    
+    def get_cache_stats(self) -> Dict:
+        """Get current cache statistics"""
+        return {
+            "health_cache": {
+                "size": self._health_check_cache.size(),
+                "max_size": self._health_check_cache.max_size
+            },
+            "log_cache": {
+                "size": self._log_rate_limiter.size(), 
+                "max_size": self._log_rate_limiter.max_size
+            }
+        }
         
     async def start_session_monitoring(self, session_id: str, user_id: int, 
                                      birth_details: Dict, spiritual_question: str,
@@ -226,8 +356,11 @@ class IntegrationMonitor:
             # Store in active sessions
             self.active_sessions[session_id] = session_context
             
-            # Initialize context tracking
-            await self.context_tracker.initialize_session(session_id, session_context)
+            # Initialize context tracking (if available)
+            if self.context_tracker is not None:
+                await self.context_tracker.initialize_session(session_id, session_context)
+            else:
+                logger.debug(f"Context tracking unavailable for session {session_id}")
             
             # Store in database
             conn = await db_manager.get_connection()
@@ -393,6 +526,10 @@ class IntegrationMonitor:
             if session_id not in self.active_sessions:
                 return {"validated": False, "error": "Session not found"}
             
+            # Check if business validator is available
+            if self.business_validator is None:
+                return {"validated": False, "error": "Business validator unavailable - database-only mode"}
+            
             session_context = self.active_sessions[session_id]
             
             # Run business logic validation
@@ -539,19 +676,8 @@ class IntegrationMonitor:
                 
             except Exception as e:
                 logger.error(f"Failed to fetch recent issues from database: {e}")
-                # Fallback: create issues based on current integration health
-                recent_issues = []
-                for point_name, point_data in health_status["integration_points"].items():
-                    if point_data.get("status") == "error":
-                        recent_issues.append({
-                            "type": f"{point_name}_health_check",
-                            "severity": "high",
-                            "message": f"{point_name} integration is currently failing health checks",
-                            "timestamp": health_status["timestamp"],
-                            "source": "real_time_health_check"
-                        })
-                
-                health_status["recent_issues"] = recent_issues
+                # No fallback data - if database fails, show no issues (as requested)
+                health_status["recent_issues"] = []
             finally:
                 await db_manager.release_connection(conn)
             
@@ -579,7 +705,8 @@ class IntegrationMonitor:
                 severity="high",
                 description=f"Failed to retrieve system health status: {str(e)}",
                 auto_fixable=False,
-                _prevent_recursion=True
+                _prevent_recursion=True,
+                user_id=0  # System monitoring user
             )
             return {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -589,9 +716,25 @@ class IntegrationMonitor:
     
     # Private helper methods
     
+    def _should_log_error(self, error_key: str) -> bool:
+        """Check if we should log this error based on rate limiting (thread-safe)"""
+        current_time = time.time()
+        
+        # Cleanup stale entries periodically
+        self._log_rate_limiter.cleanup_stale(max_age=self._log_rate_limit_interval * 3)
+        
+        # Check if error was logged recently
+        last_log_data = self._log_rate_limiter.get(error_key)
+        if last_log_data and current_time - last_log_data['timestamp'] < self._log_rate_limit_interval:
+            return False  # Don't log, too recent
+            
+        # Record this log time
+        self._log_rate_limiter.set(error_key, True, current_time)
+        return True  # OK to log
+    
     async def _log_integration_issue(self, integration_point: str, issue_type: str, 
                                    severity: str, description: str, auto_fixable: bool = False,
-                                   _prevent_recursion: bool = False, session_id: str = None) -> None:
+                                   _prevent_recursion: bool = False, session_id: str = None, user_id: int = None) -> None:
         """Log integration issues to database for tracking with recursive error prevention"""
         try:
             # Generate session_id if not provided (required by database schema)
@@ -600,23 +743,45 @@ class IntegrationMonitor:
             
             conn = await db_manager.get_connection()
             try:
+                # First, ensure the session exists in validation_sessions table to satisfy foreign key constraint
+                # Use default user_id of 0 if not provided (system monitoring session)
+                if user_id is None:
+                    user_id = 0
+                    
+                await conn.execute("""
+                    INSERT INTO validation_sessions (session_id, user_id, started_at)
+                    VALUES ($1, $2, NOW())
+                    ON CONFLICT (session_id) DO NOTHING
+                """, session_id, user_id)
+                
+                # Now insert the issue
                 await conn.execute("""
                     INSERT INTO business_logic_issues 
                     (session_id, issue_type, severity, description, auto_fixable, created_at)
                     VALUES ($1, $2, $3, $4, $5, NOW())
                 """, session_id, issue_type, severity, description, auto_fixable)
                 
-                logger.debug(f"📝 Logged {severity} issue for {integration_point}: {issue_type}")
+                # Only log debug info for high severity issues to reduce log volume
+                if severity in ['high', 'critical']:
+                    logger.debug(f"📝 Logged {severity} issue for {integration_point}: {issue_type}")
             finally:
                 await db_manager.release_connection(conn)
         except Exception as e:
-            # Fallback logging mechanism - prevents recursive database logging attempts
-            if not _prevent_recursion:
+            # Fallback logging mechanism with rate limiting to prevent log flooding
+            error_key = f"{integration_point}_{issue_type}_{str(e)[:50]}"  # Create unique key for this error type
+            
+            if not _prevent_recursion and self._should_log_error(error_key):
                 logger.error(f"Failed to log integration issue to database: {e}")
                 logger.warning(f"📋 Fallback log - {severity.upper()} issue for {integration_point}: {issue_type} - {description}")
+                logger.info(f"🔇 Similar errors will be suppressed for {self._log_rate_limit_interval} seconds")
+            elif not _prevent_recursion:
+                # Error suppressed due to rate limiting - only log once per interval
+                pass  # Silently skip to prevent log flooding
             else:
-                # Already in recursive prevention mode - only log to application logger
-                logger.error(f"Database logging failed during recursive prevention for {integration_point}: {e}")
+                # Already in recursive prevention mode - only log once per interval
+                if self._should_log_error(f"recursive_{integration_point}"):
+                    logger.error(f"Database logging failed during recursive prevention for {integration_point}: {e}")
+                    logger.info(f"🔇 Recursive prevention errors suppressed for {self._log_rate_limit_interval} seconds")
     async def _attempt_auto_fix(self, session_id: str, 
                                integration_point: IntegrationPoint,
                                validation_result: Dict) -> Dict:
@@ -824,73 +989,22 @@ class IntegrationMonitor:
         
         return recommendations
     
-    async def _perform_realtime_health_check(self, integration_point: IntegrationPoint) -> Dict:
-        """Perform real-time health check by checking environment configuration"""
-        start_time = time.time()
-        
-        try:
-            duration_ms = int((time.time() - start_time) * 1000)
-            required_key = self.ENV_KEY_MAP.get(integration_point)
-            
-            if required_key is None:
-                # For integrations that don't need API keys (like RAG)
-                return {
-                    "status": "healthy",
-                    "message": f"{integration_point.value} ready",
-                    "success_rate": 100.0,
-                    "avg_duration_ms": duration_ms,
-                    "total_validations": 0
-                }
-            
-            # Check if API key is configured
-            api_key = os.getenv(required_key)
-            if api_key:
-                return {
-                    "status": "healthy",
-                    "message": f"API key configured for {integration_point.value}",
-                    "success_rate": 100.0,
-                    "avg_duration_ms": duration_ms,
-                    "total_validations": 0
-                }
-            else:
-                # Log missing API key issue to database
-                await self._log_integration_issue(
-                    integration_point=integration_point.value,
-                    issue_type="missing_api_key",
-                    severity="high",
-                    description=f"Missing required environment variable {required_key} for {integration_point.value}",
-                    auto_fixable=False
-                )
-                return {
-                    "status": "error",
-                    "message": f"Missing {required_key} for {integration_point.value}",
-                    "success_rate": 0.0,
-                    "avg_duration_ms": duration_ms,
-                    "total_validations": 0
-                }
-                
-        except Exception as e:
-            duration_ms = int((time.time() - start_time) * 1000)
-            logger.error(f"Health check failed for {integration_point.value}: {e}")
-            # Log health check failure to database
-            await self._log_integration_issue(
-                integration_point=integration_point.value,
-                issue_type="health_check_failure",
-                severity="high",
-                description=f"Real-time health check failed for {integration_point.value}: {str(e)}",
-                auto_fixable=False
-            )
-            return {
-                "status": "error",
-                "message": f"Health check failed: {str(e)}",
-                "success_rate": 0.0,
-                "avg_duration_ms": duration_ms,
-                "total_validations": 0,
-                "error": str(e)
-            }
+
     
     async def _check_integration_point_health(self, integration_point: IntegrationPoint) -> Dict:
-        """Check health of a specific integration point"""
+        """Check health of a specific integration point with thread-safe throttling"""
+        current_time = time.time()
+        cache_key = integration_point.value
+        
+        # Cleanup stale cache entries periodically
+        self._health_check_cache.cleanup_stale(max_age=self._health_check_interval * 2)
+        
+        # Check if we have a recent cached result
+        cached_result = self._health_check_cache.get(cache_key)
+        if cached_result and current_time - cached_result['timestamp'] < self._health_check_interval:
+            logger.debug(f"Using cached health check for {integration_point.value}")
+            return cached_result['value']
+        
         try:
             # Get recent validation results for this integration
             conn = await db_manager.get_connection()
@@ -907,9 +1021,18 @@ class IntegrationMonitor:
                 success = sum(row['count'] for row in recent_validations if row['status'] == 'success')
                 
                 if total == 0:
-                    # No recent validation data - perform real-time health check
-                    logger.debug(f"No recent data for {integration_point.value}, performing real-time health check")
-                    return await self._perform_realtime_health_check(integration_point)
+                    # No recent validation data - show no issues (database-only approach)
+                    logger.debug(f"No recent data for {integration_point.value}, showing no issues")
+                    result = {
+                        "status": "no_data",
+                        "message": f"No recent validation data for {integration_point.value}",
+                        "success_rate": 0.0,
+                        "avg_duration_ms": 0,
+                        "total_validations": 0
+                    }
+                    # Cache the result to reduce database load (thread-safe)
+                    self._health_check_cache.set(cache_key, result, current_time)
+                    return result
                 
                 success_rate = (success / total) * 100
                 
@@ -930,20 +1053,32 @@ class IntegrationMonitor:
                 else:
                     status = "error"
                 
-                return {
+                result = {
                     "status": status,
                     "success_rate": round(success_rate, 1),
                     "avg_duration_ms": int(avg_duration),
                     "total_validations": total
                 }
+                
+                # Cache the result to reduce database load (thread-safe)
+                self._health_check_cache.set(cache_key, result, current_time)
+                
+                return result
             finally:
                 await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to check integration health: {e}")
-            # Database unavailable - perform real-time health check instead
-            logger.debug(f"Database unavailable for {integration_point.value}, falling back to real-time check")
-            return await self._perform_realtime_health_check(integration_point)
+            # Database unavailable - show database error (no fallback data)
+            logger.debug(f"Database unavailable for {integration_point.value}, showing database error")
+            return {
+                "status": "database_error",
+                "message": f"Database unavailable for {integration_point.value}",
+                "success_rate": 0.0,
+                "avg_duration_ms": 0,
+                "total_validations": 0,
+                "error": str(e)
+            }
 
 # Singleton instance - initialized immediately for dashboard access
 integration_monitor = IntegrationMonitor()
