@@ -10,7 +10,7 @@ Key Test Categories:
 - Inner bounds integrity (left < right, top < bottom)
 - Minimum dimension requirements (≥1px)
 - Unusual face aspect ratios
-- Offset percentage calculations (5%, 10%, 15%)
+- Offset percentage calculations (2%, 8%, 10%, 15%)
 - Boundary clamping near image edges
 - Consistency across different image sizes
 """
@@ -152,11 +152,11 @@ class TestThemeServiceMaskGeneration(unittest.TestCase):
                 face_right = face_left + face_width
                 face_bottom = face_top + face_height
                 
-                # Inner boundaries with clamping
-                inner_face_left = max(0, face_left + int(face_width * 0.05))
-                inner_face_top = max(0, face_top + int(face_height * 0.05))
-                inner_face_right = min(image_width, face_right - int(face_width * 0.05))
-                inner_face_bottom = min(image_height, face_bottom + int(face_height * 0.05))
+                # Inner boundaries with clamping (updated to match ultra-minimal mask - 8% horizontal, 2% bottom shrink)
+                inner_face_left = max(0, face_left + int(face_width * 0.08))
+                inner_face_top = max(0, face_top + int(face_height * 0.08))
+                inner_face_right = min(image_width, face_right - int(face_width * 0.08))
+                inner_face_bottom = min(image_height, face_bottom - int(face_height * 0.02))
                 
                 # Outer boundaries with clamping
                 outer_face_left = max(0, face_left - int(face_width * 0.10))
