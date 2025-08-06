@@ -886,12 +886,47 @@ async def get_monitoring_health():
 @router.get("/dashboard")
 async def get_dashboard():
     """Get monitoring dashboard data for admin interface (public endpoint for testing)"""
-    dashboard_data = await monitoring_dashboard.get_dashboard_data()
-    return StandardResponse(
-        status="success",
-        message="Dashboard data retrieved",
-        data=dashboard_data
-    )
+    try:
+        dashboard_data = await monitoring_dashboard.get_dashboard_data()
+        return StandardResponse(
+            status="success",
+            message="Dashboard data retrieved",
+            data=dashboard_data
+        )
+    except Exception as e:
+        logger.error(f"Failed to get dashboard data: {e}")
+        # Return minimal data structure to prevent frontend crashes
+        fallback_data = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "system_health": {
+                "system_status": "error",
+                "integration_points": {},
+                "recent_issues": [
+                    {
+                        "type": "dashboard_error",
+                        "message": f"Dashboard data retrieval failed: {str(e)}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                        "severity": "high"
+                    }
+                ]
+            },
+            "active_sessions": 0,
+            "recent_sessions": [],
+            "integration_statistics": {},
+            "critical_issues": [],
+            "social_media_health": {},
+            "overall_metrics": {},
+            "metrics": {
+                "success_rates": {},
+                "avg_response_times": {}
+            },
+            "alerts": []
+        }
+        return StandardResponse(
+            status="error",
+            message=f"Dashboard data retrieval failed: {str(e)}",
+            data=fallback_data
+        )
 
 @router.get("/session/{session_id}")
 async def get_session_validation(session_id: str, admin: dict = Depends(get_current_admin_dependency)):
