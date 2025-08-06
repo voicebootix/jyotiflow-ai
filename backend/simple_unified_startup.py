@@ -12,6 +12,62 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+async def apply_dashboard_migration_directly(db_pool):
+    """Apply the critical dashboard migration directly for Test Results Dashboard functionality"""
+    logger.info("🔄 Applying dashboard migration directly (007_fix_missing_monitoring_columns)")
+    try:
+        async with db_pool.acquire() as conn:
+            # Apply the auto_fixable column to business_logic_issues
+            await conn.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'business_logic_issues' 
+                        AND column_name = 'auto_fixable'
+                        AND table_schema = 'public'
+                    ) THEN
+                        ALTER TABLE business_logic_issues 
+                        ADD COLUMN auto_fixable BOOLEAN DEFAULT FALSE;
+                        RAISE NOTICE 'Added auto_fixable column to business_logic_issues table';
+                    ELSE
+                        RAISE NOTICE 'auto_fixable column already exists in business_logic_issues table';
+                    END IF;
+                END $$;
+            """)
+            
+            # Apply the error_message column to integration_validations
+            await conn.execute("""
+                DO $$ 
+                BEGIN
+                    IF NOT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'integration_validations' 
+                        AND column_name = 'error_message'
+                        AND table_schema = 'public'
+                    ) THEN
+                        ALTER TABLE integration_validations 
+                        ADD COLUMN error_message TEXT;
+                        RAISE NOTICE 'Added error_message column to integration_validations table';
+                    ELSE
+                        RAISE NOTICE 'error_message column already exists in integration_validations table';
+                    END IF;
+                END $$;
+            """)
+            
+            # Add comments for documentation
+            await conn.execute("""
+                COMMENT ON COLUMN business_logic_issues.auto_fixable IS 'Indicates if the issue can be automatically fixed by the system';
+            """)
+            await conn.execute("""
+                COMMENT ON COLUMN integration_validations.error_message IS 'Detailed error message when validation fails';
+            """)
+            
+            logger.info("✅ Dashboard migration applied directly - Test Results Dashboard ready")
+    except Exception as e:
+        logger.error(f"❌ Failed to apply dashboard migration directly: {e}")
+        raise Exception(f"Critical dashboard migration failed: {e}. Test Results Dashboard cannot function without auto_fixable and error_message columns.") from e
+
 async def initialize_jyotiflow_simple():
     """Simple, reliable database initialization with shared pool and migrations"""
     logger.info("🚀 Starting JyotiFlow.ai with clean architecture...")
@@ -73,19 +129,21 @@ async def initialize_jyotiflow_simple():
             if migration_success:
                 logger.info("✅ Database migrations applied successfully")
             else:
-                logger.error("❌ Database migrations returned False")
-                raise Exception("Migration failure: Test Results Dashboard requires successful migrations for auto_fixable and error_message columns")
+                logger.warning("⚠️ Some migrations failed - applying critical dashboard migration directly")
+                # Apply our specific dashboard migration directly since it's critical
+                await apply_dashboard_migration_directly(db_pool)
         except ImportError as import_error:
             logger.error(f"❌ Migration system not available: {import_error}")
-            raise Exception("Migration system required: Cannot start without migration support for database-driven features") from import_error
+            logger.info("🔄 Applying critical dashboard migration directly as fallback")
+            await apply_dashboard_migration_directly(db_pool)
         except Exception as e:
             # Don't re-wrap our own migration failure exceptions
             if "Migration failure: Test Results Dashboard" in str(e):
                 raise  # Re-raise the original exception without wrapping
             else:
-                logger.error(f"❌ Migration system failed: {e}")
-                logger.error("🚫 Halting startup: Test monitor functionality requires successful migrations")
-                raise Exception(f"Critical migration failure: {e}. Test Results Dashboard cannot function without proper database schema.") from e
+                logger.warning(f"⚠️ Migration system failed: {e}")
+                logger.info("🔄 Applying critical dashboard migration directly as fallback")
+                await apply_dashboard_migration_directly(db_pool)
         
         # Step 4: Test connection
         logger.info("🧪 Testing database connection...")
