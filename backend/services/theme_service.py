@@ -77,97 +77,203 @@ class ThemeService:
             
         Returns:
             bytes: PNG mask image as bytes with smart person-background separation
+            
+        Raises:
+            ValueError: If input parameters are invalid
+            RuntimeError: If image processing fails
         """
-        # Load original image for color analysis
-        original_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        original_array = np.array(original_image)
+        # 🔍 INPUT VALIDATION: Ensure all parameters are valid
+        if image_bytes is None or len(image_bytes) == 0:
+            raise ValueError("image_bytes cannot be None or empty")
+        
+        if not isinstance(image_width, int) or image_width <= 0:
+            raise ValueError(f"image_width must be a positive integer, got: {image_width}")
+            
+        if not isinstance(image_height, int) or image_height <= 0:
+            raise ValueError(f"image_height must be a positive integer, got: {image_height}")
+        
+        try:
+            # Load original image for color analysis
+            original_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+            original_array = np.array(original_image)
+            
+            # Validate image dimensions match parameters
+            actual_height, actual_width = original_array.shape[:2]
+            if actual_width != image_width or actual_height != image_height:
+                logger.warning(f"Image dimensions mismatch: expected {image_width}x{image_height}, got {actual_width}x{actual_height}")
+                # Use actual dimensions from image
+                image_width, image_height = actual_width, actual_height
+                
+        except Exception as e:
+            raise RuntimeError(f"Failed to load or process image: {str(e)}")
         
         # Create base mask (white = transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)
         mask_array = np.array(mask)
         
-        # Define person area boundaries (matching user's red circles)
-        face_width_ratio = 0.28
-        face_height_ratio = 0.32
-        
-        face_width = int(image_width * face_width_ratio)
-        face_height = int(image_height * face_height_ratio)
-        face_left = (image_width - face_width) // 2
-        face_top = int(image_height * 0.15)
-        face_right = face_left + face_width
-        face_bottom = face_top + face_height
-        
-        # Analyze skin tones in central face area (for person identification)
-        skin_sample_left = face_left + int(face_width * 0.3)
-        skin_sample_right = face_right - int(face_width * 0.3)  
-        skin_sample_top = face_top + int(face_height * 0.2)
-        skin_sample_bottom = face_bottom - int(face_height * 0.4)
-        
-        # Extract person skin colors
-        skin_region = original_array[skin_sample_top:skin_sample_bottom, skin_sample_left:skin_sample_right]
-        
-        # Calculate person color characteristics
-        person_colors = {
-            'skin_mean': np.mean(skin_region, axis=(0, 1)),
-            'skin_std': np.std(skin_region, axis=(0, 1)),
-        }
-        
-        # Analyze background colors (corners of image)
-        corner_size = min(image_width, image_height) // 10
-        corners = [
-            original_array[0:corner_size, 0:corner_size],  # Top-left
-            original_array[0:corner_size, -corner_size:], # Top-right  
-            original_array[-corner_size:, 0:corner_size], # Bottom-left
-            original_array[-corner_size:, -corner_size:]  # Bottom-right
-        ]
-        
-        background_colors = []
-        for corner in corners:
-            background_colors.append(np.mean(corner, axis=(0, 1)))
-        background_mean = np.mean(background_colors, axis=0)
-        
-        # Smart person detection within face area
-        for y in range(max(0, face_top - 20), min(image_height, face_bottom + 40)):
-            for x in range(max(0, face_left - 10), min(image_width, face_right + 10)):
-                pixel_color = original_array[y, x]
+        try:
+            # Define person area boundaries (matching user's red circles)
+            face_width_ratio = 0.28
+            face_height_ratio = 0.32
+            
+            face_width = int(image_width * face_width_ratio)
+            face_height = int(image_height * face_height_ratio)
+            face_left = (image_width - face_width) // 2
+            face_top = int(image_height * 0.15)
+            face_right = face_left + face_width
+            face_bottom = face_top + face_height
+            
+            # Validate face region boundaries
+            if face_left >= face_right or face_top >= face_bottom:
+                raise ValueError(f"Invalid face region: ({face_left}, {face_top}) to ({face_right}, {face_bottom})")
+            
+            # Analyze skin tones in central face area (for person identification)
+            skin_sample_left = max(0, face_left + int(face_width * 0.3))
+            skin_sample_right = min(image_width, face_right - int(face_width * 0.3))  
+            skin_sample_top = max(0, face_top + int(face_height * 0.2))
+            skin_sample_bottom = min(image_height, face_bottom - int(face_height * 0.4))
+            
+            # Validate skin sample region
+            if (skin_sample_left >= skin_sample_right or 
+                skin_sample_top >= skin_sample_bottom or
+                skin_sample_right - skin_sample_left < 5 or
+                skin_sample_bottom - skin_sample_top < 5):
+                raise ValueError("Skin sample region is too small or invalid")
+            
+            # Extract person skin colors
+            skin_region = original_array[skin_sample_top:skin_sample_bottom, skin_sample_left:skin_sample_right]
+            
+            # Calculate person color characteristics
+            person_colors = {
+                'skin_mean': np.mean(skin_region, axis=(0, 1)),
+                'skin_std': np.std(skin_region, axis=(0, 1)),
+            }
+            
+            # Analyze background colors (corners of image)
+            corner_size = max(5, min(image_width, image_height) // 10)  # Ensure minimum corner size
+            corners = [
+                original_array[0:corner_size, 0:corner_size],  # Top-left
+                original_array[0:corner_size, -corner_size:], # Top-right  
+                original_array[-corner_size:, 0:corner_size], # Bottom-left
+                original_array[-corner_size:, -corner_size:]  # Bottom-right
+            ]
+            
+            background_colors = []
+            for corner in corners:
+                if corner.size > 0:  # Ensure corner is not empty
+                    background_colors.append(np.mean(corner, axis=(0, 1)))
+            
+            if not background_colors:
+                raise ValueError("Could not extract background colors from image corners")
                 
-                # Calculate similarity to person vs background
-                person_distance = np.linalg.norm(pixel_color - person_colors['skin_mean'])
-                background_distance = np.linalg.norm(pixel_color - background_mean)
-                
-                # Determine if pixel belongs to person or background
-                if person_distance < background_distance * 0.8:  # Person pixel
-                    # Calculate preservation level based on location
-                    center_x = (face_left + face_right) // 2
-                    center_y = (face_top + face_bottom) // 2
-                    
-                    distance_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
-                    max_distance = np.sqrt((face_width/2)**2 + (face_height/2)**2)
-                    
-                    if distance_from_center < max_distance * 0.4:  # Core face
-                        mask_array[y, x] = 0  # Pure preservation
-                    elif distance_from_center < max_distance * 0.7:  # Face edges
-                        mask_array[y, x] = 64  # 75% preserve, 25% blend
-                    elif distance_from_center < max_distance * 1.0:  # Neck area
-                        mask_array[y, x] = 128  # 50% preserve, 50% blend
-                    # else: white (255) = full transformation
-                # else: background pixel - leave as white (255) for full transformation
+            background_mean = np.mean(background_colors, axis=0)
+            
+        except Exception as e:
+            logger.error(f"❌ Color analysis failed: {str(e)}")
+            raise RuntimeError(f"Failed to analyze image colors: {str(e)}")
         
-        # Create smooth blending zones around preserved areas
-        # Smooth the mask to avoid hard edges
-        mask_array = ndimage.gaussian_filter(mask_array.astype(float), sigma=2.0)
-        mask_array = np.clip(mask_array, 0, 255).astype(np.uint8)
+        # 🚀 VECTORIZED SMART PERSON DETECTION: High-performance numpy operations
+        try:
+            # Define processing region boundaries
+            region_top = max(0, face_top - 20)
+            region_bottom = min(image_height, face_bottom + 40)
+            region_left = max(0, face_left - 10)
+            region_right = min(image_width, face_right + 10)
+            
+            # Create coordinate grids for the region
+            y_coords, x_coords = np.mgrid[region_top:region_bottom, region_left:region_right]
+            region_height = region_bottom - region_top
+            region_width = region_right - region_left
+            
+            # Extract pixel colors for the entire region
+            region_pixels = original_array[region_top:region_bottom, region_left:region_right]
+            
+            # Vectorized distance calculations
+            # Calculate person distances (broadcasting across all pixels)
+            person_distances = np.linalg.norm(
+                region_pixels - person_colors['skin_mean'], axis=2
+            )
+            
+            # Calculate background distances (broadcasting across all pixels)
+            background_distances = np.linalg.norm(
+                region_pixels - background_mean, axis=2
+            )
+            
+            # Create boolean mask for person pixels (vectorized comparison)
+            person_pixel_mask = person_distances < (background_distances * 0.8)
+            
+            # Calculate face center coordinates
+            center_x = (face_left + face_right) // 2
+            center_y = (face_top + face_bottom) // 2
+            max_distance = np.sqrt((face_width/2)**2 + (face_height/2)**2)
+            
+            # Vectorized distance from center calculation
+            distances_from_center = np.sqrt(
+                (x_coords - center_x)**2 + (y_coords - center_y)**2
+            )
+            
+            # Create mask region array for vectorized preservation level assignment
+            mask_region = np.full((region_height, region_width), 255, dtype=np.uint8)  # Default: transform
+            
+            # Vectorized preservation level assignment (only for person pixels)
+            person_indices = np.where(person_pixel_mask)
+            person_distances_from_center = distances_from_center[person_indices]
+            
+            # Core face: Pure preservation (0)
+            core_face_mask = person_distances_from_center < (max_distance * 0.4)
+            mask_region[person_indices[0][core_face_mask], person_indices[1][core_face_mask]] = 0
+            
+            # Face edges: 75% preserve, 25% blend (64)
+            face_edge_mask = (person_distances_from_center >= (max_distance * 0.4)) & \
+                           (person_distances_from_center < (max_distance * 0.7))
+            mask_region[person_indices[0][face_edge_mask], person_indices[1][face_edge_mask]] = 64
+            
+            # Neck area: 50% preserve, 50% blend (128)
+            neck_mask = (person_distances_from_center >= (max_distance * 0.7)) & \
+                       (person_distances_from_center < max_distance)
+            mask_region[person_indices[0][neck_mask], person_indices[1][neck_mask]] = 128
+            
+            # Update the main mask array with the processed region
+            mask_array[region_top:region_bottom, region_left:region_right] = mask_region
+            
+            logger.info(f"🚀 VECTORIZED PROCESSING: {region_width}x{region_height} region, "
+                       f"{np.sum(person_pixel_mask)} person pixels identified")
+                       
+        except Exception as e:
+            logger.error(f"❌ Vectorized processing failed, falling back to safe mode: {str(e)}")
+            # Fallback: Simple geometric mask if vectorized processing fails
+            draw = ImageDraw.Draw(Image.fromarray(mask_array))
+            face_left_safe = max(0, face_left)
+            face_top_safe = max(0, face_top)
+            face_right_safe = min(image_width, face_right)
+            face_bottom_safe = min(image_height, face_bottom)
+            draw.ellipse([face_left_safe, face_top_safe, face_right_safe, face_bottom_safe], fill=0)
+            mask_array = np.array(Image.fromarray(mask_array))
         
-        # Convert back to PIL Image
-        final_mask = Image.fromarray(mask_array, mode='L')
-        
-        # Convert to bytes
-        mask_buffer = io.BytesIO()
-        final_mask.save(mask_buffer, format='PNG')
-        mask_bytes = mask_buffer.getvalue()
-        
-        logger.info(f"🧠 SMART PERSON-BACKGROUND MASK: {image_width}x{image_height} | Person colors analyzed | Background separated | Smooth blending applied | Mask size: {len(mask_bytes)/1024:.1f}KB")
-        return mask_bytes
+        try:
+            # Create smooth blending zones around preserved areas
+            # Smooth the mask to avoid hard edges
+            mask_array = ndimage.gaussian_filter(mask_array.astype(float), sigma=2.0)
+            mask_array = np.clip(mask_array, 0, 255).astype(np.uint8)
+            
+            # Convert back to PIL Image
+            final_mask = Image.fromarray(mask_array, mode='L')
+            
+            # Convert to bytes
+            mask_buffer = io.BytesIO()
+            final_mask.save(mask_buffer, format='PNG')
+            mask_bytes = mask_buffer.getvalue()
+            
+            # Validate output
+            if len(mask_bytes) == 0:
+                raise RuntimeError("Generated mask is empty")
+            
+            logger.info(f"🧠 SMART PERSON-BACKGROUND MASK: {image_width}x{image_height} | Person colors analyzed | Background separated | Smooth blending applied | Mask size: {len(mask_bytes)/1024:.1f}KB")
+            return mask_bytes
+            
+        except Exception as e:
+            logger.error(f"❌ Mask generation failed during final processing: {str(e)}")
+            raise RuntimeError(f"Failed to generate smart person-background mask: {str(e)}")
 
     def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
         """
