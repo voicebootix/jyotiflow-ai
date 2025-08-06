@@ -62,7 +62,7 @@ class LegacyStandardResponse(BaseModel):
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from deps import get_current_admin_dependency
 
-from .integration_monitor import IntegrationStatus
+from .integration_monitor import IntegrationStatus, get_integration_monitor
 from .business_validator import BusinessLogicValidator
 
 # Create router for monitoring endpoints
@@ -119,8 +119,7 @@ class MonitoringDashboard:
         """Get comprehensive dashboard data for admin interface"""
         try:
             # Get system health
-            from .integration_monitor import get_integration_monitor
-            monitor = get_integration_monitor()
+                    monitor = get_integration_monitor()
             system_health = await monitor.get_system_health()
             
             # Get recent sessions
