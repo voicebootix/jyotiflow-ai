@@ -29,10 +29,15 @@ async def initialize_jyotiflow_simple():
             if migration_success:
                 logger.info("✅ Database migrations applied successfully")
             else:
-                logger.warning("⚠️ Some migrations failed but continuing startup")
+                logger.error("❌ Database migrations failed - Test monitor requires all migrations")
+                raise Exception("Migration failure: Test Results Dashboard requires successful migrations for auto_fixable and error_message columns")
+        except ImportError as import_error:
+            logger.error(f"❌ Migration system not available: {import_error}")
+            raise Exception("Migration system required: Cannot start without migration support for database-driven features")
         except Exception as e:
             logger.error(f"❌ Migration system failed: {e}")
-            logger.warning("⚠️ Continuing without migrations - some features may not work")
+            logger.error("🚫 Halting startup: Test monitor functionality requires successful migrations")
+            raise Exception(f"Critical migration failure: {e}. Test Results Dashboard cannot function without proper database schema.")
         
         # Step 2: Create single shared database pool
         logger.info("🗄️ Creating shared database pool...")
