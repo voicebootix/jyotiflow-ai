@@ -281,15 +281,18 @@ async def generate_image_preview(
             strength_param=request.strength_param  # 🎯 Configurable strength with feature flag control
         )
         
-        # Robust HTTP header sanitization (core.md: explain complex logic)
+        # 🛡️ ENHANCED HTTP header sanitization - CORE.MD: Fix emoji encoding errors
         # 1. Handle None/non-string values defensively
         if final_prompt is None or not isinstance(final_prompt, str):
             clean_prompt = "Generated image preview"
         else:
-            # 2. Remove ALL HTTP-invalid control characters (0x00–0x1F and 0x7F)
-            # This includes \n, \r, \t, and all other control chars that break headers
+            # 2. Remove ALL HTTP-invalid characters including emojis and Unicode
+            # This prevents latin-1 encoding errors: 'latin-1 codec can't encode character'
             import re
+            # Remove control characters (0x00–0x1F and 0x7F)
             clean_prompt = re.sub(r'[\x00-\x1F\x7F]', ' ', final_prompt)
+            # Remove emoji and non-ASCII Unicode characters that cause encoding errors
+            clean_prompt = re.sub(r'[^\x20-\x7E]', ' ', clean_prompt)  # Keep only printable ASCII
             # 3. Normalize whitespace and trim to valid length
             clean_prompt = ' '.join(clean_prompt.split()).strip()[:500]
             # 4. Fallback if cleaning resulted in empty string

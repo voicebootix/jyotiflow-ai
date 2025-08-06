@@ -179,12 +179,22 @@ class ThemeService:
             # Reshape to list of RGB values
             pixels_reshaped = face_pixels.reshape(-1, 3)
             
-            # Calculate average RGB values (dominant color)
-            avg_r = int(np.mean(pixels_reshaped[:, 0]))
-            avg_g = int(np.mean(pixels_reshaped[:, 1]))
-            avg_b = int(np.mean(pixels_reshaped[:, 2]))
+            # Calculate average RGB values (dominant color) with safe conversion
+            try:
+                avg_r = float(np.mean(pixels_reshaped[:, 0]))
+                avg_g = float(np.mean(pixels_reshaped[:, 1]))
+                avg_b = float(np.mean(pixels_reshaped[:, 2]))
+                
+                # Clamp to valid RGB range and convert to int
+                avg_r = max(0, min(255, int(round(avg_r))))
+                avg_g = max(0, min(255, int(round(avg_g))))
+                avg_b = max(0, min(255, int(round(avg_b))))
+                
+            except (ValueError, OverflowError, TypeError) as e:
+                logger.warning(f"RGB calculation error, using fallback values: {e}")
+                avg_r, avg_g, avg_b = 139, 102, 85  # Safe fallback values
             
-            # Convert RGB to descriptive color terms
+            # Convert RGB to descriptive color terms with error handling
             color_description = self._rgb_to_skin_tone_description(avg_r, avg_g, avg_b)
             
             logger.info(f"🎨 FACE COLOR ANALYSIS: RGB({avg_r}, {avg_g}, {avg_b}) → {color_description}")
@@ -309,7 +319,7 @@ class ThemeService:
                 return 0.4
             else:
                 return max(requested_strength, 0.3)  # Minimum 0.3 for some transformation
-    
+
     async def _get_base_image_data(self) -> tuple[bytes, str]:
         """
         Fetches the uploaded Swamiji image URL from the DB, downloads the image,
@@ -421,8 +431,12 @@ class ThemeService:
             logger.info(f"📐 BASE IMAGE DIMENSIONS: {image_width}x{image_height}")
             
             # 🎨 OPTION 6: Advanced face color analysis - Extract precise skin tone colors
-            analyzed_skin_color = self._analyze_face_skin_color(base_image_bytes)
-            logger.info(f"🎨 COLOR ANALYSIS COMPLETE: {analyzed_skin_color}")
+            try:
+                analyzed_skin_color = self._analyze_face_skin_color(base_image_bytes)
+                logger.info(f"🎨 COLOR ANALYSIS COMPLETE: {analyzed_skin_color}")
+            except Exception as color_error:
+                logger.error(f"❌ Color analysis failed, using fallback: {color_error}")
+                analyzed_skin_color = "warm natural skin tone with consistent complexion"
             
             # Create ultra-extended face preservation mask (40% neck coverage)
             mask_bytes = self._create_face_preservation_mask(image_width, image_height)
@@ -431,7 +445,7 @@ class ThemeService:
             # AI color analysis provides exact skin tone, ultra-extended mask provides maximum reference area
             transformation_prompt = f"""Transform the clothing and background: {theme_description}. 
             
-            🎨 CRITICAL COLOR MATCHING: The body skin must have EXACTLY this analyzed skin tone: {analyzed_skin_color}
+            CRITICAL COLOR MATCHING: The body skin must have EXACTLY this analyzed skin tone: {analyzed_skin_color}
             Maintain perfect skin tone consistency throughout - face, neck, chest, and all visible body areas.
             Use the exact same skin color temperature, undertones, and lighting conditions as the preserved face.
             Ensure seamless color transition with no color breaks, discontinuities, or tone mismatches anywhere.
