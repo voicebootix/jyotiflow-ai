@@ -69,25 +69,25 @@ class ThemeService:
             bytes: PNG mask image as bytes
             
         Mask Strategy:
-        - Oval face mask in upper-center area (typical portrait composition)
-        - Covers approximately 40% width, 50% height centered in upper portion
-        - Face area preserved, everything else transformable
+        - Precise oval face mask matching user's red circle specification  
+        - Covers exactly 28% width, 32% height centered for surgical precision
+        - Tighter face area preserved (eyes, nose, mouth core), maximum transformation freedom
         """
         # Create a white background (transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)  # 'L' = grayscale, 255 = white
         draw = ImageDraw.Draw(mask)
         
-        # Calculate face area (oval in upper-center portion)
-        # Face typically occupies central area in portraits
-        face_width_ratio = 0.4   # 40% of image width
-        face_height_ratio = 0.5  # 50% of image height
+        # 🎯 PRECISION MASK: Match user's red circle - tight face area only
+        # Adjusted to match screenshot red circle precision
+        face_width_ratio = 0.28   # 28% of image width (reduced from 40% - more precise)
+        face_height_ratio = 0.32  # 32% of image height (reduced from 50% - tighter)
         
         face_width = int(image_width * face_width_ratio)
         face_height = int(image_height * face_height_ratio)
         
-        # Center the face horizontally, position in upper portion vertically
+        # Center the face horizontally, position vertically at 15% from top for precision
         face_left = (image_width - face_width) // 2
-        face_top = int(image_height * 0.1)  # Start 10% from top
+        face_top = int(image_height * 0.15)  # Start 15% from top (matches user's red circle specification)
         face_right = face_left + face_width
         face_bottom = face_top + face_height
         
@@ -99,7 +99,7 @@ class ThemeService:
         mask.save(mask_buffer, format='PNG')
         mask_bytes = mask_buffer.getvalue()
         
-        logger.info(f"🎭 FACE MASK CREATED: {image_width}x{image_height} | Face area: {face_width}x{face_height} | Mask size: {len(mask_bytes)/1024:.1f}KB")
+        logger.info(f"🎯 PRECISION MASK: {image_width}x{image_height} | Face area: {face_width}x{face_height} (28%x32% - red circle precision) | Mask size: {len(mask_bytes)/1024:.1f}KB")
         return mask_bytes
 
     async def _determine_safe_strength(self, requested_strength: float) -> float:
@@ -218,7 +218,7 @@ class ThemeService:
         - Face preservation mask: BLACK (preserve face) + WHITE (transform clothes/background)
         - 100% surgical precision - face pixels never touched, everything else free to transform
         - No conflicting prompts - mask handles preservation, prompts focus on transformation  
-        - Geometric face mask: 40% width, 50% height oval in upper-center area
+        - Precision geometric mask: 28% width, 32% height oval matching user's red circle specification
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
         - No strength limitations - mask provides absolute control
