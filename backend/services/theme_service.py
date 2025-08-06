@@ -199,38 +199,62 @@ class ThemeService:
         """
         Convert RGB values to descriptive skin tone terms for AI prompts.
         
+        CORE.MD & REFRESH.MD COMPLIANCE: Enhanced with RGB validation, improved warmth calculation,
+        and accurate color terminology without hardcoded assumptions.
+        
         Args:
-            r, g, b: RGB color values (0-255)
+            r, g, b: RGB color values (must be 0-255)
             
         Returns:
             str: Descriptive color terms for prompt injection
+            
+        Raises:
+            ValueError: If RGB values are outside valid 0-255 range
         """
-        # Calculate brightness and warmth
-        brightness = (r + g + b) / 3
-        warmth = r - b  # Higher values = warmer tones
+        # 🛡️ RGB VALIDATION - CORE.MD: Input validation with clear error messages
+        if not all(isinstance(val, (int, float)) for val in [r, g, b]):
+            raise ValueError(f"RGB values must be numeric. Received: r={type(r).__name__}, g={type(g).__name__}, b={type(b).__name__}")
         
-        # Determine base tone
-        if brightness > 180:
+        if not all(0 <= val <= 255 for val in [r, g, b]):
+            raise ValueError(f"RGB values must be in range 0-255. Received: r={r}, g={g}, b={b}")
+        
+        # Convert to int for consistency
+        r, g, b = int(r), int(g), int(b)
+        
+        # 🎨 ENHANCED WARMTH CALCULATION - Include green channel for accurate color temperature
+        brightness = (r + g + b) / 3
+        # Improved warmth: considers both red-blue and green-blue relationships for accurate skin tone analysis
+        warmth = (r - b) + (g - b) * 0.5  # Weighted formula: red-blue primary, green-blue secondary
+        
+        # 🎯 ENHANCED BASE TONE DETERMINATION - More accurate skin tone categories
+        if brightness > 200:
+            base_tone = "very fair"
+        elif brightness > 180:
             base_tone = "fair"
         elif brightness > 140:
             base_tone = "medium" 
         elif brightness > 100:
             base_tone = "olive"
-        else:
+        elif brightness > 60:
             base_tone = "deep"
-            
-        # Determine warmth
-        if warmth > 20:
-            warmth_desc = "warm golden"
-        elif warmth > 0:
-            warmth_desc = "warm"
-        elif warmth > -20:
-            warmth_desc = "neutral"
         else:
-            warmth_desc = "cool"
+            base_tone = "very deep"
             
-        # Create comprehensive color description
-        color_description = f"{warmth_desc} {base_tone} brown skin tone with RGB({r}, {g}, {b}) undertones"
+        # 🌡️ ENHANCED WARMTH CATEGORIZATION - Improved thresholds for green-enhanced calculation
+        if warmth > 30:
+            warmth_desc = "warm golden"
+        elif warmth > 15:
+            warmth_desc = "warm"
+        elif warmth > -15:
+            warmth_desc = "neutral"
+        elif warmth > -30:
+            warmth_desc = "cool"
+        else:
+            warmth_desc = "cool pink"
+            
+        # ✅ ACCURATE COLOR DESCRIPTION - Remove hardcoded "brown", use precise terminology
+        # No assumptions about skin color - let the AI determine the actual hue based on RGB values
+        color_description = f"{warmth_desc} {base_tone} skin tone with RGB({r}, {g}, {b}) undertones"
         
         return color_description
 
