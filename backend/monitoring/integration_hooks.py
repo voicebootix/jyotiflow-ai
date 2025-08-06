@@ -111,7 +111,7 @@ class MonitoringHooks:
                     
                     # Validate integration point
                     monitor = get_integration_monitor()
-                if session_id in monitor.active_sessions:
+                    if session_id in monitor.active_sessions:
                         output_data = result if isinstance(result, dict) else {"result": str(result)}
                         
                         try:
@@ -140,7 +140,7 @@ class MonitoringHooks:
                     duration_ms = int((time.time() - start_time) * 1000)
                     
                     monitor = get_integration_monitor()
-                if session_id in monitor.active_sessions:
+                    if session_id in monitor.active_sessions:
                         try:
                             await monitor.validate_integration_point(
                                 session_id=session_id,
