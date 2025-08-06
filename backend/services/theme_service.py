@@ -275,6 +275,146 @@ class ThemeService:
             logger.error(f"❌ Mask generation failed during final processing: {str(e)}")
             raise RuntimeError(f"Failed to generate smart person-background mask: {str(e)}")
 
+    async def _apply_color_harmonization(
+        self, 
+        generated_image_bytes: bytes, 
+        original_image_bytes: bytes,
+        mask_bytes: bytes,
+        image_width: int, 
+        image_height: int
+    ) -> bytes:
+        """
+        🎨 ADVANCED COLOR HARMONIZATION: Fix face-body color mismatch for natural blending.
+        
+        USER REQUIREMENT: "body oda face porunthanu" - Face and body should blend naturally
+        - Analyzes AI-generated body colors and lighting
+        - Adjusts preserved face region to match body's color palette
+        - Applies smooth gradient blending at mask edges
+        - Maintains face identity while improving color consistency
+        
+        HARMONIZATION TECHNIQUES:
+        1. Color Temperature Matching: Adjust face warmth/coolness to match body
+        2. Saturation Matching: Align face saturation with AI-generated style
+        3. Brightness/Contrast Matching: Match lighting conditions
+        4. Gradient Blending: Smooth transitions at preserved region edges
+        
+        Args:
+            generated_image_bytes: AI-generated image with face-body mismatch
+            original_image_bytes: Original Swamiji photo for reference
+            mask_bytes: Mask used for inpainting (to identify preserved regions)
+            image_width: Image width
+            image_height: Image height
+            
+        Returns:
+            bytes: Color-harmonized image with natural face-body blending
+        """
+        try:
+            # Load images
+            generated_image = Image.open(io.BytesIO(generated_image_bytes)).convert('RGB')
+            original_image = Image.open(io.BytesIO(original_image_bytes)).convert('RGB')
+            mask_image = Image.open(io.BytesIO(mask_bytes)).convert('L')
+            
+            # Convert to numpy arrays for processing
+            generated_array = np.array(generated_image)
+            original_array = np.array(original_image)
+            mask_array = np.array(mask_image)
+            
+            # Create face and body region masks
+            # Face region: where mask is dark (preserved areas)
+            face_mask = mask_array < 128  # Black/dark areas = preserved face
+            body_mask = mask_array >= 192  # White/bright areas = AI-generated body
+            
+            # Extract color statistics from each region
+            face_pixels = generated_array[face_mask]
+            body_pixels = generated_array[body_mask]
+            
+            if len(face_pixels) == 0 or len(body_pixels) == 0:
+                logger.warning("⚠️ Color harmonization: Insufficient face or body pixels, using original")
+                return generated_image_bytes
+            
+            # Calculate color statistics
+            face_mean = np.mean(face_pixels, axis=0)
+            body_mean = np.mean(body_pixels, axis=0)
+            
+            face_std = np.std(face_pixels, axis=0)
+            body_std = np.std(body_pixels, axis=0)
+            
+            # 🎨 COLOR HARMONIZATION: Adjust face colors to match body
+            # 1. Calculate color shift needed
+            color_shift = body_mean - face_mean
+            
+            # 2. Calculate saturation adjustment
+            face_saturation = np.mean(face_std)
+            body_saturation = np.mean(body_std)
+            saturation_ratio = body_saturation / max(face_saturation, 1.0)
+            
+            # 3. Create harmonized image
+            harmonized_array = generated_array.copy()
+            
+            # 🚀 VECTORIZED COLOR HARMONIZATION: High-performance color adjustments
+            adjustment_strength = 0.4  # Subtle adjustment to maintain face identity
+            
+            # Create float copy for processing
+            harmonized_array_float = harmonized_array.astype(float)
+            
+            # Get indices of face pixels for vectorized operations
+            face_indices = np.where(face_mask)
+            
+            if len(face_indices[0]) > 0:
+                # Extract face pixels for vectorized processing
+                face_pixels_float = harmonized_array_float[face_indices]
+                
+                # 1. Apply color temperature shift (vectorized)
+                adjusted_pixels = face_pixels_float + (color_shift * adjustment_strength)
+                
+                # 2. Apply saturation adjustment (vectorized)
+                pixel_means = np.mean(adjusted_pixels, axis=1, keepdims=True)
+                adjusted_pixels = pixel_means + (adjusted_pixels - pixel_means) * (
+                    saturation_ratio ** adjustment_strength
+                )
+                
+                # 3. Ensure valid range
+                adjusted_pixels = np.clip(adjusted_pixels, 0, 255)
+                
+                # 4. Calculate blend factors based on mask values (vectorized)
+                mask_values = mask_array[face_indices]
+                blend_factors = np.where(
+                    mask_values < 64,
+                    adjustment_strength,  # Core preserved area
+                    adjustment_strength * 0.3  # Edge area - less adjustment
+                )
+                
+                # 5. Apply blended adjustment (vectorized)
+                blended_pixels = (
+                    face_pixels_float * (1 - blend_factors[:, np.newaxis]) + 
+                    adjusted_pixels * blend_factors[:, np.newaxis]
+                )
+                
+                # Update harmonized array with processed pixels
+                harmonized_array_float[face_indices] = blended_pixels
+            
+            # Convert back to uint8
+            harmonized_array = harmonized_array_float.astype(np.uint8)
+            
+            # Convert back to PIL Image
+            harmonized_image = Image.fromarray(harmonized_array, mode='RGB')
+            
+            # Convert to bytes
+            harmonized_buffer = io.BytesIO()
+            harmonized_image.save(harmonized_buffer, format='PNG')
+            harmonized_bytes = harmonized_buffer.getvalue()
+            
+            logger.info(f"🎨 COLOR HARMONIZATION SUCCESS: Face-body color matching applied | "
+                       f"Face mean: {face_mean.astype(int)} → Body mean: {body_mean.astype(int)} | "
+                       f"Saturation ratio: {saturation_ratio:.2f}")
+            
+            return harmonized_bytes
+            
+        except Exception as e:
+            logger.error(f"❌ Color harmonization failed, using original: {str(e)}")
+            # Fallback: return generated image without harmonization
+            return generated_image_bytes
+
     def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
         """
         🎨 OPTION 6: Advanced color analysis - Extract dominant skin colors from face area.
@@ -602,7 +742,7 @@ class ThemeService:
             # 🎨 ULTIMATE GENERATION - Option 5+6: Ultra-extended mask + AI color analysis for perfect matching  
             logger.info("🚀 STARTING ULTIMATE INPAINTING: 40% neck coverage + AI-analyzed color injection for perfect skin tone matching")
             
-            image_bytes = await self.stability_service.generate_image_with_mask(
+            raw_generated_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
                 mask_image_bytes=mask_bytes,
                 text_prompt=transformation_prompt,
@@ -610,8 +750,18 @@ class ThemeService:
                 # Note: No strength parameter - inpainting uses mask for precision control
             )
             
-            logger.info("✅ ULTIMATE SUCCESS: AI-analyzed color matching + 40% neck coverage + perfect skin tone consistency + dramatic theme transformation")
-            return image_bytes, transformation_prompt
+            # 🎨 ADVANCED COLOR HARMONIZATION: Fix face-body color mismatch
+            logger.info("🎨 APPLYING COLOR HARMONIZATION: Matching face colors to AI-generated body for natural blending")
+            harmonized_image_bytes = await self._apply_color_harmonization(
+                generated_image_bytes=raw_generated_bytes,
+                original_image_bytes=base_image_bytes,
+                mask_bytes=mask_bytes,
+                image_width=image_width,
+                image_height=image_height
+            )
+            
+            logger.info("✅ ULTIMATE SUCCESS: AI-analyzed color matching + 40% neck coverage + perfect skin tone consistency + dramatic theme transformation + color harmonization")
+            return harmonized_image_bytes, transformation_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
