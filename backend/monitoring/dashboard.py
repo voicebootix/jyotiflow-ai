@@ -596,8 +596,8 @@ class MonitoringDashboard:
                         COUNT(*) as total_validations,
                         COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_validations,
                         ROUND(
-                            COUNT(CASE WHEN status = 'success' THEN 1 END)::float / 
-                            NULLIF(COUNT(*), 0) * 100, 1
+                            (COUNT(CASE WHEN status = 'success' THEN 1 END)::numeric / 
+                            NULLIF(COUNT(*), 0) * 100)::numeric, 1
                         ) as success_rate,
                         ROUND(AVG(
                             CASE 
@@ -605,7 +605,7 @@ class MonitoringDashboard:
                                 THEN (actual_value->>'duration_ms')::INTEGER 
                                 ELSE NULL
                             END
-                        )) as avg_response_time_ms
+                        )::numeric) as avg_response_time_ms
                     FROM integration_validations
                     WHERE validation_time > NOW() - INTERVAL '24 hours'
                     GROUP BY integration_name
@@ -621,7 +621,7 @@ class MonitoringDashboard:
                     avg_response_times[integration_name] = int(row['avg_response_time_ms'] or 0)
                 
                 # Get all integration points dynamically from the system
-                from backend.monitoring.integration_monitor import IntegrationPoint
+                                        from monitoring.integration_monitor import IntegrationPoint
                 
                 # Only include integrations that have actual data or are currently monitored
                 system_integration_points = [point.value for point in IntegrationPoint 
@@ -646,7 +646,7 @@ class MonitoringDashboard:
             except Exception as e:
                 logger.error(f"Failed to calculate integration metrics from database: {e}")
                 # Return fallback data for integrations
-                from backend.monitoring.integration_monitor import IntegrationPoint
+                                        from monitoring.integration_monitor import IntegrationPoint
                 system_integration_points = [point.value for point in IntegrationPoint 
                                            if point not in [IntegrationPoint.USER_INPUT, IntegrationPoint.FINAL_RESPONSE]]
                 return {
