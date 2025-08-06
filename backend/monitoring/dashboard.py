@@ -642,9 +642,24 @@ class MonitoringDashboard:
                     "success_rates": success_rates,
                     "avg_response_times": avg_response_times
                 }
+                
+            except Exception as e:
+                logger.error(f"Failed to calculate integration metrics from database: {e}")
+                # Return fallback data for integrations
+                from backend.monitoring.integration_monitor import IntegrationPoint
+                system_integration_points = [point.value for point in IntegrationPoint 
+                                           if point not in [IntegrationPoint.USER_INPUT, IntegrationPoint.FINAL_RESPONSE]]
+                return {
+                    "success_rates": {integration: 0.0 for integration in system_integration_points},
+                    "avg_response_times": {integration: 0 for integration in system_integration_points}
+                }
+        except Exception as e:
+            logger.error(f"Failed to get database connection for integration metrics: {e}")
+            return {
+                "success_rates": {},
+                "avg_response_times": {}
+            }
 
-
-    
     async def _get_active_alerts(self) -> List[Dict]:
         """Get active alerts for admin attention"""
         alerts = []
