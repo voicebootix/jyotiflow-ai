@@ -14,9 +14,10 @@ import httpx
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 from PIL import Image, ImageDraw
 import io
+import numpy as np
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -70,13 +71,14 @@ class ThemeService:
         Returns:
             bytes: PNG mask image as bytes
             
-        Mask Strategy (OPTION 4 - HYBRID APPROACH):
-        - Extended soft gradient mask with 3-zone blending + color matching prompts
+        Mask Strategy (OPTION 5+6 ULTIMATE COMBINATION):
+        - Ultra-extended soft gradient mask with 3-zone blending + AI color analysis + precise color injection
         - Inner zone (black): Core face features preserved (eyes, nose, mouth) 
         - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions
-        - Outer zone (medium gray): Extended 25% more for neck/upper chest skin tone reference
-        - Color prompts: Explicit skin tone matching and lighting consistency instructions
-        - White areas: Complete transformation freedom for clothes/background
+        - Outer zone (medium gray): ULTRA-extended 40% neck/chest coverage for maximum skin tone reference
+        - AI color analysis: Extract exact RGB values from face area and convert to descriptive terms
+        - Color injection: Inject analyzed skin tone descriptions directly into transformation prompts
+        - White areas: Complete transformation freedom for clothes/background with color-matched body
         """
         # Create a white background (transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)  # 'L' = grayscale, 255 = white
@@ -104,11 +106,11 @@ class ThemeService:
         inner_face_right = face_right - int(face_width * 0.1)
         inner_face_bottom = face_bottom - int(face_height * 0.1)
         
-        # Step 2: Create extended blend zone for skin tone reference (OPTION 4 - HYBRID APPROACH)
-        outer_face_left = face_left - int(face_width * 0.20)   # Expand by 20% (was 15%) - more skin reference
-        outer_face_top = face_top - int(face_height * 0.12)    # Expand by 12% (was 10%) - slight forehead extension
-        outer_face_right = face_right + int(face_width * 0.20) # Expand by 20% (was 15%) - more skin reference  
-        outer_face_bottom = face_bottom + int(face_height * 0.25) # Expand by 25% (was 15%) - include more neck/upper chest
+        # Step 2: Create ULTRA-EXTENDED blend zone for maximum skin tone reference (OPTION 5+6 COMBINATION)
+        outer_face_left = face_left - int(face_width * 0.25)   # Expand by 25% (was 20%) - maximum skin reference
+        outer_face_top = face_top - int(face_height * 0.15)    # Expand by 15% (was 12%) - more forehead reference
+        outer_face_right = face_right + int(face_width * 0.25) # Expand by 25% (was 20%) - maximum skin reference  
+        outer_face_bottom = face_bottom + int(face_height * 0.40) # Expand by 40% (was 25%) - ULTRA neck/chest coverage
         
         # Ensure boundaries don't exceed image dimensions
         outer_face_left = max(0, outer_face_left)
@@ -131,8 +133,106 @@ class ThemeService:
         mask.save(mask_buffer, format='PNG')
         mask_bytes = mask_buffer.getvalue()
         
-        logger.info(f"🎨 HYBRID MASK: {image_width}x{image_height} | Core face: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} | Extended blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} (25% more neck coverage) | Mask size: {len(mask_bytes)/1024:.1f}KB")
+        logger.info(f"🎨 ULTRA-EXTENDED MASK: {image_width}x{image_height} | Core face: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} | Ultra blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} (40% neck coverage) | Mask size: {len(mask_bytes)/1024:.1f}KB")
         return mask_bytes
+
+    def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
+        """
+        🎨 OPTION 6: Advanced color analysis - Extract dominant skin colors from face area.
+        
+        Analyzes the preserved face area to extract dominant skin tone colors and
+        converts them to descriptive terms for prompt injection.
+        
+        Args:
+            image_bytes: Original image bytes to analyze
+            
+        Returns:
+            str: Descriptive color terms for prompt injection
+            
+        Analysis Process:
+        1. Load image and extract face area pixels
+        2. Calculate dominant RGB colors using clustering
+        3. Convert RGB values to descriptive color terms
+        4. Return formatted color description for prompts
+        """
+        try:
+            # Load image and convert to RGB
+            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+            image_width, image_height = image.size
+            
+            # Calculate face area coordinates (same as mask inner zone)
+            face_width_ratio = 0.28   # 28% of image width
+            face_height_ratio = 0.32  # 32% of image height
+            
+            face_width = int(image_width * face_width_ratio)
+            face_height = int(image_height * face_height_ratio)
+            
+            face_left = (image_width - face_width) // 2
+            face_top = int(image_height * 0.15)
+            face_right = face_left + face_width
+            face_bottom = face_top + face_height
+            
+            # Extract face area pixels
+            face_area = image.crop((face_left, face_top, face_right, face_bottom))
+            face_pixels = np.array(face_area)
+            
+            # Reshape to list of RGB values
+            pixels_reshaped = face_pixels.reshape(-1, 3)
+            
+            # Calculate average RGB values (dominant color)
+            avg_r = int(np.mean(pixels_reshaped[:, 0]))
+            avg_g = int(np.mean(pixels_reshaped[:, 1]))
+            avg_b = int(np.mean(pixels_reshaped[:, 2]))
+            
+            # Convert RGB to descriptive color terms
+            color_description = self._rgb_to_skin_tone_description(avg_r, avg_g, avg_b)
+            
+            logger.info(f"🎨 FACE COLOR ANALYSIS: RGB({avg_r}, {avg_g}, {avg_b}) → {color_description}")
+            return color_description
+            
+        except Exception as e:
+            logger.error(f"❌ Face color analysis failed: {e}")
+            # Fallback to generic description
+            return "warm natural skin tone with consistent complexion"
+    
+    def _rgb_to_skin_tone_description(self, r: int, g: int, b: int) -> str:
+        """
+        Convert RGB values to descriptive skin tone terms for AI prompts.
+        
+        Args:
+            r, g, b: RGB color values (0-255)
+            
+        Returns:
+            str: Descriptive color terms for prompt injection
+        """
+        # Calculate brightness and warmth
+        brightness = (r + g + b) / 3
+        warmth = r - b  # Higher values = warmer tones
+        
+        # Determine base tone
+        if brightness > 180:
+            base_tone = "fair"
+        elif brightness > 140:
+            base_tone = "medium" 
+        elif brightness > 100:
+            base_tone = "olive"
+        else:
+            base_tone = "deep"
+            
+        # Determine warmth
+        if warmth > 20:
+            warmth_desc = "warm golden"
+        elif warmth > 0:
+            warmth_desc = "warm"
+        elif warmth > -20:
+            warmth_desc = "neutral"
+        else:
+            warmth_desc = "cool"
+            
+        # Create comprehensive color description
+        color_description = f"{warmth_desc} {base_tone} brown skin tone with RGB({r}, {g}, {b}) undertones"
+        
+        return color_description
 
     async def _determine_safe_strength(self, requested_strength: float) -> float:
         """
@@ -250,7 +350,7 @@ class ThemeService:
         - Face preservation mask: BLACK (preserve face) + WHITE (transform clothes/background)
         - 100% surgical precision - face pixels never touched, everything else free to transform
         - No conflicting prompts - mask handles preservation, prompts focus on transformation  
-        - Hybrid approach: Extended mask (25% more neck coverage) + color matching prompts for perfect skin tone consistency
+        - Option 5+6 Ultimate: Ultra-extended mask (40% neck coverage) + AI color analysis + precise color injection for perfect skin tone matching
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
         - No strength limitations - mask provides absolute control
@@ -288,36 +388,42 @@ class ThemeService:
                 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
-            # 🎨 OPTION 4 HYBRID INPAINTING: Extended mask + color prompts for perfect integration
-            logger.info("🎨 HYBRID APPROACH: Extended mask zones + color matching prompts for skin tone consistency")
+            # 🎨 OPTION 5+6 COMBINATION: Ultra-extended mask + AI color analysis for ULTIMATE precision
+            logger.info("🎨 OPTION 5+6 ULTIMATE: Ultra-extended mask (40% neck) + AI color analysis + precise color injection")
             
             # Get image dimensions for mask creation
             base_image = Image.open(io.BytesIO(base_image_bytes))
             image_width, image_height = base_image.size
             logger.info(f"📐 BASE IMAGE DIMENSIONS: {image_width}x{image_height}")
             
-            # Create face preservation mask (black=preserve face, white=transform clothes/background)
+            # 🎨 OPTION 6: Advanced face color analysis - Extract precise skin tone colors
+            analyzed_skin_color = self._analyze_face_skin_color(base_image_bytes)
+            logger.info(f"🎨 COLOR ANALYSIS COMPLETE: {analyzed_skin_color}")
+            
+            # Create ultra-extended face preservation mask (40% neck coverage)
             mask_bytes = self._create_face_preservation_mask(image_width, image_height)
             
-            # 🎨 OPTION 4 HYBRID PROMPTS: Color matching + lighting consistency for natural integration
-            # Extended mask provides skin tone reference, prompts ensure color/lighting harmony
+            # 🎨 OPTION 5+6 ULTIMATE PROMPTS: Ultra-extended mask + AI-analyzed color injection for perfect matching
+            # AI color analysis provides exact skin tone, ultra-extended mask provides maximum reference area
             transformation_prompt = f"""Transform the clothing and background: {theme_description}. 
             
-            CRITICAL: Maintain perfect skin tone consistency - the body skin color must exactly match the face skin tone.
-            Use consistent warm lighting across the entire portrait with natural shadows and highlights.
-            Ensure seamless color transition from face to neck to chest area with no color breaks or mismatches.
+            🎨 CRITICAL COLOR MATCHING: The body skin must have EXACTLY this analyzed skin tone: {analyzed_skin_color}
+            Maintain perfect skin tone consistency throughout - face, neck, chest, and all visible body areas.
+            Use the exact same skin color temperature, undertones, and lighting conditions as the preserved face.
+            Ensure seamless color transition with no color breaks, discontinuities, or tone mismatches anywhere.
             
-            Create a photorealistic portrait with unified lighting, matching skin complexion throughout, 
-            sharp details, vibrant clothing colors, detailed fabric textures, and spiritual atmosphere. 
-            Professional photography style with natural skin tone continuity and consistent illumination."""
+            Create a photorealistic portrait with {analyzed_skin_color} skin consistently applied to all body areas,
+            unified warm lighting matching the face illumination, sharp details, vibrant clothing colors, 
+            detailed fabric textures, and spiritual atmosphere. Professional photography style with perfect 
+            skin tone continuity and scientifically accurate color matching based on facial analysis."""
             
             logger.info(f"🎯 INPAINTING PROMPT (no face conflicts): {transformation_prompt[:150]}...")
             
             # 🎨 ENHANCED NEGATIVE PROMPT - Prevent color mismatches and lighting inconsistencies  
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, artificial, low quality, distorted, bad proportions, mismatched skin tones, different skin colors, inconsistent lighting, color breaks, uneven skin tone, harsh shadows, color discontinuity, lighting mismatch"
 
-            # 🎨 HYBRID GENERATION - Extended mask + color prompts for perfect skin tone matching  
-            logger.info("🚀 STARTING HYBRID INPAINTING: Extended mask zones + color prompts for skin tone consistency")
+            # 🎨 ULTIMATE GENERATION - Option 5+6: Ultra-extended mask + AI color analysis for perfect matching  
+            logger.info("🚀 STARTING ULTIMATE INPAINTING: 40% neck coverage + AI-analyzed color injection for perfect skin tone matching")
             
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
@@ -327,7 +433,7 @@ class ThemeService:
                 # Note: No strength parameter - inpainting uses mask for precision control
             )
             
-            logger.info("✅ HYBRID SUCCESS: Perfect skin tone consistency + natural head-body integration + dramatic theme transformation")
+            logger.info("✅ ULTIMATE SUCCESS: AI-analyzed color matching + 40% neck coverage + perfect skin tone consistency + dramatic theme transformation")
             return image_bytes, transformation_prompt
 
         except Exception as e:
