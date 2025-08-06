@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { Activity, AlertCircle, CheckCircle } from 'lucide-react';
-import spiritualAPI from '../../lib/api';
+import React, { useState, useEffect } from "react";
+import { Activity, AlertCircle, CheckCircle } from "lucide-react";
+import spiritualAPI from "../../lib/api";
 
 const MonitoringWidget = () => {
   const [status, setStatus] = useState(null);
@@ -14,14 +14,14 @@ const MonitoringWidget = () => {
 
   const fetchStatus = async () => {
     try {
-      const response = await spiritualAPI.request('/api/monitoring/dashboard');
-      
+      const response = await spiritualAPI.request("/api/monitoring/dashboard");
+
       // Handle StandardResponse format - extract data and normalize structure
       if (response && response.success && response.data) {
         const normalizedData = {
           ...response.data,
-          status: response.data.system_health?.system_status || 'unknown',
-          integrations: response.data.system_health?.integration_points || {}
+          status: response.data.system_health?.system_status || "unknown",
+          integrations: response.data.system_health?.integration_points || {},
         };
         setStatus(normalizedData);
       } else {
@@ -30,7 +30,7 @@ const MonitoringWidget = () => {
       }
       setLoading(false);
     } catch (error) {
-      console.error('Failed to fetch monitoring status:', error);
+      console.error("Failed to fetch monitoring status:", error);
       setLoading(false);
     }
   };
@@ -54,19 +54,27 @@ const MonitoringWidget = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case 'healthy': return 'text-green-600';
-      case 'degraded': return 'text-yellow-600';
-      case 'critical': return 'text-red-600';
-      default: return 'text-gray-600';
+      case "healthy":
+        return "text-green-600";
+      case "degraded":
+        return "text-yellow-600";
+      case "critical":
+        return "text-red-600";
+      default:
+        return "text-gray-600";
     }
   };
 
   const getStatusIcon = (status) => {
     switch (status) {
-      case 'healthy': return <CheckCircle className="text-green-600" size={24} />;
-      case 'degraded': return <AlertCircle className="text-yellow-600" size={24} />;
-      case 'critical': return <AlertCircle className="text-red-600" size={24} />;
-      default: return <Activity className="text-gray-600" size={24} />;
+      case "healthy":
+        return <CheckCircle className="text-green-600" size={24} />;
+      case "degraded":
+        return <AlertCircle className="text-yellow-600" size={24} />;
+      case "critical":
+        return <AlertCircle className="text-red-600" size={24} />;
+      default:
+        return <Activity className="text-gray-600" size={24} />;
     }
   };
 
@@ -77,7 +85,14 @@ const MonitoringWidget = () => {
           <Activity className="text-purple-600" size={20} />
           <h3 className="text-lg font-semibold">System Health</h3>
         </div>
-        <a href="#" onClick={(e) => { e.preventDefault(); window.location.hash = '#monitoring'; }} className="text-sm text-purple-600 hover:underline">
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            window.location.hash = "#monitoring";
+          }}
+          className="text-sm text-purple-600 hover:underline"
+        >
           View Details →
         </a>
       </div>
@@ -86,8 +101,10 @@ const MonitoringWidget = () => {
         <>
           <div className="flex items-center space-x-3 mb-4">
             {getStatusIcon(status.status)}
-            <span className={`text-lg font-medium ${getStatusColor(status.status)}`}>
-              {status.status?.toUpperCase() || 'UNKNOWN'}
+            <span
+              className={`text-lg font-medium ${getStatusColor(status.status)}`}
+            >
+              {String(status.status || "unknown").toUpperCase()}
             </span>
           </div>
 
@@ -96,16 +113,24 @@ const MonitoringWidget = () => {
             <div className="grid grid-cols-2 gap-2 text-sm">
               {Object.entries(status.integrations || {}).map(([key, data]) => {
                 // Safety check for data structure
-                if (!data || typeof data !== 'object') {
+                if (!data || typeof data !== "object") {
                   console.warn(`Invalid integration data for ${key}:`, data);
                   return null;
                 }
-                
+
                 return (
                   <div key={key} className="flex items-center justify-between">
-                    <span className="text-gray-600 capitalize">{key.replace('_', ' ')}:</span>
-                    <span className={`font-medium ${data.status === 'healthy' ? 'text-green-600' : 'text-red-600'}`}>
-                      {data.status === 'healthy' ? '✓' : '✗'}
+                    <span className="text-gray-600 capitalize">
+                      {key.replace("_", " ")}:
+                    </span>
+                    <span
+                      className={`font-medium ${
+                        data.status === "healthy"
+                          ? "text-green-600"
+                          : "text-red-600"
+                      }`}
+                    >
+                      {data.status === "healthy" ? "✓" : "✗"}
                     </span>
                   </div>
                 );

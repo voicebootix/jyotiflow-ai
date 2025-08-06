@@ -290,7 +290,8 @@ const SystemMonitoring = () => {
                 : "text-red-700"
             }`}
           >
-            System Status: {monitoringData?.status?.toUpperCase() || "UNKNOWN"}
+            System Status:{" "}
+            {String(monitoringData?.status || "unknown").toUpperCase()}
           </span>
         </div>
       </div>
