@@ -20,26 +20,7 @@ async def initialize_jyotiflow_simple():
     database_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
     
     try:
-        # Step 1: Apply database migrations first (critical for test functionality)
-        logger.info("🔄 Applying database migrations...")
-        try:
-            from run_migrations import MigrationRunner
-            migration_runner = MigrationRunner(database_url)
-            migration_success = await migration_runner.run_migrations()
-            if migration_success:
-                logger.info("✅ Database migrations applied successfully")
-            else:
-                logger.error("❌ Database migrations failed - Test monitor requires all migrations")
-                raise Exception("Migration failure: Test Results Dashboard requires successful migrations for auto_fixable and error_message columns")
-        except ImportError as import_error:
-            logger.error(f"❌ Migration system not available: {import_error}")
-            raise Exception("Migration system required: Cannot start without migration support for database-driven features") from import_error
-        except Exception as e:
-            logger.error(f"❌ Migration system failed: {e}")
-            logger.error("🚫 Halting startup: Test monitor functionality requires successful migrations")
-            raise Exception(f"Critical migration failure: {e}. Test Results Dashboard cannot function without proper database schema.") from e
-        
-        # Step 2: Create single shared database pool
+        # Step 1: Create single shared database pool first
         logger.info("🗄️ Creating shared database pool...")
         db_pool = await asyncpg.create_pool(
             database_url,
@@ -52,7 +33,61 @@ async def initialize_jyotiflow_simple():
             }
         )
         
-        # Step 3: Test connection
+        # Step 2: Ensure base tables exist first (required for migrations)
+        logger.info("🗄️ Ensuring base monitoring tables exist...")
+        try:
+            async with db_pool.acquire() as conn:
+                # Create monitoring tables if they don't exist
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS business_logic_issues (
+                        id SERIAL PRIMARY KEY,
+                        session_id VARCHAR(255),
+                        issue_type VARCHAR(100) NOT NULL,
+                        description TEXT,
+                        severity VARCHAR(20) DEFAULT 'medium',
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    )
+                """)
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS integration_validations (
+                        id SERIAL PRIMARY KEY,
+                        integration_point VARCHAR(100) NOT NULL,
+                        validation_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        status VARCHAR(20) NOT NULL,
+                        response_data JSONB,
+                        performance_ms INTEGER
+                    )
+                """)
+                logger.info("✅ Base monitoring tables ensured")
+        except Exception as table_error:
+            logger.error(f"❌ Failed to create base monitoring tables: {table_error}")
+            raise Exception(f"Base table creation failed: {table_error}") from table_error
+        
+        # Step 3: Apply database migrations (critical for test functionality)
+        logger.info("🔄 Applying database migrations...")
+        try:
+            from run_migrations import MigrationRunner
+            migration_runner = MigrationRunner(database_url)
+            logger.info("🔄 Running migration system...")
+            migration_success = await migration_runner.run_migrations()
+            if migration_success:
+                logger.info("✅ Database migrations applied successfully")
+            else:
+                logger.error("❌ Database migrations returned False")
+                raise Exception("Migration failure: Test Results Dashboard requires successful migrations for auto_fixable and error_message columns")
+        except ImportError as import_error:
+            logger.error(f"❌ Migration system not available: {import_error}")
+            raise Exception("Migration system required: Cannot start without migration support for database-driven features") from import_error
+        except Exception as e:
+            # Don't re-wrap our own migration failure exceptions
+            if "Migration failure: Test Results Dashboard" in str(e):
+                raise  # Re-raise the original exception without wrapping
+            else:
+                logger.error(f"❌ Migration system failed: {e}")
+                logger.error("🚫 Halting startup: Test monitor functionality requires successful migrations")
+                raise Exception(f"Critical migration failure: {e}. Test Results Dashboard cannot function without proper database schema.") from e
+        
+        # Step 4: Test connection
         logger.info("🧪 Testing database connection...")
         async with db_pool.acquire() as conn:
             result = await conn.fetchval("SELECT 1 as test")
