@@ -591,16 +591,20 @@ class IntegrationMonitor:
     
     async def _log_integration_issue(self, integration_point: str, issue_type: str, 
                                    severity: str, description: str, auto_fixable: bool = False,
-                                   _prevent_recursion: bool = False) -> None:
+                                   _prevent_recursion: bool = False, session_id: str = None) -> None:
         """Log integration issues to database for tracking with recursive error prevention"""
         try:
+            # Generate session_id if not provided (required by database schema)
+            if not session_id:
+                session_id = f"system_monitor_{integration_point}_{int(datetime.now(timezone.utc).timestamp())}"
+            
             conn = await db_manager.get_connection()
             try:
                 await conn.execute("""
                     INSERT INTO business_logic_issues 
-                    (issue_type, severity, description, auto_fixable, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                """, issue_type, severity, description, auto_fixable)
+                    (session_id, issue_type, severity, description, auto_fixable, created_at)
+                    VALUES ($1, $2, $3, $4, $5, NOW())
+                """, session_id, issue_type, severity, description, auto_fixable)
                 
                 logger.debug(f"📝 Logged {severity} issue for {integration_point}: {issue_type}")
             finally:
