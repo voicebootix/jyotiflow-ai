@@ -71,14 +71,14 @@ class ThemeService:
         Returns:
             bytes: PNG mask image as bytes
             
-        Mask Strategy (OPTION 5+6 ULTIMATE COMBINATION + USER FEEDBACK):
+        Mask Strategy (OPTION 5+6 ULTIMATE COMBINATION + USER CLARIFICATION):
         - Ultra-extended soft gradient mask with 3-zone blending + AI color analysis + precise color injection
-        - Inner zone (black): ENTIRE SCENE within red circle preserved (face + background + trees + all elements)
-        - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions around scene edges
+        - Inner zone (black): PRECISE FACE-ONLY preservation (head/facial features only, background can change)
+        - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions around face edges
         - Outer zone (medium gray): ULTRA-extended 40% neck/chest coverage for maximum skin tone reference
         - AI color analysis: Extract exact RGB values from face area and convert to descriptive terms
         - Color injection: Inject analyzed skin tone descriptions directly into transformation prompts
-        - White areas: Complete transformation freedom for distant background/clothes with color-matched body
+        - White areas: Complete transformation freedom for background/clothes/scenery with color-matched body
         """
         # Create a white background (transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)  # 'L' = grayscale, 255 = white
@@ -100,12 +100,12 @@ class ThemeService:
         
         # 🎨 SOFT GRADIENT MASK: Create natural blending for head-body integration
         
-        # Step 1: Create expanded scene preservation zone (pure preservation - black)
-        # USER FEEDBACK: Preserve entire scene within red circle, including background behind face
-        inner_face_left = face_left - int(face_width * 0.05)   # EXPAND by 5% (was shrink 10%)
-        inner_face_top = face_top - int(face_height * 0.05)    # EXPAND by 5% (was shrink 10%)
-        inner_face_right = face_right + int(face_width * 0.05) # EXPAND by 5% (was shrink 10%)
-        inner_face_bottom = face_bottom + int(face_height * 0.05) # EXPAND by 5% (was shrink 10%)
+        # Step 1: Create PRECISE FACE-ONLY preservation zone (pure preservation - black)
+        # USER CLARIFICATION: "thalaiya maddum thantha ok" - preserve ONLY head/face, NOT background
+        inner_face_left = face_left + int(face_width * 0.02)   # Slight shrink by 2% - precise face boundaries
+        inner_face_top = face_top + int(face_height * 0.02)    # Slight shrink by 2% - precise face boundaries
+        inner_face_right = face_right - int(face_width * 0.02) # Slight shrink by 2% - precise face boundaries  
+        inner_face_bottom = face_bottom - int(face_height * 0.02) # Slight shrink by 2% - precise face boundaries
         
         # Ensure inner boundaries stay within image dimensions
         inner_face_left = max(0, inner_face_left)
@@ -140,7 +140,7 @@ class ThemeService:
         mask.save(mask_buffer, format='PNG')
         mask_bytes = mask_buffer.getvalue()
         
-        logger.info(f"🎨 SCENE PRESERVATION MASK: {image_width}x{image_height} | Preserved scene: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} (face+background) | Ultra blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} (40% neck coverage) | Mask size: {len(mask_bytes)/1024:.1f}KB")
+        logger.info(f"🎨 FACE-ONLY PRESERVATION MASK: {image_width}x{image_height} | Preserved face: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} (head only, background transforms) | Ultra blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} (40% neck coverage) | Mask size: {len(mask_bytes)/1024:.1f}KB")
         return mask_bytes
 
     def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
@@ -391,7 +391,7 @@ class ThemeService:
         - Face preservation mask: BLACK (preserve face) + WHITE (transform clothes/background)
         - 100% surgical precision - face pixels never touched, everything else free to transform
         - No conflicting prompts - mask handles preservation, prompts focus on transformation  
-        - Option 5+6 Ultimate + User Feedback: Scene preservation mask + AI color analysis + precise color injection (preserves entire scene within red circle)
+        - Option 5+6 Ultimate + User Clarification: Face-only preservation mask + AI color analysis + precise color injection (preserves head only, background transforms)
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
         - No strength limitations - mask provides absolute control
