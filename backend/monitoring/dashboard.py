@@ -1264,8 +1264,8 @@ async def get_test_metrics(admin: dict = Depends(get_current_admin_dependency)):
         )
 
 @router.post("/test-execute")
-async def execute_test(request: dict, admin: dict = Depends(get_current_admin_dependency)):
-    """Execute a test suite using our actual test execution engine"""
+async def execute_test(request: dict):
+    """Execute a test suite using our actual test execution engine (public endpoint for testing)"""
     try:
         from test_execution_engine import TestExecutionEngine
         
