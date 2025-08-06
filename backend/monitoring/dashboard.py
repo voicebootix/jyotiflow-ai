@@ -193,8 +193,13 @@ class MonitoringDashboard:
                 
                 # Get context flow
                 context_flow = None
-                if session_id in integration_monitor.active_sessions:
-                    context_flow = await integration_monitor.context_tracker.get_context_flow_report(session_id)
+                try:
+                    monitor = get_integration_monitor()
+                    if session_id in monitor.active_sessions:
+                        context_flow = await monitor.context_tracker.get_context_flow_report(session_id)
+                except RuntimeError:
+                    # Monitor not initialized yet, skip context flow
+                    pass
                 
                 return {
                     "session": dict(session_data),
@@ -296,7 +301,8 @@ class MonitoringDashboard:
                 }
                 
                 # Start monitoring
-                await integration_monitor.start_session_monitoring(
+                monitor = get_integration_monitor()
+                await monitor.start_session_monitoring(
                     test_session_id, 
                     test_context["user_id"],
                     test_context["birth_details"],
@@ -314,7 +320,8 @@ class MonitoringDashboard:
                 
             elif test_type == "social_media":
                 # Test social media credentials
-                social_validator = integration_monitor.validators.get("social_media")
+                monitor = get_integration_monitor()
+                social_validator = monitor.validators.get("social_media")
                 if social_validator:
                     test_result = await social_validator.test_all_platforms()
                     return test_result
@@ -668,7 +675,8 @@ class MonitoringDashboard:
         
         try:
             # Check system health
-            system_health = await integration_monitor.get_system_health()
+            monitor = get_integration_monitor()
+            system_health = await monitor.get_system_health()
             
             if system_health.get("system_status") == "critical":
                 alerts.append({
@@ -864,7 +872,8 @@ monitoring_dashboard = MonitoringDashboard()
 async def get_monitoring_health():
     """Public endpoint to get basic monitoring system health (no auth required)"""
     try:
-        system_health = await integration_monitor.get_system_health()
+        monitor = get_integration_monitor()
+        system_health = await monitor.get_system_health()
         return StandardResponse(
             status="success",
             message="Monitoring system health retrieved",
@@ -1642,7 +1651,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 
             try:
                 # Send heartbeat and system status every 5 seconds
-                system_health = await integration_monitor.get_system_health()
+                monitor = get_integration_monitor()
+                system_health = await monitor.get_system_health()
                 await websocket.send_json({
                     "type": "system_health",
                     "data": system_health,

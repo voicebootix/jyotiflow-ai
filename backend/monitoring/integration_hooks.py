@@ -9,7 +9,7 @@ from typing import Dict, Callable
 from functools import wraps
 from datetime import datetime, timezone
 
-from .integration_monitor import integration_monitor, IntegrationPoint
+from .integration_monitor import get_integration_monitor, IntegrationPoint
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +23,9 @@ class MonitoringHooks:
         """Decorator to monitor a complete session flow"""
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            # Get monitor instance using the thread-safe getter
+            monitor = get_integration_monitor()
+            
             session_id = kwargs.get("session_id") or f"session_{datetime.now(timezone.utc).timestamp()}"
             user_id = kwargs.get("user_id", 0)
             
@@ -38,7 +41,7 @@ class MonitoringHooks:
             
             if request_data:
                 # Start monitoring
-                await integration_monitor.start_session_monitoring(
+                await monitor.start_session_monitoring(
                     session_id=session_id,
                     user_id=user_id,
                     birth_details=request_data.get("birth_details", {}),
@@ -51,16 +54,19 @@ class MonitoringHooks:
                 result = await func(*args, **kwargs)
                 
                 # Complete monitoring
-                await integration_monitor.complete_session_monitoring(session_id)
+                monitor = get_integration_monitor()
+            await monitor.complete_session_monitoring(session_id)
                 
                 return result
                 
             except Exception as e:
                 # Log error in monitoring
-                if session_id in integration_monitor.active_sessions:
-                    integration_monitor.active_sessions[session_id]["overall_status"] = "failed"
-                    integration_monitor.active_sessions[session_id]["error"] = str(e)
-                    await integration_monitor.complete_session_monitoring(session_id)
+                monitor = get_integration_monitor()
+        if session_id in monitor.active_sessions:
+                    monitor.active_sessions[session_id]["overall_status"] = "failed"
+                    monitor.active_sessions[session_id]["error"] = str(e)
+                    monitor = get_integration_monitor()
+            await monitor.complete_session_monitoring(session_id)
                 raise
                 
         return wrapper
@@ -105,11 +111,12 @@ class MonitoringHooks:
                     duration_ms = int((time.time() - start_time) * 1000)
                     
                     # Validate integration point
-                    if session_id in integration_monitor.active_sessions:
+                    monitor = get_integration_monitor()
+        if session_id in monitor.active_sessions:
                         output_data = result if isinstance(result, dict) else {"result": str(result)}
                         
                         try:
-                            validation_result = await integration_monitor.validate_integration_point(
+                            validation_result = await monitor.validate_integration_point(
                                 session_id=session_id,
                                 integration_point=integration_point,
                                 input_data=input_data,
@@ -133,9 +140,10 @@ class MonitoringHooks:
                     # Log integration failure
                     duration_ms = int((time.time() - start_time) * 1000)
                     
-                    if session_id in integration_monitor.active_sessions:
+                    monitor = get_integration_monitor()
+        if session_id in monitor.active_sessions:
                         try:
-                            await integration_monitor.validate_integration_point(
+                            await monitor.validate_integration_point(
                                 session_id=session_id,
                                 integration_point=integration_point,
                                 input_data=input_data,
@@ -154,7 +162,8 @@ class MonitoringHooks:
 async def monitor_prokerala_call(birth_details: Dict, prokerala_response: Dict, 
                                 session_id: str, duration_ms: int):
     """Monitor Prokerala API call"""
-    await integration_monitor.validate_integration_point(
+    monitor = get_integration_monitor()
+    await monitor.validate_integration_point(
         session_id=session_id,
         integration_point=IntegrationPoint.PROKERALA,
         input_data={"birth_details": birth_details},
@@ -165,7 +174,8 @@ async def monitor_prokerala_call(birth_details: Dict, prokerala_response: Dict,
 async def monitor_rag_retrieval(question: str, rag_response: Dict, 
                                session_id: str, duration_ms: int):
     """Monitor RAG knowledge retrieval"""
-    await integration_monitor.validate_integration_point(
+    monitor = get_integration_monitor()
+    await monitor.validate_integration_point(
         session_id=session_id,
         integration_point=IntegrationPoint.RAG_KNOWLEDGE,
         input_data={"question": question},
@@ -176,7 +186,8 @@ async def monitor_rag_retrieval(question: str, rag_response: Dict,
 async def monitor_openai_generation(prompt: str, openai_response: Dict,
                                    session_id: str, duration_ms: int):
     """Monitor OpenAI response generation"""
-    await integration_monitor.validate_integration_point(
+    monitor = get_integration_monitor()
+    await monitor.validate_integration_point(
         session_id=session_id,
         integration_point=IntegrationPoint.OPENAI_GUIDANCE,
         input_data={"prompt": prompt[:500]},  # Truncate long prompts
@@ -187,7 +198,8 @@ async def monitor_openai_generation(prompt: str, openai_response: Dict,
 async def monitor_elevenlabs_generation(text: str, voice_response: Dict,
                                        session_id: str, duration_ms: int):
     """Monitor ElevenLabs voice generation"""
-    await integration_monitor.validate_integration_point(
+    monitor = get_integration_monitor()
+    await monitor.validate_integration_point(
         session_id=session_id,
         integration_point=IntegrationPoint.ELEVENLABS_VOICE,
         input_data={"text": text[:200]},  # Truncate long text
@@ -198,7 +210,8 @@ async def monitor_elevenlabs_generation(text: str, voice_response: Dict,
 async def monitor_did_generation(audio_url: str, avatar_response: Dict,
                                 session_id: str, duration_ms: int):
     """Monitor D-ID avatar generation"""
-    await integration_monitor.validate_integration_point(
+    monitor = get_integration_monitor()
+    await monitor.validate_integration_point(
         session_id=session_id,
         integration_point=IntegrationPoint.DID_AVATAR,
         input_data={"audio_url": audio_url},
@@ -209,7 +222,8 @@ async def monitor_did_generation(audio_url: str, avatar_response: Dict,
 async def monitor_social_media_action(platform: str, action_data: Dict,
                                      session_id: str, duration_ms: int):
     """Monitor social media actions"""
-    await integration_monitor.validate_integration_point(
+    monitor = get_integration_monitor()
+    await monitor.validate_integration_point(
         session_id=session_id,
         integration_point=IntegrationPoint.SOCIAL_MEDIA,
         input_data={"platform": platform, **action_data},
@@ -224,6 +238,9 @@ def add_monitoring_to_function(original_func: Callable,
     
     @wraps(original_func)
     async def monitored_func(*args, **kwargs):
+        # Get monitor instance using the thread-safe getter
+        monitor = get_integration_monitor()
+        
         # Extract session_id from kwargs or generate one
         session_id = kwargs.get("session_id", f"auto_{datetime.now(timezone.utc).timestamp()}")
         
@@ -238,7 +255,7 @@ def add_monitoring_to_function(original_func: Callable,
             duration_ms = int((time.time() - start_time) * 1000)
             
             # Monitor the call
-            await integration_monitor.validate_integration_point(
+            await monitor.validate_integration_point(
                 session_id=session_id,
                 integration_point=integration_point,
                 input_data={"args": str(args)[:200], "kwargs": str(kwargs)[:200]},
@@ -251,7 +268,7 @@ def add_monitoring_to_function(original_func: Callable,
         except Exception as e:
             # Monitor the failure
             duration_ms = int((time.time() - start_time) * 1000)
-            await integration_monitor.validate_integration_point(
+            await monitor.validate_integration_point(
                 session_id=session_id,
                 integration_point=integration_point,
                 input_data={"args": str(args)[:200], "kwargs": str(kwargs)[:200]},

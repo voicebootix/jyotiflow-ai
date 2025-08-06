@@ -1080,20 +1080,30 @@ class IntegrationMonitor:
                 "error": str(e)
             }
 
-# Integration monitor instance management
+# Integration monitor instance management - Thread-safe singleton
 _integration_monitor_instance = None
+_integration_monitor_lock = threading.Lock()
 
 def initialize_integration_monitor():
-    """Initialize the integration monitor after database is ready"""
+    """Initialize the integration monitor after database is ready (thread-safe)"""
     global _integration_monitor_instance
+    
+    # Double-checked locking pattern for thread safety
     if _integration_monitor_instance is None:
-        _integration_monitor_instance = IntegrationMonitor()
-        logger.info("Integration monitor initialized")
+        with _integration_monitor_lock:
+            # Check again inside the lock to prevent race condition
+            if _integration_monitor_instance is None:
+                _integration_monitor_instance = IntegrationMonitor()
+                logger.info("Integration monitor initialized")
+    
     return _integration_monitor_instance
 
 def get_integration_monitor():
     """Get the integration monitor instance (must be initialized first)"""
     global _integration_monitor_instance
-    if _integration_monitor_instance is None:
-        raise RuntimeError("Integration monitor not initialized. Call initialize_integration_monitor() first.")
-    return _integration_monitor_instance
+    
+    # Thread-safe read access
+    with _integration_monitor_lock:
+        if _integration_monitor_instance is None:
+            raise RuntimeError("Integration monitor not initialized. Call initialize_integration_monitor() first.")
+        return _integration_monitor_instance
