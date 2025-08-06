@@ -643,126 +643,7 @@ class MonitoringDashboard:
                     "avg_response_times": avg_response_times
                 }
 
-async def _get_comprehensive_test_definitions() -> List[Dict[str, Any]]:
-    """
-    Get comprehensive test definitions dynamically from backend systems and database
-    This discovers available tests from TestSuiteGenerator and existing test data
-    Following .cursor rules: No hardcoded data, retrieve from database and backend systems
-    """
-    try:
-        # Method 1: Try to get test definitions from TestSuiteGenerator (primary source)
-        try:
-            from test_suite_generator import TestSuiteGenerator
-            
-            generator = TestSuiteGenerator()
-            test_suites = await generator.generate_all_test_suites()
-            
-            # Flatten test suites into individual test definitions
-            comprehensive_tests = []
-            for suite_name, suite_data in test_suites.items():
-                if "error" not in suite_data and "test_cases" in suite_data:
-                    for test_case in suite_data["test_cases"]:
-                        comprehensive_tests.append({
-                            "test_name": test_case.get("test_name", f"{suite_name}_test"),
-                            "test_category": suite_data.get("test_category", "unknown"),
-                            "test_type": test_case.get("test_type", suite_data.get("test_type", "unit")),
-                            "description": test_case.get("description", suite_data.get("description", "")),
-                            "priority": test_case.get("priority", "medium"),
-                            "suite_name": suite_name,
-                            "suite_display_name": suite_data.get("test_suite_name", suite_name)
-                        })
-            
-            if comprehensive_tests:
-                logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from TestSuiteGenerator")
-                return comprehensive_tests
-                
-        except ImportError:
-            logger.warning("TestSuiteGenerator not available, falling back to database discovery")
-        except Exception as e:
-            logger.warning(f"TestSuiteGenerator failed: {e}, falling back to database discovery")
-        
-        # Method 2: Get test definitions from database (secondary source)
-        try:
-            conn = await db_manager.get_connection()
-            try:
-                # Get unique test cases from test_case_results table
-                test_cases = await conn.fetch("""
-                    SELECT DISTINCT 
-                        test_name,
-                        test_category,
-                        COALESCE(test_file, 'unknown') as test_type,
-                        'Database discovered test' as description,
-                        CASE 
-                            WHEN test_category IN ('auth', 'api', 'database') THEN 'critical'
-                            WHEN test_category IN ('integration', 'performance') THEN 'high'
-                            ELSE 'medium'
-                        END as priority
-                    FROM test_case_results
-                    WHERE test_name IS NOT NULL 
-                    AND test_name != ''
-                    ORDER BY test_category, test_name
-                """)
-                
-                if test_cases:
-                    comprehensive_tests = [
-                        {
-                            "test_name": row["test_name"],
-                            "test_category": row["test_category"] or "unknown",
-                            "test_type": row["test_type"],
-                            "description": row["description"],
-                            "priority": row["priority"],
-                            "suite_name": f"{row['test_category']}_suite",
-                            "suite_display_name": f"{row['test_category'].replace('_', ' ').title()} Tests"
-                        }
-                        for row in test_cases
-                    ]
-                    
-                    logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from database")
-                    return comprehensive_tests
-                
-            finally:
-                await db_manager.release_connection(conn)
-                
-        except Exception as e:
-            logger.warning(f"Database test discovery failed: {e}")
-        
-        # Method 3: Discover tests from backend systems (tertiary source)
-        try:
-            # Get available test types from TestExecutionEngine
-            from test_execution_engine import TestExecutionEngine
-            
-            engine = TestExecutionEngine()
-            available_suites = await engine._get_available_test_suites()
-            
-            if available_suites:
-                comprehensive_tests = []
-                for suite in available_suites:
-                    test_type = suite.get("test_type", "unknown")
-                    test_category = suite.get("test_category", "unknown")
-                    
-                    comprehensive_tests.append({
-                        "test_name": f"{test_type}_{test_category}_test",
-                        "test_category": test_category,
-                        "test_type": test_type,
-                        "description": f"Auto-discovered {test_type} test for {test_category}",
-                        "priority": "medium",
-                        "suite_name": f"{test_category}_suite",
-                        "suite_display_name": f"{test_category.replace('_', ' ').title()} Tests"
-                    })
-                
-                logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from TestExecutionEngine")
-                return comprehensive_tests
-                
-        except Exception as e:
-            logger.warning(f"TestExecutionEngine discovery failed: {e}")
-        
-        # Method 4: Minimal fallback - return empty list (no hardcoded data)
-        logger.warning("All test discovery methods failed - returning empty test list")
-        return []
-        
-    except Exception as e:
-        logger.error(f"Failed to get comprehensive test definitions: {e}")
-        return []
+
     
     async def _get_active_alerts(self) -> List[Dict]:
         """Get active alerts for admin attention"""
@@ -835,6 +716,127 @@ async def _get_comprehensive_test_definitions() -> List[Dict[str, Any]]:
                 
         except Exception as e:
             logger.error(f"Failed to generate session recommendations: {e}")
+            return []
+    
+    async def get_comprehensive_test_definitions(self) -> List[Dict[str, Any]]:
+        """
+        Get comprehensive test definitions dynamically from backend systems and database
+        This discovers available tests from TestSuiteGenerator and existing test data
+        Following .cursor rules: No hardcoded data, retrieve from database and backend systems
+        """
+        try:
+            # Method 1: Try to get test definitions from TestSuiteGenerator (primary source)
+            try:
+                from test_suite_generator import TestSuiteGenerator
+                
+                generator = TestSuiteGenerator()
+                test_suites = await generator.generate_all_test_suites()
+                
+                # Flatten test suites into individual test definitions
+                comprehensive_tests = []
+                for suite_name, suite_data in test_suites.items():
+                    if "error" not in suite_data and "test_cases" in suite_data:
+                        for test_case in suite_data["test_cases"]:
+                            comprehensive_tests.append({
+                                "test_name": test_case.get("test_name", f"{suite_name}_test"),
+                                "test_category": suite_data.get("test_category", "unknown"),
+                                "test_type": test_case.get("test_type", suite_data.get("test_type", "unit")),
+                                "description": test_case.get("description", suite_data.get("description", "")),
+                                "priority": test_case.get("priority", "medium"),
+                                "suite_name": suite_name,
+                                "suite_display_name": suite_data.get("test_suite_name", suite_name)
+                            })
+                
+                if comprehensive_tests:
+                    logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from TestSuiteGenerator")
+                    return comprehensive_tests
+                    
+            except ImportError:
+                logger.warning("TestSuiteGenerator not available, falling back to database discovery")
+            except Exception as e:
+                logger.warning(f"TestSuiteGenerator failed: {e}, falling back to database discovery")
+            
+            # Method 2: Get test definitions from database (secondary source)
+            try:
+                conn = await db_manager.get_connection()
+                try:
+                    # Get unique test cases from test_case_results table
+                    test_cases = await conn.fetch("""
+                        SELECT DISTINCT 
+                            test_name,
+                            test_category,
+                            COALESCE(test_file, 'unknown') as test_type,
+                            'Database discovered test' as description,
+                            CASE 
+                                WHEN test_category IN ('auth', 'api', 'database') THEN 'critical'
+                                WHEN test_category IN ('integration', 'performance') THEN 'high'
+                                ELSE 'medium'
+                            END as priority
+                        FROM test_case_results
+                        WHERE test_name IS NOT NULL 
+                        AND test_name != ''
+                        ORDER BY test_category, test_name
+                    """)
+                    
+                    if test_cases:
+                        comprehensive_tests = [
+                            {
+                                "test_name": row["test_name"],
+                                "test_category": row["test_category"] or "unknown",
+                                "test_type": row["test_type"],
+                                "description": row["description"],
+                                "priority": row["priority"],
+                                "suite_name": f"{row['test_category']}_suite",
+                                "suite_display_name": f"{row['test_category'].replace('_', ' ').title()} Tests"
+                            }
+                            for row in test_cases
+                        ]
+                        
+                        logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from database")
+                        return comprehensive_tests
+                    
+                finally:
+                    await db_manager.release_connection(conn)
+                    
+            except Exception as e:
+                logger.warning(f"Database test discovery failed: {e}")
+            
+            # Method 3: Discover tests from backend systems (tertiary source)
+            try:
+                # Get available test types from TestExecutionEngine
+                from test_execution_engine import TestExecutionEngine
+                
+                engine = TestExecutionEngine()
+                available_suites = await engine._get_available_test_suites()
+                
+                if available_suites:
+                    comprehensive_tests = []
+                    for suite in available_suites:
+                        test_type = suite.get("test_type", "unknown")
+                        test_category = suite.get("test_category", "unknown")
+                        
+                        comprehensive_tests.append({
+                            "test_name": f"{test_type}_{test_category}_test",
+                            "test_category": test_category,
+                            "test_type": test_type,
+                            "description": f"Auto-discovered {test_type} test for {test_category}",
+                            "priority": "medium",
+                            "suite_name": f"{test_category}_suite",
+                            "suite_display_name": f"{test_category.replace('_', ' ').title()} Tests"
+                        })
+                    
+                    logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from TestExecutionEngine")
+                    return comprehensive_tests
+                    
+            except Exception as e:
+                logger.warning(f"TestExecutionEngine discovery failed: {e}")
+            
+            # Method 4: Minimal fallback - return empty list (no hardcoded data)
+            logger.warning("All test discovery methods failed - returning empty test list")
+            return []
+            
+        except Exception as e:
+            logger.error(f"Failed to get comprehensive test definitions: {e}")
             return []
 
 # Create singleton instance
@@ -912,13 +914,18 @@ async def trigger_test(test_type: str, admin: dict = Depends(get_current_admin_d
 # Testing infrastructure endpoints
 @router.get("/test-status")
 async def get_test_status():
-    """Get current test execution status with comprehensive 41-test information (public endpoint)"""
+    """Get current test execution status with comprehensive test information (database-driven, public endpoint)"""
     try:
         conn = await db_manager.get_connection()
         try:
-            # Get comprehensive test definitions (should be 41)
-            comprehensive_tests = await _get_comprehensive_test_definitions()
-            total_comprehensive_tests = len(comprehensive_tests)
+            # Get comprehensive test definitions from monitoring dashboard
+            try:
+                comprehensive_tests = await monitoring_dashboard.get_comprehensive_test_definitions()
+                total_comprehensive_tests = len(comprehensive_tests)
+            except Exception as e:
+                logger.error(f"Failed to get comprehensive test definitions: {e}")
+                comprehensive_tests = []
+                total_comprehensive_tests = 0
             
             # Get the latest completed test execution
             latest_execution = await conn.fetchrow("""
@@ -1097,13 +1104,18 @@ async def get_test_sessions(admin: dict = Depends(get_current_admin_dependency))
 
 @router.get("/test-metrics")
 async def get_test_metrics(admin: dict = Depends(get_current_admin_dependency)):
-    """Get comprehensive test execution metrics and statistics for all 41 tests"""
+    """Get comprehensive test execution metrics and statistics for all available tests (database-driven)"""
     try:
         conn = await db_manager.get_connection()
         try:
             # Get comprehensive test definitions and their latest execution status
-            comprehensive_tests = await _get_comprehensive_test_definitions()
-            total_tests = len(comprehensive_tests)  # This should be 41
+            try:
+                comprehensive_tests = await monitoring_dashboard.get_comprehensive_test_definitions()
+                total_tests = len(comprehensive_tests)  # Dynamic count from database and backend systems
+            except Exception as e:
+                logger.error(f"Failed to get comprehensive test definitions: {e}")
+                comprehensive_tests = []
+                total_tests = 0
             
             # Get latest test execution results for each test
             latest_executions = await conn.fetch("""
