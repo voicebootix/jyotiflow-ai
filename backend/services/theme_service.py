@@ -85,9 +85,9 @@ class ThemeService:
         face_width = int(image_width * face_width_ratio)
         face_height = int(image_height * face_height_ratio)
         
-        # Center the face both horizontally and vertically for better precision
+        # Center the face horizontally, position vertically at 15% from top for precision
         face_left = (image_width - face_width) // 2
-        face_top = int(image_height * 0.15)  # Start 15% from top (more centered like red circle)
+        face_top = int(image_height * 0.15)  # Start 15% from top (matches user's red circle specification)
         face_right = face_left + face_width
         face_bottom = face_top + face_height
         
