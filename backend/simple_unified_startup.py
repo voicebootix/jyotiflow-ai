@@ -1,6 +1,7 @@
 """
 Simple Unified JyotiFlow.ai Startup System
 Clean, minimal database initialization with shared pool architecture
+Now includes proper migration support following .cursor rules
 """
 
 import os
@@ -12,14 +13,33 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def initialize_jyotiflow_simple():
-    """Simple, reliable database initialization with shared pool"""
+    """Simple, reliable database initialization with shared pool and migrations"""
     logger.info("🚀 Starting JyotiFlow.ai with clean architecture...")
     start_time = time.time()
     
     database_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
     
     try:
-        # Create single shared database pool
+        # Step 1: Apply database migrations first (critical for test functionality)
+        logger.info("🔄 Applying database migrations...")
+        try:
+            from run_migrations import MigrationRunner
+            migration_runner = MigrationRunner(database_url)
+            migration_success = await migration_runner.run_migrations()
+            if migration_success:
+                logger.info("✅ Database migrations applied successfully")
+            else:
+                logger.error("❌ Database migrations failed - Test monitor requires all migrations")
+                raise Exception("Migration failure: Test Results Dashboard requires successful migrations for auto_fixable and error_message columns")
+        except ImportError as import_error:
+            logger.error(f"❌ Migration system not available: {import_error}")
+            raise Exception("Migration system required: Cannot start without migration support for database-driven features") from import_error
+        except Exception as e:
+            logger.error(f"❌ Migration system failed: {e}")
+            logger.error("🚫 Halting startup: Test monitor functionality requires successful migrations")
+            raise Exception(f"Critical migration failure: {e}. Test Results Dashboard cannot function without proper database schema.") from e
+        
+        # Step 2: Create single shared database pool
         logger.info("🗄️ Creating shared database pool...")
         db_pool = await asyncpg.create_pool(
             database_url,
@@ -32,7 +52,7 @@ async def initialize_jyotiflow_simple():
             }
         )
         
-        # Test connection
+        # Step 3: Test connection
         logger.info("🧪 Testing database connection...")
         async with db_pool.acquire() as conn:
             result = await conn.fetchval("SELECT 1 as test")
