@@ -3,6 +3,9 @@
 -- Author: JyotiFlow Team  
 -- Date: 2024-12-29
 -- Follows: .cursor rules - fix database schema issues without duplication
+-- SAFE: Uses IF NOT EXISTS checks, won't break existing data
+
+BEGIN;  -- Start transaction for safety
 
 -- Add auto_fixable column to business_logic_issues table if it doesn't exist
 DO $$ 
@@ -72,3 +75,5 @@ BEGIN
         RAISE WARNING '⚠️ Migration may have issues - please check column existence manually';
     END IF;
 END $$;
+
+COMMIT;  -- Commit transaction safely
