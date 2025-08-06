@@ -55,11 +55,13 @@ class ThemeService:
 
     def _create_face_preservation_mask(self, image_width: int, image_height: int) -> bytes:
         """
-        🎯 PHASE 2 INPAINTING: Create face preservation mask for surgical precision transformation.
+        🎨 SOFT GRADIENT MASK: Create natural blending mask for head-body integration.
         
-        Creates a binary mask where:
-        - BLACK (0) = Face area to PRESERVE (no changes)
-        - WHITE (255) = Clothes/background area to TRANSFORM (full changes)
+        Creates a multi-zone gradient mask for smooth transitions:
+        - BLACK (0) = Core face area PRESERVED completely
+        - DARK GRAY (64) = Blend zone with 75% preservation, 25% transformation  
+        - MEDIUM GRAY (128) = Neck/collar blend zone with 50% preservation, 50% transformation
+        - WHITE (255) = Clothes/background area TRANSFORMED completely
         
         Args:
             image_width: Width of the original image
@@ -69,9 +71,11 @@ class ThemeService:
             bytes: PNG mask image as bytes
             
         Mask Strategy:
-        - Precise oval face mask matching user's red circle specification  
-        - Covers exactly 28% width, 32% height centered for surgical precision
-        - Tighter face area preserved (eyes, nose, mouth core), maximum transformation freedom
+        - Soft gradient mask with 3-zone blending for natural head-body integration
+        - Inner zone (black): Core face features preserved (eyes, nose, mouth) 
+        - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions
+        - Outer zone (medium gray): 50% blend around neck/collar area for natural integration
+        - White areas: Complete transformation freedom for clothes/background
         """
         # Create a white background (transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)  # 'L' = grayscale, 255 = white
@@ -91,15 +95,42 @@ class ThemeService:
         face_right = face_left + face_width
         face_bottom = face_top + face_height
         
-        # Draw black oval for face preservation area
-        draw.ellipse([face_left, face_top, face_right, face_bottom], fill=0)  # 0 = black = preserve
+        # 🎨 SOFT GRADIENT MASK: Create natural blending for head-body integration
+        
+        # Step 1: Create inner face oval (pure preservation - black)
+        inner_face_left = face_left + int(face_width * 0.1)   # Shrink by 10%
+        inner_face_top = face_top + int(face_height * 0.1)    # Shrink by 10% 
+        inner_face_right = face_right - int(face_width * 0.1)
+        inner_face_bottom = face_bottom - int(face_height * 0.1)
+        
+        # Step 2: Create outer blend zone (gradual transition)
+        outer_face_left = face_left - int(face_width * 0.15)   # Expand by 15%
+        outer_face_top = face_top - int(face_height * 0.1)     # Expand by 10%
+        outer_face_right = face_right + int(face_width * 0.15)
+        outer_face_bottom = face_bottom + int(face_height * 0.15) # More expansion for neck area
+        
+        # Ensure boundaries don't exceed image dimensions
+        outer_face_left = max(0, outer_face_left)
+        outer_face_top = max(0, outer_face_top)  
+        outer_face_right = min(image_width, outer_face_right)
+        outer_face_bottom = min(image_height, outer_face_bottom)
+        
+        # Step 3: Draw gradient blending zones
+        # Outer zone: Medium gray (blend zone)
+        draw.ellipse([outer_face_left, outer_face_top, outer_face_right, outer_face_bottom], fill=128)  # 128 = 50% blend
+        
+        # Middle zone: Darker gray (more preservation) 
+        draw.ellipse([face_left, face_top, face_right, face_bottom], fill=64)  # 64 = 25% blend, 75% preserve
+        
+        # Inner zone: Pure black (complete preservation)
+        draw.ellipse([inner_face_left, inner_face_top, inner_face_right, inner_face_bottom], fill=0)  # 0 = 100% preserve
         
         # Convert to bytes
         mask_buffer = io.BytesIO()
         mask.save(mask_buffer, format='PNG')
         mask_bytes = mask_buffer.getvalue()
         
-        logger.info(f"🎯 PRECISION MASK: {image_width}x{image_height} | Face area: {face_width}x{face_height} (28%x32% - red circle precision) | Mask size: {len(mask_bytes)/1024:.1f}KB")
+        logger.info(f"🎨 SOFT GRADIENT MASK: {image_width}x{image_height} | Core face: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} | Blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} | Mask size: {len(mask_bytes)/1024:.1f}KB")
         return mask_bytes
 
     async def _determine_safe_strength(self, requested_strength: float) -> float:
@@ -218,7 +249,7 @@ class ThemeService:
         - Face preservation mask: BLACK (preserve face) + WHITE (transform clothes/background)
         - 100% surgical precision - face pixels never touched, everything else free to transform
         - No conflicting prompts - mask handles preservation, prompts focus on transformation  
-        - Precision geometric mask: 28% width, 32% height oval matching user's red circle specification
+        - Soft gradient mask: 3-zone blending (core face → blend zones → transform areas) for natural head-body integration
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
         - No strength limitations - mask provides absolute control
@@ -256,8 +287,8 @@ class ThemeService:
                 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
-            # 🚀 PHASE 2: INPAINTING APPROACH - 100% face preservation + 100% theme transformation
-            logger.info("🎭 PHASE 2 INPAINTING: Surgical precision - mask preserves face, transforms everything else")
+            # 🎨 SOFT GRADIENT INPAINTING: Natural head-body integration with 3-zone blending
+            logger.info("🎨 SOFT GRADIENT INPAINTING: Multi-zone mask for natural head-body blending and theme transformation")
             
             # Get image dimensions for mask creation
             base_image = Image.open(io.BytesIO(base_image_bytes))
@@ -278,8 +309,8 @@ class ThemeService:
             # SIMPLIFIED NEGATIVE PROMPT - Focus on quality, not face preservation (mask handles that)
             negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, artificial, low quality, distorted, bad proportions"
 
-            # 🎭 INPAINTING GENERATION - Face mask provides 100% surgical precision
-            logger.info("🚀 STARTING INPAINTING: Mask-based transformation with perfect face preservation")
+            # 🎨 SOFT GRADIENT GENERATION - Multi-zone mask provides natural blending
+            logger.info("🚀 STARTING SOFT GRADIENT INPAINTING: 3-zone mask for natural head-body integration")
             
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
@@ -289,7 +320,7 @@ class ThemeService:
                 # Note: No strength parameter - inpainting uses mask for precision control
             )
             
-            logger.info("✅ INPAINTING SUCCESS: Perfect face preservation + dramatic theme transformation")
+            logger.info("✅ SOFT GRADIENT SUCCESS: Natural head-body integration + dramatic theme transformation")
             return image_bytes, transformation_prompt
 
         except Exception as e:
