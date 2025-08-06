@@ -70,11 +70,12 @@ class ThemeService:
         Returns:
             bytes: PNG mask image as bytes
             
-        Mask Strategy:
-        - Soft gradient mask with 3-zone blending for natural head-body integration
+        Mask Strategy (OPTION 4 - HYBRID APPROACH):
+        - Extended soft gradient mask with 3-zone blending + color matching prompts
         - Inner zone (black): Core face features preserved (eyes, nose, mouth) 
         - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions
-        - Outer zone (medium gray): 50% blend around neck/collar area for natural integration
+        - Outer zone (medium gray): Extended 25% more for neck/upper chest skin tone reference
+        - Color prompts: Explicit skin tone matching and lighting consistency instructions
         - White areas: Complete transformation freedom for clothes/background
         """
         # Create a white background (transform everything by default)
@@ -103,11 +104,11 @@ class ThemeService:
         inner_face_right = face_right - int(face_width * 0.1)
         inner_face_bottom = face_bottom - int(face_height * 0.1)
         
-        # Step 2: Create outer blend zone (gradual transition)
-        outer_face_left = face_left - int(face_width * 0.15)   # Expand by 15%
-        outer_face_top = face_top - int(face_height * 0.1)     # Expand by 10%
-        outer_face_right = face_right + int(face_width * 0.15)
-        outer_face_bottom = face_bottom + int(face_height * 0.15) # More expansion for neck area
+        # Step 2: Create extended blend zone for skin tone reference (OPTION 4 - HYBRID APPROACH)
+        outer_face_left = face_left - int(face_width * 0.20)   # Expand by 20% (was 15%) - more skin reference
+        outer_face_top = face_top - int(face_height * 0.12)    # Expand by 12% (was 10%) - slight forehead extension
+        outer_face_right = face_right + int(face_width * 0.20) # Expand by 20% (was 15%) - more skin reference  
+        outer_face_bottom = face_bottom + int(face_height * 0.25) # Expand by 25% (was 15%) - include more neck/upper chest
         
         # Ensure boundaries don't exceed image dimensions
         outer_face_left = max(0, outer_face_left)
@@ -130,7 +131,7 @@ class ThemeService:
         mask.save(mask_buffer, format='PNG')
         mask_bytes = mask_buffer.getvalue()
         
-        logger.info(f"🎨 SOFT GRADIENT MASK: {image_width}x{image_height} | Core face: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} | Blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} | Mask size: {len(mask_bytes)/1024:.1f}KB")
+        logger.info(f"🎨 HYBRID MASK: {image_width}x{image_height} | Core face: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} | Extended blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} (25% more neck coverage) | Mask size: {len(mask_bytes)/1024:.1f}KB")
         return mask_bytes
 
     async def _determine_safe_strength(self, requested_strength: float) -> float:
@@ -249,7 +250,7 @@ class ThemeService:
         - Face preservation mask: BLACK (preserve face) + WHITE (transform clothes/background)
         - 100% surgical precision - face pixels never touched, everything else free to transform
         - No conflicting prompts - mask handles preservation, prompts focus on transformation  
-        - Soft gradient mask: 3-zone blending (core face → blend zones → transform areas) for natural head-body integration
+        - Hybrid approach: Extended mask (25% more neck coverage) + color matching prompts for perfect skin tone consistency
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
         - No strength limitations - mask provides absolute control
@@ -287,8 +288,8 @@ class ThemeService:
                 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
-            # 🎨 SOFT GRADIENT INPAINTING: Natural head-body integration with 3-zone blending
-            logger.info("🎨 SOFT GRADIENT INPAINTING: Multi-zone mask for natural head-body blending and theme transformation")
+            # 🎨 OPTION 4 HYBRID INPAINTING: Extended mask + color prompts for perfect integration
+            logger.info("🎨 HYBRID APPROACH: Extended mask zones + color matching prompts for skin tone consistency")
             
             # Get image dimensions for mask creation
             base_image = Image.open(io.BytesIO(base_image_bytes))
@@ -298,19 +299,25 @@ class ThemeService:
             # Create face preservation mask (black=preserve face, white=transform clothes/background)
             mask_bytes = self._create_face_preservation_mask(image_width, image_height)
             
-            # SIMPLIFIED TRANSFORMATION PROMPT - No conflicting face preservation instructions
-            # The mask handles face preservation, so prompts can focus purely on transformation
+            # 🎨 OPTION 4 HYBRID PROMPTS: Color matching + lighting consistency for natural integration
+            # Extended mask provides skin tone reference, prompts ensure color/lighting harmony
             transformation_prompt = f"""Transform the clothing and background: {theme_description}. 
-            Create a photorealistic portrait with professional lighting, sharp details, vibrant colors, 
-            detailed fabric textures, and spiritual atmosphere. High-quality professional photography style."""
+            
+            CRITICAL: Maintain perfect skin tone consistency - the body skin color must exactly match the face skin tone.
+            Use consistent warm lighting across the entire portrait with natural shadows and highlights.
+            Ensure seamless color transition from face to neck to chest area with no color breaks or mismatches.
+            
+            Create a photorealistic portrait with unified lighting, matching skin complexion throughout, 
+            sharp details, vibrant clothing colors, detailed fabric textures, and spiritual atmosphere. 
+            Professional photography style with natural skin tone continuity and consistent illumination."""
             
             logger.info(f"🎯 INPAINTING PROMPT (no face conflicts): {transformation_prompt[:150]}...")
             
-            # SIMPLIFIED NEGATIVE PROMPT - Focus on quality, not face preservation (mask handles that)
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, artificial, low quality, distorted, bad proportions"
+            # 🎨 ENHANCED NEGATIVE PROMPT - Prevent color mismatches and lighting inconsistencies  
+            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, artificial, low quality, distorted, bad proportions, mismatched skin tones, different skin colors, inconsistent lighting, color breaks, uneven skin tone, harsh shadows, color discontinuity, lighting mismatch"
 
-            # 🎨 SOFT GRADIENT GENERATION - Multi-zone mask provides natural blending
-            logger.info("🚀 STARTING SOFT GRADIENT INPAINTING: 3-zone mask for natural head-body integration")
+            # 🎨 HYBRID GENERATION - Extended mask + color prompts for perfect skin tone matching  
+            logger.info("🚀 STARTING HYBRID INPAINTING: Extended mask zones + color prompts for skin tone consistency")
             
             image_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
@@ -320,7 +327,7 @@ class ThemeService:
                 # Note: No strength parameter - inpainting uses mask for precision control
             )
             
-            logger.info("✅ SOFT GRADIENT SUCCESS: Natural head-body integration + dramatic theme transformation")
+            logger.info("✅ HYBRID SUCCESS: Perfect skin tone consistency + natural head-body integration + dramatic theme transformation")
             return image_bytes, transformation_prompt
 
         except Exception as e:
