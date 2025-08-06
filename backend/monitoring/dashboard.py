@@ -119,7 +119,7 @@ class MonitoringDashboard:
         """Get comprehensive dashboard data for admin interface"""
         try:
             # Get system health
-                    monitor = get_integration_monitor()
+            monitor = get_integration_monitor()
             system_health = await monitor.get_system_health()
             
             # Get recent sessions
