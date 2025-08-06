@@ -71,14 +71,14 @@ class ThemeService:
         Returns:
             bytes: PNG mask image as bytes
             
-        Mask Strategy (RED CIRCLE EXACT MATCH + NATURAL BLENDING):
-        - Ultra-precise 3-zone gradient mask matching user's red circle specification + AI color analysis
-        - Inner zone (black): RED CIRCLE AREA preservation (face + hair + neck + upper chest - exactly as shown)
-        - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions around red circle edges  
-        - Outer zone (medium gray): Extended blending beyond red circle for natural body integration
-        - AI color analysis: Extract exact RGB values from preserved area and convert to descriptive terms
+        Mask Strategy (MINIMAL FACE-ONLY + MAXIMUM AI FREEDOM):
+        - Ultra-tight 3-zone gradient mask preserving only essential facial features + AI color analysis
+        - Inner zone (black): MINIMAL FACE preservation (eyes, nose, mouth, beard - NO original clothes/background)
+        - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions around face edges only
+        - Outer zone (medium gray): Minimal blending zone for natural neck integration
+        - AI color analysis: Extract exact RGB values from face area and convert to descriptive terms
         - Color injection: Inject analyzed skin tone descriptions directly into transformation prompts
-        - White areas: Complete transformation freedom - AI generates themed body/clothes/background with perfect color matching
+        - White areas: MAXIMUM transformation freedom - AI generates completely new themed clothes/background/body
         """
         # Create a white background (transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)  # 'L' = grayscale, 255 = white
@@ -100,12 +100,12 @@ class ThemeService:
         
         # 🎨 SOFT GRADIENT MASK: Create natural blending for head-body integration
         
-        # Step 1: Create RED CIRCLE EXACT MATCH preservation zone (pure preservation - black)
-        # USER RED CIRCLE SPECIFICATION: Preserve exactly the area shown in red circle - face + hair + neck + upper chest
-        inner_face_left = face_left - int(face_width * 0.18)   # Match red circle width - extends beyond face
-        inner_face_top = face_top - int(face_height * 0.12)    # Match red circle top - includes hair area  
-        inner_face_right = face_right + int(face_width * 0.18) # Match red circle width - extends beyond face
-        inner_face_bottom = face_bottom + int(face_height * 0.20) # Match red circle bottom - includes neck + upper chest
+        # Step 1: Create MINIMAL FACE-ONLY preservation zone (pure preservation - black)
+        # USER FEEDBACK: "orenge color udai theriya kudathu" - NO original clothes, only face/neck preserved
+        inner_face_left = face_left + int(face_width * 0.05)   # SMALLER - just face, not clothes
+        inner_face_top = face_top + int(face_height * 0.05)    # SMALLER - just face/hair, not background  
+        inner_face_right = face_right - int(face_width * 0.05) # SMALLER - just face, not clothes
+        inner_face_bottom = face_bottom + int(face_height * 0.05) # SMALLER - minimal neck, NO clothes
         
         # Ensure inner boundaries stay within image dimensions
         inner_face_left = max(0, inner_face_left)
@@ -113,11 +113,11 @@ class ThemeService:
         inner_face_right = min(image_width, inner_face_right)
         inner_face_bottom = min(image_height, inner_face_bottom)
         
-        # Step 2: Create SMOOTH BLENDING zone around red circle area (OPTION 5+6 COMBINATION)  
-        outer_face_left = face_left - int(face_width * 0.30)   # Beyond red circle for smooth blending
-        outer_face_top = face_top - int(face_height * 0.20)    # Beyond red circle for smooth blending
-        outer_face_right = face_right + int(face_width * 0.30) # Beyond red circle for smooth blending
-        outer_face_bottom = face_bottom + int(face_height * 0.35) # Beyond red circle for smooth blending to body
+        # Step 2: Create MINIMAL BLENDING zone around face area (TIGHT CONTROL)  
+        outer_face_left = face_left - int(face_width * 0.10)   # SMALLER - minimal blending, more AI freedom
+        outer_face_top = face_top - int(face_height * 0.10)    # SMALLER - minimal blending, more AI freedom
+        outer_face_right = face_right + int(face_width * 0.10) # SMALLER - minimal blending, more AI freedom
+        outer_face_bottom = face_bottom + int(face_height * 0.15) # SMALLER - minimal neck blend, AI generates body/clothes
         
         # Ensure boundaries don't exceed image dimensions
         outer_face_left = max(0, outer_face_left)
@@ -140,7 +140,7 @@ class ThemeService:
         mask.save(mask_buffer, format='PNG')
         mask_bytes = mask_buffer.getvalue()
         
-        logger.info(f"🔴 RED CIRCLE EXACT MATCH MASK: {image_width}x{image_height} | Preserved red circle area: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} (face+hair+neck+upper chest as specified) | Smooth blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} | Mask size: {len(mask_bytes)/1024:.1f}KB")
+        logger.info(f"🎯 MINIMAL FACE-ONLY MASK: {image_width}x{image_height} | Preserved face area: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} (eyes/nose/mouth/beard only - NO clothes/background) | Minimal blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} | Mask size: {len(mask_bytes)/1024:.1f}KB")
         return mask_bytes
 
     def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
@@ -391,7 +391,7 @@ class ThemeService:
         - Face preservation mask: BLACK (preserve face) + WHITE (transform clothes/background)
         - 100% surgical precision - face pixels never touched, everything else free to transform
         - No conflicting prompts - mask handles preservation, prompts focus on transformation  
-        - Red Circle Exact Match + Natural Blending: Precise preservation mask matching user's red circle + AI color analysis + perfect color injection (preserves exactly red circle area, AI generates themed clothes/background)
+        - Minimal Face-Only + Maximum AI Freedom: Ultra-tight preservation mask preserving only facial features + AI color analysis + perfect color injection (preserves only face, AI generates completely new themed clothes/background)
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
         - No strength limitations - mask provides absolute control
