@@ -18,6 +18,7 @@ from typing import Optional, Tuple, List
 from PIL import Image, ImageDraw
 import io
 import numpy as np
+from scipy import ndimage
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -54,93 +55,118 @@ class ThemeService:
     
 
 
-    def _create_face_preservation_mask(self, image_width: int, image_height: int) -> bytes:
+    def _create_smart_person_background_mask(self, image_bytes: bytes, image_width: int, image_height: int) -> bytes:
         """
-        🎨 SOFT GRADIENT MASK: Create natural blending mask for head-body integration.
+        🧠 SMART PERSON-BACKGROUND SEPARATION: Intelligent mask that distinguishes person from background.
         
-        Creates a multi-zone gradient mask for smooth transitions:
-        - BLACK (0) = Core face area PRESERVED completely
-        - DARK GRAY (64) = Blend zone with 75% preservation, 25% transformation  
-        - MEDIUM GRAY (128) = Neck/collar blend zone with 50% preservation, 50% transformation
-        - WHITE (255) = Clothes/background area TRANSFORMED completely
+        USER REQUIREMENT: "red ala mark pannina idam ellaam original image oda background theriyuthu"
+        - Preserve ONLY the actual person (face, neck, shoulders) within red circle areas
+        - Transform background (trees, foliage) even if they're behind the person
+        - Create natural realistic blending between preserved person and AI-generated themed body
+        
+        INTELLIGENT SEGMENTATION APPROACH:
+        1. Analyze image colors to distinguish person vs background
+        2. Create person-specific mask (not just geometric shapes)
+        3. Preserve person pixels, transform background pixels
+        4. Natural blending zones around person edges
         
         Args:
+            image_bytes: Original image data for color analysis
             image_width: Width of the original image
             image_height: Height of the original image
             
         Returns:
-            bytes: PNG mask image as bytes
-            
-        Mask Strategy (MINIMAL FACE-ONLY + MAXIMUM AI FREEDOM):
-        - Ultra-tight 3-zone gradient mask preserving only essential facial features + AI color analysis
-        - Inner zone (black): MINIMAL FACE preservation (eyes, nose, mouth, beard - NO original clothes/background)
-        - Middle zone (dark gray): 75% preserve, 25% blend for smooth transitions around face edges only
-        - Outer zone (medium gray): Minimal blending zone for natural neck integration
-        - AI color analysis: Extract exact RGB values from face area and convert to descriptive terms
-        - Color injection: Inject analyzed skin tone descriptions directly into transformation prompts
-        - White areas: MAXIMUM transformation freedom - AI generates completely new themed clothes/background/body
+            bytes: PNG mask image as bytes with smart person-background separation
         """
-        # Create a white background (transform everything by default)
-        mask = Image.new('L', (image_width, image_height), 255)  # 'L' = grayscale, 255 = white
-        draw = ImageDraw.Draw(mask)
+        # Load original image for color analysis
+        original_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+        original_array = np.array(original_image)
         
-        # 🎯 PRECISION MASK: Match user's red circle - tight face area only
-        # Adjusted to match screenshot red circle precision
-        face_width_ratio = 0.28   # 28% of image width (reduced from 40% - more precise)
-        face_height_ratio = 0.32  # 32% of image height (reduced from 50% - tighter)
+        # Create base mask (white = transform everything by default)
+        mask = Image.new('L', (image_width, image_height), 255)
+        mask_array = np.array(mask)
+        
+        # Define person area boundaries (matching user's red circles)
+        face_width_ratio = 0.28
+        face_height_ratio = 0.32
         
         face_width = int(image_width * face_width_ratio)
         face_height = int(image_height * face_height_ratio)
-        
-        # Center the face horizontally, position vertically at 15% from top for precision
         face_left = (image_width - face_width) // 2
-        face_top = int(image_height * 0.15)  # Start 15% from top (matches user's red circle specification)
+        face_top = int(image_height * 0.15)
         face_right = face_left + face_width
         face_bottom = face_top + face_height
         
-        # 🎨 SOFT GRADIENT MASK: Create natural blending for head-body integration
+        # Analyze skin tones in central face area (for person identification)
+        skin_sample_left = face_left + int(face_width * 0.3)
+        skin_sample_right = face_right - int(face_width * 0.3)  
+        skin_sample_top = face_top + int(face_height * 0.2)
+        skin_sample_bottom = face_bottom - int(face_height * 0.4)
         
-        # Step 1: Create MINIMAL FACE-ONLY preservation zone (pure preservation - black)
-        # USER FEEDBACK: "orenge color udai theriya kudathu" - NO original clothes, only face/neck preserved
-        inner_face_left = face_left + int(face_width * 0.05)   # SMALLER - just face, not clothes
-        inner_face_top = face_top + int(face_height * 0.05)    # SMALLER - just face/hair, not background  
-        inner_face_right = face_right - int(face_width * 0.05) # SMALLER - just face, not clothes
-        inner_face_bottom = face_bottom + int(face_height * 0.05) # SMALLER - minimal neck, NO clothes
+        # Extract person skin colors
+        skin_region = original_array[skin_sample_top:skin_sample_bottom, skin_sample_left:skin_sample_right]
         
-        # Ensure inner boundaries stay within image dimensions
-        inner_face_left = max(0, inner_face_left)
-        inner_face_top = max(0, inner_face_top)  
-        inner_face_right = min(image_width, inner_face_right)
-        inner_face_bottom = min(image_height, inner_face_bottom)
+        # Calculate person color characteristics
+        person_colors = {
+            'skin_mean': np.mean(skin_region, axis=(0, 1)),
+            'skin_std': np.std(skin_region, axis=(0, 1)),
+        }
         
-        # Step 2: Create MINIMAL BLENDING zone around face area (TIGHT CONTROL)  
-        outer_face_left = face_left - int(face_width * 0.10)   # SMALLER - minimal blending, more AI freedom
-        outer_face_top = face_top - int(face_height * 0.10)    # SMALLER - minimal blending, more AI freedom
-        outer_face_right = face_right + int(face_width * 0.10) # SMALLER - minimal blending, more AI freedom
-        outer_face_bottom = face_bottom + int(face_height * 0.15) # SMALLER - minimal neck blend, AI generates body/clothes
+        # Analyze background colors (corners of image)
+        corner_size = min(image_width, image_height) // 10
+        corners = [
+            original_array[0:corner_size, 0:corner_size],  # Top-left
+            original_array[0:corner_size, -corner_size:], # Top-right  
+            original_array[-corner_size:, 0:corner_size], # Bottom-left
+            original_array[-corner_size:, -corner_size:]  # Bottom-right
+        ]
         
-        # Ensure boundaries don't exceed image dimensions
-        outer_face_left = max(0, outer_face_left)
-        outer_face_top = max(0, outer_face_top)  
-        outer_face_right = min(image_width, outer_face_right)
-        outer_face_bottom = min(image_height, outer_face_bottom)
+        background_colors = []
+        for corner in corners:
+            background_colors.append(np.mean(corner, axis=(0, 1)))
+        background_mean = np.mean(background_colors, axis=0)
         
-        # Step 3: Draw gradient blending zones
-        # Outer zone: Medium gray (blend zone)
-        draw.ellipse([outer_face_left, outer_face_top, outer_face_right, outer_face_bottom], fill=128)  # 128 = 50% blend
+        # Smart person detection within face area
+        for y in range(max(0, face_top - 20), min(image_height, face_bottom + 40)):
+            for x in range(max(0, face_left - 10), min(image_width, face_right + 10)):
+                pixel_color = original_array[y, x]
+                
+                # Calculate similarity to person vs background
+                person_distance = np.linalg.norm(pixel_color - person_colors['skin_mean'])
+                background_distance = np.linalg.norm(pixel_color - background_mean)
+                
+                # Determine if pixel belongs to person or background
+                if person_distance < background_distance * 0.8:  # Person pixel
+                    # Calculate preservation level based on location
+                    center_x = (face_left + face_right) // 2
+                    center_y = (face_top + face_bottom) // 2
+                    
+                    distance_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
+                    max_distance = np.sqrt((face_width/2)**2 + (face_height/2)**2)
+                    
+                    if distance_from_center < max_distance * 0.4:  # Core face
+                        mask_array[y, x] = 0  # Pure preservation
+                    elif distance_from_center < max_distance * 0.7:  # Face edges
+                        mask_array[y, x] = 64  # 75% preserve, 25% blend
+                    elif distance_from_center < max_distance * 1.0:  # Neck area
+                        mask_array[y, x] = 128  # 50% preserve, 50% blend
+                    # else: white (255) = full transformation
+                # else: background pixel - leave as white (255) for full transformation
         
-        # Middle zone: Darker gray (more preservation) 
-        draw.ellipse([face_left, face_top, face_right, face_bottom], fill=64)  # 64 = 25% blend, 75% preserve
+        # Create smooth blending zones around preserved areas
+        # Smooth the mask to avoid hard edges
+        mask_array = ndimage.gaussian_filter(mask_array.astype(float), sigma=2.0)
+        mask_array = np.clip(mask_array, 0, 255).astype(np.uint8)
         
-        # Inner zone: Pure black (complete preservation)
-        draw.ellipse([inner_face_left, inner_face_top, inner_face_right, inner_face_bottom], fill=0)  # 0 = 100% preserve
+        # Convert back to PIL Image
+        final_mask = Image.fromarray(mask_array, mode='L')
         
         # Convert to bytes
         mask_buffer = io.BytesIO()
-        mask.save(mask_buffer, format='PNG')
+        final_mask.save(mask_buffer, format='PNG')
         mask_bytes = mask_buffer.getvalue()
         
-        logger.info(f"🎯 MINIMAL FACE-ONLY MASK: {image_width}x{image_height} | Preserved face area: {inner_face_right-inner_face_left}x{inner_face_bottom-inner_face_top} (eyes/nose/mouth/beard only - NO clothes/background) | Minimal blend zone: {outer_face_right-outer_face_left}x{outer_face_bottom-outer_face_top} | Mask size: {len(mask_bytes)/1024:.1f}KB")
+        logger.info(f"🧠 SMART PERSON-BACKGROUND MASK: {image_width}x{image_height} | Person colors analyzed | Background separated | Smooth blending applied | Mask size: {len(mask_bytes)/1024:.1f}KB")
         return mask_bytes
 
     def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
@@ -445,8 +471,8 @@ class ThemeService:
                 logger.error(f"❌ Color analysis failed, using fallback: {color_error}")
                 analyzed_skin_color = "warm natural skin tone with consistent complexion"
             
-            # Create ultra-extended face preservation mask (40% neck coverage)
-            mask_bytes = self._create_face_preservation_mask(image_width, image_height)
+            # Create smart person-background separation mask 
+            mask_bytes = self._create_smart_person_background_mask(base_image_bytes, image_width, image_height)
             
             # 🎨 OPTION 5+6 ULTIMATE PROMPTS: Ultra-extended mask + AI-analyzed color injection for perfect matching
             # AI color analysis provides exact skin tone, ultra-extended mask provides maximum reference area
