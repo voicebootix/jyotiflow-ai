@@ -62,7 +62,7 @@ class LegacyStandardResponse(BaseModel):
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from deps import get_current_admin_dependency
 
-from .integration_monitor import integration_monitor, IntegrationStatus
+from .integration_monitor import IntegrationStatus
 from .business_validator import BusinessLogicValidator
 
 # Create router for monitoring endpoints
@@ -119,7 +119,9 @@ class MonitoringDashboard:
         """Get comprehensive dashboard data for admin interface"""
         try:
             # Get system health
-            system_health = await integration_monitor.get_system_health()
+            from .integration_monitor import get_integration_monitor
+            monitor = get_integration_monitor()
+            system_health = await monitor.get_system_health()
             
             # Get recent sessions
             recent_sessions = await self._get_recent_sessions()
@@ -142,7 +144,7 @@ class MonitoringDashboard:
             dashboard_data = {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "system_health": system_health,
-                "active_sessions": len(integration_monitor.active_sessions),
+                "active_sessions": len(monitor.active_sessions),
                 "recent_sessions": recent_sessions,
                 "integration_statistics": integration_stats,
                 "critical_issues": critical_issues,
@@ -155,7 +157,7 @@ class MonitoringDashboard:
             return dashboard_data
             
         except Exception as e:
-            logger.error(f"❌ Failed to get dashboard data: {e}")
+            logger.error(f"Failed to get dashboard data: {e}")
             return {
                 "error": str(e),
                 "timestamp": datetime.now(timezone.utc).isoformat()
@@ -205,7 +207,7 @@ class MonitoringDashboard:
                 await db_manager.release_connection(conn)
                 
         except Exception as e:
-            logger.error(f"❌ Failed to get session details: {e}")
+            logger.error(f"Failed to get session details: {e}")
             return {"error": str(e)}
     
     async def get_integration_health_details(self, integration_point: str) -> Dict:
@@ -272,7 +274,7 @@ class MonitoringDashboard:
                 await db_manager.release_connection(conn)
                 
         except Exception as e:
-            logger.error(f"❌ Failed to get integration health details: {e}")
+            logger.error(f"Failed to get integration health details: {e}")
             return {"error": str(e)}
     
     async def trigger_validation_test(self, test_type: str) -> Dict:
@@ -331,7 +333,7 @@ class MonitoringDashboard:
                 )
                 
         except Exception as e:
-            logger.error(f"❌ Failed to trigger validation test: {e}")
+            logger.error(f"Failed to trigger validation test: {e}")
             return StandardResponse(
                 status="error",
                 message=str(e),

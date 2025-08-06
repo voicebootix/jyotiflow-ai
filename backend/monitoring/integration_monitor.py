@@ -254,7 +254,7 @@ class IntegrationMonitor:
         
     async def start_monitoring(self):
         """Start background monitoring tasks with cache management"""
-        logger.info("🚀 Starting integration monitoring background tasks...")
+        logger.info("Starting integration monitoring background tasks...")
         # Start periodic health checks
         asyncio.create_task(self._periodic_health_check())
         # Start periodic cache cleanup task
@@ -286,7 +286,7 @@ class IntegrationMonitor:
             try:
                 await asyncio.sleep(300)  # Check every 5 minutes
                 health_status = await self.get_system_health()
-                logger.info(f"📊 System health check: {health_status['overall_status']}")
+                logger.info(f"System health check: {health_status['overall_status']}")
             except Exception as e:
                 logger.error(f"Error in periodic health check: {e}")
     
@@ -376,11 +376,11 @@ class IntegrationMonitor:
             finally:
                 await db_manager.release_connection(conn)
             
-            logger.info(f"✅ Started monitoring session {session_id}")
+            logger.info(f"Started monitoring session {session_id}")
             return {"success": True, "session_id": session_id}
             
         except Exception as e:
-            logger.error(f"❌ Failed to start session monitoring: {e}")
+            logger.error(f"Failed to start session monitoring: {e}")
             return {"success": False, "error": str(e)}
     
     async def validate_integration_point(self, session_id: str, 
@@ -512,7 +512,7 @@ class IntegrationMonitor:
             return validation_result
             
         except Exception as e:
-            logger.error(f"❌ Validation error at {integration_point.value}: {e}")
+            logger.error(f"Validation error at {integration_point.value}: {e}")
             logger.error(traceback.format_exc())
             return {
                 "validated": False,
@@ -550,7 +550,7 @@ class IntegrationMonitor:
             return business_validation
             
         except Exception as e:
-            logger.error(f"❌ Business logic validation error: {e}")
+            logger.error(f"Business logic validation error: {e}")
             return {"validated": False, "error": str(e)}
     
     async def complete_session_monitoring(self, session_id: str) -> Dict:
@@ -603,11 +603,11 @@ class IntegrationMonitor:
             # Clean up active session
             del self.active_sessions[session_id]
             
-            logger.info(f"✅ Completed monitoring for session {session_id}")
+            logger.info(f"Completed monitoring for session {session_id}")
             return session_report
             
         except Exception as e:
-            logger.error(f"❌ Failed to complete session monitoring: {e}")
+            logger.error(f"Failed to complete session monitoring: {e}")
             return {"success": False, "error": str(e)}
     
     async def get_system_health(self) -> Dict:
@@ -697,7 +697,7 @@ class IntegrationMonitor:
             return health_status
             
         except Exception as e:
-            logger.error(f"❌ Failed to get system health: {e}")
+            logger.error(f"Failed to get system health: {e}")
             # Log this system health failure to database with recursive prevention
             await self._log_integration_issue(
                 integration_point="system_health",
@@ -1080,5 +1080,20 @@ class IntegrationMonitor:
                 "error": str(e)
             }
 
-# Singleton instance - initialized immediately for dashboard access
-integration_monitor = IntegrationMonitor()
+# Integration monitor instance management
+_integration_monitor_instance = None
+
+def initialize_integration_monitor():
+    """Initialize the integration monitor after database is ready"""
+    global _integration_monitor_instance
+    if _integration_monitor_instance is None:
+        _integration_monitor_instance = IntegrationMonitor()
+        logger.info("Integration monitor initialized")
+    return _integration_monitor_instance
+
+def get_integration_monitor():
+    """Get the integration monitor instance (must be initialized first)"""
+    global _integration_monitor_instance
+    if _integration_monitor_instance is None:
+        raise RuntimeError("Integration monitor not initialized. Call initialize_integration_monitor() first.")
+    return _integration_monitor_instance
