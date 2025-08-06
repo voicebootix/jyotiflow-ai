@@ -621,7 +621,7 @@ class MonitoringDashboard:
                     avg_response_times[integration_name] = int(row['avg_response_time_ms'] or 0)
                 
                 # Get all integration points dynamically from the system
-                                        from monitoring.integration_monitor import IntegrationPoint
+                from monitoring.integration_monitor import IntegrationPoint
                 
                 # Only include integrations that have actual data or are currently monitored
                 system_integration_points = [point.value for point in IntegrationPoint 
@@ -646,7 +646,7 @@ class MonitoringDashboard:
             except Exception as e:
                 logger.error(f"Failed to calculate integration metrics from database: {e}")
                 # Return fallback data for integrations
-                                        from monitoring.integration_monitor import IntegrationPoint
+                from monitoring.integration_monitor import IntegrationPoint
                 system_integration_points = [point.value for point in IntegrationPoint 
                                            if point not in [IntegrationPoint.USER_INPUT, IntegrationPoint.FINAL_RESPONSE]]
                 return {
