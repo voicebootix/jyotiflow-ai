@@ -90,11 +90,11 @@ class TestThemeServiceMaskGeneration(unittest.TestCase):
                 face_right = face_left + face_width
                 face_bottom = face_top + face_height
                 
-                # Calculate inner boundaries with 5% adjustments
-                inner_face_left = face_left + int(face_width * 0.05)
-                inner_face_top = face_top + int(face_height * 0.05)
-                inner_face_right = face_right - int(face_width * 0.05)
-                inner_face_bottom = face_bottom + int(face_height * 0.05)
+                # Calculate inner boundaries with 8% adjustments (updated for ultra-minimal mask)
+                inner_face_left = face_left + int(face_width * 0.08)
+                inner_face_top = face_top + int(face_height * 0.08)
+                inner_face_right = face_right - int(face_width * 0.08)
+                inner_face_bottom = face_bottom - int(face_height * 0.02)
                 
                 # Apply boundary clamping
                 inner_face_left = max(0, inner_face_left)
@@ -127,9 +127,8 @@ class TestThemeServiceMaskGeneration(unittest.TestCase):
                 self.assertGreaterEqual(face_width, 1, f"Face width too small for {image_width}x{image_height}")
                 self.assertGreaterEqual(face_height, 1, f"Face height too small for {image_width}x{image_height}")
                 
-                # Test inner area dimensions
-                inner_width = face_width - int(face_width * 0.10)  # 5% from each side
-                inner_height = face_height - int(face_height * 0.05) + int(face_height * 0.05)  # Top shrink, bottom expand
+                # Test inner area dimensions  
+                inner_width = face_width - int(face_width * 0.16)  # 8% from each side (updated for ultra-minimal mask)
                 
                 self.assertGreaterEqual(max(1, inner_width), 1, f"Inner width calculation for {image_width}x{image_height}")
 
@@ -202,12 +201,13 @@ class TestThemeServiceMaskGeneration(unittest.TestCase):
                 self.assertEqual(mask_image.size, (image_width, image_height))
 
     def test_percentage_offset_calculations(self):
-        """Test that 5%, 10%, and 15% offsets produce valid mask regions."""
+        """Test that 2%, 8%, 10%, and 15% offsets produce valid mask regions."""
         base_size = 200
         
-        # Test different offset scenarios
+        # Test different offset scenarios (updated for ultra-minimal mask)
         offset_tests = [
-            (0.05, "5% inner face adjustment"),
+            (0.02, "2% inner face bottom adjustment"),
+            (0.08, "8% inner face adjustment"),  
             (0.10, "10% outer face adjustment"),  
             (0.15, "15% outer bottom adjustment")
         ]
@@ -250,11 +250,11 @@ class TestThemeServiceMaskGeneration(unittest.TestCase):
                 face_right = face_left + face_width
                 face_bottom = face_top + face_height
                 
-                # Test inner boundary clamping
-                inner_face_left_unclamped = face_left + int(face_width * 0.05)
+                # Test inner boundary clamping (updated for ultra-minimal mask)
+                inner_face_left_unclamped = face_left + int(face_width * 0.08)
                 inner_face_left_clamped = max(0, inner_face_left_unclamped)
                 
-                inner_face_right_unclamped = face_right - int(face_width * 0.05)
+                inner_face_right_unclamped = face_right - int(face_width * 0.08)
                 inner_face_right_clamped = min(image_width, inner_face_right_unclamped)
                 
                 # Verify clamping works correctly
