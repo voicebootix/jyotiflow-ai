@@ -158,6 +158,11 @@ class IntegrationMonitor:
         self._health_check_interval = 60  # Cache health checks for 60 seconds
         self._last_health_checks = {}
         
+        # Log rate limiting to prevent log flooding
+        self._log_rate_limiter = {}
+        self._log_rate_limit_interval = 30  # Only log same error once per 30 seconds
+        self._last_log_times = {}
+        
         # Safe business validator initialization
         try:
             self.business_validator = BusinessLogicValidator()
@@ -584,7 +589,8 @@ class IntegrationMonitor:
                 severity="high",
                 description=f"Failed to retrieve system health status: {str(e)}",
                 auto_fixable=False,
-                _prevent_recursion=True
+                _prevent_recursion=True,
+                user_id=0  # System monitoring user
             )
             return {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -594,9 +600,21 @@ class IntegrationMonitor:
     
     # Private helper methods
     
+    def _should_log_error(self, error_key: str) -> bool:
+        """Check if we should log this error based on rate limiting"""
+        import time
+        current_time = time.time()
+        
+        if (error_key in self._last_log_times and 
+            current_time - self._last_log_times[error_key] < self._log_rate_limit_interval):
+            return False  # Don't log, too recent
+            
+        self._last_log_times[error_key] = current_time
+        return True  # OK to log
+    
     async def _log_integration_issue(self, integration_point: str, issue_type: str, 
                                    severity: str, description: str, auto_fixable: bool = False,
-                                   _prevent_recursion: bool = False, session_id: str = None) -> None:
+                                   _prevent_recursion: bool = False, session_id: str = None, user_id: int = None) -> None:
         """Log integration issues to database for tracking with recursive error prevention"""
         try:
             # Generate session_id if not provided (required by database schema)
@@ -606,11 +624,15 @@ class IntegrationMonitor:
             conn = await db_manager.get_connection()
             try:
                 # First, ensure the session exists in validation_sessions table to satisfy foreign key constraint
+                # Use default user_id of 0 if not provided (system monitoring session)
+                if user_id is None:
+                    user_id = 0
+                    
                 await conn.execute("""
-                    INSERT INTO validation_sessions (session_id, created_at)
-                    VALUES ($1, NOW())
+                    INSERT INTO validation_sessions (session_id, user_id, started_at)
+                    VALUES ($1, $2, NOW())
                     ON CONFLICT (session_id) DO NOTHING
-                """, session_id)
+                """, session_id, user_id)
                 
                 # Now insert the issue
                 await conn.execute("""
@@ -619,17 +641,27 @@ class IntegrationMonitor:
                     VALUES ($1, $2, $3, $4, $5, NOW())
                 """, session_id, issue_type, severity, description, auto_fixable)
                 
-                logger.debug(f"📝 Logged {severity} issue for {integration_point}: {issue_type}")
+                # Only log debug info for high severity issues to reduce log volume
+                if severity in ['high', 'critical']:
+                    logger.debug(f"📝 Logged {severity} issue for {integration_point}: {issue_type}")
             finally:
                 await db_manager.release_connection(conn)
         except Exception as e:
-            # Fallback logging mechanism - prevents recursive database logging attempts
-            if not _prevent_recursion:
+            # Fallback logging mechanism with rate limiting to prevent log flooding
+            error_key = f"{integration_point}_{issue_type}_{str(e)[:50]}"  # Create unique key for this error type
+            
+            if not _prevent_recursion and self._should_log_error(error_key):
                 logger.error(f"Failed to log integration issue to database: {e}")
                 logger.warning(f"📋 Fallback log - {severity.upper()} issue for {integration_point}: {issue_type} - {description}")
+                logger.info(f"🔇 Similar errors will be suppressed for {self._log_rate_limit_interval} seconds")
+            elif not _prevent_recursion:
+                # Error suppressed due to rate limiting - only log once per interval
+                pass  # Silently skip to prevent log flooding
             else:
-                # Already in recursive prevention mode - only log to application logger
-                logger.error(f"Database logging failed during recursive prevention for {integration_point}: {e}")
+                # Already in recursive prevention mode - only log once per interval
+                if self._should_log_error(f"recursive_{integration_point}"):
+                    logger.error(f"Database logging failed during recursive prevention for {integration_point}: {e}")
+                    logger.info(f"🔇 Recursive prevention errors suppressed for {self._log_rate_limit_interval} seconds")
     async def _attempt_auto_fix(self, session_id: str, 
                                integration_point: IntegrationPoint,
                                validation_result: Dict) -> Dict:
@@ -872,7 +904,8 @@ class IntegrationMonitor:
                     issue_type="missing_api_key",
                     severity="high",
                     description=f"Missing required environment variable {required_key} for {integration_point.value}",
-                    auto_fixable=False
+                    auto_fixable=False,
+                    user_id=0  # System monitoring user
                 )
                 return {
                     "status": "error",
@@ -891,7 +924,8 @@ class IntegrationMonitor:
                 issue_type="health_check_failure",
                 severity="high",
                 description=f"Real-time health check failed for {integration_point.value}: {str(e)}",
-                auto_fixable=False
+                auto_fixable=False,
+                user_id=0  # System monitoring user
             )
             return {
                 "status": "error",
