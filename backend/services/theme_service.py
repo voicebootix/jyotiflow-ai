@@ -499,76 +499,39 @@ class ThemeService:
             
             # 🎯 IMG2IMG APPROACH: No mask needed - face preservation via parameters
             
-            # 🎨 OPTION 5+6 ULTIMATE PROMPTS: Ultra-extended mask + AI-analyzed color injection for perfect matching
-            # AI color analysis provides exact skin tone, ultra-extended mask provides maximum reference area
-            transformation_prompt = f"""same person with identical face, completely transform to {theme_description}, dramatic clothing change, completely different background, full body transformation.
-            PRESERVE: exact same face, facial features, identity, skin tone ({analyzed_skin_color}).
-            TRANSFORM COMPLETELY: all clothing, background, environment, pose, setting.
-            Create dramatic visual transformation while keeping the same person's face."""
-            
-            logger.info(f"🎯 INPAINTING PROMPT (no face conflicts): {transformation_prompt[:150]}...")
-            
             # 🎨 ENHANCED NEGATIVE PROMPT - Prevent color mismatches and lighting inconsistencies  
             negative_prompt = "different face, face swap, mutated face, different person, altered identity, blurry, low-resolution, deformed, poor anatomy, cartoon, artificial, low quality"
 
-            # 🎨 ULTIMATE GENERATION - Option 5+6: Ultra-extended mask + AI color analysis for perfect matching  
-            logger.info("🎯 SWITCHING TO IMG2IMG: Natural face preservation with low denoising strength")
+            # 🎯 SWITCHING TO SINGLE-PASS IMG2IMG: Dramatic transformation with face preservation
+            logger.info("🎯 SWITCHING TO SINGLE-PASS IMG2IMG: Higher strength for visible transformation")
             
-            # 🎯 USER SUGGESTION: Use img2img with low denoising strength instead of masking
-            # This will naturally preserve the face while transforming clothing/background
-            # 🎯 MULTI-PASS IMG2IMG: Using configurable strength constants for each pass
+            # 🎯 SINGLE-PASS IMG2IMG APPROACH: Higher strength for dramatic transformation
             
-            # 🎯 MULTI-PASS IMG2IMG APPROACH: Different strengths for different focuses
+            # 🔧 SINGLE PASS STRENGTH - Higher value for visible changes
+            SINGLE_PASS_STRENGTH = 0.65  # Higher strength for dramatic yet controlled transformation
             
-            # 🔧 CONFIGURABLE STRENGTH CONSTANTS for flexibility
-            BACKGROUND_PASS_STRENGTH = 0.35  # Medium strength for dramatic background change
-            CLOTHING_PASS_STRENGTH = 0.20    # Lower strength to preserve face from Pass 1
+            logger.info(f"🎯 SINGLE-PASS STRENGTH: {SINGLE_PASS_STRENGTH} - Dramatic transformation with face preservation")
             
-            logger.info(f"🎯 MULTI-PASS STRENGTHS: Background={BACKGROUND_PASS_STRENGTH}, Clothing={CLOTHING_PASS_STRENGTH}")
+            # 🎨 COMPREHENSIVE SINGLE PROMPT - Combines background + clothing transformation
+            single_comprehensive_prompt = f"""Transform this person to {theme_description}.
+PRESERVE: exact same face, facial features, identity, skin tone ({analyzed_skin_color}).
+TRANSFORM: clothing to match theme, background environment, lighting, pose, setting.
+Create dramatic visual transformation while keeping identical face and person."""
             
-            # PASS 1: Background transformation with medium strength
-            background_prompt = f"same person, transform background to {theme_description} setting, keep person unchanged, dramatic background change, temple environment, spiritual atmosphere"
-            background_negative = "different face, face change, person change, clothing change, body change"
+            # 🛡️ SINGLE-PASS TRANSFORMATION with proper error handling
+            logger.info("🎯 SINGLE-PASS: Comprehensive transformation starting")
+            logger.info(f"🎨 SINGLE-PASS PROMPT: {single_comprehensive_prompt[:150]}...")
             
-            # 🛡️ PASS 1: Background transformation with error handling
-            try:
-                logger.info("🎯 PASS 1: Background transformation")
-                background_result = await self.stability_service.generate_image_to_image(
-                    init_image_bytes=base_image_bytes,
-                    text_prompt=background_prompt,
-                    negative_prompt=background_negative,
-                    strength=BACKGROUND_PASS_STRENGTH
-                )
-                logger.info("✅ PASS 1 SUCCESS: Background transformation completed")
-                
-            except Exception as pass1_error:
-                logger.error(f"❌ PASS 1 FAILED: Background transformation error: {pass1_error}")
-                # Fallback: Use original image for Pass 2
-                background_result = base_image_bytes
-                logger.warning("⚠️ Using original image for Pass 2 due to Pass 1 failure")
+            raw_generated_bytes = await self.stability_service.generate_image_to_image(
+                init_image_bytes=base_image_bytes,
+                text_prompt=single_comprehensive_prompt,
+                negative_prompt=negative_prompt,
+                strength=SINGLE_PASS_STRENGTH
+            )
+            logger.info("✅ SINGLE-PASS SUCCESS: Comprehensive transformation completed")
             
-            # 🛡️ PASS 2: Clothing transformation with error handling
-            try:
-                clothing_prompt = f"same person with identical face, transform clothing to {theme_description} attire, keep face exactly same, dramatic clothing change, traditional dress"
-                clothing_negative = "different face, face change, altered face, face swap, background change"
-                
-                logger.info("🎯 PASS 2: Clothing transformation") 
-                raw_generated_bytes = await self.stability_service.generate_image_to_image(
-                    init_image_bytes=background_result,
-                    text_prompt=clothing_prompt,
-                    negative_prompt=clothing_negative,
-                    strength=CLOTHING_PASS_STRENGTH
-                )
-                logger.info("✅ PASS 2 SUCCESS: Clothing transformation completed")
-                
-            except Exception as pass2_error:
-                logger.error(f"❌ PASS 2 FAILED: Clothing transformation error: {pass2_error}")
-                # Fallback: Use result from Pass 1 (or original if Pass 1 also failed)
-                raw_generated_bytes = background_result
-                logger.warning("⚠️ Using Pass 1 result due to Pass 2 failure")
-            
-            logger.info("✅ IMG2IMG SUCCESS: Natural face preservation with low strength + perfect theme transformation")
-            return raw_generated_bytes, transformation_prompt
+            logger.info("✅ SINGLE-PASS IMG2IMG SUCCESS: Dramatic transformation with face preservation")
+            return raw_generated_bytes, single_comprehensive_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
