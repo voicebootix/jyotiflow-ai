@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 from typing import Optional
+from datetime import datetime
+from pydantic import BaseModel, validator
 
 # கிரெடிட் தொகுப்பு உருவாக்கம் - Credit Package Creation Schema
 class CreditPackageCreate(BaseModel):
@@ -60,8 +62,8 @@ class CreditPackageOut(BaseModel):
                 try:
                     parsed = datetime.fromisoformat(v)
                     return parsed.isoformat()
-                except ValueError:
-                    raise ValueError(f"Invalid datetime format: {v}")
+                except ValueError as e:
+                    raise ValueError(f"Invalid datetime format: {v}") from e
         return v
     
     class Config:

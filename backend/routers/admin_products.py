@@ -419,7 +419,7 @@ async def get_credit_packages(db=Depends(get_db)):
         ]
     except Exception as e:
         logger.error(f"Error fetching credit packages: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch credit packages") from e 
+        raise HTTPException(status_code=500, detail="Failed to fetch credit packages") from e
 
 #ENHANCED: Helper function for robust datetime serialization
 def _safe_datetime_to_iso(dt_value):
