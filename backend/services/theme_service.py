@@ -144,21 +144,22 @@ class ThemeService:
         draw = ImageDraw.Draw(mask_image)
         
         # Define face preservation zones with safety margins
-        # Core face area: 100% preservation (BLACK = 0)
-        core_face_left = face_left + int(face_width * 0.1)  # 10% margin from edges
-        core_face_right = face_right - int(face_width * 0.1)
-        core_face_top = face_top + int(face_height * 0.05)  # 5% margin from top
-        core_face_bottom = face_bottom - int(face_height * 0.15)  # 15% margin from bottom
+        # 🎯 REFINED FACE-ONLY PRESERVATION: Smaller face area, more clothing transformation
+        # Core face area: 100% preservation (BLACK = 0) - REDUCED SIZE
+        core_face_left = face_left + int(face_width * 0.20)  # 20% margin from edges (was 10%)
+        core_face_right = face_right - int(face_width * 0.20)  # 20% margin from edges (was 10%)
+        core_face_top = face_top + int(face_height * 0.15)  # 15% margin from top (was 5%)
+        core_face_bottom = face_bottom - int(face_height * 0.35)  # 35% margin from bottom (was 15%)
         
         # Draw core face preservation (BLACK = preserve completely)
         draw.ellipse([core_face_left, core_face_top, core_face_right, core_face_bottom], fill=0)
         
-        # Blending zone around face: 50% blend (GRAY = 128)
-        blend_margin = int(min(face_width, face_height) * 0.15)  # 15% blend margin
-        blend_left = max(0, face_left - blend_margin)
-        blend_right = min(image_width, face_right + blend_margin)
-        blend_top = max(0, face_top - blend_margin)
-        blend_bottom = min(image_height, face_bottom + blend_margin)
+        # Blending zone around face: 50% blend (GRAY = 128) - SMALLER BLEND AREA
+        blend_margin = int(min(face_width, face_height) * 0.08)  # 8% blend margin (was 15%)
+        blend_left = max(0, core_face_left - blend_margin)  # Use core face as reference
+        blend_right = min(image_width, core_face_right + blend_margin)
+        blend_top = max(0, core_face_top - blend_margin)
+        blend_bottom = min(image_height, core_face_bottom + blend_margin)
         
         # Draw blending zone (GRAY = partial blend)
         draw.ellipse([blend_left, blend_top, blend_right, blend_bottom], fill=128)
