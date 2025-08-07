@@ -565,44 +565,55 @@ class ThemeService:
                 logger.error(f"❌ Color analysis failed, using fallback: {color_error}")
                 analyzed_skin_color = "warm natural skin tone with consistent complexion"
             
-            # 🎯 INPAINTING APPROACH: Face preservation mask - Face area NEVER touched
+            # 🎯 NO MASK APPROACH: Ultra-strong prompts for face preservation
             
-            # 🎨 USER SPECIFIED PROMPTS - Exact prompts as requested
-            inpainting_prompt = f"""Transform clothing and background to {theme_description}.
-same face, same identity, unchanged face, original face, real human."""
-            
-            negative_prompt = "different face, face swap, mutated face, cartoon face, new identity"
+            # 🎨 ULTRA-STRONG FACE PRESERVATION PROMPTS - Force AI to keep exact same face
+            ultra_strong_prompt = f"""CRITICAL INSTRUCTION: Keep the EXACT SAME PERSON with identical face, eyes, nose, mouth, facial structure, and skin tone ({analyzed_skin_color}).
+DO NOT change this person's face or identity in ANY way.
 
-            # 🎯 SWITCHING TO INPAINTING: 100% face preservation with mask
-            logger.info("🎯 SWITCHING TO INPAINTING: Face area never touched, only dress & body transform")
+Transform ONLY the clothing and background to: {theme_description}
+
+MANDATORY PRESERVATION:
+- Keep this exact person's face completely unchanged
+- Preserve all facial features: same eyes, same nose, same mouth, same cheeks
+- Maintain identical facial structure and bone structure  
+- Keep exact same skin tone and complexion
+- Preserve same head shape and hair
+- Do not alter this person's identity
+
+TRANSFORM ONLY:
+- Change clothing style and colors to match the theme
+- Modify background environment and setting
+- Adjust lighting and atmosphere
+- Add appropriate accessories (jewelry, beads, tilaka)
+
+This must remain the same recognizable person with only clothing and background changes."""
             
-            # 🔧 CREATE FACE PRESERVATION MASK - Face area = BLACK (preserve), Dress/body = WHITE (transform)
-            face_mask_bytes = self._create_face_preservation_mask(image_width, image_height)
-            logger.info("🎭 FACE PRESERVATION MASK: Created - Face BLACK (preserve), Dress/body WHITE (transform)")
+            # 🚫 ULTRA-STRONG NEGATIVE PROMPTS - Prevent any face alterations
+            ultra_negative_prompt = "different face, changed face, new face, altered face, face swap, face replacement, different person, changed identity, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, different skin, face morph, face change, artificial face, generic face, template face, stock photo face, different facial structure, altered features"
+
+            # 🎯 SWITCHING TO IMG2IMG: No mask, ultra-low strength, strong prompts
+            logger.info("🎯 SWITCHING TO NO-MASK IMG2IMG: Ultra-strong prompts for face preservation")
             
-            # 🔧 INPAINTING PARAMETERS - Low denoising strength as specified
-            INPAINTING_STRENGTH = 0.35  # Low strength for inpainting (0.3-0.4 range)
-            CFG_SCALE = 7.0  # Standard CFG scale
-            STEPS = 30       # Standard steps
+            # 🔧 ULTRA-LOW STRENGTH - Minimal transformation to preserve original face
+            ULTRA_LOW_STRENGTH = 0.2  # Very low strength for maximum face preservation
             
-            logger.info(f"🎯 INPAINTING PARAMS: Strength={INPAINTING_STRENGTH}, CFG={CFG_SCALE}, Steps={STEPS}")
+            logger.info(f"🎯 ULTRA-LOW STRENGTH: {ULTRA_LOW_STRENGTH} - Maximum face preservation with prompt control")
             
-            # 🛡️ INPAINTING TRANSFORMATION - Face area completely protected by mask
-            logger.info("🎯 INPAINTING: Starting transformation with face protection")
-            logger.info(f"🎨 INPAINTING PROMPT: {inpainting_prompt[:150]}...")
+            # 🛡️ NO-MASK TRANSFORMATION - Rely entirely on prompt instructions
+            logger.info("🎯 NO-MASK IMG2IMG: Starting ultra-strong prompt-based face preservation")
+            logger.info(f"🎨 ULTRA-STRONG PROMPT: {ultra_strong_prompt[:200]}...")
             
-            raw_generated_bytes = await self.stability_service.generate_image_with_mask(
+            raw_generated_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=face_mask_bytes,
-                text_prompt=inpainting_prompt,
-                negative_prompt=negative_prompt,
-                cfg_scale=CFG_SCALE,
-                steps=STEPS
+                text_prompt=ultra_strong_prompt,
+                negative_prompt=ultra_negative_prompt,
+                strength=ULTRA_LOW_STRENGTH
             )
-            logger.info("✅ INPAINTING SUCCESS: Face preserved, clothing/background transformed")
+            logger.info("✅ NO-MASK SUCCESS: Face preservation via ultra-strong prompts")
             
-            logger.info("✅ INPAINTING COMPLETE: 100% face preservation with visible theme changes")
-            return raw_generated_bytes, inpainting_prompt
+            logger.info("✅ NO-MASK IMG2IMG COMPLETE: Prompt-based face preservation with theme changes")
+            return raw_generated_bytes, ultra_strong_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
