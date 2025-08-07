@@ -55,45 +55,7 @@ class ThemeService:
     
 
 
-    def _create_simple_face_mask(self, image_bytes: bytes, image_width: int, image_height: int) -> bytes:
-        """
-        🎯 SIMPLE IMG2IMG APPROACH: No complex masking needed!
-        
-        USER FEEDBACK: Complex masking creates floating face problem
-        NEW APPROACH: Use Stability AI img2img with proper parameters for natural face preservation
-        
-        This method creates a minimal white mask for API compatibility.
-        Real face preservation happens through img2img parameters:
-        - Low strength (0.25-0.35) 
-        - Proper prompts ("same person")
-        - Negative prompts ("different face")
-        
-        Args:
-            image_bytes: Original Swamiji image
-            image_width: Image width  
-            image_height: Image height
-            
-        Returns:
-            bytes: Simple white mask (full transformation - let img2img handle face preservation)
-        """
-        logger.info("🚀 SIMPLE IMG2IMG APPROACH: Creating minimal mask - face preservation via parameters")
-        
-        try:
-            # Create simple white mask (full transformation)
-            # Let img2img parameters handle face preservation naturally
-            mask = Image.new('L', (image_width, image_height), 255)  # All white = transform everything
-            
-            # Save mask as PNG bytes
-            mask_buffer = io.BytesIO()
-            mask.save(mask_buffer, format='PNG')
-            mask_bytes = mask_buffer.getvalue()
-            
-            logger.info(f"✅ SIMPLE MASK CREATED: {image_width}x{image_height} white mask | Size: {len(mask_bytes)/1024:.1f}KB")
-            return mask_bytes
-            
-        except Exception as e:
-            logger.error(f"❌ Simple mask creation failed: {str(e)}")
-            raise RuntimeError(f"Failed to create simple mask: {str(e)}") from e
+
 
     async def _apply_color_harmonization(
         self, 
@@ -535,8 +497,7 @@ class ThemeService:
                 logger.error(f"❌ Color analysis failed, using fallback: {color_error}")
                 analyzed_skin_color = "warm natural skin tone with consistent complexion"
             
-            # Create smart person-background separation mask 
-            mask_bytes = self._create_simple_face_mask(base_image_bytes, image_width, image_height)
+            # 🎯 IMG2IMG APPROACH: No mask needed - face preservation via parameters
             
             # 🎨 OPTION 5+6 ULTIMATE PROMPTS: Ultra-extended mask + AI-analyzed color injection for perfect matching
             # AI color analysis provides exact skin tone, ultra-extended mask provides maximum reference area
@@ -554,13 +515,24 @@ class ThemeService:
             
             # 🎯 USER SUGGESTION: Use img2img with low denoising strength instead of masking
             # This will naturally preserve the face while transforming clothing/background
-            # 🎯 YOUR PERFECT IMG2IMG PARAMETERS
+            # 🎯 DYNAMIC STRENGTH PARAMETER with validation
+            # Validate strength_param within safe range for face preservation
+            if strength_param < 0.25:
+                validated_strength = 0.25
+                logger.warning(f"⚠️ strength_param {strength_param} too low, using minimum 0.25")
+            elif strength_param > 0.35:
+                validated_strength = 0.35
+                logger.warning(f"⚠️ strength_param {strength_param} too high, using maximum 0.35")
+            else:
+                validated_strength = strength_param
+                logger.info(f"✅ Using validated strength: {validated_strength}")
+            
             raw_generated_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                strength=0.30,  # Face preservation strength (0.25-0.35 range)
-                cfg_scale=7     # Your suggested cfg_scale for better guidance
+                strength=validated_strength,  # Dynamic strength with validation (0.25-0.35 range)
+                cfg_scale=7                   # Your suggested cfg_scale for better guidance
             )
             
             logger.info("✅ IMG2IMG SUCCESS: Natural face preservation with low strength + perfect theme transformation")
