@@ -311,7 +311,6 @@ class ThemeService:
         try:
             # Load images
             generated_image = Image.open(io.BytesIO(generated_image_bytes)).convert('RGB')
-            original_image = Image.open(io.BytesIO(original_image_bytes)).convert('RGB')
             mask_image = Image.open(io.BytesIO(mask_bytes)).convert('L')
             
             # Convert to numpy arrays for processing
