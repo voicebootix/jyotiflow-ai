@@ -495,26 +495,26 @@ class ThemeService:
         self, 
         custom_prompt: Optional[str] = None, 
         theme_day: Optional[int] = None,
-        strength_param: float = 0.4  # Kept for backward compatibility but not used in inpainting
+        strength_param: float = 0.4  # Transformation strength (0.1-0.4 clamped for face safety)
     ) -> Tuple[bytes, str]:
         """
-        🎭 PHASE 2: INPAINTING APPROACH - 100% face preservation + 100% theme transformation.
-        Uses mask-based inpainting for surgical precision: face area preserved, everything else transforms.
-        Returns a tuple of (image_bytes, final_prompt) - Perfect face preservation with dramatic theme transformations.
+        🎭 NO-MASK IMG2IMG APPROACH: Ultra-strong prompts for face preservation + theme transformation.
+        Uses img2img with ultra-low strength and detailed prompts for face preservation while transforming clothes/background.
+        Returns a tuple of (image_bytes, final_prompt) - Face preservation via prompt control with theme transformations.
         
         Args:
             custom_prompt: Optional custom prompt to override theme-based generation
             theme_day: Optional day override (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.
-            strength_param: DEPRECATED - Kept for backward compatibility. Inpainting uses mask precision instead.
+            strength_param: Transformation strength (0.0-1.0). Clamped to 0.1-0.4 range for face safety.
         
-        Inpainting Enhancements:
-        - Face preservation mask: BLACK (preserve face) + WHITE (transform clothes/background)
-        - 100% surgical precision - face pixels never touched, everything else free to transform
-        - No conflicting prompts - mask handles preservation, prompts focus on transformation  
-        - Minimal Face-Only + Maximum AI Freedom: Ultra-tight preservation mask preserving only facial features + AI color analysis + perfect color injection (preserves only face, AI generates completely new themed clothes/background)
+        Implementation Features:
+        - Ultra-strong face preservation prompts with detailed instructions
+        - Comprehensive negative prompts to prevent face alterations
+        - Low strength transformation (0.1-0.4) for natural blending
+        - Full image visibility to AI (no masking) for better context
         - Enhanced theme descriptions with rich details (clothing, background, lighting, atmosphere)
         - Theme day selection for testing all 7 daily themes
-        - No strength limitations - mask provides absolute control
+        - Strength parameter bounds checking for face safety
         """
         try:
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -592,13 +592,14 @@ This must remain the same recognizable person with only clothing and background 
             # 🚫 ULTRA-STRONG NEGATIVE PROMPTS - Prevent any face alterations
             ultra_negative_prompt = "different face, changed face, new face, altered face, face swap, face replacement, different person, changed identity, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, different skin, face morph, face change, artificial face, generic face, template face, stock photo face, different facial structure, altered features"
 
-            # 🎯 SWITCHING TO IMG2IMG: No mask, ultra-low strength, strong prompts
+            # 🎯 SWITCHING TO IMG2IMG: No mask, caller-specified strength with bounds, strong prompts
             logger.info("🎯 SWITCHING TO NO-MASK IMG2IMG: Ultra-strong prompts for face preservation")
             
-            # 🔧 ULTRA-LOW STRENGTH - Minimal transformation to preserve original face
-            ULTRA_LOW_STRENGTH = 0.2  # Very low strength for maximum face preservation
+            # 🔧 RESPECT CALLER'S STRENGTH with face-safe bounds checking (CORE.MD compliance)
+            # Clamp strength_param to face-safe range (0.1 to 0.4) to prevent face distortion
+            effective_strength = max(0.1, min(strength_param, 0.4))
             
-            logger.info(f"🎯 ULTRA-LOW STRENGTH: {ULTRA_LOW_STRENGTH} - Maximum face preservation with prompt control")
+            logger.info(f"🎯 EFFECTIVE STRENGTH: {effective_strength} (requested: {strength_param}, clamped to face-safe range 0.1-0.4)")
             
             # 🛡️ NO-MASK TRANSFORMATION - Rely entirely on prompt instructions
             logger.info("🎯 NO-MASK IMG2IMG: Starting ultra-strong prompt-based face preservation")
@@ -608,7 +609,7 @@ This must remain the same recognizable person with only clothing and background 
                 init_image_bytes=base_image_bytes,
                 text_prompt=ultra_strong_prompt,
                 negative_prompt=ultra_negative_prompt,
-                strength=ULTRA_LOW_STRENGTH
+                strength=effective_strength
             )
             logger.info("✅ NO-MASK SUCCESS: Face preservation via ultra-strong prompts")
             
