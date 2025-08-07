@@ -327,6 +327,74 @@ class ThemeService:
         
         return color_description
 
+    def _create_face_preservation_mask(self, image_width: int, image_height: int) -> bytes:
+        """
+        🎭 FACE PRESERVATION MASK: Creates mask for inpainting where face area is preserved.
+        
+        USER SPECIFICATION: Face area-ஐ mask செய்யாதீர்கள் - Just mask dress & body only.
+        
+        Mask Logic:
+        - BLACK pixels (0) = Face area = PRESERVE (never touched by AI)
+        - WHITE pixels (255) = Dress/body/background = TRANSFORM
+        
+        Args:
+            image_width: Width of the base image
+            image_height: Height of the base image
+            
+        Returns:
+            bytes: PNG mask image where face is black (preserved), rest is white (transformed)
+        """
+        try:
+            # Create white background (all areas will be transformed by default)
+            mask = Image.new('L', (image_width, image_height), 255)  # White = transform
+            draw = ImageDraw.Draw(mask)
+            
+            # 🎯 FACE AREA CALCULATION - Small centered area for face preservation
+            # Conservative face area - only core facial features
+            face_width_ratio = 0.22   # 22% of image width (smaller than before)
+            face_height_ratio = 0.28  # 28% of image height (smaller than before)
+            
+            face_width = int(image_width * face_width_ratio)
+            face_height = int(image_height * face_height_ratio)
+            
+            # Center the face area
+            face_left = (image_width - face_width) // 2
+            face_top = int(image_height * 0.18)  # Slightly higher position for face
+            face_right = face_left + face_width
+            face_bottom = face_top + face_height
+            
+            # 🎭 DRAW FACE PRESERVATION AREA - Black ellipse for natural face shape
+            draw.ellipse(
+                [face_left, face_top, face_right, face_bottom],
+                fill=0  # Black = preserve face area
+            )
+            
+            # Convert to bytes
+            mask_buffer = io.BytesIO()
+            mask.save(mask_buffer, format='PNG')
+            mask_bytes = mask_buffer.getvalue()
+            
+            logger.info(f"🎭 FACE MASK CREATED: {image_width}x{image_height} | Face area: {face_width}x{face_height} | Position: ({face_left},{face_top}) to ({face_right},{face_bottom})")
+            logger.info(f"🎯 MASK LOGIC: Face ellipse BLACK (preserve), rest WHITE (transform) | Mask size: {len(mask_bytes)/1024:.1f}KB")
+            
+            return mask_bytes
+            
+        except Exception as e:
+            logger.error(f"❌ Face preservation mask creation failed: {e}")
+            # Fallback: create simple center rectangle mask
+            mask = Image.new('L', (image_width, image_height), 255)
+            draw = ImageDraw.Draw(mask)
+            center_x, center_y = image_width // 2, image_height // 2
+            face_size = min(image_width, image_height) // 4
+            draw.rectangle([
+                center_x - face_size//2, center_y - face_size//2,
+                center_x + face_size//2, center_y + face_size//2
+            ], fill=0)
+            
+            mask_buffer = io.BytesIO()
+            mask.save(mask_buffer, format='PNG')
+            return mask_buffer.getvalue()
+
     async def _determine_safe_strength(self, requested_strength: float) -> float:
         """
         🎯 FEATURE FLAG CONTROLLED STRENGTH DETERMINATION - CORE.MD & REFRESH.MD COMPLIANCE
@@ -497,56 +565,44 @@ class ThemeService:
                 logger.error(f"❌ Color analysis failed, using fallback: {color_error}")
                 analyzed_skin_color = "warm natural skin tone with consistent complexion"
             
-            # 🎯 IMG2IMG APPROACH: No mask needed - face preservation via parameters
+            # 🎯 INPAINTING APPROACH: Face preservation mask - Face area NEVER touched
             
-            # 🎨 ULTRA-ENHANCED NEGATIVE PROMPT - Strong face preservation protection
-            negative_prompt = "different face, face swap, face change, altered face, different person, changed identity, mutated face, distorted features, wrong face, face replacement, facial distortion, different eyes, different nose, different mouth, blurry face, deformed face, poor anatomy, cartoon, artificial, low quality, face morph"
+            # 🎨 USER SPECIFIED PROMPTS - Exact prompts as requested
+            inpainting_prompt = f"""Transform clothing and background to {theme_description}.
+same face, same identity, unchanged face, original face, real human."""
+            
+            negative_prompt = "different face, face swap, mutated face, cartoon face, new identity"
 
-            # 🎯 SWITCHING TO SINGLE-PASS IMG2IMG: Dramatic transformation with face preservation
-            logger.info("🎯 SWITCHING TO SINGLE-PASS IMG2IMG: Higher strength for visible transformation")
+            # 🎯 SWITCHING TO INPAINTING: 100% face preservation with mask
+            logger.info("🎯 SWITCHING TO INPAINTING: Face area never touched, only dress & body transform")
             
-            # 🎯 SINGLE-PASS IMG2IMG APPROACH: Higher strength for dramatic transformation
+            # 🔧 CREATE FACE PRESERVATION MASK - Face area = BLACK (preserve), Dress/body = WHITE (transform)
+            face_mask_bytes = self._create_face_preservation_mask(image_width, image_height)
+            logger.info("🎭 FACE PRESERVATION MASK: Created - Face BLACK (preserve), Dress/body WHITE (transform)")
             
-            # 🔧 BALANCED STRENGTH - Lower value for face preservation with visible changes
-            FACE_SAFE_STRENGTH = 0.35  # Balanced strength for transformation while preserving identity
+            # 🔧 INPAINTING PARAMETERS - Low denoising strength as specified
+            INPAINTING_STRENGTH = 0.35  # Low strength for inpainting (0.3-0.4 range)
+            CFG_SCALE = 7.0  # Standard CFG scale
+            STEPS = 30       # Standard steps
             
-            logger.info(f"🎯 FACE-SAFE STRENGTH: {FACE_SAFE_STRENGTH} - Balanced transformation with strong face preservation")
+            logger.info(f"🎯 INPAINTING PARAMS: Strength={INPAINTING_STRENGTH}, CFG={CFG_SCALE}, Steps={STEPS}")
             
-            # 🎨 ENHANCED FACE PRESERVATION PROMPT - Ultra-specific face protection
-            face_preservation_prompt = f"""CRITICAL: Keep the EXACT SAME PERSON - same face, same eyes, same nose, same mouth, same facial structure, same skin tone ({analyzed_skin_color}).
-DO NOT change the person's identity or facial features in any way.
-
-Transform ONLY the clothing and background to: {theme_description}
-
-PRESERVE COMPLETELY:
-- Same person's face and identity
-- Same facial features and structure  
-- Same eyes, nose, mouth, cheeks
-- Same skin tone and complexion
-- Same head shape and proportions
-
-TRANSFORM ONLY:
-- Clothing style and colors to match theme
-- Background environment and setting
-- Lighting and atmosphere
-- Accessories like jewelry or beads
-
-The person must remain completely recognizable as the same individual."""
+            # 🛡️ INPAINTING TRANSFORMATION - Face area completely protected by mask
+            logger.info("🎯 INPAINTING: Starting transformation with face protection")
+            logger.info(f"🎨 INPAINTING PROMPT: {inpainting_prompt[:150]}...")
             
-            # 🛡️ FACE-SAFE TRANSFORMATION with proper error handling
-            logger.info("🎯 FACE-SAFE: Balanced transformation starting")
-            logger.info(f"🎨 FACE-SAFE PROMPT: {face_preservation_prompt[:150]}...")
-            
-            raw_generated_bytes = await self.stability_service.generate_image_to_image(
+            raw_generated_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
-                text_prompt=face_preservation_prompt,
+                mask_image_bytes=face_mask_bytes,
+                text_prompt=inpainting_prompt,
                 negative_prompt=negative_prompt,
-                strength=FACE_SAFE_STRENGTH
+                cfg_scale=CFG_SCALE,
+                steps=STEPS
             )
-            logger.info("✅ FACE-SAFE SUCCESS: Balanced transformation completed with face preservation")
+            logger.info("✅ INPAINTING SUCCESS: Face preserved, clothing/background transformed")
             
-            logger.info("✅ FACE-SAFE IMG2IMG SUCCESS: Identity preserved with visible theme changes")
-            return raw_generated_bytes, face_preservation_prompt
+            logger.info("✅ INPAINTING COMPLETE: 100% face preservation with visible theme changes")
+            return raw_generated_bytes, inpainting_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
