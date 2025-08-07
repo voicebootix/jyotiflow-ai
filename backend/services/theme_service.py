@@ -499,39 +499,54 @@ class ThemeService:
             
             # 🎯 IMG2IMG APPROACH: No mask needed - face preservation via parameters
             
-            # 🎨 ENHANCED NEGATIVE PROMPT - Prevent color mismatches and lighting inconsistencies  
-            negative_prompt = "different face, face swap, mutated face, different person, altered identity, blurry, low-resolution, deformed, poor anatomy, cartoon, artificial, low quality"
+            # 🎨 ULTRA-ENHANCED NEGATIVE PROMPT - Strong face preservation protection
+            negative_prompt = "different face, face swap, face change, altered face, different person, changed identity, mutated face, distorted features, wrong face, face replacement, facial distortion, different eyes, different nose, different mouth, blurry face, deformed face, poor anatomy, cartoon, artificial, low quality, face morph"
 
             # 🎯 SWITCHING TO SINGLE-PASS IMG2IMG: Dramatic transformation with face preservation
             logger.info("🎯 SWITCHING TO SINGLE-PASS IMG2IMG: Higher strength for visible transformation")
             
             # 🎯 SINGLE-PASS IMG2IMG APPROACH: Higher strength for dramatic transformation
             
-            # 🔧 SINGLE PASS STRENGTH - Higher value for visible changes
-            SINGLE_PASS_STRENGTH = 0.65  # Higher strength for dramatic yet controlled transformation
+            # 🔧 BALANCED STRENGTH - Lower value for face preservation with visible changes
+            FACE_SAFE_STRENGTH = 0.35  # Balanced strength for transformation while preserving identity
             
-            logger.info(f"🎯 SINGLE-PASS STRENGTH: {SINGLE_PASS_STRENGTH} - Dramatic transformation with face preservation")
+            logger.info(f"🎯 FACE-SAFE STRENGTH: {FACE_SAFE_STRENGTH} - Balanced transformation with strong face preservation")
             
-            # 🎨 COMPREHENSIVE SINGLE PROMPT - Combines background + clothing transformation
-            single_comprehensive_prompt = f"""Transform this person to {theme_description}.
-PRESERVE: exact same face, facial features, identity, skin tone ({analyzed_skin_color}).
-TRANSFORM: clothing to match theme, background environment, lighting, pose, setting.
-Create dramatic visual transformation while keeping identical face and person."""
+            # 🎨 ENHANCED FACE PRESERVATION PROMPT - Ultra-specific face protection
+            face_preservation_prompt = f"""CRITICAL: Keep the EXACT SAME PERSON - same face, same eyes, same nose, same mouth, same facial structure, same skin tone ({analyzed_skin_color}).
+DO NOT change the person's identity or facial features in any way.
+
+Transform ONLY the clothing and background to: {theme_description}
+
+PRESERVE COMPLETELY:
+- Same person's face and identity
+- Same facial features and structure  
+- Same eyes, nose, mouth, cheeks
+- Same skin tone and complexion
+- Same head shape and proportions
+
+TRANSFORM ONLY:
+- Clothing style and colors to match theme
+- Background environment and setting
+- Lighting and atmosphere
+- Accessories like jewelry or beads
+
+The person must remain completely recognizable as the same individual."""
             
-            # 🛡️ SINGLE-PASS TRANSFORMATION with proper error handling
-            logger.info("🎯 SINGLE-PASS: Comprehensive transformation starting")
-            logger.info(f"🎨 SINGLE-PASS PROMPT: {single_comprehensive_prompt[:150]}...")
+            # 🛡️ FACE-SAFE TRANSFORMATION with proper error handling
+            logger.info("🎯 FACE-SAFE: Balanced transformation starting")
+            logger.info(f"🎨 FACE-SAFE PROMPT: {face_preservation_prompt[:150]}...")
             
             raw_generated_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                text_prompt=single_comprehensive_prompt,
+                text_prompt=face_preservation_prompt,
                 negative_prompt=negative_prompt,
-                strength=SINGLE_PASS_STRENGTH
+                strength=FACE_SAFE_STRENGTH
             )
-            logger.info("✅ SINGLE-PASS SUCCESS: Comprehensive transformation completed")
+            logger.info("✅ FACE-SAFE SUCCESS: Balanced transformation completed with face preservation")
             
-            logger.info("✅ SINGLE-PASS IMG2IMG SUCCESS: Dramatic transformation with face preservation")
-            return raw_generated_bytes, single_comprehensive_prompt
+            logger.info("✅ FACE-SAFE IMG2IMG SUCCESS: Identity preserved with visible theme changes")
+            return raw_generated_bytes, face_preservation_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
