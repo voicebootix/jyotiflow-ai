@@ -42,7 +42,7 @@ def validate_datetime_fields(cls: Any, v: Union[datetime, str, None]) -> Union[s
             except ValueError as e:
                 # Preserve exception chain for better debugging
                 raise ValueError(f"Invalid datetime format: {v}") from e
-    return v
+    raise ValueError(f"Expected datetime, string, or None, got {type(v).__name__}: {v}")
 
 
 # Common JSON encoders configuration for consistent datetime serialization
