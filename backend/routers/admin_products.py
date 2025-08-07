@@ -398,15 +398,22 @@ async def get_credit_packages(db=Depends(get_db)):
         result = await db.fetch("SELECT * FROM credit_packages ORDER BY credits_amount")
         return [
             {
-                "id": str(row["id"]),
+                "id": row["id"],  # Keep as integer
                 "name": row["name"],
                 "credits_amount": row["credits_amount"],
                 "price_usd": float(row["price_usd"]),
-                "bonus_credits": row["bonus_credits"],
+                "bonus_credits": row["bonus_credits"] or 0,
+                "description": row.get("description"),
+                "enabled": row["enabled"],
                 "stripe_product_id": row["stripe_product_id"],
                 "stripe_price_id": row["stripe_price_id"],
-                "enabled": row["enabled"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+                # Backwards compatibility fields
+                "package_name": "Credit Package",
+                "credits": row["credits_amount"],
+                "price": float(row["price_usd"]),
+                "is_active": row["enabled"]
             }
             for row in result
         ]
