@@ -77,97 +77,341 @@ class ThemeService:
             
         Returns:
             bytes: PNG mask image as bytes with smart person-background separation
+            
+        Raises:
+            ValueError: If input parameters are invalid
+            RuntimeError: If image processing fails
         """
-        # Load original image for color analysis
-        original_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-        original_array = np.array(original_image)
+        # 🔍 INPUT VALIDATION: Ensure all parameters are valid
+        if image_bytes is None or len(image_bytes) == 0:
+            raise ValueError("image_bytes cannot be None or empty")
+        
+        if not isinstance(image_width, int) or image_width <= 0:
+            raise ValueError(f"image_width must be a positive integer, got: {image_width}")
+            
+        if not isinstance(image_height, int) or image_height <= 0:
+            raise ValueError(f"image_height must be a positive integer, got: {image_height}")
+        
+        try:
+            # Load original image for color analysis
+            original_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
+            original_array = np.array(original_image)
+            
+            # Validate image dimensions match parameters
+            actual_height, actual_width = original_array.shape[:2]
+            if actual_width != image_width or actual_height != image_height:
+                logger.warning(f"Image dimensions mismatch: expected {image_width}x{image_height}, got {actual_width}x{actual_height}")
+                # Use actual dimensions from image
+                image_width, image_height = actual_width, actual_height
+                
+        except Exception as e:
+            raise RuntimeError(f"Failed to load or process image: {str(e)}") from e
         
         # Create base mask (white = transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)
         mask_array = np.array(mask)
         
-        # Define person area boundaries (matching user's red circles)
-        face_width_ratio = 0.28
-        face_height_ratio = 0.32
-        
-        face_width = int(image_width * face_width_ratio)
-        face_height = int(image_height * face_height_ratio)
-        face_left = (image_width - face_width) // 2
-        face_top = int(image_height * 0.15)
-        face_right = face_left + face_width
-        face_bottom = face_top + face_height
-        
-        # Analyze skin tones in central face area (for person identification)
-        skin_sample_left = face_left + int(face_width * 0.3)
-        skin_sample_right = face_right - int(face_width * 0.3)  
-        skin_sample_top = face_top + int(face_height * 0.2)
-        skin_sample_bottom = face_bottom - int(face_height * 0.4)
-        
-        # Extract person skin colors
-        skin_region = original_array[skin_sample_top:skin_sample_bottom, skin_sample_left:skin_sample_right]
-        
-        # Calculate person color characteristics
-        person_colors = {
-            'skin_mean': np.mean(skin_region, axis=(0, 1)),
-            'skin_std': np.std(skin_region, axis=(0, 1)),
-        }
-        
-        # Analyze background colors (corners of image)
-        corner_size = min(image_width, image_height) // 10
-        corners = [
-            original_array[0:corner_size, 0:corner_size],  # Top-left
-            original_array[0:corner_size, -corner_size:], # Top-right  
-            original_array[-corner_size:, 0:corner_size], # Bottom-left
-            original_array[-corner_size:, -corner_size:]  # Bottom-right
-        ]
-        
-        background_colors = []
-        for corner in corners:
-            background_colors.append(np.mean(corner, axis=(0, 1)))
-        background_mean = np.mean(background_colors, axis=0)
-        
-        # Smart person detection within face area
-        for y in range(max(0, face_top - 20), min(image_height, face_bottom + 40)):
-            for x in range(max(0, face_left - 10), min(image_width, face_right + 10)):
-                pixel_color = original_array[y, x]
+        try:
+            # Define person area boundaries (matching user's red circles)
+            face_width_ratio = 0.28
+            face_height_ratio = 0.32
+            
+            face_width = int(image_width * face_width_ratio)
+            face_height = int(image_height * face_height_ratio)
+            face_left = (image_width - face_width) // 2
+            face_top = int(image_height * 0.15)
+            face_right = face_left + face_width
+            face_bottom = face_top + face_height
+            
+            # Validate face region boundaries
+            if face_left >= face_right or face_top >= face_bottom:
+                raise ValueError(f"Invalid face region: ({face_left}, {face_top}) to ({face_right}, {face_bottom})")
+            
+            # Analyze skin tones in central face area (for person identification)
+            skin_sample_left = max(0, face_left + int(face_width * 0.3))
+            skin_sample_right = min(image_width, face_right - int(face_width * 0.3))  
+            skin_sample_top = max(0, face_top + int(face_height * 0.2))
+            skin_sample_bottom = min(image_height, face_bottom - int(face_height * 0.4))
+            
+            # Validate skin sample region
+            if (skin_sample_left >= skin_sample_right or 
+                skin_sample_top >= skin_sample_bottom or
+                skin_sample_right - skin_sample_left < 5 or
+                skin_sample_bottom - skin_sample_top < 5):
+                raise ValueError("Skin sample region is too small or invalid")
+            
+            # Extract person skin colors
+            skin_region = original_array[skin_sample_top:skin_sample_bottom, skin_sample_left:skin_sample_right]
+            
+            # Calculate person color characteristics
+            person_colors = {
+                'skin_mean': np.mean(skin_region, axis=(0, 1)),
+                'skin_std': np.std(skin_region, axis=(0, 1)),
+            }
+            
+            # Analyze background colors (corners of image)
+            corner_size = max(5, min(image_width, image_height) // 10)  # Ensure minimum corner size
+            corners = [
+                original_array[0:corner_size, 0:corner_size],  # Top-left
+                original_array[0:corner_size, -corner_size:], # Top-right  
+                original_array[-corner_size:, 0:corner_size], # Bottom-left
+                original_array[-corner_size:, -corner_size:]  # Bottom-right
+            ]
+            
+            background_colors = []
+            for corner in corners:
+                if corner.size > 0:  # Ensure corner is not empty
+                    background_colors.append(np.mean(corner, axis=(0, 1)))
+            
+            if not background_colors:
+                raise ValueError("Could not extract background colors from image corners")
                 
-                # Calculate similarity to person vs background
-                person_distance = np.linalg.norm(pixel_color - person_colors['skin_mean'])
-                background_distance = np.linalg.norm(pixel_color - background_mean)
+            background_mean = np.mean(background_colors, axis=0)
+            
+        except Exception as e:
+            logger.error(f"❌ Color analysis failed: {str(e)}")
+            raise RuntimeError(f"Failed to analyze image colors: {str(e)}") from e
+        
+        # 🚀 VECTORIZED SMART PERSON DETECTION: High-performance numpy operations
+        try:
+            # Define processing region boundaries
+            region_top = max(0, face_top - 20)
+            region_bottom = min(image_height, face_bottom + 40)
+            region_left = max(0, face_left - 10)
+            region_right = min(image_width, face_right + 10)
+            
+            # Create coordinate grids for the region
+            y_coords, x_coords = np.mgrid[region_top:region_bottom, region_left:region_right]
+            region_height = region_bottom - region_top
+            region_width = region_right - region_left
+            
+            # Extract pixel colors for the entire region
+            region_pixels = original_array[region_top:region_bottom, region_left:region_right]
+            
+            # Vectorized distance calculations
+            # Calculate person distances (broadcasting across all pixels)
+            person_distances = np.linalg.norm(
+                region_pixels - person_colors['skin_mean'], axis=2
+            )
+            
+            # Calculate background distances (broadcasting across all pixels)
+            background_distances = np.linalg.norm(
+                region_pixels - background_mean, axis=2
+            )
+            
+            # Create boolean mask for person pixels (vectorized comparison)
+            person_pixel_mask = person_distances < (background_distances * 0.8)
+            
+            # Calculate face center coordinates
+            center_x = (face_left + face_right) // 2
+            center_y = (face_top + face_bottom) // 2
+            max_distance = np.sqrt((face_width/2)**2 + (face_height/2)**2)
+            
+            # Vectorized distance from center calculation
+            distances_from_center = np.sqrt(
+                (x_coords - center_x)**2 + (y_coords - center_y)**2
+            )
+            
+            # Create mask region array for vectorized preservation level assignment
+            mask_region = np.full((region_height, region_width), 255, dtype=np.uint8)  # Default: transform
+            
+            # Vectorized preservation level assignment (only for person pixels)
+            person_indices = np.where(person_pixel_mask)
+            person_distances_from_center = distances_from_center[person_indices]
+            
+            # Core face: Pure preservation (0)
+            core_face_mask = person_distances_from_center < (max_distance * 0.4)
+            mask_region[person_indices[0][core_face_mask], person_indices[1][core_face_mask]] = 0
+            
+            # Face edges: 75% preserve, 25% blend (64)
+            face_edge_mask = (person_distances_from_center >= (max_distance * 0.4)) & \
+                           (person_distances_from_center < (max_distance * 0.7))
+            mask_region[person_indices[0][face_edge_mask], person_indices[1][face_edge_mask]] = 64
+            
+            # Neck area: 50% preserve, 50% blend (128)
+            neck_mask = (person_distances_from_center >= (max_distance * 0.7)) & \
+                       (person_distances_from_center < max_distance)
+            mask_region[person_indices[0][neck_mask], person_indices[1][neck_mask]] = 128
+            
+            # Update the main mask array with the processed region
+            mask_array[region_top:region_bottom, region_left:region_right] = mask_region
+            
+            logger.info(f"🚀 VECTORIZED PROCESSING: {region_width}x{region_height} region, "
+                       f"{np.sum(person_pixel_mask)} person pixels identified")
+                       
+        except Exception as e:
+            logger.error(f"❌ Vectorized processing failed, falling back to safe mode: {str(e)}")
+            # Fallback: Simple geometric mask if vectorized processing fails
+            draw = ImageDraw.Draw(Image.fromarray(mask_array))
+            face_left_safe = max(0, face_left)
+            face_top_safe = max(0, face_top)
+            face_right_safe = min(image_width, face_right)
+            face_bottom_safe = min(image_height, face_bottom)
+            draw.ellipse([face_left_safe, face_top_safe, face_right_safe, face_bottom_safe], fill=0)
+            mask_array = np.array(Image.fromarray(mask_array))
+        
+        try:
+            # Create smooth blending zones around preserved areas
+            # Smooth the mask to avoid hard edges
+            mask_array = ndimage.gaussian_filter(mask_array.astype(float), sigma=2.0)
+            mask_array = np.clip(mask_array, 0, 255).astype(np.uint8)
+            
+            # Convert back to PIL Image
+            final_mask = Image.fromarray(mask_array, mode='L')
+            
+            # Convert to bytes
+            mask_buffer = io.BytesIO()
+            final_mask.save(mask_buffer, format='PNG')
+            mask_bytes = mask_buffer.getvalue()
+            
+            # Validate output
+            if len(mask_bytes) == 0:
+                raise RuntimeError("Generated mask is empty")
+            
+            logger.info(f"🧠 SMART PERSON-BACKGROUND MASK: {image_width}x{image_height} | Person colors analyzed | Background separated | Smooth blending applied | Mask size: {len(mask_bytes)/1024:.1f}KB")
+            return mask_bytes
+            
+        except Exception as e:
+            logger.error(f"❌ Mask generation failed during final processing: {str(e)}")
+            raise RuntimeError(f"Failed to generate smart person-background mask: {str(e)}") from e
+
+    async def _apply_color_harmonization(
+        self, 
+        generated_image_bytes: bytes, 
+        original_image_bytes: bytes,
+        mask_bytes: bytes,
+        image_width: int, 
+        image_height: int
+    ) -> bytes:
+        """
+        🎨 ADVANCED COLOR HARMONIZATION: Fix face-body color mismatch for natural blending.
+        
+        USER REQUIREMENT: "body oda face porunthanu" - Face and body should blend naturally
+        - Analyzes AI-generated body colors and lighting
+        - Adjusts preserved face region to match body's color palette
+        - Applies smooth gradient blending at mask edges
+        - Maintains face identity while improving color consistency
+        
+        HARMONIZATION TECHNIQUES:
+        1. Color Temperature Matching: Adjust face warmth/coolness to match body
+        2. Saturation Matching: Align face saturation with AI-generated style
+        3. Brightness/Contrast Matching: Match lighting conditions
+        4. Gradient Blending: Smooth transitions at preserved region edges
+        
+        Args:
+            generated_image_bytes: AI-generated image with face-body mismatch
+            original_image_bytes: Original Swamiji photo for reference
+            mask_bytes: Mask used for inpainting (to identify preserved regions)
+            image_width: Image width
+            image_height: Image height
+            
+        Returns:
+            bytes: Color-harmonized image with natural face-body blending
+        """
+        try:
+            # Load images
+            generated_image = Image.open(io.BytesIO(generated_image_bytes)).convert('RGB')
+            mask_image = Image.open(io.BytesIO(mask_bytes)).convert('L')
+            
+            # Convert to numpy arrays for processing
+            generated_array = np.array(generated_image)
+            mask_array = np.array(mask_image)
+            
+            # Create face and body region masks
+            # Face region: where mask is dark (preserved areas)
+            face_mask = mask_array < 128  # Black/dark areas = preserved face
+            body_mask = mask_array >= 192  # White/bright areas = AI-generated body
+            
+            # Extract color statistics from each region
+            face_pixels = generated_array[face_mask]
+            body_pixels = generated_array[body_mask]
+            
+            if len(face_pixels) == 0 or len(body_pixels) == 0:
+                logger.warning("⚠️ Color harmonization: Insufficient face or body pixels, using original")
+                return generated_image_bytes
+            
+            # Calculate color statistics
+            face_mean = np.mean(face_pixels, axis=0)
+            body_mean = np.mean(body_pixels, axis=0)
+            
+            face_std = np.std(face_pixels, axis=0)
+            body_std = np.std(body_pixels, axis=0)
+            
+            # 🎨 COLOR HARMONIZATION: Adjust face colors to match body
+            # 1. Calculate color shift needed
+            color_shift = body_mean - face_mean
+            
+            # 2. Calculate saturation adjustment
+            face_saturation = np.mean(face_std)
+            body_saturation = np.mean(body_std)
+            saturation_ratio = body_saturation / max(face_saturation, 1.0)
+            
+            # 3. Create harmonized image
+            harmonized_array = generated_array.copy()
+            
+            # 🚀 VECTORIZED COLOR HARMONIZATION: High-performance color adjustments
+            adjustment_strength = 0.4  # Subtle adjustment to maintain face identity
+            
+            # Create float copy for processing
+            harmonized_array_float = harmonized_array.astype(float)
+            
+            # Get indices of face pixels for vectorized operations
+            face_indices = np.where(face_mask)
+            
+            if len(face_indices[0]) > 0:
+                # Extract face pixels for vectorized processing
+                face_pixels_float = harmonized_array_float[face_indices]
                 
-                # Determine if pixel belongs to person or background
-                if person_distance < background_distance * 0.8:  # Person pixel
-                    # Calculate preservation level based on location
-                    center_x = (face_left + face_right) // 2
-                    center_y = (face_top + face_bottom) // 2
-                    
-                    distance_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
-                    max_distance = np.sqrt((face_width/2)**2 + (face_height/2)**2)
-                    
-                    if distance_from_center < max_distance * 0.4:  # Core face
-                        mask_array[y, x] = 0  # Pure preservation
-                    elif distance_from_center < max_distance * 0.7:  # Face edges
-                        mask_array[y, x] = 64  # 75% preserve, 25% blend
-                    elif distance_from_center < max_distance * 1.0:  # Neck area
-                        mask_array[y, x] = 128  # 50% preserve, 50% blend
-                    # else: white (255) = full transformation
-                # else: background pixel - leave as white (255) for full transformation
-        
-        # Create smooth blending zones around preserved areas
-        # Smooth the mask to avoid hard edges
-        mask_array = ndimage.gaussian_filter(mask_array.astype(float), sigma=2.0)
-        mask_array = np.clip(mask_array, 0, 255).astype(np.uint8)
-        
-        # Convert back to PIL Image
-        final_mask = Image.fromarray(mask_array, mode='L')
-        
-        # Convert to bytes
-        mask_buffer = io.BytesIO()
-        final_mask.save(mask_buffer, format='PNG')
-        mask_bytes = mask_buffer.getvalue()
-        
-        logger.info(f"🧠 SMART PERSON-BACKGROUND MASK: {image_width}x{image_height} | Person colors analyzed | Background separated | Smooth blending applied | Mask size: {len(mask_bytes)/1024:.1f}KB")
-        return mask_bytes
+                # 1. Apply color temperature shift (vectorized)
+                adjusted_pixels = face_pixels_float + (color_shift * adjustment_strength)
+                
+                # 2. Apply saturation adjustment (vectorized)
+                pixel_means = np.mean(adjusted_pixels, axis=1, keepdims=True)
+                adjusted_pixels = pixel_means + (adjusted_pixels - pixel_means) * (
+                    saturation_ratio ** adjustment_strength
+                )
+                
+                # 3. Ensure valid range
+                adjusted_pixels = np.clip(adjusted_pixels, 0, 255)
+                
+                # 4. Calculate blend factors based on mask values (vectorized)
+                mask_values = mask_array[face_indices]
+                blend_factors = np.where(
+                    mask_values < 64,
+                    adjustment_strength,  # Core preserved area
+                    adjustment_strength * 0.3  # Edge area - less adjustment
+                )
+                
+                # 5. Apply blended adjustment (vectorized)
+                blended_pixels = (
+                    face_pixels_float * (1 - blend_factors[:, np.newaxis]) + 
+                    adjusted_pixels * blend_factors[:, np.newaxis]
+                )
+                
+                # Update harmonized array with processed pixels
+                harmonized_array_float[face_indices] = blended_pixels
+            
+            # Convert back to uint8
+            harmonized_array = harmonized_array_float.astype(np.uint8)
+            
+            # Convert back to PIL Image
+            harmonized_image = Image.fromarray(harmonized_array, mode='RGB')
+            
+            # Convert to bytes
+            harmonized_buffer = io.BytesIO()
+            harmonized_image.save(harmonized_buffer, format='PNG')
+            harmonized_bytes = harmonized_buffer.getvalue()
+            
+            logger.info(f"🎨 COLOR HARMONIZATION SUCCESS: Face-body color matching applied | "
+                       f"Face mean: {face_mean.astype(int)} → Body mean: {body_mean.astype(int)} | "
+                       f"Saturation ratio: {saturation_ratio:.2f}")
+            
+            return harmonized_bytes
+            
+        except Exception as e:
+            logger.error(f"❌ Color harmonization failed, using original: {str(e)}")
+            # Fallback: return generated image without harmonization
+            return generated_image_bytes
 
     def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
         """
@@ -496,7 +740,7 @@ class ThemeService:
             # 🎨 ULTIMATE GENERATION - Option 5+6: Ultra-extended mask + AI color analysis for perfect matching  
             logger.info("🚀 STARTING ULTIMATE INPAINTING: 40% neck coverage + AI-analyzed color injection for perfect skin tone matching")
             
-            image_bytes = await self.stability_service.generate_image_with_mask(
+            raw_generated_bytes = await self.stability_service.generate_image_with_mask(
                 init_image_bytes=base_image_bytes,
                 mask_image_bytes=mask_bytes,
                 text_prompt=transformation_prompt,
@@ -504,8 +748,18 @@ class ThemeService:
                 # Note: No strength parameter - inpainting uses mask for precision control
             )
             
-            logger.info("✅ ULTIMATE SUCCESS: AI-analyzed color matching + 40% neck coverage + perfect skin tone consistency + dramatic theme transformation")
-            return image_bytes, transformation_prompt
+            # 🎨 ADVANCED COLOR HARMONIZATION: Fix face-body color mismatch
+            logger.info("🎨 APPLYING COLOR HARMONIZATION: Matching face colors to AI-generated body for natural blending")
+            harmonized_image_bytes = await self._apply_color_harmonization(
+                generated_image_bytes=raw_generated_bytes,
+                original_image_bytes=base_image_bytes,
+                mask_bytes=mask_bytes,
+                image_width=image_width,
+                image_height=image_height
+            )
+            
+            logger.info("✅ ULTIMATE SUCCESS: AI-analyzed color matching + 40% neck coverage + perfect skin tone consistency + dramatic theme transformation + color harmonization")
+            return harmonized_image_bytes, transformation_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
