@@ -14,13 +14,14 @@ def validate_datetime_fields(cls: Any, v: Union[datetime, str, None]) -> Union[s
     Shared validator to ensure datetime fields are properly serialized as ISO-8601 strings.
     
     Handles both datetime objects and existing string values with robust error handling.
+    Ensures consistent timezone representation using '+00:00' instead of 'Z' for UTC.
     
     Args:
         cls: The Pydantic model class (required for validator decorator)
         v: The value to validate (datetime, string, or None)
         
     Returns:
-        ISO-8601 formatted string or None
+        ISO-8601 formatted string with consistent '+00:00' timezone or None
         
     Raises:
         ValueError: If the datetime format is invalid
@@ -33,7 +34,8 @@ def validate_datetime_fields(cls: Any, v: Union[datetime, str, None]) -> Union[s
         # Validate that it's a proper ISO-8601 format
         try:
             datetime.fromisoformat(v.replace('Z', '+00:00'))
-            return v
+            # FIXED: Return consistent timezone format by replacing 'Z' with '+00:00'
+            return v.replace('Z', '+00:00')
         except ValueError:
             # If it's not a valid ISO string, try to parse and convert
             try:
