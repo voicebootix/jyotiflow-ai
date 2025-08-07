@@ -531,8 +531,7 @@ class ThemeService:
                 init_image_bytes=base_image_bytes,
                 text_prompt=transformation_prompt,
                 negative_prompt=negative_prompt,
-                strength=validated_strength,  # Dynamic strength with validation (0.25-0.35 range)
-                cfg_scale=7                   # Your suggested cfg_scale for better guidance
+                strength=validated_strength  # Dynamic strength with validation (0.25-0.35 range)
             )
             
             logger.info("✅ IMG2IMG SUCCESS: Natural face preservation with low strength + perfect theme transformation")
