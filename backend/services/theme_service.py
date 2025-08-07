@@ -112,14 +112,15 @@ class ThemeService:
         mask_array = np.array(mask)
         
         try:
-            # Define person area boundaries (matching user's red circles)
-            face_width_ratio = 0.28
-            face_height_ratio = 0.32
+            # 🚨 EMERGENCY FIX: Simple, reliable face preservation
+            # Define person area boundaries (matching user's red circles) - LARGER for safety
+            face_width_ratio = 0.35  # Increased from 0.28 to capture more face area
+            face_height_ratio = 0.40  # Increased from 0.32 to capture more face area
             
             face_width = int(image_width * face_width_ratio)
             face_height = int(image_height * face_height_ratio)
             face_left = (image_width - face_width) // 2
-            face_top = int(image_height * 0.15)
+            face_top = int(image_height * 0.12)  # Slightly higher to capture forehead
             face_right = face_left + face_width
             face_bottom = face_top + face_height
             
@@ -127,128 +128,48 @@ class ThemeService:
             if face_left >= face_right or face_top >= face_bottom:
                 raise ValueError(f"Invalid face region: ({face_left}, {face_top}) to ({face_right}, {face_bottom})")
             
-            # Analyze skin tones in central face area (for person identification)
-            skin_sample_left = max(0, face_left + int(face_width * 0.3))
-            skin_sample_right = min(image_width, face_right - int(face_width * 0.3))  
-            skin_sample_top = max(0, face_top + int(face_height * 0.2))
-            skin_sample_bottom = min(image_height, face_bottom - int(face_height * 0.4))
-            
-            # Validate skin sample region
-            if (skin_sample_left >= skin_sample_right or 
-                skin_sample_top >= skin_sample_bottom or
-                skin_sample_right - skin_sample_left < 5 or
-                skin_sample_bottom - skin_sample_top < 5):
-                raise ValueError("Skin sample region is too small or invalid")
-            
-            # Extract person skin colors
-            skin_region = original_array[skin_sample_top:skin_sample_bottom, skin_sample_left:skin_sample_right]
-            
-            # Calculate person color characteristics
-            person_colors = {
-                'skin_mean': np.mean(skin_region, axis=(0, 1)),
-                'skin_std': np.std(skin_region, axis=(0, 1)),
-            }
-            
-            # Analyze background colors (corners of image)
-            corner_size = max(5, min(image_width, image_height) // 10)  # Ensure minimum corner size
-            corners = [
-                original_array[0:corner_size, 0:corner_size],  # Top-left
-                original_array[0:corner_size, -corner_size:], # Top-right  
-                original_array[-corner_size:, 0:corner_size], # Bottom-left
-                original_array[-corner_size:, -corner_size:]  # Bottom-right
-            ]
-            
-            background_colors = []
-            for corner in corners:
-                if corner.size > 0:  # Ensure corner is not empty
-                    background_colors.append(np.mean(corner, axis=(0, 1)))
-            
-            if not background_colors:
-                raise ValueError("Could not extract background colors from image corners")
-                
-            background_mean = np.mean(background_colors, axis=0)
+            # 🚨 EMERGENCY FIX: Skip complex color analysis that was causing face detection failures
+            logger.info("🛡️ BYPASSING COLOR ANALYSIS: Using simple geometric face preservation only")
             
         except Exception as e:
-            logger.error(f"❌ Color analysis failed: {str(e)}")
-            raise RuntimeError(f"Failed to analyze image colors: {str(e)}") from e
+            logger.error(f"❌ Image processing failed: {str(e)}")
+            raise RuntimeError(f"Failed to process image: {str(e)}") from e
         
-        # 🚀 VECTORIZED SMART PERSON DETECTION: High-performance numpy operations
-        try:
-            # Define processing region boundaries
-            region_top = max(0, face_top - 20)
-            region_bottom = min(image_height, face_bottom + 40)
-            region_left = max(0, face_left - 10)
-            region_right = min(image_width, face_right + 10)
-            
-            # Create coordinate grids for the region
-            y_coords, x_coords = np.mgrid[region_top:region_bottom, region_left:region_right]
-            region_height = region_bottom - region_top
-            region_width = region_right - region_left
-            
-            # Extract pixel colors for the entire region
-            region_pixels = original_array[region_top:region_bottom, region_left:region_right]
-            
-            # Vectorized distance calculations
-            # Calculate person distances (broadcasting across all pixels)
-            person_distances = np.linalg.norm(
-                region_pixels - person_colors['skin_mean'], axis=2
-            )
-            
-            # Calculate background distances (broadcasting across all pixels)
-            background_distances = np.linalg.norm(
-                region_pixels - background_mean, axis=2
-            )
-            
-            # Create boolean mask for person pixels (vectorized comparison)
-            person_pixel_mask = person_distances < (background_distances * 0.8)
-            
-            # Calculate face center coordinates
-            center_x = (face_left + face_right) // 2
-            center_y = (face_top + face_bottom) // 2
-            max_distance = np.sqrt((face_width/2)**2 + (face_height/2)**2)
-            
-            # Vectorized distance from center calculation
-            distances_from_center = np.sqrt(
-                (x_coords - center_x)**2 + (y_coords - center_y)**2
-            )
-            
-            # Create mask region array for vectorized preservation level assignment
-            mask_region = np.full((region_height, region_width), 255, dtype=np.uint8)  # Default: transform
-            
-            # Vectorized preservation level assignment (only for person pixels)
-            person_indices = np.where(person_pixel_mask)
-            person_distances_from_center = distances_from_center[person_indices]
-            
-            # Core face: Pure preservation (0)
-            core_face_mask = person_distances_from_center < (max_distance * 0.4)
-            mask_region[person_indices[0][core_face_mask], person_indices[1][core_face_mask]] = 0
-            
-            # Face edges: 75% preserve, 25% blend (64)
-            face_edge_mask = (person_distances_from_center >= (max_distance * 0.4)) & \
-                           (person_distances_from_center < (max_distance * 0.7))
-            mask_region[person_indices[0][face_edge_mask], person_indices[1][face_edge_mask]] = 64
-            
-            # Neck area: 50% preserve, 50% blend (128)
-            neck_mask = (person_distances_from_center >= (max_distance * 0.7)) & \
-                       (person_distances_from_center < max_distance)
-            mask_region[person_indices[0][neck_mask], person_indices[1][neck_mask]] = 128
-            
-            # Update the main mask array with the processed region
-            mask_array[region_top:region_bottom, region_left:region_right] = mask_region
-            
-            logger.info(f"🚀 VECTORIZED PROCESSING: {region_width}x{region_height} region, "
-                       f"{np.sum(person_pixel_mask)} person pixels identified")
-                       
-        except Exception as e:
-            logger.error(f"❌ Vectorized processing failed, falling back to safe mode: {str(e)}")
-            # Fallback: Simple geometric mask if vectorized processing fails
-            draw = ImageDraw.Draw(Image.fromarray(mask_array))
-            face_left_safe = max(0, face_left)
-            face_top_safe = max(0, face_top)
-            face_right_safe = min(image_width, face_right)
-            face_bottom_safe = min(image_height, face_bottom)
-            draw.ellipse([face_left_safe, face_top_safe, face_right_safe, face_bottom_safe], fill=0)
-            mask_array = np.array(Image.fromarray(mask_array))
+        # 🚨 EMERGENCY FIX: SIMPLE RELIABLE FACE PRESERVATION MASK
+        # Skip complex color detection - use guaranteed geometric preservation
+        logger.info("🛡️ EMERGENCY MODE: Using simple geometric face preservation mask")
+        
+        # Create PIL Image from mask array for drawing
+        mask_image = Image.fromarray(mask_array, mode='L')
+        draw = ImageDraw.Draw(mask_image)
+        
+        # Define face preservation zones with safety margins
+        # Core face area: 100% preservation (BLACK = 0)
+        core_face_left = face_left + int(face_width * 0.1)  # 10% margin from edges
+        core_face_right = face_right - int(face_width * 0.1)
+        core_face_top = face_top + int(face_height * 0.05)  # 5% margin from top
+        core_face_bottom = face_bottom - int(face_height * 0.15)  # 15% margin from bottom
+        
+        # Draw core face preservation (BLACK = preserve completely)
+        draw.ellipse([core_face_left, core_face_top, core_face_right, core_face_bottom], fill=0)
+        
+        # Blending zone around face: 50% blend (GRAY = 128)
+        blend_margin = int(min(face_width, face_height) * 0.15)  # 15% blend margin
+        blend_left = max(0, face_left - blend_margin)
+        blend_right = min(image_width, face_right + blend_margin)
+        blend_top = max(0, face_top - blend_margin)
+        blend_bottom = min(image_height, face_bottom + blend_margin)
+        
+        # Draw blending zone (GRAY = partial blend)
+        draw.ellipse([blend_left, blend_top, blend_right, blend_bottom], fill=128)
+        
+        # Re-draw core face to ensure it stays BLACK (preserved)
+        draw.ellipse([core_face_left, core_face_top, core_face_right, core_face_bottom], fill=0)
+        
+        # Convert back to numpy array
+        mask_array = np.array(mask_image)
+        
+        logger.info(f"🛡️ SIMPLE GEOMETRIC MASK: Core face ({core_face_left},{core_face_top})-({core_face_right},{core_face_bottom}) = BLACK (preserve)")
         
         try:
             # Create smooth blending zones around preserved areas
