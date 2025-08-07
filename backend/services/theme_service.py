@@ -531,11 +531,30 @@ class ThemeService:
             
             logger.info(f"🎯 ULTRA-LOW STRENGTH MODE: {validated_strength} for maximum face preservation")
             
-            raw_generated_bytes = await self.stability_service.generate_image_to_image(
+            # 🎯 MULTI-PASS IMG2IMG APPROACH: Different strengths for different focuses
+            
+            # PASS 1: Background transformation with medium strength
+            background_prompt = f"same person, transform background to {theme_description} setting, keep person unchanged, dramatic background change, temple environment, spiritual atmosphere"
+            background_negative = "different face, face change, person change, clothing change, body change"
+            
+            logger.info("🎯 PASS 1: Background transformation")
+            background_result = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                text_prompt=transformation_prompt,
-                negative_prompt=negative_prompt,
-                strength=validated_strength  # Dynamic strength with validation (0.25-0.35 range)
+                text_prompt=background_prompt,
+                negative_prompt=background_negative,
+                strength=0.35  # Medium strength for background change
+            )
+            
+            # PASS 2: Clothing transformation while preserving face
+            clothing_prompt = f"same person with identical face, transform clothing to {theme_description} attire, keep face exactly same, dramatic clothing change, traditional dress"
+            clothing_negative = "different face, face change, altered face, face swap, background change"
+            
+            logger.info("🎯 PASS 2: Clothing transformation") 
+            raw_generated_bytes = await self.stability_service.generate_image_to_image(
+                init_image_bytes=background_result,
+                text_prompt=clothing_prompt,
+                negative_prompt=clothing_negative,
+                strength=0.20  # Lower strength to preserve face from Pass 1
             )
             
             logger.info("✅ IMG2IMG SUCCESS: Natural face preservation with low strength + perfect theme transformation")
