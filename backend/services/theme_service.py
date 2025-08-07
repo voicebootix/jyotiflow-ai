@@ -501,9 +501,10 @@ class ThemeService:
             
             # 🎨 OPTION 5+6 ULTIMATE PROMPTS: Ultra-extended mask + AI-analyzed color injection for perfect matching
             # AI color analysis provides exact skin tone, ultra-extended mask provides maximum reference area
-            transformation_prompt = f"""same person, {theme_description}, traditional dress, temple background, full body.
-            Preserve exact facial features and identity. Transform only clothing and background.
-            Maintain natural skin tone ({analyzed_skin_color}) and lighting consistency."""
+            transformation_prompt = f"""same person with identical face, completely transform to {theme_description}, dramatic clothing change, completely different background, full body transformation.
+            PRESERVE: exact same face, facial features, identity, skin tone ({analyzed_skin_color}).
+            TRANSFORM COMPLETELY: all clothing, background, environment, pose, setting.
+            Create dramatic visual transformation while keeping the same person's face."""
             
             logger.info(f"🎯 INPAINTING PROMPT (no face conflicts): {transformation_prompt[:150]}...")
             
@@ -516,16 +517,19 @@ class ThemeService:
             # 🎯 USER SUGGESTION: Use img2img with low denoising strength instead of masking
             # This will naturally preserve the face while transforming clothing/background
             # 🎯 DYNAMIC STRENGTH PARAMETER with validation
-            # Validate strength_param within safe range for face preservation
-            if strength_param < 0.25:
+            # 🎯 ULTRA-LOW STRENGTH for maximum face preservation
+            # Based on user feedback: face is changing slightly, need stronger preservation
+            if strength_param < 0.15:
+                validated_strength = 0.15
+                logger.warning(f"⚠️ strength_param {strength_param} too low, using minimum 0.15")
+            elif strength_param > 0.25:
                 validated_strength = 0.25
-                logger.warning(f"⚠️ strength_param {strength_param} too low, using minimum 0.25")
-            elif strength_param > 0.35:
-                validated_strength = 0.35
-                logger.warning(f"⚠️ strength_param {strength_param} too high, using maximum 0.35")
+                logger.warning(f"⚠️ strength_param {strength_param} too high, using maximum 0.25")
             else:
                 validated_strength = strength_param
                 logger.info(f"✅ Using validated strength: {validated_strength}")
+            
+            logger.info(f"🎯 ULTRA-LOW STRENGTH MODE: {validated_strength} for maximum face preservation")
             
             raw_generated_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
