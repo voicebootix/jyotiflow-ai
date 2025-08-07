@@ -1,6 +1,7 @@
 from pydantic import BaseModel, validator
 from typing import Optional, Any
 from datetime import datetime
+from .validators import validate_datetime_fields, DATETIME_JSON_ENCODERS
 
 # சந்தா திட்டம் உருவாக்கம் - Subscription Plan Creation Schema
 class SubscriptionPlanCreate(BaseModel):
@@ -49,37 +50,18 @@ class SubscriptionPlanOut(BaseModel):
     monthly_price: Optional[float] = None  # Legacy field mapping to price_usd
     credits_per_month: Optional[int] = None  # Legacy field mapping to credits_per_period
     
-    # ENHANCED: Pydantic validators for robust datetime handling
+    # FIXED: Use shared validator to avoid code duplication (DRY principle)
     @validator('created_at', 'updated_at', pre=True)
     def validate_datetime_fields(cls, v):
         """
-        ENHANCED: Validator to ensure datetime fields are properly serialized as ISO-8601 strings.
-        Handles both datetime objects and existing string values.
+        FIXED: Use shared validator from validators.py to avoid code duplication.
+        Ensures datetime fields are properly serialized as ISO-8601 strings.
         """
-        if v is None:
-            return None
-        if isinstance(v, datetime):
-            return v.isoformat()
-        if isinstance(v, str):
-            # Validate that it's a proper ISO-8601 format
-            try:
-                datetime.fromisoformat(v.replace('Z', '+00:00'))
-                return v
-            except ValueError:
-                # If it's not a valid ISO string, try to parse and convert
-                try:
-                    parsed = datetime.fromisoformat(v)
-                    return parsed.isoformat()
-                except ValueError as e:
-                    # FIXED: Preserve exception chain for better debugging
-                    raise ValueError(f"Invalid datetime format: {v}") from e
-        return v
+        return validate_datetime_fields(cls, v)
     
     class Config:
-        # ENHANCED: Configure JSON encoders for consistent datetime serialization
-        json_encoders = {
-            datetime: lambda v: v.isoformat() if v else None
-        } 
+        # FIXED: Use shared JSON encoders configuration
+        json_encoders = DATETIME_JSON_ENCODERS 
 
         
 
