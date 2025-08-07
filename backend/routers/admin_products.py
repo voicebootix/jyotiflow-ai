@@ -398,21 +398,64 @@ async def get_credit_packages(db=Depends(get_db)):
         result = await db.fetch("SELECT * FROM credit_packages ORDER BY credits_amount")
         return [
             {
-                "id": str(row["id"]),
+                "id": row["id"],  # Keep as integer
                 "name": row["name"],
                 "credits_amount": row["credits_amount"],
                 "price_usd": float(row["price_usd"]),
-                "bonus_credits": row["bonus_credits"],
+                "bonus_credits": row["bonus_credits"] or 0,
+                "description": row.get("description"),
+                "enabled": row["enabled"],
                 "stripe_product_id": row["stripe_product_id"],
                 "stripe_price_id": row["stripe_price_id"],
-                "enabled": row["enabled"],
-                "created_at": row["created_at"].isoformat() if row["created_at"] else None
+                "created_at": row["created_at"].isoformat() if row["created_at"] else None,
+                "updated_at": row["updated_at"].isoformat() if row.get("updated_at") else None,
+                # Backwards compatibility fields
+                "package_name": "Credit Package",
+                "credits": row["credits_amount"],
+                "price": float(row["price_usd"]),
+                "is_active": row["enabled"]
             }
             for row in result
         ]
     except Exception as e:
         logger.error(f"Error fetching credit packages: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch credit packages") from e
+
+#ENHANCED: Helper function for robust datetime serialization
+def _safe_datetime_to_iso(dt_value):
+    """
+    ENHANCED: Safely convert datetime objects to ISO-8601 strings.
+    
+    Args:
+        dt_value: datetime object or None
+        
+    Returns:
+        str: ISO-8601 formatted string or None
+        
+    Raises:
+        ValueError: If datetime conversion fails
+    """
+    if dt_value is None:
+        return None
+    try:
+        if isinstance(dt_value, datetime):
+            return dt_value.isoformat()
+        elif isinstance(dt_value, str):
+            # If it's already a string, validate it's ISO format
+            try:
+                datetime.fromisoformat(dt_value.replace('Z', '+00:00'))
+                return dt_value
+            except ValueError:
+                # Try to parse and convert
+                parsed = datetime.fromisoformat(dt_value)
+                return parsed.isoformat()
+        else:
+            # Handle other datetime-like objects
+            return str(dt_value)
+    except Exception as e:
+        logger.warning(f"Failed to convert datetime to ISO format: {dt_value}, error: {e}")
+        # Fallback: return string representation
+        return str(dt_value) if dt_value else None
 
 @router.post("/credit-packages")
 async def create_credit_package(package: dict = Body(...), db=Depends(get_db)):
