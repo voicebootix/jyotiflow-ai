@@ -55,147 +55,7 @@ class ThemeService:
     
 
 
-    def _create_smart_person_background_mask(self, image_bytes: bytes, image_width: int, image_height: int) -> bytes:
-        """
-        🧠 SMART PERSON-BACKGROUND SEPARATION: Intelligent mask that distinguishes person from background.
-        
-        USER REQUIREMENT: "red ala mark pannina idam ellaam original image oda background theriyuthu"
-        - Preserve ONLY the actual person (face, neck, shoulders) within red circle areas
-        - Transform background (trees, foliage) even if they're behind the person
-        - Create natural realistic blending between preserved person and AI-generated themed body
-        
-        INTELLIGENT SEGMENTATION APPROACH:
-        1. Analyze image colors to distinguish person vs background
-        2. Create person-specific mask (not just geometric shapes)
-        3. Preserve person pixels, transform background pixels
-        4. Natural blending zones around person edges
-        
-        Args:
-            image_bytes: Original image data for color analysis
-            image_width: Width of the original image
-            image_height: Height of the original image
-            
-        Returns:
-            bytes: PNG mask image as bytes with smart person-background separation
-            
-        Raises:
-            ValueError: If input parameters are invalid
-            RuntimeError: If image processing fails
-        """
-        # 🔍 INPUT VALIDATION: Ensure all parameters are valid
-        if image_bytes is None or len(image_bytes) == 0:
-            raise ValueError("image_bytes cannot be None or empty")
-        
-        if not isinstance(image_width, int) or image_width <= 0:
-            raise ValueError(f"image_width must be a positive integer, got: {image_width}")
-            
-        if not isinstance(image_height, int) or image_height <= 0:
-            raise ValueError(f"image_height must be a positive integer, got: {image_height}")
-        
-        try:
-            # Load original image for color analysis
-            original_image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-            original_array = np.array(original_image)
-            
-            # Validate image dimensions match parameters
-            actual_height, actual_width = original_array.shape[:2]
-            if actual_width != image_width or actual_height != image_height:
-                logger.warning(f"Image dimensions mismatch: expected {image_width}x{image_height}, got {actual_width}x{actual_height}")
-                # Use actual dimensions from image
-                image_width, image_height = actual_width, actual_height
-                
-        except Exception as e:
-            raise RuntimeError(f"Failed to load or process image: {str(e)}") from e
-        
-        # Create base mask (white = transform everything by default)
-        mask = Image.new('L', (image_width, image_height), 255)
-        mask_array = np.array(mask)
-        
-        try:
-            # 🚨 EMERGENCY FIX: Simple, reliable face preservation
-            # Define person area boundaries (matching user's red circles) - LARGER for safety
-            face_width_ratio = 0.35  # Increased from 0.28 to capture more face area
-            face_height_ratio = 0.40  # Increased from 0.32 to capture more face area
-            
-            face_width = int(image_width * face_width_ratio)
-            face_height = int(image_height * face_height_ratio)
-            face_left = (image_width - face_width) // 2
-            face_top = int(image_height * 0.12)  # Slightly higher to capture forehead
-            face_right = face_left + face_width
-            face_bottom = face_top + face_height
-            
-            # Validate face region boundaries
-            if face_left >= face_right or face_top >= face_bottom:
-                raise ValueError(f"Invalid face region: ({face_left}, {face_top}) to ({face_right}, {face_bottom})")
-            
-            # 🚨 EMERGENCY FIX: Skip complex color analysis that was causing face detection failures
-            logger.info("🛡️ BYPASSING COLOR ANALYSIS: Using simple geometric face preservation only")
-            
-        except Exception as e:
-            logger.error(f"❌ Image processing failed: {str(e)}")
-            raise RuntimeError(f"Failed to process image: {str(e)}") from e
-        
-        # 🚨 EMERGENCY FIX: SIMPLE RELIABLE FACE PRESERVATION MASK
-        # Skip complex color detection - use guaranteed geometric preservation
-        logger.info("🛡️ EMERGENCY MODE: Using simple geometric face preservation mask")
-        
-        # Create PIL Image from mask array for drawing
-        mask_image = Image.fromarray(mask_array, mode='L')
-        draw = ImageDraw.Draw(mask_image)
-        
-        # Define face preservation zones with safety margins
-        # 🎯 REFINED FACE-ONLY PRESERVATION: Smaller face area, more clothing transformation
-        # Core face area: 100% preservation (BLACK = 0) - REDUCED SIZE
-        core_face_left = face_left + int(face_width * 0.20)  # 20% margin from edges (was 10%)
-        core_face_right = face_right - int(face_width * 0.20)  # 20% margin from edges (was 10%)
-        core_face_top = face_top + int(face_height * 0.15)  # 15% margin from top (was 5%)
-        core_face_bottom = face_bottom - int(face_height * 0.35)  # 35% margin from bottom (was 15%)
-        
-        # Draw core face preservation (BLACK = preserve completely)
-        draw.ellipse([core_face_left, core_face_top, core_face_right, core_face_bottom], fill=0)
-        
-        # Blending zone around face: 50% blend (GRAY = 128) - SMALLER BLEND AREA
-        blend_margin = int(min(face_width, face_height) * 0.08)  # 8% blend margin (was 15%)
-        blend_left = max(0, core_face_left - blend_margin)  # Use core face as reference
-        blend_right = min(image_width, core_face_right + blend_margin)
-        blend_top = max(0, core_face_top - blend_margin)
-        blend_bottom = min(image_height, core_face_bottom + blend_margin)
-        
-        # Draw blending zone (GRAY = partial blend)
-        draw.ellipse([blend_left, blend_top, blend_right, blend_bottom], fill=128)
-        
-        # Re-draw core face to ensure it stays BLACK (preserved)
-        draw.ellipse([core_face_left, core_face_top, core_face_right, core_face_bottom], fill=0)
-        
-        # Convert back to numpy array
-        mask_array = np.array(mask_image)
-        
-        logger.info(f"🛡️ SIMPLE GEOMETRIC MASK: Core face ({core_face_left},{core_face_top})-({core_face_right},{core_face_bottom}) = BLACK (preserve)")
-        
-        try:
-            # Create smooth blending zones around preserved areas
-            # Smooth the mask to avoid hard edges
-            mask_array = ndimage.gaussian_filter(mask_array.astype(float), sigma=2.0)
-            mask_array = np.clip(mask_array, 0, 255).astype(np.uint8)
-            
-            # Convert back to PIL Image
-            final_mask = Image.fromarray(mask_array, mode='L')
-            
-            # Convert to bytes
-            mask_buffer = io.BytesIO()
-            final_mask.save(mask_buffer, format='PNG')
-            mask_bytes = mask_buffer.getvalue()
-            
-            # Validate output
-            if len(mask_bytes) == 0:
-                raise RuntimeError("Generated mask is empty")
-            
-            logger.info(f"🧠 SMART PERSON-BACKGROUND MASK: {image_width}x{image_height} | Person colors analyzed | Background separated | Smooth blending applied | Mask size: {len(mask_bytes)/1024:.1f}KB")
-            return mask_bytes
-            
-        except Exception as e:
-            logger.error(f"❌ Mask generation failed during final processing: {str(e)}")
-            raise RuntimeError(f"Failed to generate smart person-background mask: {str(e)}") from e
+
 
     async def _apply_color_harmonization(
         self, 
@@ -637,51 +497,46 @@ class ThemeService:
                 logger.error(f"❌ Color analysis failed, using fallback: {color_error}")
                 analyzed_skin_color = "warm natural skin tone with consistent complexion"
             
-            # Create smart person-background separation mask 
-            mask_bytes = self._create_smart_person_background_mask(base_image_bytes, image_width, image_height)
+            # 🎯 IMG2IMG APPROACH: No mask needed - face preservation via parameters
             
             # 🎨 OPTION 5+6 ULTIMATE PROMPTS: Ultra-extended mask + AI-analyzed color injection for perfect matching
             # AI color analysis provides exact skin tone, ultra-extended mask provides maximum reference area
-            transformation_prompt = f"""Transform the clothing and background: {theme_description}. 
-            
-            CRITICAL COLOR MATCHING: The body skin must have EXACTLY this analyzed skin tone: {analyzed_skin_color}
-            Maintain perfect skin tone consistency throughout - face, neck, chest, and all visible body areas.
-            Use the exact same skin color temperature, undertones, and lighting conditions as the preserved face.
-            Ensure seamless color transition with no color breaks, discontinuities, or tone mismatches anywhere.
-            
-            Create a photorealistic portrait with {analyzed_skin_color} skin consistently applied to all body areas,
-            unified warm lighting matching the face illumination, sharp details, vibrant clothing colors, 
-            detailed fabric textures, and spiritual atmosphere. Professional photography style with perfect 
-            skin tone continuity and scientifically accurate color matching based on facial analysis."""
+            transformation_prompt = f"""same person, {theme_description}, traditional dress, temple background, full body.
+            Preserve exact facial features and identity. Transform only clothing and background.
+            Maintain natural skin tone ({analyzed_skin_color}) and lighting consistency."""
             
             logger.info(f"🎯 INPAINTING PROMPT (no face conflicts): {transformation_prompt[:150]}...")
             
             # 🎨 ENHANCED NEGATIVE PROMPT - Prevent color mismatches and lighting inconsistencies  
-            negative_prompt = "blurry, low-resolution, text, watermark, ugly, deformed, poor anatomy, cartoon, artificial, low quality, distorted, bad proportions, mismatched skin tones, different skin colors, inconsistent lighting, color breaks, uneven skin tone, harsh shadows, color discontinuity, lighting mismatch"
+            negative_prompt = "different face, face swap, mutated face, different person, altered identity, blurry, low-resolution, deformed, poor anatomy, cartoon, artificial, low quality"
 
             # 🎨 ULTIMATE GENERATION - Option 5+6: Ultra-extended mask + AI color analysis for perfect matching  
-            logger.info("🚀 STARTING ULTIMATE INPAINTING: 40% neck coverage + AI-analyzed color injection for perfect skin tone matching")
+            logger.info("🎯 SWITCHING TO IMG2IMG: Natural face preservation with low denoising strength")
             
-            raw_generated_bytes = await self.stability_service.generate_image_with_mask(
+            # 🎯 USER SUGGESTION: Use img2img with low denoising strength instead of masking
+            # This will naturally preserve the face while transforming clothing/background
+            # 🎯 DYNAMIC STRENGTH PARAMETER with validation
+            # Validate strength_param within safe range for face preservation
+            if strength_param < 0.25:
+                validated_strength = 0.25
+                logger.warning(f"⚠️ strength_param {strength_param} too low, using minimum 0.25")
+            elif strength_param > 0.35:
+                validated_strength = 0.35
+                logger.warning(f"⚠️ strength_param {strength_param} too high, using maximum 0.35")
+            else:
+                validated_strength = strength_param
+                logger.info(f"✅ Using validated strength: {validated_strength}")
+            
+            raw_generated_bytes = await self.stability_service.generate_image_to_image(
                 init_image_bytes=base_image_bytes,
-                mask_image_bytes=mask_bytes,
                 text_prompt=transformation_prompt,
-                negative_prompt=negative_prompt
-                # Note: No strength parameter - inpainting uses mask for precision control
+                negative_prompt=negative_prompt,
+                strength=validated_strength,  # Dynamic strength with validation (0.25-0.35 range)
+                cfg_scale=7                   # Your suggested cfg_scale for better guidance
             )
             
-            # 🎨 ADVANCED COLOR HARMONIZATION: Fix face-body color mismatch
-            logger.info("🎨 APPLYING COLOR HARMONIZATION: Matching face colors to AI-generated body for natural blending")
-            harmonized_image_bytes = await self._apply_color_harmonization(
-                generated_image_bytes=raw_generated_bytes,
-                original_image_bytes=base_image_bytes,
-                mask_bytes=mask_bytes,
-                image_width=image_width,
-                image_height=image_height
-            )
-            
-            logger.info("✅ ULTIMATE SUCCESS: AI-analyzed color matching + 40% neck coverage + perfect skin tone consistency + dramatic theme transformation + color harmonization")
-            return harmonized_image_bytes, transformation_prompt
+            logger.info("✅ IMG2IMG SUCCESS: Natural face preservation with low strength + perfect theme transformation")
+            return raw_generated_bytes, transformation_prompt
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
