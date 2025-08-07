@@ -105,7 +105,7 @@ class ThemeService:
                 image_width, image_height = actual_width, actual_height
                 
         except Exception as e:
-            raise RuntimeError(f"Failed to load or process image: {str(e)}")
+            raise RuntimeError(f"Failed to load or process image: {str(e)}") from e
         
         # Create base mask (white = transform everything by default)
         mask = Image.new('L', (image_width, image_height), 255)
@@ -170,7 +170,7 @@ class ThemeService:
             
         except Exception as e:
             logger.error(f"❌ Color analysis failed: {str(e)}")
-            raise RuntimeError(f"Failed to analyze image colors: {str(e)}")
+            raise RuntimeError(f"Failed to analyze image colors: {str(e)}") from e
         
         # 🚀 VECTORIZED SMART PERSON DETECTION: High-performance numpy operations
         try:
@@ -273,7 +273,7 @@ class ThemeService:
             
         except Exception as e:
             logger.error(f"❌ Mask generation failed during final processing: {str(e)}")
-            raise RuntimeError(f"Failed to generate smart person-background mask: {str(e)}")
+            raise RuntimeError(f"Failed to generate smart person-background mask: {str(e)}") from e
 
     async def _apply_color_harmonization(
         self, 
@@ -316,7 +316,6 @@ class ThemeService:
             
             # Convert to numpy arrays for processing
             generated_array = np.array(generated_image)
-            original_array = np.array(original_image)
             mask_array = np.array(mask_image)
             
             # Create face and body region masks
