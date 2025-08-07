@@ -36,4 +36,36 @@ class CreditPackageOut(BaseModel):
     
     # Backwards compatibility fields for existing frontend code
     price: Optional[float] = None  # Legacy field mapping to price_usd
-    is_active: Optional[bool] = None  # Legacy field mapping to enabled
+    is_active: Optional[bool] = None  # Legacy field mapping to enabled 
+
+    
+    # ENHANCED: Pydantic validators for robust datetime handling
+    @validator('created_at', 'updated_at', pre=True)
+    def validate_datetime_fields(cls, v):
+        """
+        ENHANCED: Validator to ensure datetime fields are properly serialized as ISO-8601 strings.
+        Handles both datetime objects and existing string values.
+        """
+        if v is None:
+            return None
+        if isinstance(v, datetime):
+            return v.isoformat()
+        if isinstance(v, str):
+            # Validate that it's a proper ISO-8601 format
+            try:
+                datetime.fromisoformat(v.replace('Z', '+00:00'))
+                return v
+            except ValueError:
+                # If it's not a valid ISO string, try to parse and convert
+                try:
+                    parsed = datetime.fromisoformat(v)
+                    return parsed.isoformat()
+                except ValueError:
+                    raise ValueError(f"Invalid datetime format: {v}")
+        return v
+    
+    class Config:
+        # ENHANCED: Configure JSON encoders for consistent datetime serialization
+        json_encoders = {
+            datetime: lambda v: v.isoformat() if v else None
+        }
