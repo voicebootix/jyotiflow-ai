@@ -282,7 +282,17 @@ class ThemeService:
         
         # 🎯 ADVANCED FACE PRESERVATION CONFIGURATION
         # Read environment variables for face preservation method
-        from core_foundation_enhanced import EnhancedSettings
+        # Robust import pattern to handle different runtime entrypoints
+        try:
+            from core_foundation_enhanced import EnhancedSettings
+        except ImportError:
+            try:
+                # Fallback for different runtime contexts (cwd=backend or package)
+                from backend.core_foundation_enhanced import EnhancedSettings
+            except ImportError:
+                # Final fallback for relative import contexts
+                from ..core_foundation_enhanced import EnhancedSettings
+        
         settings = EnhancedSettings()
         
         self.face_preservation_method = settings.face_preservation_method
