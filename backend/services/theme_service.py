@@ -282,7 +282,7 @@ class ThemeService:
         
         # 🎯 ADVANCED FACE PRESERVATION CONFIGURATION
         # Read environment variables for face preservation method
-        from ..core_foundation_enhanced import EnhancedSettings
+        from backend.core_foundation_enhanced import EnhancedSettings
         settings = EnhancedSettings()
         
         self.face_preservation_method = settings.face_preservation_method
