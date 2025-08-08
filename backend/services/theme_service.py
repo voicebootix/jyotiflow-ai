@@ -379,11 +379,11 @@ This must remain the same recognizable person with only clothing and background 
             # 🎯 SWITCHING TO IMG2IMG: No mask, caller-specified strength with bounds, strong prompts
             logger.info("🎯 SWITCHING TO NO-MASK IMG2IMG: Ultra-strong prompts for face preservation")
             
-            # 🔧 RESPECT CALLER'S STRENGTH with face-safe bounds checking (CORE.MD compliance)
-            # Clamp strength_param to face-safe range (0.1 to 0.4) to prevent face distortion
-            effective_strength = max(0.1, min(strength_param, 0.4))
+            # 🔧 CENTRALIZED STRENGTH DETERMINATION - Uses helper function for DRY principle
+            # Delegate to feature-flag controlled helper function for consistent strength logic
+            effective_strength = await self._determine_safe_strength(strength_param)
             
-            logger.info(f"🎯 EFFECTIVE STRENGTH: {effective_strength} (requested: {strength_param}, clamped to face-safe range 0.1-0.4)")
+            logger.info(f"🎯 EFFECTIVE STRENGTH: {effective_strength} (requested: {strength_param}, determined by centralized helper)")
             
             # 🛡️ NO-MASK TRANSFORMATION - Rely entirely on prompt instructions
             logger.info("🎯 NO-MASK IMG2IMG: Starting ultra-strong prompt-based face preservation")
