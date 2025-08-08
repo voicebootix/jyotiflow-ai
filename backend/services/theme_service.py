@@ -11,6 +11,7 @@ from datetime import datetime
 import os
 import uuid
 import httpx
+import asyncio
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
@@ -117,52 +118,98 @@ class RunWareService:
             logger.info(f"🎯 RunWare IP-Adapter FaceID generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
+            # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
+            max_retries = 3
+            base_delay = 2
+            
+            for attempt in range(max_retries):
+                try:
+                    logger.info(f"🔄 RunWare API attempt {attempt + 1}/{max_retries}")
+                    
+                    async with httpx.AsyncClient(timeout=60.0) as client:
+                        response = await client.post(url, headers=headers, json=payload)
+                        
+                        # Check for success status codes
+                        if 200 <= response.status_code < 300:
+                            result = response.json()
+                            logger.info(f"✅ RunWare API successful with status {response.status_code}")
+                            logger.info(f"🔍 RunWare API response structure: {list(result.keys())}")
+                            
+                            # 🎯 CORRECT RUNWARE RESPONSE PARSING
+                            data_array = result.get('data', [])
+                            if not data_array:
+                                raise HTTPException(status_code=500, detail="No data returned by RunWare API")
+                            
+                            first_result = data_array[0]
+                            
+                            # Extract image URL or base64 data
+                            img_url = first_result.get('imageURL')
+                            if not img_url:
+                                # Try alternative fields
+                                img_url = first_result.get('imageBase64Data') or first_result.get('imageDataURI')
+                                if not img_url:
+                                    raise HTTPException(status_code=500, detail="No image URL or data found in RunWare response")
+                            
+                            # Download the generated image if it's a URL, otherwise decode base64
+                            if img_url.startswith('http'):
+                                img_response = await client.get(img_url)
+                                img_response.raise_for_status()
+                                image_content = img_response.content
+                            else:
+                                # Handle base64 data
+                                if img_url.startswith('data:image/'):
+                                    # Remove data URL prefix
+                                    img_url = img_url.split(',', 1)[1]
+                                image_content = base64.b64decode(img_url)
+                            
+                            logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
+                            return image_content
+                        
+                        # For non-success status, raise to be handled by retry logic
+                        response.raise_for_status()
                 
-                result = response.json()
-                logger.info(f"🔍 RunWare API response structure: {list(result.keys())}")
+                except httpx.HTTPStatusError as e:
+                    # Parse error response for better debugging
+                    try:
+                        error_details = e.response.json()
+                        error_message = error_details.get("message", json.dumps(error_details))
+                    except json.JSONDecodeError:
+                        error_message = e.response.text
+                    
+                    logger.error(f"🚨 RunWare API HTTP error - Status: {e.response.status_code}, Response: {error_message}")
+                    
+                    # Retry on 5xx server errors and 429 rate limits
+                    if (e.response.status_code >= 500 or e.response.status_code == 429) and attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"🔄 Retryable error ({e.response.status_code}). Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        # Final attempt failed or non-retryable error
+                        raise HTTPException(
+                            status_code=e.response.status_code, 
+                            detail=f"RunWare API Call Failed: {error_message}"
+                        ) from e
                 
-                # 🎯 CORRECT RUNWARE RESPONSE PARSING
-                data_array = result.get('data', [])
-                if not data_array:
-                    raise HTTPException(status_code=500, detail="No data returned by RunWare API")
-                
-                first_result = data_array[0]
-                
-                # Extract image URL or base64 data
-                img_url = first_result.get('imageURL')
-                if not img_url:
-                    # Try alternative fields
-                    img_url = first_result.get('imageBase64Data') or first_result.get('imageDataURI')
-                    if not img_url:
-                        raise HTTPException(status_code=500, detail="No image URL or data found in RunWare response")
-                
-                # Download the generated image if it's a URL, otherwise decode base64
-                if img_url.startswith('http'):
-                    img_response = await client.get(img_url)
-                    img_response.raise_for_status()
-                    image_content = img_response.content
-                else:
-                    # Handle base64 data
-                    if img_url.startswith('data:image/'):
-                        # Remove data URL prefix
-                        img_url = img_url.split(',', 1)[1]
-                    image_content = base64.b64decode(img_url)
-                
-                logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
-                return image_content
-                
-        except httpx.HTTPStatusError as e:
-            logger.error(f"❌ RunWare API error: {e.response.status_code} - {e.response.text}")
-            raise HTTPException(status_code=502, detail=f"RunWare API error: {e.response.status_code}") from e
-        except httpx.RequestError as e:
-            logger.error(f"❌ Network error during RunWare generation: {e}")
-            raise HTTPException(status_code=502, detail="Network error during RunWare generation") from e
+                except httpx.RequestError as e:
+                    logger.error(f"🌐 RunWare API network error: {e}")
+                    
+                    # Retry network errors (timeouts, connection issues)
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        logger.warning(f"🔄 Network error. Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
+                        await asyncio.sleep(delay)
+                        continue
+                    else:
+                        # Final attempt failed
+                        raise HTTPException(status_code=502, detail=f"RunWare API network error: {str(e)}") from e
+            
+            # This should never be reached due to the retry logic above
+            raise HTTPException(status_code=500, detail="RunWare API call failed after all retry attempts")
+        
         except Exception as e:
-            logger.error(f"❌ RunWare generation failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"RunWare generation failed: {str(e)}") from e
+            logger.error(f"❌ Unexpected RunWare generation error: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail=f"Unexpected RunWare generation error: {str(e)}") from e
     
     async def _upload_reference_image(self, image_bytes: bytes) -> str:
         """Upload reference image to RunWare and return URL"""
