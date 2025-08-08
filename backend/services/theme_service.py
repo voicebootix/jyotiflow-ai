@@ -103,6 +103,8 @@ class RunWareService:
                 "height": height,
                 "width": width,
                 "numberResults": 1,
+                "steps": steps,  # Number of inference steps
+                "CFGScale": cfg_scale,  # Classifier-free guidance scale
                 "ipAdapters": [
                     {
                         "model": "runware:105@1",
