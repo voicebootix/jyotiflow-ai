@@ -169,12 +169,19 @@ class RunWareService:
                     logger.info(f"🔄 RunWare API attempt {attempt + 1}/{max_retries}")
                     
                     async with httpx.AsyncClient(timeout=60.0) as client:
-                        response = await client.post(url, headers=headers, json=payload)
+                        # RunWare API requires payload to be wrapped in an array
+                        response = await client.post(url, headers=headers, json=[payload])
                         
                         # Check for success status codes
                         if 200 <= response.status_code < 300:
-                            result = response.json()
+                            result_array = response.json()
                             logger.info(f"✅ RunWare API successful with status {response.status_code}")
+                            
+                            # RunWare returns array of results - get first result
+                            if not result_array or len(result_array) == 0:
+                                raise HTTPException(status_code=500, detail="No results returned by RunWare API")
+                            
+                            result = result_array[0]  # Get first result from array
                             logger.info(f"🔍 RunWare API response structure: {list(result.keys())}")
                             
                             # 🎯 CORRECT RUNWARE RESPONSE PARSING
