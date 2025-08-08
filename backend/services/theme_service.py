@@ -921,7 +921,7 @@ face morph, artificial face, generic face, low quality, blurry, deformed, ugly, 
 
             # 🚀 RUNWARE IP-ADAPTER FACEID METHOD (ONLY METHOD - 80-90% success)
             logger.info("🚀 Using RunWare IP-Adapter FaceID for face preservation (80-90% success rate)")
-            logger.info(f"🎯 Active face preservation method: runware_faceref (Stability.AI removed)")
+            logger.info("🎯 Active face preservation method: runware_faceref (Stability.AI removed)")
             
             return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
