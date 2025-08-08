@@ -1,9 +1,9 @@
 """
-🌟 THEME SERVICE
+🚀 RUNWARE-ONLY THEME SERVICE
 
-This service is the creative engine that generates daily visual themes for Swamiji's avatar.
-It uses Stability AI's image-to-image generation with balanced strength for natural transformation 
-while preserving Swamiji's identity and changing clothing/background according to daily themes.
+This service is the premium engine that generates daily visual themes for Swamiji's avatar.
+It uses RunWare's IP-Adapter FaceID technology for 80-90% face preservation success rate,
+maintaining perfect face consistency while generating diverse backgrounds and clothing themes.
 """
 
 import logging
@@ -23,17 +23,15 @@ import numpy as np
 from scipy import ndimage
 import imghdr
 
-from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 import db
 from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-# 🎯 ADVANCED FACE PRESERVATION METHODS
+# 🚀 RUNWARE FACE PRESERVATION METHOD
 class FacePreservationMethod(Enum):
-    """Face preservation method options for theme generation"""
-    STABILITY_AI = "stability_ai"  # Current method (20-30% success)
+    """RunWare-only face preservation method"""
     RUNWARE_FACEREF = "runware_faceref"  # IP-Adapter FaceID (80-90% success)
 
 # 🚀 RUNWARE API SERVICE CLASS
@@ -307,21 +305,25 @@ THEMES = {
 
 class ThemeService:
     """
-    🎯 ENHANCED THEME SERVICE: Multi-method face preservation support
-    Orchestrates daily theme generation with advanced face preservation methods.
+    🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with IP-Adapter FaceID
+    Orchestrates daily theme generation using RunWare's advanced face preservation technology.
     
-    Supported Methods:
-    - Stability AI img2img (legacy, 20-30% success)
-    - RunWare IP-Adapter FaceID (advanced, 80-90% success)
+    Face Preservation Method:
+    - RunWare IP-Adapter FaceID (80-90% success rate, $0.0006 per image)
+    
+    Features:
+    - Consistent face preservation across all theme generations
+    - Natural blending of AI face with generated backgrounds/clothing  
+    - Production-ready with retry mechanisms and error handling
+    - Cost-effective and high-quality image generation
     """
 
     def __init__(
         self,
-        stability_service: StabilityAiService,
         storage_service: SupabaseStorageService,
         db_conn: asyncpg.Connection,
     ):
-        self.stability_service = stability_service
+        # Note: stability_service removed - RunWare only
         self.storage_service = storage_service
         self.db_conn = db_conn
         
@@ -340,21 +342,21 @@ class ThemeService:
         
         settings = EnhancedSettings()
         
-        self.face_preservation_method = settings.face_preservation_method
+        # 🚀 RUNWARE ONLY - Stability.AI completely removed
+        self.face_preservation_method = "runware_faceref"  # Force RunWare only
         self.runware_api_key = settings.runware_api_key
         
-        # Initialize RunWare service if configured
-        if self.face_preservation_method == FacePreservationMethod.RUNWARE_FACEREF.value:
-            if self.runware_api_key:
-                self.runware_service = RunWareService(self.runware_api_key)
-                logger.info("✅ ThemeService initialized with RunWare IP-Adapter FaceID (80-90% success rate)")
-            else:
-                logger.warning("⚠️ RunWare method selected but API key not provided, falling back to Stability AI")
-                self.face_preservation_method = FacePreservationMethod.STABILITY_AI.value
+        # Initialize RunWare service - REQUIRED
+        if not self.runware_api_key:
+            logger.error("❌ RUNWARE_API_KEY environment variable is required!")
+            raise HTTPException(
+                status_code=503, 
+                detail="RunWare API key is required. Please set RUNWARE_API_KEY environment variable."
+            )
         
-        if self.face_preservation_method == FacePreservationMethod.STABILITY_AI.value:
-            logger.info("📝 ThemeService initialized with Stability AI img2img (20-30% success rate)")
-        
+        self.runware_service = RunWareService(self.runware_api_key)
+        logger.info("🚀 ThemeService initialized with RunWare IP-Adapter FaceID ONLY (80-90% success rate)")
+        logger.info("📝 Stability.AI has been completely removed - RunWare is the only face preservation method")
         logger.info(f"🎯 Active face preservation method: {self.face_preservation_method}")
     
     async def _generate_with_runware(
@@ -415,102 +417,7 @@ face morph, artificial face, generic face, low quality, blurry, deformed, ugly, 
             # Re-raise the exception to be handled by the calling method
             raise
 
-    async def _generate_with_stability_legacy(
-        self, 
-        base_image_bytes: bytes,
-        theme_description: str,
-        custom_prompt: Optional[str] = None,
-        strength_param: float = 0.4
-    ) -> Tuple[bytes, str]:
-        """
-        📝 STABILITY AI GENERATION METHOD (Legacy)
-        Uses existing Stability AI img2img approach for fallback compatibility.
-        
-        This method contains the original ultra-strong prompt approach that was
-        previously used in generate_themed_image_bytes().
-        
-        Args:
-            base_image_bytes: Swamiji reference image bytes
-            theme_description: Daily theme description
-            custom_prompt: Optional custom prompt override
-            strength_param: Transformation strength (0.1-0.4)
-            
-        Returns:
-            Tuple[bytes, str]: Generated image bytes and final prompt used
-        """
-        try:
-            logger.info("📝 Starting Stability AI img2img generation (legacy method)")
-            
-            # 🎨 OPTION 5+6 COMBINATION: Ultra-extended mask + AI color analysis for ULTIMATE precision
-            logger.info("🎨 OPTION 5+6 ULTIMATE: Ultra-extended mask (40% neck) + AI color analysis + precise color injection")
-            
-            # Get image dimensions for mask creation
-            base_image = Image.open(io.BytesIO(base_image_bytes))
-            image_width, image_height = base_image.size
-            logger.info(f"📐 BASE IMAGE DIMENSIONS: {image_width}x{image_height}")
-            
-            # 🎨 OPTION 6: Advanced face color analysis - Extract precise skin tone colors
-            try:
-                analyzed_skin_color = self._analyze_face_skin_color(base_image_bytes)
-                logger.info(f"🎨 COLOR ANALYSIS COMPLETE: {analyzed_skin_color}")
-            except Exception as color_error:
-                logger.error(f"❌ Color analysis failed, using fallback: {color_error}")
-                analyzed_skin_color = "warm natural skin tone with consistent complexion"
-            
-            # 🎯 NO MASK APPROACH: Ultra-strong prompts for face preservation
-            
-            # 🎨 ULTRA-STRONG FACE PRESERVATION PROMPTS - Force AI to keep exact same face
-            ultra_strong_prompt = f"""CRITICAL INSTRUCTION: Keep the EXACT SAME PERSON with identical face, eyes, nose, mouth, facial structure, and skin tone ({analyzed_skin_color}).
-DO NOT change this person's face or identity in ANY way.
 
-Transform ONLY the clothing and background to: {theme_description}
-
-MANDATORY PRESERVATION:
-- Keep this exact person's face completely unchanged
-- Preserve all facial features: same eyes, same nose, same mouth, same cheeks
-- Maintain identical facial structure and bone structure  
-- Keep exact same skin tone and complexion
-- Preserve same head shape and hair
-- Do not alter this person's identity
-
-TRANSFORM ONLY:
-- Change clothing style and colors to match the theme
-- Modify background environment and setting
-- Adjust lighting and atmosphere
-- Add appropriate accessories (jewelry, beads, tilaka)
-
-This must remain the same recognizable person with only clothing and background changes."""
-            
-            # 🚫 ULTRA-STRONG NEGATIVE PROMPTS - Prevent any face alterations
-            ultra_negative_prompt = "different face, changed face, new face, altered face, face swap, face replacement, different person, changed identity, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, different skin, face morph, face change, artificial face, generic face, template face, stock photo face, different facial structure, altered features"
-
-            # 🎯 SWITCHING TO IMG2IMG: No mask, caller-specified strength with bounds, strong prompts
-            logger.info("🎯 SWITCHING TO NO-MASK IMG2IMG: Ultra-strong prompts for face preservation")
-            
-            # 🔧 CENTRALIZED STRENGTH DETERMINATION - Uses helper function for DRY principle
-            # Delegate to feature-flag controlled helper function for consistent strength logic
-            effective_strength = await self._determine_safe_strength(strength_param)
-            
-            logger.info(f"🎯 EFFECTIVE STRENGTH: {effective_strength} (requested: {strength_param}, determined by centralized helper)")
-            
-            # 🛡️ NO-MASK TRANSFORMATION - Rely entirely on prompt instructions
-            logger.info("🎯 NO-MASK IMG2IMG: Starting ultra-strong prompt-based face preservation")
-            logger.info(f"🎨 ULTRA-STRONG PROMPT: {ultra_strong_prompt[:200]}...")
-            
-            raw_generated_bytes = await self.stability_service.generate_image_to_image(
-                init_image_bytes=base_image_bytes,
-                text_prompt=ultra_strong_prompt,
-                negative_prompt=ultra_negative_prompt,
-                strength=effective_strength
-            )
-            logger.info("✅ NO-MASK SUCCESS: Face preservation via ultra-strong prompts")
-            
-            logger.info("✅ NO-MASK IMG2IMG COMPLETE: Prompt-based face preservation with theme changes")
-            return raw_generated_bytes, ultra_strong_prompt
-            
-        except Exception as e:
-            logger.error(f"❌ Stability AI generation failed: {e}", exc_info=True)
-            raise
 
 
 
@@ -1012,30 +919,14 @@ This must remain the same recognizable person with only clothing and background 
                 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
-            # 🎯 METHOD SELECTION: Choose face preservation method based on configuration
-            logger.info(f"🎯 Active face preservation method: {self.face_preservation_method}")
+            # 🚀 RUNWARE IP-ADAPTER FACEID METHOD (ONLY METHOD - 80-90% success)
+            logger.info("🚀 Using RunWare IP-Adapter FaceID for face preservation (80-90% success rate)")
+            logger.info("🎯 Active face preservation method: runware_faceref (Stability.AI removed)")
             
-            if self.face_preservation_method == FacePreservationMethod.RUNWARE_FACEREF.value:
-                # 🚀 RUNWARE IP-ADAPTER FACEID METHOD (80-90% success)
-                try:
-                    logger.info("🚀 Using RunWare IP-Adapter FaceID for face preservation (80-90% success rate)")
-                    return await self._generate_with_runware(
-                        base_image_bytes=base_image_bytes,
-                        theme_description=theme_description,
-                        custom_prompt=custom_prompt
-                    )
-                except Exception as runware_error:
-                    logger.error(f"❌ RunWare generation failed: {runware_error}")
-                    logger.info("🔄 Falling back to Stability AI method...")
-                    # Fall through to Stability AI fallback
-            
-            # 📝 STABILITY AI METHOD (Fallback or explicit choice)
-            logger.info("📝 Using Stability AI img2img for face preservation (20-30% success rate)")
-            return await self._generate_with_stability_legacy(
+            return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
                 theme_description=theme_description,
-                custom_prompt=custom_prompt,
-                strength_param=strength_param
+                custom_prompt=custom_prompt
             )
 
         except Exception as e:
@@ -1078,9 +969,8 @@ This must remain the same recognizable person with only clothing and background 
 
 # --- FastAPI Dependency Injection ---
 def get_theme_service(
-    stability_service: StabilityAiService = Depends(get_stability_service),
     storage_service: SupabaseStorageService = Depends(get_storage_service),
     db_conn: asyncpg.Connection = Depends(db.get_db),
 ) -> "ThemeService":
-    """Creates an instance of the ThemeService with its required dependencies."""
-    return ThemeService(stability_service, storage_service, db_conn)
+    """Creates an instance of the ThemeService with RunWare-only dependencies."""
+    return ThemeService(storage_service, db_conn)
