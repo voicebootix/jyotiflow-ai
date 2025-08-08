@@ -21,7 +21,6 @@ from PIL import Image, ImageDraw
 import io
 import numpy as np
 from scipy import ndimage
-import imghdr
 
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 import db
@@ -82,18 +81,51 @@ class RunWareService:
             if not self.api_key:
                 raise HTTPException(status_code=503, detail="RunWare API key not configured")
                 
-            # Convert face image to base64 for direct use in inference call
-            image_base64 = base64.b64encode(face_image_bytes).decode('utf-8')
-            
-            # Detect image format for correct MIME type
-            image_format = imghdr.what(None, h=face_image_bytes)
-            if image_format == 'jpeg':
+            # 🎯 PIL-BASED IMAGE FORMAT DETECTION & TRANSCODING
+            # Load image to detect format and transcode if needed
+            try:
+                pil_image = Image.open(io.BytesIO(face_image_bytes))
+                original_format = pil_image.format
+                
+                # Check if format is supported (JPEG/PNG), otherwise transcode to JPEG
+                if original_format in ['JPEG', 'PNG']:
+                    # Use original image bytes and set correct MIME type
+                    processed_image_bytes = face_image_bytes
+                    if original_format == 'JPEG':
+                        mime_type = 'image/jpeg'
+                    else:  # PNG
+                        mime_type = 'image/png'
+                    logger.info(f"✅ Using original {original_format} format for RunWare")
+                else:
+                    # Transcode unsupported format to JPEG
+                    logger.info(f"🔄 Transcoding {original_format} to JPEG for RunWare compatibility")
+                    
+                    # Convert to RGB if necessary (handles RGBA, P mode, etc.)
+                    if pil_image.mode in ('RGBA', 'LA', 'P'):
+                        # Create white background for transparent images
+                        rgb_image = Image.new('RGB', pil_image.size, (255, 255, 255))
+                        if pil_image.mode == 'P':
+                            pil_image = pil_image.convert('RGBA')
+                        rgb_image.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode in ('RGBA', 'LA') else None)
+                        pil_image = rgb_image
+                    elif pil_image.mode != 'RGB':
+                        pil_image = pil_image.convert('RGB')
+                    
+                    # Save as JPEG
+                    jpeg_buffer = io.BytesIO()
+                    pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
+                    processed_image_bytes = jpeg_buffer.getvalue()
+                    mime_type = 'image/jpeg'
+                    
+            except Exception as image_error:
+                logger.error(f"❌ PIL image processing failed: {image_error}")
+                # Fallback: use original bytes as JPEG
+                processed_image_bytes = face_image_bytes
                 mime_type = 'image/jpeg'
-            elif image_format == 'png':
-                mime_type = 'image/png'
-            else:
-                mime_type = 'image/jpeg'  # Default fallback
+                logger.warning("⚠️ Using original image bytes with JPEG MIME type as fallback")
             
+            # Convert processed image to base64
+            image_base64 = base64.b64encode(processed_image_bytes).decode('utf-8')
             face_data_uri = f"data:{mime_type};base64,{image_base64}"
             
             # 🎯 CORRECT RUNWARE API ENDPOINT
