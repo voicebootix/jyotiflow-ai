@@ -21,6 +21,7 @@ from PIL import Image, ImageDraw
 import io
 import numpy as np
 from scipy import ndimage
+import imghdr
 
 from services.stability_ai_service import StabilityAiService, get_stability_service
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -223,12 +224,27 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
+            # Detect actual image format for correct MIME type
+            image_format = imghdr.what(None, h=image_bytes)
+            if image_format == 'jpeg':
+                mime_type = 'image/jpeg'
+            elif image_format == 'png':
+                mime_type = 'image/png'
+            elif image_format == 'webp':
+                mime_type = 'image/webp'
+            elif image_format == 'gif':
+                mime_type = 'image/gif'
+            else:
+                # Fallback to JPEG for unknown formats
+                mime_type = 'image/jpeg'
+                logger.warning(f"⚠️ Unknown image format '{image_format}', defaulting to JPEG MIME type")
+            
             # Convert image bytes to base64 for JSON payload
             image_base64 = base64.b64encode(image_bytes).decode('utf-8')
             
-            # RunWare expects JSON payload with base64 image
+            # RunWare expects JSON payload with base64 image and correct MIME type
             payload = {
-                "image": f"data:image/jpeg;base64,{image_base64}",
+                "image": f"data:{mime_type};base64,{image_base64}",
                 "taskType": "imageUpload",
                 "taskUUID": str(uuid.uuid4())
             }
@@ -238,10 +254,28 @@ class RunWareService:
                 response.raise_for_status()
                 
                 result = response.json()
-                uploaded_url = result.get('url') or result.get('data', {}).get('url')
+                
+                # Safe extraction of uploaded URL from response
+                uploaded_url = None
+                
+                # Try direct URL field first
+                uploaded_url = result.get('url')
                 
                 if not uploaded_url:
-                    raise HTTPException(status_code=500, detail="Failed to upload reference image to RunWare")
+                    # Try data field - handle both dict and list cases safely
+                    data = result.get('data')
+                    if isinstance(data, dict):
+                        uploaded_url = data.get('url')
+                    elif isinstance(data, list) and len(data) > 0:
+                        # Iterate through list to find URL
+                        for item in data:
+                            if isinstance(item, dict) and 'url' in item:
+                                uploaded_url = item['url']
+                                break
+                
+                if not uploaded_url:
+                    logger.error(f"❌ RunWare upload response missing URL. Response structure: {list(result.keys())}")
+                    raise HTTPException(status_code=500, detail="Failed to upload reference image to RunWare - no URL returned")
                 
                 logger.info("✅ Reference image uploaded to RunWare successfully")
                 return uploaded_url
