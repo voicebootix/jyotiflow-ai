@@ -218,16 +218,27 @@ class RunWareService:
         """Upload reference image to RunWare and return URL"""
         try:
             url = f"{self.base_url}/image/upload"
-            headers = {"Authorization": f"Bearer {self.api_key}"}
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
             
-            files = {"image": ("reference.jpg", image_bytes, "image/jpeg")}
+            # Convert image bytes to base64 for JSON payload
+            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            
+            # RunWare expects JSON payload with base64 image
+            payload = {
+                "image": f"data:image/jpeg;base64,{image_base64}",
+                "taskType": "imageUpload",
+                "taskUUID": str(uuid.uuid4())
+            }
             
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, headers=headers, files=files)
+                response = await client.post(url, headers=headers, json=payload)
                 response.raise_for_status()
                 
                 result = response.json()
-                uploaded_url = result.get('url')
+                uploaded_url = result.get('url') or result.get('data', {}).get('url')
                 
                 if not uploaded_url:
                     raise HTTPException(status_code=500, detail="Failed to upload reference image to RunWare")
