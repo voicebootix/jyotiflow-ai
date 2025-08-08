@@ -21,7 +21,6 @@ from PIL import Image, ImageDraw
 import io
 import numpy as np
 from scipy import ndimage
-import imghdr
 
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 import db
@@ -82,8 +81,52 @@ class RunWareService:
             if not self.api_key:
                 raise HTTPException(status_code=503, detail="RunWare API key not configured")
                 
-            # First, upload the face reference image
-            face_url = await self._upload_reference_image(face_image_bytes)
+            # 🎯 PIL-BASED IMAGE FORMAT DETECTION & TRANSCODING
+            # Load image to detect format and transcode if needed
+            try:
+                pil_image = Image.open(io.BytesIO(face_image_bytes))
+                original_format = pil_image.format
+                
+                # Check if format is supported (JPEG/PNG), otherwise transcode to JPEG
+                if original_format in ['JPEG', 'PNG']:
+                    # Use original image bytes and set correct MIME type
+                    processed_image_bytes = face_image_bytes
+                    if original_format == 'JPEG':
+                        mime_type = 'image/jpeg'
+                    else:  # PNG
+                        mime_type = 'image/png'
+                    logger.info(f"✅ Using original {original_format} format for RunWare")
+                else:
+                    # Transcode unsupported format to JPEG
+                    logger.info(f"🔄 Transcoding {original_format} to JPEG for RunWare compatibility")
+                    
+                    # Convert to RGB if necessary (handles RGBA, P mode, etc.)
+                    if pil_image.mode in ('RGBA', 'LA', 'P'):
+                        # Create white background for transparent images
+                        rgb_image = Image.new('RGB', pil_image.size, (255, 255, 255))
+                        if pil_image.mode == 'P':
+                            pil_image = pil_image.convert('RGBA')
+                        rgb_image.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode in ('RGBA', 'LA') else None)
+                        pil_image = rgb_image
+                    elif pil_image.mode != 'RGB':
+                        pil_image = pil_image.convert('RGB')
+                    
+                    # Save as JPEG
+                    jpeg_buffer = io.BytesIO()
+                    pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
+                    processed_image_bytes = jpeg_buffer.getvalue()
+                    mime_type = 'image/jpeg'
+                    
+            except Exception as image_error:
+                logger.error(f"❌ PIL image processing failed: {image_error}")
+                # Fallback: use original bytes as JPEG
+                processed_image_bytes = face_image_bytes
+                mime_type = 'image/jpeg'
+                logger.warning("⚠️ Using original image bytes with JPEG MIME type as fallback")
+            
+            # Convert processed image to base64
+            image_base64 = base64.b64encode(processed_image_bytes).decode('utf-8')
+            face_data_uri = f"data:{mime_type};base64,{image_base64}"
             
             # 🎯 CORRECT RUNWARE API ENDPOINT
             url = "https://api.runware.ai/v1"
@@ -92,7 +135,7 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
-            # 🎯 CORRECT RUNWARE API SCHEMA
+            # 🎯 CORRECT RUNWARE API SCHEMA - Using direct base64 image
             task_uuid = str(uuid.uuid4())
             payload = {
                 "taskType": "imageInference",
@@ -108,7 +151,7 @@ class RunWareService:
                 "ipAdapters": [
                     {
                         "model": "runware:105@1",
-                        "guideImage": face_url,
+                        "guideImage": face_data_uri,  # Direct base64 data URI
                         "weight": 1.0  # Maximum face preservation
                     }
                 ]
@@ -213,83 +256,7 @@ class RunWareService:
             logger.error(f"❌ Unexpected RunWare generation error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Unexpected RunWare generation error: {str(e)}") from e
     
-    async def _upload_reference_image(self, image_bytes: bytes) -> str:
-        """Upload reference image to RunWare and return URL"""
-        try:
-            url = f"{self.base_url}/image/upload"
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            # Detect actual image format for correct MIME type
-            image_format = imghdr.what(None, h=image_bytes)
-            if image_format == 'jpeg':
-                mime_type = 'image/jpeg'
-            elif image_format == 'png':
-                mime_type = 'image/png'
-            elif image_format == 'webp':
-                mime_type = 'image/webp'
-            elif image_format == 'gif':
-                mime_type = 'image/gif'
-            else:
-                # Fallback to JPEG for unknown formats
-                mime_type = 'image/jpeg'
-                logger.warning(f"⚠️ Unknown image format '{image_format}', defaulting to JPEG MIME type")
-            
-            # Convert image bytes to base64 for JSON payload
-            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-            
-            # RunWare expects JSON payload with base64 image and correct MIME type
-            payload = {
-                "image": f"data:{mime_type};base64,{image_base64}",
-                "taskType": "imageUpload",
-                "taskUUID": str(uuid.uuid4())
-            }
-            
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, headers=headers, json=payload)
-                response.raise_for_status()
-                
-                result = response.json()
-                
-                # Safe extraction of uploaded URL from response
-                uploaded_url = None
-                
-                # Try direct URL field first
-                uploaded_url = result.get('url')
-                
-                if not uploaded_url:
-                    # Try data field - handle both dict and list cases safely
-                    data = result.get('data')
-                    if isinstance(data, dict):
-                        uploaded_url = data.get('url')
-                    elif isinstance(data, list) and len(data) > 0:
-                        # Iterate through list to find URL
-                        for item in data:
-                            if isinstance(item, dict) and 'url' in item:
-                                uploaded_url = item['url']
-                                break
-                
-                if not uploaded_url:
-                    logger.error(f"❌ RunWare upload response missing URL. Response structure: {list(result.keys())}")
-                    raise HTTPException(status_code=500, detail="Failed to upload reference image to RunWare - no URL returned")
-                
-                logger.info("✅ Reference image uploaded to RunWare successfully")
-                return uploaded_url
-                
-        except httpx.HTTPStatusError as e:
-            logger.error(f"❌ RunWare upload API error: {e.response.status_code} - {e.response.text}")
-            raise HTTPException(status_code=502, detail=f"RunWare upload API error: {e.response.status_code}") from e
-        except httpx.RequestError as e:
-            logger.error(f"❌ Network error during reference image upload: {e}")
-            raise HTTPException(status_code=502, detail="Network error during reference image upload") from e
-        except HTTPException:
-            # Re-raise HTTPExceptions unchanged to preserve status codes and details
-            raise
-        except Exception as e:
-            logger.error(f"❌ Failed to upload reference image: {e}")
-            raise HTTPException(status_code=500, detail=f"Reference image upload failed: {str(e)}") from e
+
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
 # Each theme uses COMPLETELY DIFFERENT colors + varied clothing styles for better AI differentiation
