@@ -169,13 +169,49 @@ class RunWareService:
                     logger.info(f"🔄 RunWare API attempt {attempt + 1}/{max_retries}")
                     
                     async with httpx.AsyncClient(timeout=60.0) as client:
-                        response = await client.post(url, headers=headers, json=payload)
+                        # RunWare API requires payload to be wrapped in an array
+                        response = await client.post(url, headers=headers, json=[payload])
                         
                         # Check for success status codes
                         if 200 <= response.status_code < 300:
-                            result = response.json()
+                            # 🛡️ ROBUST JSON PARSING - Following CORE.MD error handling principles
+                            try:
+                                parsed_response = response.json()
+                            except json.JSONDecodeError as json_error:
+                                logger.error(f"❌ Invalid JSON response from RunWare API: {json_error}")
+                                logger.error(f"🔍 Raw response text: {response.text[:500]}...")
+                                raise HTTPException(
+                                    status_code=502, 
+                                    detail="RunWare API returned invalid JSON response"
+                                ) from json_error
+                            
                             logger.info(f"✅ RunWare API successful with status {response.status_code}")
-                            logger.info(f"🔍 RunWare API response structure: {list(result.keys())}")
+                            
+                            # 🛡️ ROBUST TYPE CHECKING - Ensure response is a list as expected
+                            if not isinstance(parsed_response, list):
+                                logger.error(f"❌ Expected array response from RunWare API, got {type(parsed_response).__name__}")
+                                logger.error(f"🔍 Response structure: {parsed_response if isinstance(parsed_response, dict) else str(parsed_response)[:200]}")
+                                raise HTTPException(
+                                    status_code=502, 
+                                    detail=f"RunWare API returned unexpected response format: expected array, got {type(parsed_response).__name__}"
+                                )
+                            
+                            # RunWare returns array of results - get first result
+                            if not parsed_response or len(parsed_response) == 0:
+                                logger.error("❌ RunWare API returned empty array")
+                                raise HTTPException(status_code=500, detail="No results returned by RunWare API")
+                            
+                            result = parsed_response[0]  # Get first result from array
+                            
+                            # 🛡️ SAFE STRUCTURE LOGGING - Handle case where result is not a dict
+                            if isinstance(result, dict):
+                                logger.info(f"🔍 RunWare API response structure: {list(result.keys())}")
+                            else:
+                                logger.warning(f"⚠️ Unexpected result type: {type(result).__name__}, value: {str(result)[:100]}")
+                                raise HTTPException(
+                                    status_code=502, 
+                                    detail=f"RunWare API returned unexpected result format: expected object, got {type(result).__name__}"
+                                )
                             
                             # 🎯 CORRECT RUNWARE RESPONSE PARSING
                             data_array = result.get('data', [])
