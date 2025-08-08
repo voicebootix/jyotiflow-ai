@@ -135,14 +135,14 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
-            # 🎯 CORRECT RUNWARE API SCHEMA - Using direct base64 image
+            # 🎯 CORRECT RUNWARE API SCHEMA - Following official documentation
             task_uuid = str(uuid.uuid4())
             payload = {
                 "taskType": "imageInference",
                 "taskUUID": task_uuid,
                 "positivePrompt": prompt,
                 "negativePrompt": negative_prompt,
-                "model": "runware:105@1",
+                "model": "runware:101@1",  # Standard RunWare model from documentation
                 "height": height,
                 "width": width,
                 "numberResults": 1,
@@ -150,7 +150,7 @@ class RunWareService:
                 "CFGScale": cfg_scale,  # Classifier-free guidance scale
                 "ipAdapters": [
                     {
-                        "model": "runware:105@1",
+                        "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
                         "guideImage": face_data_uri,  # Direct base64 data URI
                         "weight": 1.0  # Maximum face preservation
                     }
@@ -420,7 +420,7 @@ face morph, artificial face, generic face, low quality, blurry, deformed, ugly, 
             # Re-raise the exception to be handled by the calling method
             raise
 
-
+    
 
 
 
