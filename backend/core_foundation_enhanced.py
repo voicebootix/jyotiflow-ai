@@ -107,6 +107,11 @@ class EnhancedSettings(BaseSettings):
     elevenlabs_api_key: str = "your-elevenlabs-api-key"
     elevenlabs_voice_id: str = "your-custom-swamiji-voice-id"
     
+    # 🎯 ADVANCED FACE PRESERVATION CONFIGURATION
+    runware_api_key: str = Field(default_factory=lambda: os.getenv("RUNWARE_API_KEY", ""))
+    face_preservation_method: str = Field(default_factory=lambda: os.getenv("FACE_PRESERVATION_METHOD", "stability_ai"))
+    stability_api_key: str = Field(default_factory=lambda: os.getenv("STABILITY_API_KEY", ""))
+    
     # REAL AGORA CREDENTIALS - Use environment variables
     agora_app_id: str = Field(default_factory=lambda: os.getenv("AGORA_APP_ID", ""))
     agora_app_certificate: str = Field(default_factory=lambda: os.getenv("AGORA_APP_CERTIFICATE", ""))
