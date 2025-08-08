@@ -207,6 +207,9 @@ class RunWareService:
             # This should never be reached due to the retry logic above
             raise HTTPException(status_code=500, detail="RunWare API call failed after all retry attempts")
         
+        except HTTPException:
+            # Re-raise HTTPExceptions unchanged to preserve status codes and details
+            raise
         except Exception as e:
             logger.error(f"❌ Unexpected RunWare generation error: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail=f"Unexpected RunWare generation error: {str(e)}") from e
@@ -238,6 +241,9 @@ class RunWareService:
         except httpx.RequestError as e:
             logger.error(f"❌ Network error during reference image upload: {e}")
             raise HTTPException(status_code=502, detail="Network error during reference image upload") from e
+        except HTTPException:
+            # Re-raise HTTPExceptions unchanged to preserve status codes and details
+            raise
         except Exception as e:
             logger.error(f"❌ Failed to upload reference image: {e}")
             raise HTTPException(status_code=500, detail=f"Reference image upload failed: {str(e)}") from e
@@ -276,7 +282,7 @@ class ThemeService:
         
         # 🎯 ADVANCED FACE PRESERVATION CONFIGURATION
         # Read environment variables for face preservation method
-        from core_foundation_enhanced import EnhancedSettings
+        from ..core_foundation_enhanced import EnhancedSettings
         settings = EnhancedSettings()
         
         self.face_preservation_method = settings.face_preservation_method
@@ -880,6 +886,9 @@ This must remain the same recognizable person with only clothing and background 
         except httpx.HTTPStatusError as e:
             logger.error(f"Failed to download the base Swamiji image from {image_url}: {e}", exc_info=True)
             raise HTTPException(status_code=502, detail="Could not download the base Swamiji image.") from e
+        except HTTPException:
+            # Re-raise HTTPExceptions unchanged to preserve status codes and details
+            raise
         except Exception as e:
             logger.error(f"An unexpected error occurred in _get_base_image_data: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
