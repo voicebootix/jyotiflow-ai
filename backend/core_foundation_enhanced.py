@@ -38,7 +38,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 
 # Pydantic Models for Validation
-from pydantic import BaseModel, EmailStr, Field, validator, root_validator
+from pydantic import BaseModel, EmailStr, Field, validator, root_validator, field_validator
 from pydantic_settings import BaseSettings
 
 # External Integrations
@@ -108,9 +108,23 @@ class EnhancedSettings(BaseSettings):
     elevenlabs_voice_id: str = "your-custom-swamiji-voice-id"
     
     # 🎯 ADVANCED FACE PRESERVATION CONFIGURATION
-    runware_api_key: str = Field(default_factory=lambda: os.getenv("RUNWARE_API_KEY", ""))
-    face_preservation_method: str = Field(default_factory=lambda: os.getenv("FACE_PRESERVATION_METHOD", "stability_ai"))
-    stability_api_key: str = Field(default_factory=lambda: os.getenv("STABILITY_API_KEY", ""))
+    runware_api_key: str = ""  # Runtime resolution by BaseSettings from RUNWARE_API_KEY
+    face_preservation_method: str = Field(
+        default="stability_ai",
+        description="Face preservation method: 'stability_ai' or 'runware_faceref'"
+    )
+    stability_api_key: str = ""  # Runtime resolution by BaseSettings from STABILITY_API_KEY
+    
+    @field_validator('face_preservation_method')
+    @classmethod
+    def validate_face_preservation_method(cls, v: str) -> str:
+        """Validate face preservation method is one of allowed values"""
+        allowed_methods = ['stability_ai', 'runware_faceref']
+        if v not in allowed_methods:
+            raise ValueError(
+                f"face_preservation_method must be one of {allowed_methods}, got: '{v}'"
+            )
+        return v
     
     # REAL AGORA CREDENTIALS - Use environment variables
     agora_app_id: str = Field(default_factory=lambda: os.getenv("AGORA_APP_ID", ""))

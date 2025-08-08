@@ -128,10 +128,10 @@ class RunWareService:
                 
         except httpx.HTTPStatusError as e:
             logger.error(f"❌ RunWare API error: {e.response.status_code} - {e.response.text}")
-            raise HTTPException(status_code=502, detail=f"RunWare API error: {e.response.status_code}")
+            raise HTTPException(status_code=502, detail=f"RunWare API error: {e.response.status_code}") from e
         except Exception as e:
             logger.error(f"❌ RunWare generation failed: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"RunWare generation failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"RunWare generation failed: {str(e)}") from e
     
     async def _upload_reference_image(self, image_bytes: bytes) -> str:
         """Upload reference image to RunWare and return URL"""
@@ -156,7 +156,7 @@ class RunWareService:
                 
         except Exception as e:
             logger.error(f"❌ Failed to upload reference image: {e}")
-            raise HTTPException(status_code=500, detail=f"Reference image upload failed: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Reference image upload failed: {str(e)}") from e
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
 # Each theme uses COMPLETELY DIFFERENT colors + varied clothing styles for better AI differentiation
