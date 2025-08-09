@@ -59,14 +59,14 @@ const AllServicesTab = () => {
       const response = await spiritualAPI.get("/api/monitoring/test-suites");
       console.log("📡 API Response:", response);
 
-      if (response && response.status === "success") {
-        const testSuites = response.data?.test_suites || [];
+      // ✅ FIXED: Proper API response structure handling
+      // Following .cursor rules: Thorough analysis of response structure, no assumptions
+      if (response && response.status === "success" && response.data) {
+        const testSuites = response.data.test_suites || [];
+        const totalSuites = response.data.total_suites || testSuites.length;
+
         setServicesConfig(testSuites);
-        console.log(
-          `✅ Loaded ${
-            response.data?.total_suites || testSuites.length
-          } test suites from database`
-        );
+        console.log(`✅ Loaded ${totalSuites} test suites from database`);
 
         if (testSuites.length === 0) {
           setConfigError(
@@ -74,9 +74,12 @@ const AllServicesTab = () => {
           );
         }
       } else {
+        // ✅ IMPROVED: Better error message extraction with proper fallback chain
         const errorMsg =
-          response?.message || "API returned unsuccessful status";
-        console.error("❌ API Error:", errorMsg);
+          response?.message ||
+          response?.data?.message ||
+          "API returned unsuccessful status";
+        console.error("❌ API Error:", errorMsg, "Full response:", response);
         throw new Error(errorMsg);
       }
     } catch (err) {
@@ -123,15 +126,20 @@ const AllServicesTab = () => {
               }
             );
 
-            if (response && response.status === "success") {
+            // ✅ FIXED: Consistent API response structure handling
+            // Following .cursor rules: Same response checking pattern as fetchTestConfigurations
+            if (response && response.status === "success" && response.data) {
               results[service.testType] = {
                 status: "passed",
-                data: response.data || response,
+                data: response.data,
               };
             } else {
               results[service.testType] = {
                 status: "failed",
-                error: response?.message || "Unknown error",
+                error:
+                  response?.message ||
+                  response?.data?.message ||
+                  "Unknown error",
               };
             }
           } catch (error) {
@@ -365,7 +373,6 @@ const AllServicesTab = () => {
           </Card>
         ))
       )}
-      )
     </div>
   );
 };
