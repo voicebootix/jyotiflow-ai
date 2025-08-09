@@ -861,121 +861,159 @@ class TestExecutionEngine:
     # No need for hardcoded placeholder methods that return fake statuses
     
     async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> str:
-    """Create a new test execution session with dynamic parameters."""
+        """Create a new test execution session with dynamic parameters."""
 
-    if not self.database_url:
-        return str(uuid.uuid4())
+        if not self.database_url:
+            return str(uuid.uuid4())
 
-    session_id = str(uuid.uuid4())
+        session_id = str(uuid.uuid4())
 
-    # Define default values for optional parameters
-    defaults = {
-        'environment': "production",
-        'triggered_by': "test_engine",
-        'status': "running"
-    }
+        # Define default values for optional parameters
+        defaults = {
+            'environment': "production",
+            'triggered_by': "test_engine",
+            'status': "running"
+        }
 
-    # Merge provided kwargs with defaults
-    params = {**defaults, **kwargs}
+        # Merge provided kwargs with defaults
+        params = {**defaults, **kwargs}
 
-    # Dynamically generate the SQL query
-    columns = ', '.join(params.keys())
-    placeholders = ', '.join([f"${i+1}" for i in range(len(params))])
+        # Include session_id, test_type, and test_category in the params dictionary
+        params.update({
+            'session_id': session_id,
+            'test_type': test_type,
+            'test_category': test_category
+        })
 
-    query = f"""
-        INSERT INTO test_execution_sessions
-        ({columns})
-        VALUES ({placeholders})
-    """
+        # Dynamically generate the SQL query
+        columns = ', '.join(params.keys())
+        placeholders = ', '.join([f"${i+1}" for i in range(len(params))])
+        query = f"""
+            INSERT INTO test_execution_sessions
+            ({columns})
+            VALUES ({placeholders}) 
+        """
 
-    try:
-        conn = await asyncpg.connect(self.database_url)
-        await conn.execute(query, *params.values())
-        await conn.close()
-    except Exception as e:
-        logger.warning(f"Could not create test session in database: {e}")
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                await conn.execute(query, *params.values())
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.warning(f"Could not create test session in database: {e}")
 
-    return session_id
+        return session_id
+
 
     
     async def _update_test_session(self, session_id: str, status: str, total_tests: int,
                                 passed_tests: int, failed_tests: int, error_message: str = None):
-    """Update test session with results"""
+        """Update test session with results"""
+        
+        if not self.database_url:
+            return
 
-    if not self.database_url:
-        return
+        # Define the SQL query with placeholders
+        query = """
+            UPDATE test_execution_sessions SET
+                status = $2,
+                completed_at = NOW(),
+                total_tests = $3,
+                passed_tests = $4,
+                failed_tests = $5,
+                error_message = $6
+            WHERE session_id = $1
+        """
 
-    # Define the SQL query with placeholders
-    query = """
-        UPDATE test_execution_sessions SET
-            status = $2,
-            completed_at = NOW(),
-            total_tests = $3,
-            passed_tests = $4,
-            failed_tests = $5,
-            error_message = $6
-        WHERE session_id = $1
-    """
+        # Values to be used in the parameterized query
+        params = [session_id, status, total_tests, passed_tests, failed_tests, error_message]
 
-    # Values to be used in the parameterized query
-    params = [session_id, status, total_tests, passed_tests, failed_tests, error_message]
-
-    try:
-        conn = await asyncpg.connect(self.database_url)
+        # ✅ CONNECTION MANAGEMENT FIX: Restructured try/except/finally blocks
+        # Following .cursor rules: Proper resource management, connection only closed if established
+        conn = None
         try:
-            await conn.execute(query, *params)
+            # Establish connection in outer try block
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Execute query in inner try block
+            try:
+                await conn.execute(query, *params)
+            except Exception as inner_e:
+                # Handle execution errors while ensuring connection cleanup
+                logger.warning(f"Could not execute update query: {inner_e}")
+                raise  # Re-raise to be caught by outer except
+                
+        except Exception as e:
+            logger.warning(f"Could not update test session: {e}")
         finally:
-            # Ensure the connection is closed to prevent leaks
-            await conn.close()
-    except Exception as e:
-        logger.warning(f"Could not update test session: {e}")
+            # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
+            # Following .cursor rules: Safe resource cleanup, no errors on failed connections
+            if conn is not None:
+                await conn.close()
 
     
     async def _store_test_result(self, session_id: str, test_case: Dict[str, Any], result: Dict[str, Any]):
-    """Store individual test result with dynamic SQL generation."""
-    if not self.database_url:
-        return
+        """Store individual test result with fixed column whitelist for security."""
+        if not self.database_url:
+            return
 
-    # Define the table and columns (could be loaded from a configuration)
-    table_name = "test_case_results"
-    columns = [
-        "session_id",
-        "test_name",
-        "test_category",
-        "status",
-        "execution_time_ms",
-        "error_message",
-        "output_data"
-    ]
+        # ✅ SECURITY FIX: Fixed whitelist of allowed columns to prevent SQL injection
+        # Following .cursor rules: No dynamic SQL generation, use fixed schema
+        TABLE_NAME = "test_case_results"
+        ALLOWED_COLUMNS = (
+            "session_id",
+            "test_name", 
+            "test_category",
+            "status",
+            "execution_time_ms",
+            "error_message",
+            "output_data"
+        )
 
-    # Define the values to be inserted
-    values = [
-        session_id,
-        test_case.get('test_name'),
-        test_case.get('test_category'),
-        result.get('status'),
-        result.get('execution_time_ms', 0),
-        result.get('error'),
-        json.dumps(result)
-    ]
+        # Define the values to be inserted (matching the fixed column order)
+        values = [
+            session_id,
+            test_case.get('test_name'),
+            test_case.get('test_category'),
+            result.get('status'),
+            result.get('execution_time_ms', 0),
+            result.get('error'),
+            json.dumps(result)
+        ]
 
-    # Generate the parameterized query
-    placeholders = ", ".join([f"${i+1}" for i in range(len(values))])
-    columns_str = ", ".join(columns)
-    query = f"""
-        INSERT INTO {table_name}
-        ({columns_str})
-        VALUES ({placeholders})
-    """
+        # ✅ SECURITY: Use fixed column names instead of dynamic generation
+        # Following .cursor rules: No dynamic SQL construction, prevent injection
+        columns_str = ", ".join(ALLOWED_COLUMNS)
+        placeholders = ", ".join([f"${i+1}" for i in range(len(ALLOWED_COLUMNS))])
+        query = f"""
+            INSERT INTO {TABLE_NAME}
+            ({columns_str})
+            VALUES ({placeholders})
+        """
 
-    try:
-        conn = await asyncpg.connect(self.database_url)
+        # ✅ CONNECTION MANAGEMENT: Restructured try/except/finally blocks
+        # Following .cursor rules: Proper resource management, connection only closed if established
+        conn = None
         try:
-            await conn.execute(query, *values)
+            # Establish connection in outer try block
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Execute query in inner try block
+            try:
+                await conn.execute(query, *values)
+            except Exception as inner_e:
+                # Handle execution errors while ensuring connection cleanup
+                logger.warning(f"Could not execute test result insert: {inner_e}")
+                raise  # Re-raise to be caught by outer except
+                
+        except Exception as e:
+            logger.warning(f"Could not store test result: {e}")
         finally:
-            await conn.close()
-    except Exception as e:
-        logger.warning(f"Could not store test result: {e}")
+            # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
+            # Following .cursor rules: Safe resource cleanup, no errors on failed connections
+            if conn is not None:
+                await conn.close()
 
     
     async def _get_test_cases(self, suite_name: str) -> List[Dict[str, Any]]:
@@ -1221,9 +1259,16 @@ class TestExecutionEngine:
                 for row in results:
                     function_name = row['test_function']
                     
+                    # ✅ NAMING CONVENTION FIX: Ensure function name has leading underscore for private method lookup
+                    # Following .cursor rules: Handle database/code naming convention mismatch
+                    if not function_name.startswith('_'):
+                        normalized_function_name = f'_{function_name}'
+                    else:
+                        normalized_function_name = function_name
+                    
                     # ✅ SECURITY: Only allow whitelisted methods (following .cursor rules)
-                    if function_name in ALLOWED_HEALTH_CHECK_METHODS:
-                        test_function = ALLOWED_HEALTH_CHECK_METHODS[function_name]
+                    if normalized_function_name in ALLOWED_HEALTH_CHECK_METHODS:
+                        test_function = ALLOWED_HEALTH_CHECK_METHODS[normalized_function_name]
                         health_checks.append({
                             "test_name": row['test_name'],
                             "test_function": test_function,
@@ -1233,7 +1278,7 @@ class TestExecutionEngine:
                             "timeout_seconds": self._safe_timeout_conversion(row['timeout_seconds'])  # Safe type conversion and clamping
                         })
                     else:
-                        logger.warning(f"Health check function not in whitelist: {function_name}")
+                        logger.warning(f"Health check function not in whitelist: {function_name} (normalized: {normalized_function_name})")
                         logger.warning(f"Allowed methods: {list(ALLOWED_HEALTH_CHECK_METHODS.keys())}")
                 
                 return health_checks
@@ -1291,57 +1336,60 @@ class TestExecutionEngine:
             return []
     
     async def _resolve_suite_name_mapping(self, suite_name: str) -> str:
-        """Resolve legacy suite name mappings from database configuration"""
+        """Resolve legacy suite name mappings from database configuration."""
         if not self.database_url:
-            # ✅ FOLLOWING .CURSOR RULES: No hardcoded data
-            # Following .cursor rules: "Don't introduce hardcoded values"
             logger.error("Database URL is required for database-driven suite name mapping")
             return suite_name  # Return original name without mapping
-            
-        # ✅ CONNECTION LEAK FIX: Open connection before try block to ensure finally always runs
-        # Following .cursor rules: Proper resource management, no connection leaks
+
+        # Define table and column names as constants or configuration
+        TABLE_NAME = "test_suite_configurations"
+        COLUMN_SUITE_NAME = "suite_name"
+        COLUMN_LEGACY_NAME = "legacy_name"
+        COLUMN_ENABLED = "enabled"
+
+        # Define SQL queries using the constants
+        DIRECT_MATCH_QUERY = f"""
+            SELECT {COLUMN_SUITE_NAME} FROM {TABLE_NAME}
+            WHERE {COLUMN_SUITE_NAME} = $1 AND {COLUMN_ENABLED} = true
+        """
+
+        LEGACY_NAME_MAPPING_QUERY = f"""
+            SELECT {COLUMN_SUITE_NAME} FROM {TABLE_NAME}
+            WHERE {COLUMN_LEGACY_NAME} = $1 AND {COLUMN_ENABLED} = true
+        """
+
         conn = None
         try:
             conn = await asyncpg.connect(self.database_url)
-            
+
             # Check for direct suite name match first
-            result = await conn.fetchrow('''
-                SELECT suite_name FROM test_suite_configurations
-                WHERE suite_name = $1 AND enabled = true
-            ''', suite_name)
-            
+            result = await conn.fetchrow(DIRECT_MATCH_QUERY, suite_name)
             if result:
                 return suite_name  # Direct match found
-            
+
             # Check for legacy name mapping
-            result = await conn.fetchrow('''
-                SELECT suite_name FROM test_suite_configurations
-                WHERE legacy_name = $1 AND enabled = true
-            ''', suite_name)
-            
+            result = await conn.fetchrow(LEGACY_NAME_MAPPING_QUERY, suite_name)
             if result:
-                mapped_name = result['suite_name']
+                mapped_name = result[COLUMN_SUITE_NAME]
                 logger.info(f"Mapping legacy suite name '{suite_name}' to '{mapped_name}' (from database)")
                 return mapped_name
             else:
                 logger.warning(f"No mapping found for suite name '{suite_name}' in database")
                 return suite_name
-                
+
         except Exception as e:
             logger.error(f"Could not resolve suite name mapping from database: {e}")
             logger.error("Database-driven suite name mapping is required. Please ensure:")
             logger.error("1. Database is accessible")
             logger.error("2. Migration 008 has been run to create test_suite_configurations table")
             logger.error("3. Initial test suite configuration data has been populated")
-            # ✅ FOLLOWING .CURSOR RULES: No hardcoded mock data, no placeholders
-            # Following .cursor rules: "Do not add mock data, placeholders, or temporary patches"
             return suite_name  # Return original name without mapping
-            
+
         finally:
-            # ✅ CONNECTION LEAK FIX: Always close connection, regardless of return path or exceptions
-            # This finally block runs even with multiple return statements in try block
+            # Ensure the connection is closed to prevent leaks
             if conn:
                 await conn.close()
+
     
     def _validate_generator_method_security(self, generator, method_name: str) -> bool:
         """
@@ -1416,60 +1464,64 @@ class TestExecutionEngine:
             return False
 
     async def _generate_suite_data_from_config(self, generator, suite_name: str, original_suite_name: str) -> Dict[str, Any]:
-        """Generate test suite data using database-driven method mapping"""
+        """Generate test suite data using database-driven method mapping."""
         if not self.database_url:
-            # ✅ FOLLOWING .CURSOR RULES: No hardcoded data
-            # Following .cursor rules: "Don't introduce hardcoded values"
             logger.error("Database URL is required for database-driven test suite generation")
             logger.error(f"Cannot generate suite '{suite_name}' without database configuration")
             raise ValueError(f"Database-driven configuration required for suite '{suite_name}'")
-            
+
+        # Define table and column names as constants or configuration
+        TABLE_NAME = "test_suite_configurations"
+        COLUMN_GENERATOR_METHOD = "generator_method"
+        COLUMN_DESCRIPTION = "description"
+        COLUMN_SUITE_NAME = "suite_name"
+        COLUMN_ENABLED = "enabled"
+
+        # Define SQL query using the constants
+        query = f"""
+            SELECT {COLUMN_GENERATOR_METHOD}, {COLUMN_DESCRIPTION}
+            FROM {TABLE_NAME}
+            WHERE {COLUMN_SUITE_NAME} = $1 AND {COLUMN_ENABLED} = true
+        """
+
         try:
             conn = await asyncpg.connect(self.database_url)
-            
             try:
                 # Get generator method from database configuration
-                result = await conn.fetchrow('''
-                    SELECT generator_method, description FROM test_suite_configurations
-                    WHERE suite_name = $1 AND enabled = true
-                ''', suite_name)
-                
-                if result and result['generator_method']:
-                    generator_method_name = result['generator_method']
-                    
-                    # 🔒 SECURITY FIX: Strict allowlist validation for dynamic method calls
-                    # Following .cursor rules: No unsafe dynamic calls, validate all inputs
+                result = await conn.fetchrow(query, suite_name)
+
+                if result and result[COLUMN_GENERATOR_METHOD]:
+                    generator_method_name = result[COLUMN_GENERATOR_METHOD]
+
                     if not self._validate_generator_method_security(generator, generator_method_name):
                         logger.error(f"Security validation failed for generator method: {generator_method_name}")
                         logger.warning(f"Falling back to safe default method for suite '{suite_name}'")
-                        return await generator.generate_integration_tests()
+                        return await getattr(generator, "generate_integration_tests")()
 
-                    
                     generator_method = getattr(generator, generator_method_name, None)
-                    
+
                     if generator_method and callable(generator_method):
                         logger.info(f"Generating test suite '{suite_name}' using validated method '{generator_method_name}' (from database)")
                         return await generator_method()
                     else:
                         logger.error(f"Generator method not found or not callable: {generator_method_name}")
-                        return await generator.generate_integration_tests()
+                        return await getattr(generator, "generate_integration_tests")()
                 else:
                     logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
-                    return await generator.generate_integration_tests()
-                    
-            finally:
-                # ✅ CONNECTION LEAK FIX: Always close connection, even if queries fail
-                await conn.close()
+                    return await getattr(generator, "generate_integration_tests")()
 
+            finally:
+                await conn.close()
         except Exception as e:
             logger.error(f"Failed to get generator method from database for '{suite_name}': {e}")
             logger.error("Database-driven test suite generation is required. Please ensure:")
             logger.error("1. Database is accessible")
             logger.error("2. Migration 008 has been run to create test_suite_configurations table")
             logger.error("3. Initial test suite configuration data has been populated")
-            # ✅ FOLLOWING .CURSOR RULES: No hardcoded mock data, no placeholders
-            # Following .cursor rules: "Do not add mock data, placeholders, or temporary patches"
             raise ValueError(f"Database-driven configuration required for suite '{suite_name}': {e}")
+
+
+       
 
 
 # CLI interface
