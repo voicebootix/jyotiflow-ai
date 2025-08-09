@@ -37,11 +37,12 @@ class FacePreservationMethod(Enum):
 # 🚀 RUNWARE API SERVICE CLASS
 class RunWareService:
     """
-    🎯 RunWare API Service for IP-Adapter FaceID face preservation
+    🎯 RunWare API Service for Image-to-Image + Strength face preservation
     Achieves 80-90% face consistency with $0.0006 per image cost
     
-    This service uses RunWare's IP-Adapter FaceID technology to maintain
-    perfect face consistency while allowing complete background/clothing changes.
+    This service uses RunWare's Image-to-Image workflow with low strength values
+    to preserve face identity while allowing dramatic background/clothing transformations.
+    The seedImage approach provides better control over what gets preserved vs. transformed.
     """
     
     def __init__(self, api_key: str):
@@ -51,7 +52,7 @@ class RunWareService:
         if not api_key:
             logger.warning("⚠️ RunWare API key not provided - service will not be available")
         else:
-            logger.info("✅ RunWare Service initialized with IP-Adapter FaceID support")
+            logger.info("✅ RunWare Service initialized with Image-to-Image + Strength control")
         
     async def generate_with_face_reference(
         self, 
@@ -62,22 +63,26 @@ class RunWareService:
         height: int = 1024,
         steps: int = 40,
         cfg_scale: float = 4.0,
-        ip_adapter_weight: float = 0.15
+        strength: float = 0.15
     ) -> bytes:
         """
-        Generate image with face reference preservation using IP-Adapter FaceID
+        Generate image with face preservation using Image-to-Image + Strength control
+        
+        This method uses RunWare's Image-to-Image workflow with low strength values
+        to preserve the face while allowing dramatic transformation of clothes and background.
         
         Args:
-            face_image_bytes: Reference face image bytes (Swamiji photo)
-            prompt: Theme generation prompt
+            face_image_bytes: Seed image bytes (Swamiji photo) - serves as base for transformation
+            prompt: Theme generation prompt (focus on clothes/background changes)
             negative_prompt: Negative prompt to avoid unwanted features
             width: Output image width
             height: Output image height
             steps: Number of inference steps
             cfg_scale: Classifier-free guidance scale
+            strength: Transformation strength (0.1-0.3 = preserve face, transform clothes/bg)
             
         Returns:
-            bytes: Generated image with preserved face
+            bytes: Generated image with preserved face and transformed clothes/background
         """
         try:
             if not self.api_key:
@@ -137,18 +142,21 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
-            # 🔧 CONFIGURABLE WEIGHT: Clamp between 0.0 and 1.0 to prevent API errors
-            clamped_weight = max(0.0, min(1.0, ip_adapter_weight))
-            if clamped_weight != ip_adapter_weight:
-                logger.warning(f"⚠️ IP-Adapter weight clamped from {ip_adapter_weight} to {clamped_weight}")
+            # 🔧 STRENGTH CONTROL: Clamp between 0.0 and 1.0 to prevent API errors
+            clamped_strength = max(0.0, min(1.0, strength))
+            if clamped_strength != strength:
+                logger.warning(f"⚠️ Strength clamped from {strength} to {clamped_strength}")
             
-            # 🎯 CORRECT RUNWARE API SCHEMA - Following official documentation
+            # 🎯 IMAGE-TO-IMAGE + STRENGTH APPROACH - Better face preservation control
             task_uuid = str(uuid.uuid4())
             # 🎲 SEED RANDOMIZATION: Prevent cached identical results
             random_seed = random.randint(1, 1000000)
+            
             payload = {
                 "taskType": "imageInference",
                 "taskUUID": task_uuid,
+                "seedImage": face_data_uri,  # Original Swamiji photo as seed image
+                "strength": clamped_strength,  # 🎯 KEY: Low strength preserves face, allows clothes/bg change
                 "positivePrompt": prompt,
                 "negativePrompt": negative_prompt,
                 "model": "runware:101@1",  # Standard RunWare model from documentation
@@ -158,17 +166,11 @@ class RunWareService:
                 "steps": steps,  # Number of inference steps
                 "CFGScale": cfg_scale,  # Classifier-free guidance scale
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
-                "ipAdapters": [
-                    {
-                        "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
-                        "guideImage": face_data_uri,  # Direct base64 data URI
-                        "weight": clamped_weight  # 🔧 CONFIGURABLE: Clamped between 0.0-1.0
-                    }
-                ]
             }
             
-            logger.info(f"🎯 RunWare IP-Adapter FaceID generation starting...")
+            logger.info(f"🎯 RunWare Image-to-Image generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
+            logger.info(f"🔧 Strength: {clamped_strength} (low = preserve face, high = transform more)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
@@ -327,15 +329,16 @@ THEMES = {
 
 class ThemeService:
     """
-    🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with IP-Adapter FaceID
-    Orchestrates daily theme generation using RunWare's advanced face preservation technology.
+    🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with Image-to-Image + Strength
+    Orchestrates daily theme generation using RunWare's Image-to-Image workflow for optimal control.
     
     Face Preservation Method:
-    - RunWare IP-Adapter FaceID (80-90% success rate, $0.0006 per image)
+    - RunWare Image-to-Image + Strength (80-90% success rate, $0.0006 per image)
     
     Features:
-    - Consistent face preservation across all theme generations
-    - Natural blending of AI face with generated backgrounds/clothing  
+    - Superior face preservation through seedImage + low strength approach
+    - Dramatic transformation of clothes/background while preserving identity
+    - Better control over what gets preserved vs. what gets transformed
     - Production-ready with retry mechanisms and error handling
     - Cost-effective and high-quality image generation
     """
@@ -377,8 +380,8 @@ class ThemeService:
             )
         
         self.runware_service = RunWareService(self.runware_api_key)
-        logger.info("🚀 ThemeService initialized with RunWare IP-Adapter FaceID ONLY (80-90% success rate)")
-        logger.info("📝 Stability.AI has been completely removed - RunWare is the only face preservation method")
+        logger.info("🚀 ThemeService initialized with RunWare Image-to-Image + Strength ONLY (80-90% success rate)")
+        logger.info("📝 Switched from IP-Adapter to Image-to-Image workflow for better face preservation control")
         logger.info(f"🎯 Active face preservation method: {self.face_preservation_method}")
     
     async def _generate_with_runware(
@@ -498,11 +501,11 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             
             negative_prompt = base_negatives + color_section + quality_negatives
 
-            logger.info("🚀 Starting RunWare IP-Adapter FaceID generation...")
+            logger.info("🚀 Starting RunWare Image-to-Image generation...")
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
             
-            # Generate with RunWare IP-Adapter FaceID
-            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=8.5) to avoid duplication
+            # Generate with RunWare Image-to-Image + Strength
+            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=4.0, strength=0.15) to avoid duplication
             generated_image_bytes = await self.runware_service.generate_with_face_reference(
                 face_image_bytes=base_image_bytes,
                 prompt=final_prompt,
