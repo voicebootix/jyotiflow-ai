@@ -105,13 +105,17 @@ class EnhancedAPI {
         }
         
         const blob = await response.blob();
-        // REFRESH.MD: FIX - Extract the prompt from the custom header.
+        // Extract debug headers
         const prompt = response.headers.get('X-Generated-Prompt') || 'Daily theme image generated successfully';
+        const imageDiff = response.headers.get('X-Image-Diff') || 'unknown';
+        const genHash = response.headers.get('X-Generated-Hash') || '';
+        const baseHash = response.headers.get('X-Base-Hash') || '';
+
+        // Debug logs
+        console.log('🔍 API Debug - X-Generated-Prompt:', prompt);
+        console.log('🔍 API Debug - X-Image-Diff:', imageDiff, '| gen:', genHash, '| base:', baseHash);
         
-        // CORE.MD: FIX - Debug log for prompt extraction
-        console.log('🔍 API Debug - X-Generated-Prompt header:', prompt);
-        
-        return { success: true, blob, prompt };
+        return { success: true, blob, prompt, imageDiff, genHash, baseHash };
 
     } catch (error) {
         console.error('API blob request failed:', error);

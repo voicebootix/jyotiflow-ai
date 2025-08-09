@@ -110,6 +110,7 @@ const SwamjiAvatarPreview = () => {
         
         // CORE.MD: FIX - Debug log the prompt extraction
         console.log('🔍 Debug - Received prompt:', response.prompt);
+        console.log('🔍 Debug - Diff:', response.imageDiff, '| gen:', response.genHash, '| base:', response.baseHash);
         setPromptText(response.prompt || 'Daily theme generated successfully'); 
         addNotification('success', '✅ Image preview generated!');
       } else {
