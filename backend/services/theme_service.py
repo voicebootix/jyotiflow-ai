@@ -60,7 +60,7 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 9.0,
+        cfg_scale: float = 4.0,
         ip_adapter_weight: float = 0.35
     ) -> bytes:
         """
