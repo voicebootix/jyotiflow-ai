@@ -849,46 +849,10 @@ class TestExecutionEngine:
             return {"status": "failed", "error": str(e)}
 
     
-    async def _test_service_availability(self) -> Dict[str, Any]:
-        """Test core service availability (whitelisted health check method)"""
-        try:
-            # Test basic service components
-            services_status = {
-                "test_execution_engine": "available",
-                "database_connection": "available" if self.database_url else "unavailable"
-            }
-            
-            return {
-                "status": "passed", 
-                "message": "Core services available",
-                "services": services_status
-            }
-        except Exception as e:
-            return {"status": "failed", "error": str(e)}
-    
-    async def _test_cache_connectivity(self) -> Dict[str, Any]:
-        """Test cache connectivity (whitelisted health check method)"""
-        try:
-            # Placeholder for cache connectivity test
-            # This would test Redis, Memcached, or other caching systems
-            return {
-                "status": "passed", 
-                "message": "Cache connectivity test placeholder - implement as needed"
-            }
-        except Exception as e:
-            return {"status": "failed", "error": str(e)}
-    
-    async def _test_external_apis(self) -> Dict[str, Any]:
-        """Test external API connectivity (whitelisted health check method)"""
-        try:
-            # Placeholder for external API connectivity tests
-            # This would test third-party API endpoints
-            return {
-                "status": "passed", 
-                "message": "External API connectivity test placeholder - implement as needed"
-            }
-        except Exception as e:
-            return {"status": "failed", "error": str(e)}
+    # ✅ FOLLOWING .CURSOR RULES: No hardcoded placeholder methods
+    # Health check configurations are stored in database (health_check_configurations table)
+    # If a health check method doesn't exist, the system will handle it gracefully via the whitelist
+    # No need for hardcoded placeholder methods that return fake statuses
     
     async def _create_test_session(self, test_type: str, test_category: str) -> str:
         """Create a new test execution session"""
@@ -1109,18 +1073,49 @@ class TestExecutionEngine:
         else:
             return "partial"
     
+    def _safe_timeout_conversion(self, timeout_value: Any) -> int:
+        """
+        Safely convert timeout value from database to integer with clamping
+        Following .cursor rules: Handle all database type variations without hardcoded assumptions
+        
+        Args:
+            timeout_value: Value from database (could be None, int, str, Decimal, etc.)
+            
+        Returns:
+            int: Clamped timeout value between 5 and 60 seconds
+        """
+        try:
+            # Handle None or empty values
+            if timeout_value is None or timeout_value == '':
+                return 30  # Default timeout
+            
+            # Convert to int, handling various database types
+            if isinstance(timeout_value, (int, float)):
+                timeout_int = int(timeout_value)
+            elif isinstance(timeout_value, str):
+                # Handle string representations of numbers
+                timeout_int = int(float(timeout_value.strip())) if timeout_value.strip() else 30
+            else:
+                # Handle Decimal, other numeric types
+                timeout_int = int(float(timeout_value))
+            
+            # Clamp between 5 and 60 seconds for safety
+            return max(5, min(60, timeout_int))
+            
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.warning(f"Invalid timeout value '{timeout_value}' ({type(timeout_value).__name__}), using default: {e}")
+            return 30  # Safe default on any conversion error
+
     async def _get_health_check_configurations(self) -> List[Dict[str, Any]]:
         """Get health check configurations from database with security validation"""
         
         # ✅ SECURITY: Define whitelist of allowed health check methods (following .cursor rules)
         # This prevents arbitrary method execution via database injection
+        # Only include methods that actually exist - no hardcoded placeholders
         ALLOWED_HEALTH_CHECK_METHODS = {
             '_test_database_connectivity': self._test_database_connectivity,
             '_test_api_health_endpoint': self._test_api_health_endpoint,
-            '_test_critical_tables_exist': self._test_critical_tables_exist,
-            '_test_service_availability': getattr(self, '_test_service_availability', None),
-            '_test_cache_connectivity': getattr(self, '_test_cache_connectivity', None),
-            '_test_external_apis': getattr(self, '_test_external_apis', None)
+            '_test_critical_tables_exist': self._test_critical_tables_exist
         }
         
         # Remove None values from whitelist
@@ -1172,7 +1167,7 @@ class TestExecutionEngine:
                         "display_name": row['display_name'],
                         "description": row['description'],
                         "priority": row['priority'],
-                        "timeout_seconds": max(5, min(60, row['timeout_seconds'] or 30))  # Clamp timeout 5-60s
+                        "timeout_seconds": self._safe_timeout_conversion(row['timeout_seconds'])  # Safe type conversion and clamping
                     })
                 else:
                     logger.warning(f"Health check function not in whitelist: {function_name}")
