@@ -1475,22 +1475,25 @@ async def get_available_test_suites():
                 }
             )
             
+        except asyncpg.PostgresError as db_error:
+            # Handle specific database connection and query errors
+            logger.error(f"Database error while fetching test suites: {db_error}")
+            return StandardResponse(
+                status="error",
+                message=f"Database error: {str(db_error)}",
+                data={"test_suites": []}
+            )
         finally:
-            await conn.close()
+            if conn:
+                await db_manager.release_connection(conn)
             
     except Exception as e:
+        # Handle general connection manager errors and other unexpected issues
         logger.error(f"Failed to get test suites from database: {e}")
         return StandardResponse(
             status="error",
             message=f"Failed to retrieve test suites: {str(e)}",
             data={"test_suites": []}
-        )
-    except Exception as e:
-        logger.error(f"Failed to get test suites: {e}")
-        return StandardResponse(
-            status="error",
-            message=f"Failed to get test suites: {str(e)}",
-            data=[]
         )
 
 @router.get("/business-logic-validation")
