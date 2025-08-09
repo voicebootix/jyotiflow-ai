@@ -12,6 +12,7 @@ import os
 import uuid
 import httpx
 import asyncio
+import random
 from fastapi import HTTPException, Depends
 import asyncpg
 import json
@@ -143,6 +144,8 @@ class RunWareService:
             
             # 🎯 CORRECT RUNWARE API SCHEMA - Following official documentation
             task_uuid = str(uuid.uuid4())
+            # 🎲 SEED RANDOMIZATION: Prevent cached identical results
+            random_seed = random.randint(1, 1000000)
             payload = {
                 "taskType": "imageInference",
                 "taskUUID": task_uuid,
@@ -154,6 +157,7 @@ class RunWareService:
                 "numberResults": 1,
                 "steps": steps,  # Number of inference steps
                 "CFGScale": cfg_scale,  # Classifier-free guidance scale
+                "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [
                     {
                         "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
@@ -165,6 +169,7 @@ class RunWareService:
             
             logger.info(f"🎯 RunWare IP-Adapter FaceID generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
+            logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
             max_retries = 3
