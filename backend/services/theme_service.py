@@ -405,23 +405,28 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🎯 FACE-FIRST PROMPT STRUCTURE: Following user guidance for clear AI instructions
-                final_prompt = f"""Keep the exact same face and expression, do not change identity. {theme_description}
+                # 🎯 EXPLICIT SCOPING: Theme applies ONLY to clothing/background, NEVER to face
+                final_prompt = f"""Keep the exact same face and expression, do not change identity.
 
-FACE PRESERVATION (PRIORITY 1):
+FACE PRESERVATION (PRIORITY 1 - OVERRIDES ALL):
 - Keep identical facial features, same person, same identity
-- Preserve exact same skin tone and facial expression
+- Preserve exact same skin tone and facial expression  
 - Do not alter or morph the face in any way
+- FACE IS NEVER AFFECTED BY THEME CHANGES
 
-CLOTHING CHANGE (PRIORITY 2):  
-- Change only the clothing to match the theme description
+CLOTHING CHANGE (PRIORITY 2 - THEME APPLIES HERE):  
+- Apply theme description ONLY to clothing: {theme_description}
 - Remove current attire completely
-- Add new spiritual clothing as specified in the theme
+- Add new spiritual clothing as specified in the theme description
+- Theme colors and clothing style apply here only
 
-BACKGROUND CHANGE (PRIORITY 3):
-- Change only the background to match the theme setting
+BACKGROUND CHANGE (PRIORITY 3 - THEME APPLIES HERE):
+- Apply theme description ONLY to background setting: {theme_description}
 - Create new environment as described in the theme
 - Remove current background completely
+- Theme setting and environment apply here only
+
+CRITICAL: Face preservation (Priority 1) overrides all theme instructions. Theme changes apply ONLY to clothing (Priority 2) and background (Priority 3), never to face.
 
 QUALITY: Photorealistic, high resolution, professional photography, cinematic lighting."""
 
