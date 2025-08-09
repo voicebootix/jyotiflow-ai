@@ -405,20 +405,25 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🎨 DAILY COLOR TRANSFORMATION: Specific colors for each day with face lock
-                final_prompt = f"""TRANSFORM THIS PERSON: {theme_description}.
+                # 🎯 FACE-FIRST PROMPT STRUCTURE: Following user guidance for clear AI instructions
+                final_prompt = f"""Keep the exact same face and expression, do not change identity. {theme_description}
 
-MANDATORY TRANSFORMATION RULES:
-- PRESERVE FACE 100%: EXACT same person, same facial identity, same features, same skin tone
-- CHANGE CLOTHING COLORS COMPLETELY: Follow the EXACT colors described in the theme
-- COMPLETELY REPLACE CLOTHES: Remove all current clothing, add new spiritual attire as described
-- COMPLETELY REPLACE BACKGROUND: Remove current environment, create new setting as described  
-- DRAMATIC COLOR CHANGE: Make clothing color transformation very obvious and complete
-- NO BUSINESS ATTIRE: Remove suit, tie, office clothing completely
-- NO WRONG COLORS: Only use colors specifically mentioned in the description
-- SPIRITUAL TRANSFORMATION: Full conversion to spiritual master appearance with correct daily colors
+FACE PRESERVATION (PRIORITY 1):
+- Keep identical facial features, same person, same identity
+- Preserve exact same skin tone and facial expression
+- Do not alter or morph the face in any way
 
-TECHNICAL SPECS: Photorealistic, high resolution, professional photography, cinematic lighting, masterpiece quality."""
+CLOTHING CHANGE (PRIORITY 2):  
+- Change only the clothing to match the theme description
+- Remove current attire completely
+- Add new spiritual clothing as specified in the theme
+
+BACKGROUND CHANGE (PRIORITY 3):
+- Change only the background to match the theme setting
+- Create new environment as described in the theme
+- Remove current background completely
+
+QUALITY: Photorealistic, high resolution, professional photography, cinematic lighting."""
 
             # 🎨 DAILY COLOR NEGATIVE PROMPT: Prevent wrong colors for each day
             day_of_week = datetime.now().weekday() if theme_day is None else theme_day
