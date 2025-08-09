@@ -187,38 +187,46 @@ class RunWareService:
                             
                             logger.info(f"✅ RunWare API successful with status {response.status_code}")
                             
-                            # 🛡️ ROBUST TYPE CHECKING - Ensure response is a list as expected
-                            if not isinstance(parsed_response, list):
-                                logger.error(f"❌ Expected array response from RunWare API, got {type(parsed_response).__name__}")
-                                logger.error(f"🔍 Response structure: {parsed_response if isinstance(parsed_response, dict) else str(parsed_response)[:200]}")
+                            # 🛡️ ROBUST TYPE CHECKING - RunWare returns object with data array
+                            if not isinstance(parsed_response, dict):
+                                logger.error(f"❌ Expected object response from RunWare API, got {type(parsed_response).__name__}")
+                                # 🔒 SECURITY: Redact response body to prevent data leaks (no base64/PII logging)
+                                logger.error("🔍 Response structure: [REDACTED - contains potentially sensitive data]")
                                 raise HTTPException(
                                     status_code=502, 
-                                    detail=f"RunWare API returned unexpected response format: expected array, got {type(parsed_response).__name__}"
+                                    detail=f"RunWare API returned unexpected response format: expected object, got {type(parsed_response).__name__}"
                                 )
                             
-                            # RunWare returns array of results - get first result
-                            if not parsed_response or len(parsed_response) == 0:
-                                logger.error("❌ RunWare API returned empty array")
-                                raise HTTPException(status_code=500, detail="No results returned by RunWare API")
+                            logger.info(f"🔍 RunWare API response structure: {list(parsed_response.keys())}")
                             
-                            result = parsed_response[0]  # Get first result from array
+                            # 🎯 CORRECT RUNWARE RESPONSE PARSING - Following official documentation
+                            data_array = parsed_response.get('data')
+                            
+                            # 🛡️ ENHANCED VALIDATION - Check data exists, is list, and not empty
+                            if data_array is None:
+                                logger.error("❌ RunWare API response missing 'data' field")
+                                raise HTTPException(status_code=502, detail="RunWare API returned malformed response: missing 'data' field")
+                            
+                            if not isinstance(data_array, list):
+                                logger.error(f"❌ RunWare API 'data' field is not a list, got {type(data_array).__name__}")
+                                raise HTTPException(status_code=502, detail="RunWare API returned malformed response: 'data' field is not an array")
+                            
+                            if not data_array:
+                                logger.error("❌ RunWare API returned empty data array")
+                                raise HTTPException(status_code=502, detail="RunWare API returned no results in data array")
+                            
+                            # Get first result from validated data array
+                            first_result = data_array[0]
                             
                             # 🛡️ SAFE STRUCTURE LOGGING - Handle case where result is not a dict
-                            if isinstance(result, dict):
-                                logger.info(f"🔍 RunWare API response structure: {list(result.keys())}")
+                            if isinstance(first_result, dict):
+                                logger.info(f"🔍 RunWare result structure: {list(first_result.keys())}")
                             else:
-                                logger.warning(f"⚠️ Unexpected result type: {type(result).__name__}, value: {str(result)[:100]}")
+                                logger.warning(f"⚠️ Unexpected result type: {type(first_result).__name__}, value: {str(first_result)[:100]}")
                                 raise HTTPException(
                                     status_code=502, 
-                                    detail=f"RunWare API returned unexpected result format: expected object, got {type(result).__name__}"
+                                    detail=f"RunWare API returned unexpected result format: expected object, got {type(first_result).__name__}"
                                 )
-                            
-                            # 🎯 CORRECT RUNWARE RESPONSE PARSING
-                            data_array = result.get('data', [])
-                            if not data_array:
-                                raise HTTPException(status_code=500, detail="No data returned by RunWare API")
-                            
-                            first_result = data_array[0]
                             
                             # Extract image URL or base64 data
                             img_url = first_result.get('imageURL')
