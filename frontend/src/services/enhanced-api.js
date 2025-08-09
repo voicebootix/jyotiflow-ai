@@ -115,7 +115,40 @@ class EnhancedAPI {
         console.log('🔍 API Debug - X-Generated-Prompt:', prompt);
         console.log('🔍 API Debug - X-Image-Diff:', imageDiff, '| gen:', genHash, '| base:', baseHash);
         
-        return { success: true, blob, prompt, imageDiff, genHash, baseHash };
+        // Upload preview to server to receive a stable URL for backend processing
+        let previewUrl = '';
+        try {
+          const form = new FormData();
+          // Try to infer a filename; fall back to generic
+          const fileName = `preview_${Date.now()}.png`;
+          const previewFile = new File([blob], fileName, { type: blob.type || 'image/png' });
+          form.append('image', previewFile);
+
+          const uploadRes = await fetch(`${this.baseURL}/api/admin/social-marketing/upload-preview-image`, {
+            method: 'POST',
+            headers: {
+              ...this.getAuthHeaders(),
+              // Let browser set multipart boundary
+            },
+            body: form,
+            credentials: 'include',
+          });
+
+          if (uploadRes.ok) {
+            const uploadJson = await uploadRes.json().catch(() => null);
+            if (uploadJson && uploadJson.success && uploadJson.data?.preview_url) {
+              previewUrl = uploadJson.data.preview_url;
+            } else {
+              console.warn('Preview upload response unexpected:', uploadJson);
+            }
+          } else {
+            console.warn('Preview upload failed with status:', uploadRes.status);
+          }
+        } catch (e) {
+          console.warn('Preview upload error:', e);
+        }
+
+        return { success: true, blob, prompt, imageDiff, genHash, baseHash, previewUrl };
 
     } catch (error) {
         console.error('API blob request failed:', error);

@@ -10,6 +10,7 @@ import os
 from typing import Optional, AsyncGenerator
 import hashlib
 import httpx
+import uuid
 import json
 from datetime import datetime, timedelta
 
@@ -232,6 +233,41 @@ async def upload_swamiji_image(
     except Exception as e:
         logger.error(f"Swamiji image upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+
+@social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
+async def upload_preview_image(
+    image: UploadFile = File(...),
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    storage_service: SupabaseStorageService = Depends(get_storage_service)
+):
+    """
+    Persist a generated preview image and return a stable, publicly accessible URL.
+    CORE.MD & REFRESH.MD: Secure, size/type validated, and uses CDN-friendly storage path.
+    """
+    try:
+        if image.content_type not in ALLOWED_MIME_TYPES:
+            raise HTTPException(status_code=400, detail="Invalid file type.")
+        contents = await image.read()
+        if len(contents) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="File size exceeds limit.")
+
+        file_extension = MIME_TYPE_TO_EXTENSION.get(image.content_type, '.png')
+        unique_name = f"previews/preview_{uuid.uuid4()}{file_extension}"
+
+        public_url = storage_service.upload_file(
+            bucket_name="avatars",
+            file_path_in_bucket=unique_name,
+            file=contents,
+            content_type=image.content_type,
+        )
+
+        return StandardResponse(success=True, message="Preview image uploaded", data={"preview_url": public_url})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Preview image upload failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to upload preview image: {e}")
 
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
