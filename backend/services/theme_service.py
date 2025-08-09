@@ -61,7 +61,7 @@ class RunWareService:
         height: int = 1024,
         steps: int = 40,
         cfg_scale: float = 9.0,
-        ip_adapter_weight: float = 0.75
+        ip_adapter_weight: float = 0.65
     ) -> bytes:
         """
         Generate image with face reference preservation using IP-Adapter FaceID
