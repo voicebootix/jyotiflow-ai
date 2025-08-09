@@ -17,12 +17,7 @@ import spiritualAPI from "../lib/api";
 import ServiceStatusCard from "./ServiceStatusCard";
 
 // ✅ FOLLOWING .CURSOR RULES: No hardcoded data, retrieve from database
-// Removed ALL_SERVICES_CONFIG hardcoded array - now fetched from API
-// NO FALLBACK DATA - Everything must come from database
-
-// ✅ SAFETY: Ensure the old variable name is never undefined (prevents ReferenceError)
-// This prevents crashes while the API loads data from database
-const ALL_SERVICES_CONFIG = undefined; // Explicitly undefined - forces database usage
+// All test configurations are fetched dynamically from database
 
 /**
  * AllServicesTab component for displaying and testing all services
@@ -46,7 +41,7 @@ const AllServicesTab = () => {
 
   /**
    * Fetch test configurations from database via API
-   * ✅ Replaces hardcoded ALL_SERVICES_CONFIG
+   * ✅ Database-driven configuration loading
    */
   const fetchTestConfigurations = async () => {
     try {
@@ -357,7 +352,7 @@ const AllServicesTab = () => {
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {category.services.map((service, serviceIndex) => (
+                {(category.services ?? []).map((service, serviceIndex) => (
                   <ServiceStatusCard
                     key={`${category.category}-${serviceIndex}`}
                     title={service.title}
