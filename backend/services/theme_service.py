@@ -152,7 +152,7 @@ class RunWareService:
                     {
                         "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
                         "guideImage": face_data_uri,  # Direct base64 data URI
-                        "weight": 0.7  # 🚀 BALANCED: Face preservation with transformation (1.0 was too strong)
+                        "weight": 0.85  # 🔒 STRONG FACE LOCK: Preserve face, allow body/background transformation
                     }
                 ]
             }
@@ -393,22 +393,25 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🚀 ENHANCED PROMPT STRUCTURE: Strong transformations with face preservation
-                final_prompt = f"""Transform this spiritual master: {theme_description}.
+                # 🔥 AGGRESSIVE TRANSFORMATION: Strong body/background changes with face lock
+                final_prompt = f"""TRANSFORM THIS PERSON: {theme_description}.
 
-CRITICAL REQUIREMENTS:
-- KEEP EXACT SAME FACE: Same eyes, nose, mouth, facial features, skin tone, beard style
-- TRANSFORM COMPLETELY: Change clothes, background, environment, lighting to match theme
-- MAINTAIN IDENTITY: Same person in different setting and attire
-- PHOTOREALISTIC: High resolution, professional photography, cinematic lighting
-- SPIRITUAL AUTHENTICITY: Maintain dignified, serene, wise appearance
+MANDATORY TRANSFORMATION RULES:
+- PRESERVE FACE 100%: EXACT same person, same facial identity, same features, same skin tone
+- COMPLETELY REPLACE CLOTHES: Remove all current clothing, add new spiritual attire as described
+- COMPLETELY REPLACE BACKGROUND: Remove current environment, create new setting as described  
+- DRAMATIC CHANGE: Make clothing and background transformation very obvious and complete
+- NO BUSINESS ATTIRE: Remove suit, tie, office clothing completely
+- SPIRITUAL TRANSFORMATION: Full conversion to spiritual master appearance
 
-Style: Professional portrait photography, masterpiece quality, detailed textures."""
+TECHNICAL SPECS: Photorealistic, high resolution, professional photography, cinematic lighting, masterpiece quality."""
 
-            # 🛡️ ENHANCED NEGATIVE PROMPT: Stronger face preservation + consistency
+            # 🔒 FACE LOCK + TRANSFORMATION NEGATIVE PROMPT
             negative_prompt = """different face, changed face, new face, altered face, face swap, face replacement, 
 different person, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, 
 face morph, artificial face, generic face, multiple faces, extra faces, face clone, face duplicate,
+business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
+office background, corporate setting, modern interior, business environment, contemporary setting,
 low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch,
 inconsistent lighting, poor composition, amateur photography, low resolution, pixelated, artifacts"""
 
