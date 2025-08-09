@@ -832,10 +832,13 @@ class TestExecutionEngine:
                 missing_tables = []
                 
                 for table in critical_tables:
+                    # ✅ SCHEMA-AWARE FIX: Filter by current schema to prevent false positives
+                    # Following .cursor rules: Precise database queries, no cross-schema confusion
                     exists = await conn.fetchval('''
                         SELECT EXISTS(
                             SELECT 1 FROM information_schema.tables 
-                            WHERE table_name = $1
+                            WHERE table_name = $1 
+                            AND table_schema = ANY(current_schemas(false))
                         )
                     ''', table)
                     
@@ -868,36 +871,49 @@ class TestExecutionEngine:
 
         session_id = str(uuid.uuid4())
 
-        # Define default values for optional parameters
-        defaults = {
-            'environment': "production",
-            'triggered_by': "test_engine",
-            'status': "running"
-        }
+        # ✅ SQL INJECTION PREVENTION: Whitelist of allowed column names
+        # Following .cursor rules: No dynamic SQL construction from user input
+        ALLOWED_COLUMNS = (
+            'session_id', 'test_type', 'test_category', 'environment', 
+            'triggered_by', 'status', 'started_at', 'metadata', 
+            'priority', 'timeout_seconds', 'retry_count'
+        )
+        
+        # ✅ SECURITY: Fixed table name to prevent injection
+        TABLE_NAME = 'test_execution_sessions'
 
-        # Merge provided kwargs with defaults
-        params = {**defaults, **kwargs}
+        # ✅ FOLLOWING .CURSOR RULES: No hardcoded values, use None for optional fields
+        # Filter kwargs to only include allowed columns
+        filtered_params = {}
+        for key, value in kwargs.items():
+            if key in ALLOWED_COLUMNS:
+                filtered_params[key] = value
+            else:
+                logger.warning(f"Ignored invalid column in test session creation: {key}")
 
-        # Include session_id, test_type, and test_category in the params dictionary
-        params.update({
+        # Include required fields
+        filtered_params.update({
             'session_id': session_id,
             'test_type': test_type,
             'test_category': test_category
         })
 
-        # Dynamically generate the SQL query
-        columns = ', '.join(params.keys())
-        placeholders = ', '.join([f"${i+1}" for i in range(len(params))])
+        # ✅ SQL INJECTION PREVENTION: Use whitelisted columns only
+        columns = [col for col in ALLOWED_COLUMNS if col in filtered_params]
+        column_names = ', '.join(columns)
+        placeholders = ', '.join([f"${i+1}" for i in range(len(columns))])
+        values = [filtered_params[col] for col in columns]
+        
         query = f"""
-            INSERT INTO test_execution_sessions
-            ({columns})
+            INSERT INTO {TABLE_NAME}
+            ({column_names})
             VALUES ({placeholders}) 
         """
 
         try:
             conn = await asyncpg.connect(self.database_url)
             try:
-                await conn.execute(query, *params.values())
+                await conn.execute(query, *values)
             finally:
                 await conn.close()
         except Exception as e:
@@ -1496,7 +1512,9 @@ class TestExecutionEngine:
                     if not self._validate_generator_method_security(generator, generator_method_name):
                         logger.error(f"Security validation failed for generator method: {generator_method_name}")
                         logger.warning(f"Falling back to safe default method for suite '{suite_name}'")
-                        return await getattr(generator, "generate_integration_tests")()
+                        # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                        # Following .cursor rules: Use direct access for known attributes
+                        return await generator.generate_integration_tests()
 
                     generator_method = getattr(generator, generator_method_name, None)
 
@@ -1505,10 +1523,14 @@ class TestExecutionEngine:
                         return await generator_method()
                     else:
                         logger.error(f"Generator method not found or not callable: {generator_method_name}")
-                        return await getattr(generator, "generate_integration_tests")()
+                        # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                        # Following .cursor rules: Use direct access for known attributes
+                        return await generator.generate_integration_tests()
                 else:
                     logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
-                    return await getattr(generator, "generate_integration_tests")()
+                    # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                    # Following .cursor rules: Use direct access for known attributes
+                    return await generator.generate_integration_tests()
 
             finally:
                 await conn.close()
@@ -1518,7 +1540,9 @@ class TestExecutionEngine:
             logger.error("1. Database is accessible")
             logger.error("2. Migration 008 has been run to create test_suite_configurations table")
             logger.error("3. Initial test suite configuration data has been populated")
-            raise ValueError(f"Database-driven configuration required for suite '{suite_name}': {e}")
+            # ✅ EXCEPTION CHAINING: Preserve original exception context for better debugging
+            # Following .cursor rules: Maintain error traceability
+            raise ValueError(f"Database-driven configuration required for suite '{suite_name}': {e}") from e
 
 
        
