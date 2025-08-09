@@ -142,8 +142,21 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
-            # 🔧 IP-ADAPTER WEIGHT CONTROL: Clamp between 0.0 and 1.0 to prevent API errors
-            clamped_weight = max(0.0, min(1.0, ip_adapter_weight))
+            # 🔧 IP-ADAPTER WEIGHT CONTROL: Validate type and clamp between 0.0 and 1.0
+            if ip_adapter_weight is None:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="IP-Adapter weight cannot be None - must be a numeric value between 0.0 and 1.0"
+                )
+            
+            if not isinstance(ip_adapter_weight, (int, float)):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"IP-Adapter weight must be numeric (int or float), got {type(ip_adapter_weight).__name__}: {ip_adapter_weight}"
+                )
+            
+            # Safe to clamp now that we've validated the type
+            clamped_weight = max(0.0, min(1.0, float(ip_adapter_weight)))
             if clamped_weight != ip_adapter_weight:
                 logger.warning(f"⚠️ IP-Adapter weight clamped from {ip_adapter_weight} to {clamped_weight}")
             
