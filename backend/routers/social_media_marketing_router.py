@@ -8,6 +8,8 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 import logging
 import os
 from typing import Optional, AsyncGenerator
+import hashlib
+import httpx
 import json
 from datetime import datetime, timedelta
 
@@ -272,7 +274,8 @@ async def get_admin_or_test_bypass(request: Request):
 async def generate_image_preview(
     request: ImagePreviewRequest, 
     admin_user: dict = Depends(get_admin_or_test_bypass),  # Secure + testable
-    theme_service: ThemeService = Depends(get_theme_service)
+    theme_service: ThemeService = Depends(get_theme_service),
+    conn: asyncpg.Connection = Depends(db.get_db),
 ):
     try:
         image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(
@@ -280,6 +283,31 @@ async def generate_image_preview(
             theme_day=request.theme_day,
             strength_param=request.strength_param  # 🎯 Configurable strength with feature flag control
         )
+        # Compute hash of generated image (first 16 hex chars for brevity)
+        generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
+        generated_hash_short = generated_hash_full[:16]
+
+        # Try to compute base image hash to determine if output differs from input
+        image_diff = "unknown"
+        base_hash_short = ""
+        try:
+            record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
+            if record and record['value']:
+                raw_value = record['value']
+                try:
+                    base_url = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
+                except json.JSONDecodeError:
+                    base_url = raw_value if isinstance(raw_value, str) else None
+                if isinstance(base_url, str) and base_url.startswith('http'):
+                    async with httpx.AsyncClient(timeout=30.0) as client:
+                        resp = await client.get(base_url)
+                        resp.raise_for_status()
+                        base_bytes = resp.content
+                        base_hash_full = hashlib.sha256(base_bytes).hexdigest()
+                        base_hash_short = base_hash_full[:16]
+                        image_diff = "different" if generated_hash_full != base_hash_full else "same"
+        except Exception as diff_err:
+            logger.debug(f"Image diff debug skipped: {diff_err}")
         
         # 🛡️ ENHANCED HTTP header sanitization - CORE.MD: Fix emoji encoding errors
         # 1. Handle None/non-string values defensively
@@ -300,11 +328,15 @@ async def generate_image_preview(
                 clean_prompt = "Generated image preview"
         
         headers = {
-            "X-Generated-Prompt": clean_prompt, 
-            "Access-Control-Expose-Headers": "X-Generated-Prompt",
+            "X-Generated-Prompt": clean_prompt,
+            "X-Image-Diff": image_diff,
+            "X-Generated-Hash": generated_hash_short,
+            **({"X-Base-Hash": base_hash_short} if base_hash_short else {}),
+            # Expose custom headers to browser
+            "Access-Control-Expose-Headers": "X-Generated-Prompt, X-Image-Diff, X-Generated-Hash, X-Base-Hash",
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
-            "Expires": "0"
+            "Expires": "0",
         }
         return Response(content=image_bytes, media_type="image/png", headers=headers)
     except ValueError as e:
