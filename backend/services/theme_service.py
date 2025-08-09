@@ -416,14 +416,14 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
             
             # Generate with RunWare IP-Adapter FaceID
+            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=8.5) to avoid duplication
             generated_image_bytes = await self.runware_service.generate_with_face_reference(
                 face_image_bytes=base_image_bytes,
                 prompt=final_prompt,
                 negative_prompt=negative_prompt,
                 width=1024,
-                height=1024,
-                steps=40,  # 🚀 ENHANCED: Better quality (30 → 40 steps)
-                cfg_scale=8.5  # 🚀 ENHANCED: Stronger prompt adherence (7.0 → 8.5)
+                height=1024
+                # steps and cfg_scale use enhanced defaults from method signature
             )
             
             logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
