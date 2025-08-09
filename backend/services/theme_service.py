@@ -168,7 +168,7 @@ class RunWareService:
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
             }
             
-            logger.info(f"🎯 RunWare Image-to-Image generation starting...")
+            logger.info("🎯 RunWare Image-to-Image generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             logger.info(f"🔧 Strength: {clamped_strength} (low = preserve face, high = transform more)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
