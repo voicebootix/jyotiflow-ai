@@ -152,7 +152,7 @@ class RunWareService:
                     {
                         "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
                         "guideImage": face_data_uri,  # Direct base64 data URI
-                        "weight": 0.85  # 🔒 STRONG FACE LOCK: Preserve face, allow body/background transformation
+                        "weight": 0.75  # ⚖️ BALANCED: Face + clothes preserved, background transforms
                     }
                 ]
             }
