@@ -52,7 +52,7 @@ class RunWareService:
         if not api_key:
             logger.warning("⚠️ RunWare API key not provided - service will not be available")
         else:
-            logger.info("✅ RunWare Service initialized with Image-to-Image + Strength control")
+            logger.info("✅ RunWare Service initialized with IP-Adapter FaceID approach")
         
     async def generate_with_face_reference(
         self, 
@@ -63,23 +63,23 @@ class RunWareService:
         height: int = 1024,
         steps: int = 40,
         cfg_scale: float = 4.0,
-        strength: float = 0.15
+        ip_adapter_weight: float = 0.75
     ) -> bytes:
         """
-        Generate image with face preservation using Image-to-Image + Strength control
+        Generate image with face preservation using IP-Adapter FaceID approach
         
-        This method uses RunWare's Image-to-Image workflow with low strength values
-        to preserve the face while allowing dramatic transformation of clothes and background.
+        This method uses RunWare's IP-Adapter FaceID model to preserve the face identity
+        while allowing dramatic transformation of clothes and background based on prompts.
         
         Args:
-            face_image_bytes: Seed image bytes (Swamiji photo) - serves as base for transformation
+            face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
             prompt: Theme generation prompt (focus on clothes/background changes)
             negative_prompt: Negative prompt to avoid unwanted features
             width: Output image width
             height: Output image height
             steps: Number of inference steps
             cfg_scale: Classifier-free guidance scale
-            strength: Transformation strength (0.1-0.3 = preserve face, transform clothes/bg)
+            ip_adapter_weight: IP-Adapter influence weight (0.0-1.0, higher = stronger face preservation)
             
         Returns:
             bytes: Generated image with preserved face and transformed clothes/background
@@ -142,12 +142,25 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
-            # 🔧 STRENGTH CONTROL: Clamp between 0.0 and 1.0 to prevent API errors
-            clamped_strength = max(0.0, min(1.0, strength))
-            if clamped_strength != strength:
-                logger.warning(f"⚠️ Strength clamped from {strength} to {clamped_strength}")
+            # 🔧 IP-ADAPTER WEIGHT CONTROL: Validate type and clamp between 0.0 and 1.0
+            if ip_adapter_weight is None:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="IP-Adapter weight cannot be None - must be a numeric value between 0.0 and 1.0"
+                )
             
-            # 🎯 IMAGE-TO-IMAGE + STRENGTH APPROACH - Better face preservation control
+            if not isinstance(ip_adapter_weight, (int, float)):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"IP-Adapter weight must be numeric (int or float), got {type(ip_adapter_weight).__name__}: {ip_adapter_weight}"
+                )
+            
+            # Safe to clamp now that we've validated the type
+            clamped_weight = max(0.0, min(1.0, float(ip_adapter_weight)))
+            if clamped_weight != ip_adapter_weight:
+                logger.warning(f"⚠️ IP-Adapter weight clamped from {ip_adapter_weight} to {clamped_weight}")
+            
+            # 🎯 IP-ADAPTER APPROACH - Face identity preservation with transformation freedom
             task_uuid = str(uuid.uuid4())
             # 🎲 SEED RANDOMIZATION: Prevent cached identical results
             random_seed = random.randint(1, 1000000)
@@ -155,8 +168,6 @@ class RunWareService:
             payload = {
                 "taskType": "imageInference",
                 "taskUUID": task_uuid,
-                "seedImage": face_data_uri,  # Original Swamiji photo as seed image
-                "strength": clamped_strength,  # 🎯 KEY: Low strength preserves face, allows clothes/bg change
                 "positivePrompt": prompt,
                 "negativePrompt": negative_prompt,
                 "model": "runware:101@1",  # Standard RunWare model from documentation
@@ -166,11 +177,16 @@ class RunWareService:
                 "steps": steps,  # Number of inference steps
                 "CFGScale": cfg_scale,  # Classifier-free guidance scale
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
+                "ipAdapters": [{
+                    "model": "runware:105@1",  # IP-Adapter FaceID model
+                    "guideImage": face_data_uri,  # Reference face image for identity preservation
+                    "weight": clamped_weight  # 🎯 KEY: Controls face preservation vs transformation balance
+                }]
             }
             
-            logger.info("🎯 RunWare Image-to-Image generation starting...")
+            logger.info("🎯 RunWare IP-Adapter FaceID generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 Strength: {clamped_strength} (low = preserve face, high = transform more)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (high = preserve face, low = transform more)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
