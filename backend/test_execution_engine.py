@@ -196,6 +196,7 @@ class TestExecutionEngine:
         session_id = await self._create_test_session("Quick Health Check", "health_check")
         
         # Get health checks from database configuration instead of hardcoded list
+         # Get health checks from database configuration instead of hardcoded list
         health_checks = await self._get_health_check_configurations()
         
         # ✅ EMPTY HEALTH CHECKS GUARD: Prevent incorrect "passed" status when no checks configured
@@ -204,9 +205,9 @@ class TestExecutionEngine:
             error_message = "No health checks are configured in the database"
             logger.error(f"Health check execution failed: {error_message}")
             logger.error("Please ensure:")
-            logger.error("1. Migration 008 has been run to create health_check_configurations table")
-            logger.error("2. Health check configurations have been populated in the database")
-            logger.error("3. At least one health check is enabled in the configuration")
+            logger.error("1. ‘health_check_configurations’ table exists and migrations are applied")
+            logger.error("2. Health check configurations are populated")
+            logger.error("3. At least one health check is enabled")
             
             # Update session status to "error" with detailed information
             await self._update_test_session(
@@ -911,23 +912,18 @@ class TestExecutionEngine:
     
     async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> str:
         """Create a new test execution session with dynamic parameters."""
-
         if not self.database_url:
             return str(uuid.uuid4())
-
         session_id = str(uuid.uuid4())
-
         # ✅ SQL INJECTION PREVENTION: Whitelist of allowed column names
         # Following .cursor rules: No dynamic SQL construction from user input
         ALLOWED_COLUMNS = (
-            'session_id', 'test_type', 'test_category', 'environment', 
-            'triggered_by', 'status', 'started_at', 'metadata', 
+            'session_id', 'test_type', 'test_category', 'environment',
+            'triggered_by', 'status', 'started_at', 'metadata',
             'priority', 'timeout_seconds', 'retry_count'
         )
-        
         # ✅ SECURITY: Fixed table name to prevent injection
         TABLE_NAME = 'test_execution_sessions'
-
         # ✅ FOLLOWING .CURSOR RULES: No hardcoded values, use None for optional fields
         # Filter kwargs to only include allowed columns
         filtered_params = {}
@@ -936,26 +932,28 @@ class TestExecutionEngine:
                 filtered_params[key] = value
             else:
                 logger.warning(f"Ignored invalid column in test session creation: {key}")
-
         # Include required fields
         filtered_params.update({
             'session_id': session_id,
             'test_type': test_type,
             'test_category': test_category
         })
-
+        # Provide safe defaults via env (no hard-coding)
+        default_env = os.getenv('ENVIRONMENT', 'production')
+        default_triggered_by = os.getenv('TESTS_TRIGGERED_BY', 'test_execution_engine')
+        filtered_params.setdefault('status', 'running')
+        filtered_params.setdefault('environment', default_env)
+        filtered_params.setdefault('triggered_by', default_triggered_by)
         # ✅ SQL INJECTION PREVENTION: Use whitelisted columns only
         columns = [col for col in ALLOWED_COLUMNS if col in filtered_params]
         column_names = ', '.join(columns)
-        placeholders = ', '.join([f"${i+1}" for i in range(len(columns))])
+        placeholders = ', '.join(f"${i+1}" for i in range(len(columns)))
         values = [filtered_params[col] for col in columns]
-        
         query = f"""
             INSERT INTO {TABLE_NAME}
             ({column_names})
-            VALUES ({placeholders}) 
+            VALUES ({placeholders})
         """
-
         try:
             conn = await asyncpg.connect(self.database_url)
             try:
@@ -964,7 +962,6 @@ class TestExecutionEngine:
                 await conn.close()
         except Exception as e:
             logger.warning(f"Could not create test session in database: {e}")
-
         return session_id
 
 
