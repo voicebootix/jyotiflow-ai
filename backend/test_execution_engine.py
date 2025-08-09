@@ -13,6 +13,7 @@ import asyncpg
 import traceback
 import importlib
 import ast
+import inspect
 import secrets
 import string
 from datetime import datetime, timezone
@@ -194,37 +195,91 @@ class TestExecutionEngine:
         
         session_id = await self._create_test_session("Quick Health Check", "health_check")
         
-        health_checks = [
-            {
-                "test_name": "database_connectivity",
-                "test_function": self._test_database_connectivity
-            },
-            {
-                "test_name": "api_health_endpoint",
-                "test_function": self._test_api_health_endpoint
-            },
-            {
-                "test_name": "critical_tables_exist",
-                "test_function": self._test_critical_tables_exist
+        # Get health checks from database configuration instead of hardcoded list
+         # Get health checks from database configuration instead of hardcoded list
+        health_checks = await self._get_health_check_configurations()
+        
+        # ✅ EMPTY HEALTH CHECKS GUARD: Prevent incorrect "passed" status when no checks configured
+        # Following .cursor rules: Handle edge cases, validate configuration completeness
+        if not health_checks:
+            error_message = "No health checks are configured in the database"
+            logger.error(f"Health check execution failed: {error_message}")
+            logger.error("Please ensure:")
+            logger.error("1. ‘health_check_configurations’ table exists and migrations are applied")
+            logger.error("2. Health check configurations are populated")
+            logger.error("3. At least one health check is enabled")
+            
+            # Update session status to "error" with detailed information
+            await self._update_test_session(
+                session_id, 
+                "error", 
+                0,  # total_tests
+                0,  # passed_tests  
+                0,  # failed_tests
+                error_message
+            )
+            
+            return {
+                "session_id": session_id,
+                "status": "error",
+                "total_checks": 0,
+                "passed_checks": 0,
+                "failed_checks": 0,
+                "error": error_message,
+                "results": {}
             }
-        ]
         
         results = {}
         passed = 0
         failed = 0
         
         for check in health_checks:
+            check_name = check["test_name"]
+            timeout_seconds = check.get("timeout_seconds", 30)
+            
             try:
-                result = await check["test_function"]()
-                results[check["test_name"]] = result
-                if result.get("status") == "passed":
+                # ✅ TIMEOUT ENFORCEMENT: Wrap each health check with timeout (following .cursor rules)
+                logger.debug(f"Executing health check '{check_name}' with {timeout_seconds}s timeout")
+                
+                result = await asyncio.wait_for(
+                    check["test_function"](),
+                    timeout=timeout_seconds
+                )
+                
+                # 🛡️ SAFETY FIX: Guard against non-dict results to prevent AttributeError
+                # Following .cursor rules: Validate all data types, handle edge cases
+                if not isinstance(result, dict):
+                    logger.warning(f"Health check '{check_name}' returned non-dict result: {type(result).__name__} = {result}")
+                    # Treat non-dict results as failed checks
+                    results[check_name] = {
+                        "status": "failed",
+                        "error": f"Health check returned invalid result type: {type(result).__name__}",
+                        "original_result": str(result) if result is not None else "None",
+                        "timeout_seconds": timeout_seconds
+                    }
+                    failed += 1
+                elif result.get("status") == "passed":
+                    results[check_name] = result
                     passed += 1
                 else:
+                    results[check_name] = result
                     failed += 1
-            except Exception as e:
-                results[check["test_name"]] = {
+                    
+            except asyncio.TimeoutError:
+                logger.error(f"Health check '{check_name}' timed out after {timeout_seconds}s")
+                results[check_name] = {
                     "status": "failed",
-                    "error": str(e)
+                    "error": f"Health check timed out after {timeout_seconds} seconds",
+                    "timeout_seconds": timeout_seconds
+                }
+                failed += 1
+                
+            except Exception as e:
+                logger.error(f"Health check '{check_name}' failed with exception: {e}")
+                results[check_name] = {
+                    "status": "failed",
+                    "error": str(e),
+                    "timeout_seconds": timeout_seconds
                 }
                 failed += 1
         
@@ -239,7 +294,9 @@ class TestExecutionEngine:
             "total_checks": total,
             "passed_checks": passed,
             "failed_checks": failed,
-            "results": results
+            "results": results,
+            "security_validated": True,  # Indicates whitelist validation was used
+            "timeout_enforced": True     # Indicates timeouts were enforced
         }
     
     async def _execute_single_test(self, test_case: Dict[str, Any]) -> Dict[str, Any]:
@@ -773,9 +830,12 @@ class TestExecutionEngine:
         """Quick database connectivity test"""
         try:
             conn = await asyncpg.connect(self.database_url)
-            await conn.fetchval("SELECT 1")
-            await conn.close()
-            return {"status": "passed", "message": "Database connectivity OK"}
+            try:
+                await conn.fetchval("SELECT 1")
+                return {"status": "passed", "message": "Database connectivity OK"}
+            finally:
+                # ✅ CONNECTION LEAK FIX: Always close connection, even if query fails
+                await conn.close()
         except Exception as e:
             return {"status": "failed", "error": str(e)}
     
@@ -797,95 +857,223 @@ class TestExecutionEngine:
         try:
             conn = await asyncpg.connect(self.database_url)
             
-            critical_tables = ['users', 'sessions', 'rag_knowledge_base']
-            missing_tables = []
-            
-            for table in critical_tables:
-                exists = await conn.fetchval('''
-                    SELECT EXISTS(
-                        SELECT 1 FROM information_schema.tables 
-                        WHERE table_name = $1
-                    )
-                ''', table)
+            try:
+                # Get critical tables from database configuration instead of hardcoded list
+                critical_tables = await self._get_critical_tables()
                 
-                if not exists:
-                    missing_tables.append(table)
-            
-            await conn.close()
-            
-            if missing_tables:
-                return {"status": "failed", "error": f"Missing critical tables: {missing_tables}"}
-            else:
-                return {"status": "passed", "message": "All critical tables exist"}
+                # ✅ EMPTY CRITICAL TABLES GUARD: Prevent incorrect "passed" status when no tables configured
+                # Following .cursor rules: Handle edge cases, validate configuration completeness
+                if not critical_tables:
+                    error_message = "No critical tables are configured for monitoring"
+                    logger.warning(f"Critical tables check skipped: {error_message}")
+                    logger.warning("Please ensure:")
+                    logger.warning("1. Migration 008 has been run to create critical_system_components table")
+                    logger.warning("2. Critical table configurations have been populated in the database")
+                    logger.warning("3. At least one critical table is enabled in the configuration")
+                    return {
+                        "status": "error", 
+                        "error": error_message,
+                        "details": "Critical table monitoring requires database configuration"
+                    }
+                
+                missing_tables = []
+                
+                for table in critical_tables:
+                    # ✅ SCHEMA-AWARE FIX: Filter by current schema to prevent false positives
+                    # Following .cursor rules: Precise database queries, no cross-schema confusion
+                    exists = await conn.fetchval('''
+                        SELECT EXISTS(
+                            SELECT 1 FROM information_schema.tables 
+                            WHERE table_name = $1 
+                            AND table_schema = ANY(current_schemas(false))
+                        )
+                    ''', table)
+                    
+                    if not exists:
+                        missing_tables.append(table)
+                
+                if missing_tables:
+                    return {"status": "failed", "error": f"Missing critical tables: {missing_tables}"}
+                else:
+                    return {"status": "passed", "message": "All critical tables exist"}
+                    
+            finally:
+                # ✅ CONNECTION LEAK FIX: Always close connection, even if queries fail
+                await conn.close()
                 
         except Exception as e:
             return {"status": "failed", "error": str(e)}
+
     
-    async def _create_test_session(self, test_type: str, test_category: str) -> str:
-        """Create a new test execution session"""
+    # ✅ FOLLOWING .CURSOR RULES: No hardcoded placeholder methods
+    # Health check configurations are stored in database (health_check_configurations table)
+    # If a health check method doesn't exist, the system will handle it gracefully via the whitelist
+    # No need for hardcoded placeholder methods that return fake statuses
+    
+    async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> str:
+        """Create a new test execution session with dynamic parameters."""
         if not self.database_url:
             return str(uuid.uuid4())
-            
         session_id = str(uuid.uuid4())
-        
+        # ✅ SQL INJECTION PREVENTION: Whitelist of allowed column names
+        # Following .cursor rules: No dynamic SQL construction from user input
+        ALLOWED_COLUMNS = (
+            'session_id', 'test_type', 'test_category', 'environment',
+            'triggered_by', 'status', 'started_at', 'metadata',
+            'priority', 'timeout_seconds', 'retry_count'
+        )
+        # ✅ SECURITY: Fixed table name to prevent injection
+        TABLE_NAME = 'test_execution_sessions'
+        # ✅ FOLLOWING .CURSOR RULES: No hardcoded values, use None for optional fields
+        # Filter kwargs to only include allowed columns
+        filtered_params = {}
+        for key, value in kwargs.items():
+            if key in ALLOWED_COLUMNS:
+                filtered_params[key] = value
+            else:
+                logger.warning(f"Ignored invalid column in test session creation: {key}")
+        # Include required fields
+        filtered_params.update({
+            'session_id': session_id,
+            'test_type': test_type,
+            'test_category': test_category
+        })
+        # Provide safe defaults via env (no hard-coding)
+        default_env = os.getenv('ENVIRONMENT', 'production')
+        default_triggered_by = os.getenv('TESTS_TRIGGERED_BY', 'test_execution_engine')
+        filtered_params.setdefault('status', 'running')
+        filtered_params.setdefault('environment', default_env)
+        filtered_params.setdefault('triggered_by', default_triggered_by)
+        # ✅ SQL INJECTION PREVENTION: Use whitelisted columns only
+        columns = [col for col in ALLOWED_COLUMNS if col in filtered_params]
+        column_names = ', '.join(columns)
+        placeholders = ', '.join(f"${i+1}" for i in range(len(columns)))
+        values = [filtered_params[col] for col in columns]
+        query = f"""
+            INSERT INTO {TABLE_NAME}
+            ({column_names})
+            VALUES ({placeholders})
+        """
         try:
             conn = await asyncpg.connect(self.database_url)
-            await conn.execute('''
-                INSERT INTO test_execution_sessions 
-                (session_id, test_type, test_category, environment, triggered_by, status)
-                VALUES ($1, $2, $3, $4, $5, $6)
-            ''', session_id, test_type, test_category, "production", "test_engine", "running")
-            await conn.close()
+            try:
+                await conn.execute(query, *values)
+            finally:
+                await conn.close()
         except Exception as e:
             logger.warning(f"Could not create test session in database: {e}")
-        
         return session_id
+
+
     
-    async def _update_test_session(self, session_id: str, status: str, total_tests: int, 
-                                 passed_tests: int, failed_tests: int, error_message: str = None):
+    async def _update_test_session(self, session_id: str, status: str, total_tests: int,
+                                passed_tests: int, failed_tests: int, error_message: str = None):
         """Update test session with results"""
+        
         if not self.database_url:
             return
-            
+
+        # Define the SQL query with placeholders
+        query = """
+            UPDATE test_execution_sessions SET
+                status = $2,
+                completed_at = NOW(),
+                total_tests = $3,
+                passed_tests = $4,
+                failed_tests = $5,
+                error_message = $6
+            WHERE session_id = $1
+        """
+
+        # Values to be used in the parameterized query
+        params = [session_id, status, total_tests, passed_tests, failed_tests, error_message]
+
+        # ✅ CONNECTION MANAGEMENT FIX: Restructured try/except/finally blocks
+        # Following .cursor rules: Proper resource management, connection only closed if established
+        conn = None
         try:
+            # Establish connection in outer try block
             conn = await asyncpg.connect(self.database_url)
-            await conn.execute('''
-                UPDATE test_execution_sessions SET
-                    status = $2,
-                    completed_at = NOW(),
-                    total_tests = $3,
-                    passed_tests = $4,
-                    failed_tests = $5,
-                    error_message = $6
-                WHERE session_id = $1
-            ''', session_id, status, total_tests, passed_tests, failed_tests, error_message)
-            await conn.close()
+            
+            # Execute query in inner try block
+            try:
+                await conn.execute(query, *params)
+            except Exception as inner_e:
+                # Handle execution errors while ensuring connection cleanup
+                logger.warning(f"Could not execute update query: {inner_e}")
+                raise  # Re-raise to be caught by outer except
+                
         except Exception as e:
             logger.warning(f"Could not update test session: {e}")
+        finally:
+            # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
+            # Following .cursor rules: Safe resource cleanup, no errors on failed connections
+            if conn is not None:
+                await conn.close()
+
     
     async def _store_test_result(self, session_id: str, test_case: Dict[str, Any], result: Dict[str, Any]):
-        """Store individual test result"""
+        """Store individual test result with fixed column whitelist for security."""
         if not self.database_url:
             return
-            
+
+        # ✅ SECURITY FIX: Fixed whitelist of allowed columns to prevent SQL injection
+        # Following .cursor rules: No dynamic SQL generation, use fixed schema
+        TABLE_NAME = "test_case_results"
+        ALLOWED_COLUMNS = (
+            "session_id",
+            "test_name", 
+            "test_category",
+            "status",
+            "execution_time_ms",
+            "error_message",
+            "output_data"
+        )
+
+        # Define the values to be inserted (matching the fixed column order)
+        values = [
+            session_id,
+            test_case.get('test_name'),
+            test_case.get('test_category'),
+            result.get('status'),
+            result.get('execution_time_ms', 0),
+            result.get('error'),
+            json.dumps(result)
+        ]
+
+        # ✅ SECURITY: Use fixed column names instead of dynamic generation
+        # Following .cursor rules: No dynamic SQL construction, prevent injection
+        columns_str = ", ".join(ALLOWED_COLUMNS)
+        placeholders = ", ".join([f"${i+1}" for i in range(len(ALLOWED_COLUMNS))])
+        query = f"""
+            INSERT INTO {TABLE_NAME}
+            ({columns_str})
+            VALUES ({placeholders})
+        """
+
+        # ✅ CONNECTION MANAGEMENT: Restructured try/except/finally blocks
+        # Following .cursor rules: Proper resource management, connection only closed if established
+        conn = None
         try:
+            # Establish connection in outer try block
             conn = await asyncpg.connect(self.database_url)
-            await conn.execute('''
-                INSERT INTO test_case_results 
-                (session_id, test_name, test_category, status, execution_time_ms, error_message, output_data)
-                VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ''', 
-                session_id,
-                test_case.get('test_name'),
-                test_case.get('test_category', 'unknown'),
-                result.get('status'),
-                result.get('execution_time_ms', 0),
-                result.get('error'),
-                json.dumps(result)
-            )
-            await conn.close()
+            
+            # Execute query in inner try block
+            try:
+                await conn.execute(query, *values)
+            except Exception as inner_e:
+                # Handle execution errors while ensuring connection cleanup
+                logger.warning(f"Could not execute test result insert: {inner_e}")
+                raise  # Re-raise to be caught by outer except
+                
         except Exception as e:
             logger.warning(f"Could not store test result: {e}")
+        finally:
+            # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
+            # Following .cursor rules: Safe resource cleanup, no errors on failed connections
+            if conn is not None:
+                await conn.close()
+
     
     async def _get_test_cases(self, suite_name: str) -> List[Dict[str, Any]]:
         """Get test cases for a specific suite from database or generate them"""
@@ -895,16 +1083,19 @@ class TestExecutionEngine:
         try:
             conn = await asyncpg.connect(self.database_url)
             
-            # Get test cases from database (generated by TestSuiteGenerator)
-            results = await conn.fetch('''
-                SELECT tcr.test_name, tcr.test_category, tcr.test_data, tcr.output_data
-                FROM test_case_results tcr
-                JOIN test_execution_sessions tes ON tcr.session_id = tes.session_id
-                WHERE tes.test_type = $1 AND tcr.status = 'generated'
-                ORDER BY tcr.created_at DESC
-            ''', suite_name)
-            
-            await conn.close()
+            try:
+                # Get test cases from database (generated by TestSuiteGenerator)
+                results = await conn.fetch('''
+                    SELECT tcr.test_name, tcr.test_category, tcr.test_data, tcr.output_data
+                    FROM test_case_results tcr
+                    JOIN test_execution_sessions tes ON tcr.session_id = tes.session_id
+                    WHERE tes.test_type = $1 AND tcr.status = 'generated'
+                    ORDER BY tcr.created_at DESC
+                ''', suite_name)
+                
+            finally:
+                # ✅ CONNECTION LEAK FIX: Always close connection, even if fetch fails
+                await conn.close()
             
             test_cases = []
             for row in results:
@@ -942,15 +1133,18 @@ class TestExecutionEngine:
         try:
             conn = await asyncpg.connect(self.database_url)
             
-            # Get test suites from database (generated by TestSuiteGenerator)
-            results = await conn.fetch('''
-                SELECT DISTINCT test_type, test_category
-                FROM test_execution_sessions
-                WHERE triggered_by = 'test_suite_generator'
-                ORDER BY test_type
-            ''')
-            
-            await conn.close()
+            try:
+                # Get test suites from database (generated by TestSuiteGenerator)
+                results = await conn.fetch('''
+                    SELECT DISTINCT test_type, test_category
+                    FROM test_execution_sessions
+                    WHERE triggered_by = 'test_suite_generator'
+                    ORDER BY test_type
+                ''')
+                
+            finally:
+                # ✅ CONNECTION LEAK FIX: Always close connection, even if fetch fails
+                await conn.close()
             
             # If no test suites found, generate them using TestSuiteGenerator
             if not results:
@@ -1006,58 +1200,12 @@ class TestExecutionEngine:
             
             generator = TestSuiteGenerator()
             
-            # Handle legacy suite name mappings first
+            # Handle legacy suite name mappings from database configuration
             original_suite_name = suite_name
-            if suite_name == "authentication_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'security_tests'")
-                suite_name = "security_tests"
-            elif suite_name == "api_endpoints_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'api_tests'")
-                suite_name = "api_tests"
-            elif suite_name == "monitoring_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'analytics_monitoring_tests'")
-                suite_name = "analytics_monitoring_tests"
-            elif suite_name == "self_healing_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'auto_healing_tests'")
-                suite_name = "auto_healing_tests"
+            suite_name = await self._resolve_suite_name_mapping(suite_name)
             
-            # Generate the specific test suite - using correct suite names from TestSuiteGenerator
-            if suite_name == "security_tests":
-                suite_data = await generator.generate_security_tests()
-            elif suite_name == "database_tests":
-                suite_data = await generator.generate_database_tests()
-            elif suite_name == "api_tests":
-                suite_data = await generator.generate_api_tests()
-            elif suite_name == "analytics_monitoring_tests":
-                suite_data = await generator.generate_analytics_monitoring_tests()
-            elif suite_name == "spiritual_services_tests":
-                suite_data = await generator.generate_spiritual_services_tests()
-            elif suite_name == "auto_healing_tests":
-                suite_data = await generator.generate_auto_healing_tests()
-            elif suite_name == "integration_tests":
-                suite_data = await generator.generate_integration_tests()
-            elif suite_name == "performance_tests":
-                suite_data = await generator.generate_performance_tests()
-            elif suite_name == "social_media_tests":
-                suite_data = await generator.generate_social_media_tests()
-            elif suite_name == "live_audio_video_tests":
-                suite_data = await generator.generate_live_audio_video_tests()
-            elif suite_name == "avatar_generation_tests":
-                suite_data = await generator.generate_avatar_generation_tests()
-            elif suite_name == "credit_payment_tests":
-                suite_data = await generator.generate_credit_payment_tests()
-            elif suite_name == "user_management_tests":
-                suite_data = await generator.generate_user_management_tests()
-            elif suite_name == "admin_services_tests":
-                suite_data = await generator.generate_admin_services_tests()
-            elif suite_name == "community_services_tests":
-                suite_data = await generator.generate_community_services_tests()
-            elif suite_name == "notification_services_tests":
-                suite_data = await generator.generate_notification_services_tests()
-            else:
-                # Generate integration tests as fallback for unknown suite names
-                logger.warning(f"Unknown suite name '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
-                suite_data = await generator.generate_integration_tests()
+            # Generate the specific test suite using database-driven method mapping
+            suite_data = await self._generate_suite_data_from_config(generator, suite_name, original_suite_name)
             
             # Extract test cases from suite data
             if isinstance(suite_data, dict) and 'test_cases' in suite_data:
@@ -1085,6 +1233,363 @@ class TestExecutionEngine:
             return "failed"
         else:
             return "partial"
+    
+    def _safe_timeout_conversion(self, timeout_value: Any) -> int:
+        """
+        Safely convert timeout value from database to integer with clamping
+        Following .cursor rules: Handle all database type variations without hardcoded assumptions
+        
+        Args:
+            timeout_value: Value from database (could be None, int, str, Decimal, etc.)
+            
+        Returns:
+            int: Clamped timeout value between 5 and 60 seconds
+        """
+        try:
+            # Handle None or empty values
+            if timeout_value is None or timeout_value == '':
+                return 30  # Default timeout
+            
+            # Convert to int, handling various database types
+            if isinstance(timeout_value, (int, float)):
+                timeout_int = int(timeout_value)
+            elif isinstance(timeout_value, str):
+                # Handle string representations of numbers
+                timeout_int = int(float(timeout_value.strip())) if timeout_value.strip() else 30
+            else:
+                # Handle Decimal, other numeric types
+                timeout_int = int(float(timeout_value))
+            
+            # Clamp between 5 and 60 seconds for safety
+            return max(5, min(60, timeout_int))
+            
+        except (ValueError, TypeError, AttributeError) as e:
+            logger.warning(f"Invalid timeout value '{timeout_value}' ({type(timeout_value).__name__}), using default: {e}")
+            return 30  # Safe default on any conversion error
+
+    async def _get_health_check_configurations(self) -> List[Dict[str, Any]]:
+        """Get health check configurations from database with security validation"""
+        
+        # ✅ SECURITY: Define whitelist of allowed health check methods (following .cursor rules)
+        # This prevents arbitrary method execution via database injection
+        # Only include methods that actually exist - no hardcoded placeholders
+        ALLOWED_HEALTH_CHECK_METHODS = {
+            '_test_database_connectivity': self._test_database_connectivity,
+            '_test_api_health_endpoint': self._test_api_health_endpoint,
+            '_test_critical_tables_exist': self._test_critical_tables_exist
+        }
+        
+        # Remove None values from whitelist
+        ALLOWED_HEALTH_CHECK_METHODS = {
+            name: func for name, func in ALLOWED_HEALTH_CHECK_METHODS.items() 
+            if func is not None and callable(func)
+        }
+        
+        if not self.database_url:
+            # Fallback to minimal secure checks if no database
+            return [
+                {
+                    "test_name": "database_connectivity", 
+                    "test_function": self._test_database_connectivity,
+                    "timeout_seconds": 10,
+                    "priority": "critical"
+                },
+                {
+                    "test_name": "api_health_endpoint", 
+                    "test_function": self._test_api_health_endpoint,
+                    "timeout_seconds": 10,
+                    "priority": "critical"
+                }
+            ]
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            try:
+                # Get health check configurations from database
+                results = await conn.fetch('''
+                    SELECT test_name, test_function, display_name, description, priority, timeout_seconds
+                    FROM health_check_configurations
+                    WHERE enabled = true
+                    ORDER BY order_index, test_name
+                ''')
+                
+                health_checks = []
+                for row in results:
+                    function_name = row['test_function']
+                    
+                    # ✅ NAMING CONVENTION FIX: Ensure function name has leading underscore for private method lookup
+                    # Following .cursor rules: Handle database/code naming convention mismatch
+                    if not function_name.startswith('_'):
+                        normalized_function_name = f'_{function_name}'
+                    else:
+                        normalized_function_name = function_name
+                    
+                    # ✅ SECURITY: Only allow whitelisted methods (following .cursor rules)
+                    if normalized_function_name in ALLOWED_HEALTH_CHECK_METHODS:
+                        test_function = ALLOWED_HEALTH_CHECK_METHODS[normalized_function_name]
+                        health_checks.append({
+                            "test_name": row['test_name'],
+                            "test_function": test_function,
+                            "display_name": row['display_name'],
+                            "description": row['description'],
+                            "priority": row['priority'],
+                            "timeout_seconds": self._safe_timeout_conversion(row['timeout_seconds'])  # Safe type conversion and clamping
+                        })
+                    else:
+                        logger.warning(f"Health check function not in whitelist: {function_name} (normalized: {normalized_function_name})")
+                        logger.warning(f"Allowed methods: {list(ALLOWED_HEALTH_CHECK_METHODS.keys())}")
+                
+                return health_checks
+                
+            finally:
+                # ✅ CONNECTION LEAK FIX: Always close connection, even if fetch fails
+                # Following .cursor rules: Proper resource management, no leaks
+                await conn.close()
+            
+        except Exception as e:
+            logger.error(f"Could not get health check configurations from database: {e}")
+            logger.error("Database-driven health checks are required. Please ensure:")
+            logger.error("1. Database is accessible")
+            logger.error("2. Migration 008 has been run to create health_check_configurations table")
+            logger.error("3. Initial health check data has been populated")
+            # ✅ FOLLOWING .CURSOR RULES: No hardcoded mock data, no placeholders
+            # Following .cursor rules: "Do not add mock data, placeholders, or temporary patches"
+            # The system requires database-driven configuration - return empty list to fail gracefully
+            return []
+    
+    async def _get_critical_tables(self) -> List[str]:
+        """Get critical tables list from database configuration instead of hardcoded list"""
+        if not self.database_url:
+            # ✅ FOLLOWING .CURSOR RULES: No hardcoded data
+            # Following .cursor rules: "Don't introduce hardcoded values"
+            logger.error("Database URL is required for database-driven critical tables configuration")
+            return []
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            try:
+                # Get critical table components from database
+                results = await conn.fetch('''
+                    SELECT component_name
+                    FROM critical_system_components
+                    WHERE component_type = 'table' AND enabled = true
+                    ORDER BY priority DESC, component_name
+                ''')
+                
+                return [row['component_name'] for row in results]
+                
+            finally:
+                # ✅ CONNECTION LEAK FIX: Always close connection, even if fetch fails
+                await conn.close()
+            
+        except Exception as e:
+            logger.error(f"Could not get critical tables from database: {e}")
+            logger.error("Database-driven critical tables configuration is required. Please ensure:")
+            logger.error("1. Database is accessible")
+            logger.error("2. Migration 008 has been run to create critical_system_components table")
+            logger.error("3. Initial critical system components data has been populated")
+            # ✅ FOLLOWING .CURSOR RULES: No hardcoded mock data, no placeholders
+            # Following .cursor rules: "Do not add mock data, placeholders, or temporary patches"
+            return []
+    
+    async def _resolve_suite_name_mapping(self, suite_name: str) -> str:
+        """Resolve legacy suite name mappings from database configuration."""
+        if not self.database_url:
+            logger.error("Database URL is required for database-driven suite name mapping")
+            return suite_name  # Return original name without mapping
+
+        # Define table and column names as constants or configuration
+        TABLE_NAME = "test_suite_configurations"
+        COLUMN_SUITE_NAME = "suite_name"
+        COLUMN_LEGACY_NAME = "legacy_name"
+        COLUMN_ENABLED = "enabled"
+
+        # Define SQL queries using the constants
+        DIRECT_MATCH_QUERY = f"""
+            SELECT {COLUMN_SUITE_NAME} FROM {TABLE_NAME}
+            WHERE {COLUMN_SUITE_NAME} = $1 AND {COLUMN_ENABLED} = true
+        """
+
+        LEGACY_NAME_MAPPING_QUERY = f"""
+            SELECT {COLUMN_SUITE_NAME} FROM {TABLE_NAME}
+            WHERE {COLUMN_LEGACY_NAME} = $1 AND {COLUMN_ENABLED} = true
+        """
+
+        conn = None
+        try:
+            conn = await asyncpg.connect(self.database_url)
+
+            # Check for direct suite name match first
+            result = await conn.fetchrow(DIRECT_MATCH_QUERY, suite_name)
+            if result:
+                return suite_name  # Direct match found
+
+            # Check for legacy name mapping
+            result = await conn.fetchrow(LEGACY_NAME_MAPPING_QUERY, suite_name)
+            if result:
+                mapped_name = result[COLUMN_SUITE_NAME]
+                logger.info(f"Mapping legacy suite name '{suite_name}' to '{mapped_name}' (from database)")
+                return mapped_name
+            else:
+                logger.warning(f"No mapping found for suite name '{suite_name}' in database")
+                return suite_name
+
+        except Exception as e:
+            logger.error(f"Could not resolve suite name mapping from database: {e}")
+            logger.error("Database-driven suite name mapping is required. Please ensure:")
+            logger.error("1. Database is accessible")
+            logger.error("2. Migration 008 has been run to create test_suite_configurations table")
+            logger.error("3. Initial test suite configuration data has been populated")
+            return suite_name  # Return original name without mapping
+
+        finally:
+            # Ensure the connection is closed to prevent leaks
+            if conn:
+                await conn.close()
+
+    
+    def _validate_generator_method_security(self, generator, method_name: str) -> bool:
+        """
+        🔒 SECURITY VALIDATION: Strict allowlist for generator method calls
+        Following .cursor rules: Validate all dynamic calls, prevent code injection
+        
+        Args:
+            generator: The TestSuiteGenerator instance
+            method_name: The method name to validate
+            
+        Returns:
+            bool: True if method is safe to call, False otherwise
+        """
+        try:
+            # 1. STRICT PREFIX CHECK: Only allow methods starting with 'generate_'
+            if not method_name.startswith('generate_'):
+                logger.warning(f"Method '{method_name}' does not start with required 'generate_' prefix")
+                return False
+            
+            # 2. ATTRIBUTE EXISTENCE CHECK: Verify method exists on generator
+            if not hasattr(generator, method_name):
+                logger.warning(f"Method '{method_name}' does not exist on generator")
+                return False
+            
+            # 3. GET METHOD REFERENCE: Safe to use getattr after validation
+            method = getattr(generator, method_name)
+            
+            # 4. CALLABLE CHECK: Ensure it's actually a method
+            if not callable(method):
+                logger.warning(f"Attribute '{method_name}' is not callable")
+                return False
+            
+            # 5. COROUTINE CHECK: Must be an async method
+            if not asyncio.iscoroutinefunction(method):
+                logger.warning(f"Method '{method_name}' is not a coroutine function")
+                return False
+            
+            # 6. SIGNATURE VALIDATION: Must accept no required arguments (except self)
+            sig = inspect.signature(method)
+            required_params = [
+                param for param in sig.parameters.values()
+                if param.default is param.empty and param.kind != param.VAR_POSITIONAL and param.kind != param.VAR_KEYWORD
+            ]
+            
+            if len(required_params) > 0:  # self is already bound, so no required params expected
+                logger.warning(f"Method '{method_name}' has {len(required_params)} required parameters, expected 0")
+                return False
+            
+            # 7. ALLOWLIST CHECK: Additional safety - only allow known safe methods
+            ALLOWED_GENERATOR_METHODS = {
+                'generate_integration_tests',
+                'generate_security_tests', 
+                'generate_database_tests',
+                'generate_api_tests',
+                'generate_analytics_monitoring_tests',
+                'generate_auto_healing_tests',
+                'generate_performance_tests',
+                'generate_unit_tests',
+                'generate_end_to_end_tests',
+                'generate_load_tests'
+            }
+            
+            if method_name not in ALLOWED_GENERATOR_METHODS:
+                logger.warning(f"Method '{method_name}' not in approved allowlist. Allowed: {sorted(ALLOWED_GENERATOR_METHODS)}")
+                return False
+            
+            logger.info(f"✅ Security validation passed for generator method: {method_name}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Security validation error for method '{method_name}': {e}")
+            return False
+
+    async def _generate_suite_data_from_config(self, generator, suite_name: str, original_suite_name: str) -> Dict[str, Any]:
+        """Generate test suite data using database-driven method mapping."""
+        if not self.database_url:
+            logger.error("Database URL is required for database-driven test suite generation")
+            logger.error(f"Cannot generate suite '{suite_name}' without database configuration")
+            raise ValueError(f"Database-driven configuration required for suite '{suite_name}'")
+
+        # Define table and column names as constants or configuration
+        TABLE_NAME = "test_suite_configurations"
+        COLUMN_GENERATOR_METHOD = "generator_method"
+        COLUMN_DESCRIPTION = "description"
+        COLUMN_SUITE_NAME = "suite_name"
+        COLUMN_ENABLED = "enabled"
+
+        # Define SQL query using the constants
+        query = f"""
+            SELECT {COLUMN_GENERATOR_METHOD}, {COLUMN_DESCRIPTION}
+            FROM {TABLE_NAME}
+            WHERE {COLUMN_SUITE_NAME} = $1 AND {COLUMN_ENABLED} = true
+        """
+
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            try:
+                # Get generator method from database configuration
+                result = await conn.fetchrow(query, suite_name)
+
+                if result and result[COLUMN_GENERATOR_METHOD]:
+                    generator_method_name = result[COLUMN_GENERATOR_METHOD]
+
+                    if not self._validate_generator_method_security(generator, generator_method_name):
+                        logger.error(f"Security validation failed for generator method: {generator_method_name}")
+                        logger.warning(f"Falling back to safe default method for suite '{suite_name}'")
+                        # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                        # Following .cursor rules: Use direct access for known attributes
+                        return await generator.generate_integration_tests()
+
+                    generator_method = getattr(generator, generator_method_name, None)
+
+                    if generator_method and callable(generator_method):
+                        logger.info(f"Generating test suite '{suite_name}' using validated method '{generator_method_name}' (from database)")
+                        return await generator_method()
+                    else:
+                        logger.error(f"Generator method not found or not callable: {generator_method_name}")
+                        # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                        # Following .cursor rules: Use direct access for known attributes
+                        return await generator.generate_integration_tests()
+                else:
+                    logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                    # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                    # Following .cursor rules: Use direct access for known attributes
+                    return await generator.generate_integration_tests()
+
+            finally:
+                await conn.close()
+        except Exception as e:
+            logger.error(f"Failed to get generator method from database for '{suite_name}': {e}")
+            logger.error("Database-driven test suite generation is required. Please ensure:")
+            logger.error("1. Database is accessible")
+            logger.error("2. Migration 008 has been run to create test_suite_configurations table")
+            logger.error("3. Initial test suite configuration data has been populated")
+            # ✅ EXCEPTION CHAINING: Preserve original exception context for better debugging
+            # Following .cursor rules: Maintain error traceability
+            raise ValueError(f"Database-driven configuration required for suite '{suite_name}': {e}") from e
+
+
+       
+
 
 # CLI interface
 async def main():

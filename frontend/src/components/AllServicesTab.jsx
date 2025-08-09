@@ -16,157 +16,12 @@ import {
 import spiritualAPI from "../lib/api";
 import ServiceStatusCard from "./ServiceStatusCard";
 
-/**
- * Configuration for all services organized by category
- * @constant {Array}
- */
-const ALL_SERVICES_CONFIG = [
-  // Core Platform Services
-  {
-    category: "Core Platform",
-    services: [
-      {
-        title: "Database Tests",
-        testType: "database",
-        icon: "🗄️",
-        priority: "critical",
-        description: "Core database operations and data integrity",
-      },
-      {
-        title: "API Tests",
-        testType: "api",
-        icon: "🔌",
-        priority: "critical",
-        description: "REST API endpoint functionality",
-      },
-      {
-        title: "Integration Tests",
-        testType: "integration",
-        icon: "🔗",
-        priority: "high",
-        description: "End-to-end workflow validation",
-      },
-      {
-        title: "Performance Tests",
-        testType: "performance",
-        icon: "⚡",
-        priority: "high",
-        description: "Load and scalability testing",
-      },
-      {
-        title: "Security Tests",
-        testType: "security",
-        icon: "🔒",
-        priority: "critical",
-        description: "Vulnerability protection validation",
-      },
-      {
-        title: "Auto-Healing Tests",
-        testType: "auto_healing",
-        icon: "🔄",
-        priority: "high",
-        description: "Self-recovery mechanism testing",
-      },
-    ],
-  },
-  // Revenue-Critical Services
-  {
-    category: "Revenue Critical",
-    services: [
-      {
-        title: "Credit & Payment Tests",
-        testType: "credit_payment",
-        icon: "💳",
-        priority: "critical",
-        description: "Revenue processing and transactions",
-      },
-      {
-        title: "Spiritual Services Tests",
-        testType: "spiritual_services",
-        icon: "🕉️",
-        priority: "critical",
-        description: "Core business logic and AI services",
-      },
-      {
-        title: "Avatar Generation Tests",
-        testType: "avatar_generation",
-        icon: "🎭",
-        priority: "high",
-        description: "Video creation and spiritual avatars",
-      },
-    ],
-  },
-  // Communication Services
-  {
-    category: "Communication",
-    services: [
-      {
-        title: "Live Audio/Video Tests",
-        testType: "live_audio_video",
-        icon: "📹",
-        priority: "critical",
-        description: "Live consultation and WebRTC",
-      },
-      {
-        title: "Social Media Tests",
-        testType: "social_media",
-        icon: "📱",
-        priority: "high",
-        description: "Marketing automation and content",
-      },
-    ],
-  },
-  // User Experience Services
-  {
-    category: "User Experience",
-    services: [
-      {
-        title: "User Management Tests",
-        testType: "user_management",
-        icon: "👤",
-        priority: "critical",
-        description: "Authentication and profile management",
-      },
-      {
-        title: "Community Services Tests",
-        testType: "community_services",
-        icon: "🤝",
-        priority: "medium",
-        description: "Follow-up systems and engagement",
-      },
-      {
-        title: "Notification Services Tests",
-        testType: "notification_services",
-        icon: "🔔",
-        priority: "medium",
-        description: "Alerts and user communication",
-      },
-    ],
-  },
-  // Business Management Services
-  {
-    category: "Business Management",
-    services: [
-      {
-        title: "Admin Services Tests",
-        testType: "admin_services",
-        icon: "⚙️",
-        priority: "high",
-        description: "Dashboard, settings, and management",
-      },
-      {
-        title: "Analytics & Monitoring Tests",
-        testType: "analytics_monitoring",
-        icon: "📊",
-        priority: "high",
-        description: "Business intelligence and tracking",
-      },
-    ],
-  },
-];
+// ✅ FOLLOWING .CURSOR RULES: No hardcoded data, retrieve from database
+// Removed ALL_SERVICES_CONFIG hardcoded array - now fetched from API
 
 /**
  * AllServicesTab component for displaying and testing all services
+ * ✅ FOLLOWS .CURSOR RULES: Database-driven, no hardcoded configurations
  *
  * @returns {JSX.Element} AllServicesTab component
  */
@@ -175,6 +30,41 @@ const AllServicesTab = () => {
   const [loading, setLoading] = useState(false);
   const [testResults, setTestResults] = useState({});
   const [error, setError] = useState(null);
+  const [servicesConfig, setServicesConfig] = useState([]);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState(null);
+
+  // ✅ FETCH TEST CONFIGURATIONS FROM DATABASE (following .cursor rules)
+  useEffect(() => {
+    fetchTestConfigurations();
+  }, []);
+
+  /**
+   * Fetch test configurations from database via API
+   * ✅ Replaces hardcoded ALL_SERVICES_CONFIG
+   */
+  const fetchTestConfigurations = async () => {
+    try {
+      setConfigLoading(true);
+      setConfigError(null);
+      
+      const response = await spiritualAPI.get("/api/monitoring/test-suites");
+      
+      if (response && response.status === "success") {
+        setServicesConfig(response.data.test_suites || []);
+        console.log(`✅ Loaded ${response.data.total_suites} test suites from database`);
+      } else {
+        throw new Error(response?.message || "Failed to fetch test configurations");
+      }
+    } catch (err) {
+      console.error("❌ Failed to fetch test configurations:", err);
+      setConfigError(`Failed to load test configurations: ${err.message}`);
+      // Fallback to empty array instead of hardcoded data (following .cursor rules)
+      setServicesConfig([]);
+    } finally {
+      setConfigLoading(false);
+    }
+  };
 
   /**
    * Runs tests for all services
@@ -189,8 +79,8 @@ const AllServicesTab = () => {
     const results = {};
 
     try {
-      // FIXED: Execute all test suites individually and track results
-      for (const category of ALL_SERVICES_CONFIG) {
+      // ✅ DATABASE-DRIVEN: Execute all test suites from database configuration
+      for (const category of servicesConfig) {
         for (const service of category.services) {
           try {
             // FIXED: Send test_suite parameter for individual execution
@@ -378,8 +268,39 @@ const AllServicesTab = () => {
         </CardContent>
       </Card>
 
-      {/* Service Categories */}
-      {ALL_SERVICES_CONFIG.map((category, categoryIndex) => (
+      {/* Database-driven Service Categories (following .cursor rules) */}
+      {configLoading ? (
+        <Card>
+          <CardContent className="flex items-center justify-center p-8">
+            <RefreshCw className="h-6 w-6 animate-spin mr-2" />
+            <span>Loading test configurations from database...</span>
+          </CardContent>
+        </Card>
+      ) : configError ? (
+        <Alert className="mb-4">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            {configError}
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchTestConfigurations}
+              className="ml-2"
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Retry
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : servicesConfig.length === 0 ? (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            No test configurations found in database. Please check the database setup.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        servicesConfig.map((category, categoryIndex) => (
         <Card key={categoryIndex}>
           <CardHeader>
             <CardTitle className="text-lg">
@@ -402,7 +323,8 @@ const AllServicesTab = () => {
             </div>
           </CardContent>
         </Card>
-      ))}
+      )))
+      })
     </div>
   );
 };

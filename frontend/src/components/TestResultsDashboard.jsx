@@ -1279,30 +1279,20 @@ const TestResultsDashboard = () => {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ServiceStatusCard
-                    title="Admin Services Tests"
-                    description="Dashboard, settings, and management"
-                    endpoint="/api/monitoring/test-execute"
-                    testType="admin_services"
-                    icon="⚙️"
-                    priority="high"
-                  />
-                  <ServiceStatusCard
-                    title="Analytics & Monitoring Tests"
-                    description="Business intelligence and session tracking"
-                    endpoint="/api/monitoring/test-execute"
-                    testType="analytics_monitoring"
-                    icon="📊"
-                    priority="high"
-                  />
+                {/* ✅ FOLLOWING .CURSOR RULES: Replace hardcoded tests with AllServicesTab */}
+                <div className="text-sm text-gray-600 mb-4">
+                  Business Management services are now loaded dynamically from
+                  database. Use the "All Services" tab for the complete
+                  database-driven test suite.
                 </div>
+                <AllServicesTab />
               </CardContent>
             </Card>
           </div>
         </TabsContent>
 
         <TabsContent value="all-services">
+          {/* ✅ DATABASE-DRIVEN: All test configurations from database */}
           <AllServicesTab />
         </TabsContent>
       </Tabs>
