@@ -59,8 +59,8 @@ class RunWareService:
         negative_prompt: str = "",
         width: int = 1024,
         height: int = 1024,
-        steps: int = 30,
-        cfg_scale: float = 7.0
+        steps: int = 40,
+        cfg_scale: float = 8.5
     ) -> bytes:
         """
         Generate image with face reference preservation using IP-Adapter FaceID
@@ -152,7 +152,7 @@ class RunWareService:
                     {
                         "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
                         "guideImage": face_data_uri,  # Direct base64 data URI
-                        "weight": 1.5  # 🚀 ENHANCED: Stronger face preservation (1.0 → 1.5)
+                        "weight": 1.0  # 🔧 FIXED: Maximum allowed by RunWare API (1.5 caused 400 error)
                     }
                 ]
             }
@@ -422,8 +422,8 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
                 negative_prompt=negative_prompt,
                 width=1024,
                 height=1024,
-                steps=30,
-                cfg_scale=7.0
+                steps=40,  # 🚀 ENHANCED: Better quality (30 → 40 steps)
+                cfg_scale=8.5  # 🚀 ENHANCED: Stronger prompt adherence (7.0 → 8.5)
             )
             
             logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
