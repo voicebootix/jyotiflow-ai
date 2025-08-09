@@ -198,6 +198,36 @@ class TestExecutionEngine:
         # Get health checks from database configuration instead of hardcoded list
         health_checks = await self._get_health_check_configurations()
         
+        # ✅ EMPTY HEALTH CHECKS GUARD: Prevent incorrect "passed" status when no checks configured
+        # Following .cursor rules: Handle edge cases, validate configuration completeness
+        if not health_checks:
+            error_message = "No health checks are configured in the database"
+            logger.error(f"Health check execution failed: {error_message}")
+            logger.error("Please ensure:")
+            logger.error("1. Migration 008 has been run to create health_check_configurations table")
+            logger.error("2. Health check configurations have been populated in the database")
+            logger.error("3. At least one health check is enabled in the configuration")
+            
+            # Update session status to "error" with detailed information
+            await self._update_test_session(
+                session_id, 
+                "error", 
+                0,  # total_tests
+                0,  # passed_tests  
+                0,  # failed_tests
+                error_message
+            )
+            
+            return {
+                "session_id": session_id,
+                "status": "error",
+                "total_checks": 0,
+                "passed_checks": 0,
+                "failed_checks": 0,
+                "error": error_message,
+                "results": {}
+            }
+        
         results = {}
         passed = 0
         failed = 0
