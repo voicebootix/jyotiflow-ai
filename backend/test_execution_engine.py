@@ -859,6 +859,22 @@ class TestExecutionEngine:
             try:
                 # Get critical tables from database configuration instead of hardcoded list
                 critical_tables = await self._get_critical_tables()
+                
+                # ✅ EMPTY CRITICAL TABLES GUARD: Prevent incorrect "passed" status when no tables configured
+                # Following .cursor rules: Handle edge cases, validate configuration completeness
+                if not critical_tables:
+                    error_message = "No critical tables are configured for monitoring"
+                    logger.warning(f"Critical tables check skipped: {error_message}")
+                    logger.warning("Please ensure:")
+                    logger.warning("1. Migration 008 has been run to create critical_system_components table")
+                    logger.warning("2. Critical table configurations have been populated in the database")
+                    logger.warning("3. At least one critical table is enabled in the configuration")
+                    return {
+                        "status": "error", 
+                        "error": error_message,
+                        "details": "Critical table monitoring requires database configuration"
+                    }
+                
                 missing_tables = []
                 
                 for table in critical_tables:
