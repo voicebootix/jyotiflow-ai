@@ -97,7 +97,7 @@ const SwamjiAvatarPreview = () => {
       setFinalVideo(null);
 
       const response = await enhanced_api.generateImagePreview({
-        custom_prompt: customPrompt || promptText || null, // Pass null to let the backend decide the daily theme
+        custom_prompt: customPrompt || null, // 🔧 FIXED: Don't use promptText for daily themes
         theme_day: themeDay, // Pass the theme day override
         timestamp: Date.now() // Cache busting
       });
@@ -361,7 +361,7 @@ const SwamjiAvatarPreview = () => {
                   />
                 </div>
                 <button
-                  onClick={() => generateImagePreview(promptText)}
+                  onClick={() => generateImagePreview(promptText || null)} // 🔧 FIXED: Only pass promptText if it has content
                   disabled={isGenerating}
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
                 >
