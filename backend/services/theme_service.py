@@ -393,25 +393,43 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🔥 AGGRESSIVE TRANSFORMATION: Strong body/background changes with face lock
+                # 🎨 DAILY COLOR TRANSFORMATION: Specific colors for each day with face lock
                 final_prompt = f"""TRANSFORM THIS PERSON: {theme_description}.
 
 MANDATORY TRANSFORMATION RULES:
 - PRESERVE FACE 100%: EXACT same person, same facial identity, same features, same skin tone
+- CHANGE CLOTHING COLORS COMPLETELY: Follow the EXACT colors described in the theme
 - COMPLETELY REPLACE CLOTHES: Remove all current clothing, add new spiritual attire as described
 - COMPLETELY REPLACE BACKGROUND: Remove current environment, create new setting as described  
-- DRAMATIC CHANGE: Make clothing and background transformation very obvious and complete
+- DRAMATIC COLOR CHANGE: Make clothing color transformation very obvious and complete
 - NO BUSINESS ATTIRE: Remove suit, tie, office clothing completely
-- SPIRITUAL TRANSFORMATION: Full conversion to spiritual master appearance
+- NO WRONG COLORS: Only use colors specifically mentioned in the description
+- SPIRITUAL TRANSFORMATION: Full conversion to spiritual master appearance with correct daily colors
 
 TECHNICAL SPECS: Photorealistic, high resolution, professional photography, cinematic lighting, masterpiece quality."""
 
-            # 🔒 FACE LOCK + TRANSFORMATION NEGATIVE PROMPT
-            negative_prompt = """different face, changed face, new face, altered face, face swap, face replacement, 
+            # 🎨 DAILY COLOR NEGATIVE PROMPT: Prevent wrong colors for each day
+            day_of_week = datetime.now().weekday() if theme_day is None else theme_day
+            
+            # Color-specific negatives to prevent wrong daily colors
+            color_negatives = {
+                0: "orange robes, saffron clothing, maroon robes, green kurta, blue kurta, golden robes, gray robes",  # Monday: only WHITE
+                1: "white robes, orange robes, saffron clothing, green kurta, blue kurta, golden robes, gray robes",   # Tuesday: only MAROON  
+                2: "white robes, orange robes, saffron clothing, maroon robes, blue kurta, golden robes, gray robes",  # Wednesday: only GREEN
+                3: "white robes, orange robes, saffron clothing, maroon robes, green kurta, golden robes, gray robes", # Thursday: only BLUE
+                4: "white robes, orange robes, saffron clothing, maroon robes, green kurta, blue kurta, gray robes",   # Friday: only GOLDEN
+                5: "white robes, orange robes, saffron clothing, maroon robes, green kurta, blue kurta, golden robes", # Saturday: only GRAY
+                6: "white robes, orange robes, saffron clothing, maroon robes, green kurta, blue kurta, golden robes, gray robes" # Sunday: only CREAM
+            }
+            
+            daily_color_negatives = color_negatives.get(day_of_week, "")
+            
+            negative_prompt = f"""different face, changed face, new face, altered face, face swap, face replacement, 
 different person, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, 
 face morph, artificial face, generic face, multiple faces, extra faces, face clone, face duplicate,
 business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
 office background, corporate setting, modern interior, business environment, contemporary setting,
+{daily_color_negatives}, wrong colors, incorrect clothing colors, mismatched theme colors,
 low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch,
 inconsistent lighting, poor composition, amateur photography, low resolution, pixelated, artifacts"""
 
