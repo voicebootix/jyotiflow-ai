@@ -13,6 +13,7 @@ import asyncpg
 import traceback
 import importlib
 import ast
+import inspect
 import secrets
 import string
 from datetime import datetime, timezone
@@ -214,10 +215,23 @@ class TestExecutionEngine:
                     timeout=timeout_seconds
                 )
                 
-                results[check_name] = result
-                if result.get("status") == "passed":
+                # 🛡️ SAFETY FIX: Guard against non-dict results to prevent AttributeError
+                # Following .cursor rules: Validate all data types, handle edge cases
+                if not isinstance(result, dict):
+                    logger.warning(f"Health check '{check_name}' returned non-dict result: {type(result).__name__} = {result}")
+                    # Treat non-dict results as failed checks
+                    results[check_name] = {
+                        "status": "failed",
+                        "error": f"Health check returned invalid result type: {type(result).__name__}",
+                        "original_result": str(result) if result is not None else "None",
+                        "timeout_seconds": timeout_seconds
+                    }
+                    failed += 1
+                elif result.get("status") == "passed":
+                    results[check_name] = result
                     passed += 1
                 else:
+                    results[check_name] = result
                     failed += 1
                     
             except asyncio.TimeoutError:
@@ -1274,9 +1288,6 @@ class TestExecutionEngine:
         Returns:
             bool: True if method is safe to call, False otherwise
         """
-        import inspect
-        import asyncio
-        
         try:
             # 1. STRICT PREFIX CHECK: Only allow methods starting with 'generate_'
             if not method_name.startswith('generate_'):
@@ -1338,59 +1349,49 @@ class TestExecutionEngine:
             return False
 
     async def _generate_suite_data_from_config(self, generator, suite_name: str, original_suite_name: str) -> Dict[str, Any]:
-    """Generate test suite data using database-driven method mapping"""
-    if not self.database_url:
-        # Fallback to integration tests if no database
-        logger.warning(f"No database available, falling back to integration_tests for '{suite_name}'")
-        return await generator.generate_integration_tests()
-
-    try:
-        conn = await asyncpg.connect(self.database_url)
-
-        # Get generator method from database configuration
-        result = await conn.fetchrow('''
-            SELECT generator_method, description FROM test_suite_configurations
-            WHERE suite_name = $1 AND enabled = true
-        ''', suite_name)
-
-        await conn.close()
-
-        if result and result['generator_method']:
-            generator_method_name = result['generator_method']
-
-            # Check if the method name starts with 'generate_'
-            if not generator_method_name.startswith('generate_'):
-                logger.warning(f"Method '{generator_method_name}' does not start with 'generate_'")
-                return await generator.generate_integration_tests()
-
-            # Get the method from the generator
-            generator_method = getattr(generator, generator_method_name, None)
-
-            # Check if the method is callable and is a coroutine function
-            if generator_method and callable(generator_method) and asyncio.iscoroutinefunction(generator_method):
-                # Check if the method takes no arguments (other than self)
-                if asyncio.iscoroutinefunction(generator_method):
-                    sig = inspect.signature(generator_method)
-                    required_params = [
-                        param for param in sig.parameters.values()
-                        if param.default is param.empty and param.kind != param.VAR_POSITIONAL and param.kind != param.VAR_KEYWORD
-                    ]
-                    if len(required_params) > 0:
-                        logger.warning(f"Method '{generator_method_name}' has required parameters, expected 0")
-                        return await generator.generate_integration_tests()
-
-                logger.info(f"Generating test suite '{suite_name}' using method '{generator_method_name}' (from database)")
-                return await generator_method()
-            else:
-                logger.error(f"Generator method not found or not callable: {generator_method_name}")
-                return await generator.generate_integration_tests()
-        else:
-            logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+        """Generate test suite data using database-driven method mapping"""
+        if not self.database_url:
+            # Fallback to integration tests if no database
+            logger.warning(f"No database available, falling back to integration_tests for '{suite_name}'")
             return await generator.generate_integration_tests()
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Get generator method from database configuration
+            result = await conn.fetchrow('''
+                SELECT generator_method, description FROM test_suite_configurations
+                WHERE suite_name = $1 AND enabled = true
+            ''', suite_name)
+            
+            await conn.close()
+            
+            if result and result['generator_method']:
+                generator_method_name = result['generator_method']
+                
+                # 🔒 SECURITY FIX: Strict allowlist validation for dynamic method calls
+                # Following .cursor rules: No unsafe dynamic calls, validate all inputs
+                if not self._validate_generator_method_security(generator, generator_method_name):
+                    logger.error(f"Security validation failed for generator method: {generator_method_name}")
+                    logger.warning(f"Falling back to safe default method for suite '{suite_name}'")
+                    return await generator.generate_integration_tests()
 
-    except Exception as e:
-        logger.error(f"Failed to get generator method from database for '{suite_name}': {e}")
-        return await generator.generate_integration_tests()
+                
+                generator_method = getattr(generator, generator_method_name, None)
+                
+                if generator_method and callable(generator_method):
+                    logger.info(f"Generating test suite '{suite_name}' using validated method '{generator_method_name}' (from database)")
+                    return await generator_method()
+                else:
+                    logger.error(f"Generator method not found or not callable: {generator_method_name}")
+                    return await generator.generate_integration_tests()
+            else:
+                logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                return await generator.generate_integration_tests()
+
+        except Exception as e:
+            logger.error(f"Failed to get generator method from database for '{suite_name}': {e}")
+            return await generator.generate_integration_tests()
 
 
 # CLI interface
