@@ -152,7 +152,7 @@ class RunWareService:
                     {
                         "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
                         "guideImage": face_data_uri,  # Direct base64 data URI
-                        "weight": 1.0  # Maximum face preservation
+                        "weight": 1.5  # 🚀 ENHANCED: Stronger face preservation (1.0 → 1.5)
                     }
                 ]
             }
@@ -393,18 +393,24 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # Create comprehensive prompt for RunWare IP-Adapter
-                final_prompt = f"""A photorealistic, high-resolution portrait of the same person {theme_description}.
-                
-CRITICAL: Preserve the exact same person's face, identity, and features.
-Transform ONLY the clothing, background, and environment to match the theme.
-Maintain professional spiritual appearance with authentic details.
-High quality, detailed, cinematic lighting, masterpiece."""
+                # 🚀 ENHANCED PROMPT STRUCTURE: Strong transformations with face preservation
+                final_prompt = f"""Transform this spiritual master: {theme_description}.
 
-            # 🛡️ COMPREHENSIVE NEGATIVE PROMPT for face preservation
+CRITICAL REQUIREMENTS:
+- KEEP EXACT SAME FACE: Same eyes, nose, mouth, facial features, skin tone, beard style
+- TRANSFORM COMPLETELY: Change clothes, background, environment, lighting to match theme
+- MAINTAIN IDENTITY: Same person in different setting and attire
+- PHOTOREALISTIC: High resolution, professional photography, cinematic lighting
+- SPIRITUAL AUTHENTICITY: Maintain dignified, serene, wise appearance
+
+Style: Professional portrait photography, masterpiece quality, detailed textures."""
+
+            # 🛡️ ENHANCED NEGATIVE PROMPT: Stronger face preservation + consistency
             negative_prompt = """different face, changed face, new face, altered face, face swap, face replacement, 
 different person, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, 
-face morph, artificial face, generic face, low quality, blurry, deformed, ugly, bad anatomy, cartoon"""
+face morph, artificial face, generic face, multiple faces, extra faces, face clone, face duplicate,
+low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch,
+inconsistent lighting, poor composition, amateur photography, low resolution, pixelated, artifacts"""
 
             logger.info("🚀 Starting RunWare IP-Adapter FaceID generation...")
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
