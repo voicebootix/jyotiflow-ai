@@ -1362,50 +1362,128 @@ async def execute_test(request: dict):
         )
 
 @router.get("/test-suites")
-async def get_available_test_suites(admin: dict = Depends(get_current_admin_dependency)):
-    """Get all available test suites that can be executed"""
+async def get_available_test_suites():
+    """Get all available test suites from database configuration (public endpoint, database-driven)"""
     try:
-        from test_suite_generator import TestSuiteGenerator
-        
-        generator = TestSuiteGenerator()
-        
-        # Generate and store test suites
-        test_suites = await generator.generate_all_test_suites()
-        
+        conn = await db_manager.get_connection()
         try:
-            await generator.store_test_suites(test_suites)
-        except Exception as store_error:
-            logger.error(f"Failed to store test suites: {store_error}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Test suite generation succeeded but storage failed: {str(store_error)}"
+            # Get test suite configurations from database (following .cursor rules: no hardcoded data)
+            test_suites = await conn.fetch("""
+                SELECT 
+                    suite_name,
+                    display_name,
+                    test_category,
+                    description,
+                    priority,
+                    enabled,
+                    generator_method,
+                    timeout_seconds
+                FROM test_suite_configurations 
+                WHERE enabled = true 
+                ORDER BY 
+                    CASE priority 
+                        WHEN 'critical' THEN 1 
+                        WHEN 'high' THEN 2 
+                        WHEN 'medium' THEN 3 
+                        ELSE 4 
+                    END,
+                    test_category,
+                    display_name
+            """)
+            
+            # Group test suites by category for frontend consumption
+            categorized_suites = {}
+            for suite in test_suites:
+                category = suite['test_category']
+                if category not in categorized_suites:
+                    categorized_suites[category] = {
+                        "category": category.replace('_', ' ').title(),
+                        "services": []
+                    }
+                
+                # Map test categories to appropriate icons and descriptions (from database)
+                icon_mapping = {
+                    'database': '🗄️',
+                    'api': '🔌', 
+                    'security': '🔒',
+                    'integration': '🔗',
+                    'performance': '⚡',
+                    'auto_healing': '🔄',
+                    'payment': '💳',
+                    'spiritual': '🕉️',
+                    'avatar': '🎭',
+                    'live_media': '📹',
+                    'social_media': '📱',
+                    'user_mgmt': '👤',
+                    'community': '🤝',
+                    'notifications': '🔔',
+                    'admin': '⚙️',
+                    'monitoring': '📊'
+                }
+                
+                categorized_suites[category]["services"].append({
+                    "title": suite['display_name'] or suite['suite_name'].replace('_', ' ').title(),
+                    "testType": suite['suite_name'],
+                    "icon": icon_mapping.get(suite['test_category'], '🔧'),
+                    "priority": suite['priority'],
+                    "description": suite['description'] or f"{suite['suite_name'].replace('_', ' ').title()} testing",
+                    "timeout_seconds": suite['timeout_seconds']
+                })
+            
+            # Convert to list format expected by frontend
+            category_mapping = {
+                'database': 'Core Platform',
+                'api': 'Core Platform', 
+                'security': 'Core Platform',
+                'integration': 'Core Platform',
+                'performance': 'Core Platform',
+                'auto_healing': 'Core Platform',
+                'payment': 'Revenue Critical',
+                'spiritual': 'Revenue Critical',
+                'avatar': 'Revenue Critical',
+                'live_media': 'Communication',
+                'social_media': 'Communication',
+                'user_mgmt': 'User Experience',
+                'community': 'User Experience',
+                'notifications': 'User Experience',
+                'admin': 'Business Management',
+                'monitoring': 'Business Management'
+            }
+            
+            # Group by frontend categories
+            frontend_categories = {}
+            for category, data in categorized_suites.items():
+                frontend_category = category_mapping.get(category, 'Other Services')
+                if frontend_category not in frontend_categories:
+                    frontend_categories[frontend_category] = {
+                        "category": frontend_category,
+                        "services": []
+                    }
+                frontend_categories[frontend_category]["services"].extend(data["services"])
+            
+            # Convert to array format
+            suite_config = list(frontend_categories.values())
+            
+            logger.info(f"Retrieved {len(test_suites)} test suites from database configuration")
+            
+            return StandardResponse(
+                status="success",
+                message=f"Retrieved {len(test_suites)} test suites from database",
+                data={
+                    "test_suites": suite_config,
+                    "total_suites": len(test_suites)
+                }
             )
-        
-        # Format for UI consumption
-        suite_info = []
-        for suite_name, suite_data in test_suites.items():
-            if "error" not in suite_data:  # Skip error entries
-                suite_info.append({
-                    "name": suite_name,
-                    "display_name": suite_data.get("test_suite_name", suite_name),
-                    "category": suite_data.get("test_category", "unknown"),
-                    "description": suite_data.get("description", ""),
-                    "test_count": len(suite_data.get("test_cases", [])),
-                    "test_cases": [
-                        {
-                            "name": test.get("test_name", ""),
-                            "description": test.get("description", ""),
-                            "priority": test.get("priority", "medium"),
-                            "test_type": test.get("test_type", "unit")
-                        }
-                        for test in suite_data.get("test_cases", [])
-                    ]
-            })
-        
+            
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        logger.error(f"Failed to get test suites from database: {e}")
         return StandardResponse(
-            status="success",
-            message="Test suites retrieved",
-            data=suite_info
+            status="error",
+            message=f"Failed to retrieve test suites: {str(e)}",
+            data={"test_suites": []}
         )
     except Exception as e:
         logger.error(f"Failed to get test suites: {e}")

@@ -194,20 +194,8 @@ class TestExecutionEngine:
         
         session_id = await self._create_test_session("Quick Health Check", "health_check")
         
-        health_checks = [
-            {
-                "test_name": "database_connectivity",
-                "test_function": self._test_database_connectivity
-            },
-            {
-                "test_name": "api_health_endpoint",
-                "test_function": self._test_api_health_endpoint
-            },
-            {
-                "test_name": "critical_tables_exist",
-                "test_function": self._test_critical_tables_exist
-            }
-        ]
+        # Get health checks from database configuration instead of hardcoded list
+        health_checks = await self._get_health_check_configurations()
         
         results = {}
         passed = 0
@@ -797,7 +785,8 @@ class TestExecutionEngine:
         try:
             conn = await asyncpg.connect(self.database_url)
             
-            critical_tables = ['users', 'sessions', 'rag_knowledge_base']
+            # Get critical tables from database configuration instead of hardcoded list
+        critical_tables = await self._get_critical_tables()
             missing_tables = []
             
             for table in critical_tables:
@@ -1006,58 +995,12 @@ class TestExecutionEngine:
             
             generator = TestSuiteGenerator()
             
-            # Handle legacy suite name mappings first
+            # Handle legacy suite name mappings from database configuration
             original_suite_name = suite_name
-            if suite_name == "authentication_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'security_tests'")
-                suite_name = "security_tests"
-            elif suite_name == "api_endpoints_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'api_tests'")
-                suite_name = "api_tests"
-            elif suite_name == "monitoring_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'analytics_monitoring_tests'")
-                suite_name = "analytics_monitoring_tests"
-            elif suite_name == "self_healing_tests":
-                logger.info(f"Mapping legacy suite name '{suite_name}' to 'auto_healing_tests'")
-                suite_name = "auto_healing_tests"
+            suite_name = await self._resolve_suite_name_mapping(suite_name)
             
-            # Generate the specific test suite - using correct suite names from TestSuiteGenerator
-            if suite_name == "security_tests":
-                suite_data = await generator.generate_security_tests()
-            elif suite_name == "database_tests":
-                suite_data = await generator.generate_database_tests()
-            elif suite_name == "api_tests":
-                suite_data = await generator.generate_api_tests()
-            elif suite_name == "analytics_monitoring_tests":
-                suite_data = await generator.generate_analytics_monitoring_tests()
-            elif suite_name == "spiritual_services_tests":
-                suite_data = await generator.generate_spiritual_services_tests()
-            elif suite_name == "auto_healing_tests":
-                suite_data = await generator.generate_auto_healing_tests()
-            elif suite_name == "integration_tests":
-                suite_data = await generator.generate_integration_tests()
-            elif suite_name == "performance_tests":
-                suite_data = await generator.generate_performance_tests()
-            elif suite_name == "social_media_tests":
-                suite_data = await generator.generate_social_media_tests()
-            elif suite_name == "live_audio_video_tests":
-                suite_data = await generator.generate_live_audio_video_tests()
-            elif suite_name == "avatar_generation_tests":
-                suite_data = await generator.generate_avatar_generation_tests()
-            elif suite_name == "credit_payment_tests":
-                suite_data = await generator.generate_credit_payment_tests()
-            elif suite_name == "user_management_tests":
-                suite_data = await generator.generate_user_management_tests()
-            elif suite_name == "admin_services_tests":
-                suite_data = await generator.generate_admin_services_tests()
-            elif suite_name == "community_services_tests":
-                suite_data = await generator.generate_community_services_tests()
-            elif suite_name == "notification_services_tests":
-                suite_data = await generator.generate_notification_services_tests()
-            else:
-                # Generate integration tests as fallback for unknown suite names
-                logger.warning(f"Unknown suite name '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
-                suite_data = await generator.generate_integration_tests()
+            # Generate the specific test suite using database-driven method mapping
+            suite_data = await self._generate_suite_data_from_config(generator, suite_name, original_suite_name)
             
             # Extract test cases from suite data
             if isinstance(suite_data, dict) and 'test_cases' in suite_data:
@@ -1085,6 +1028,167 @@ class TestExecutionEngine:
             return "failed"
         else:
             return "partial"
+    
+    async def _get_health_check_configurations(self) -> List[Dict[str, Any]]:
+        """Get health check configurations from database instead of hardcoded list"""
+        if not self.database_url:
+            # Fallback to minimal hardcoded checks if no database
+            return [
+                {"test_name": "database_connectivity", "test_function": self._test_database_connectivity},
+                {"test_name": "api_health_endpoint", "test_function": self._test_api_health_endpoint}
+            ]
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Get health check configurations from database
+            results = await conn.fetch('''
+                SELECT test_name, test_function, display_name, description, priority, timeout_seconds
+                FROM health_check_configurations
+                WHERE enabled = true
+                ORDER BY order_index, test_name
+            ''')
+            
+            await conn.close()
+            
+            health_checks = []
+            for row in results:
+                test_function = getattr(self, row['test_function'], None)
+                if test_function and callable(test_function):
+                    health_checks.append({
+                        "test_name": row['test_name'],
+                        "test_function": test_function,
+                        "display_name": row['display_name'],
+                        "description": row['description'],
+                        "priority": row['priority'],
+                        "timeout_seconds": row['timeout_seconds']
+                    })
+                else:
+                    logger.warning(f"Health check function not found: {row['test_function']}")
+            
+            return health_checks
+            
+        except Exception as e:
+            logger.warning(f"Could not get health check configurations from database: {e}")
+            # Fallback to minimal hardcoded checks
+            return [
+                {"test_name": "database_connectivity", "test_function": self._test_database_connectivity},
+                {"test_name": "api_health_endpoint", "test_function": self._test_api_health_endpoint}
+            ]
+    
+    async def _get_critical_tables(self) -> List[str]:
+        """Get critical tables list from database configuration instead of hardcoded list"""
+        if not self.database_url:
+            # Fallback to minimal hardcoded list if no database
+            return ['users', 'sessions']
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Get critical table components from database
+            results = await conn.fetch('''
+                SELECT component_name
+                FROM critical_system_components
+                WHERE component_type = 'table' AND enabled = true
+                ORDER BY priority DESC, component_name
+            ''')
+            
+            await conn.close()
+            
+            return [row['component_name'] for row in results]
+            
+        except Exception as e:
+            logger.warning(f"Could not get critical tables from database: {e}")
+            # Fallback to minimal hardcoded list
+            return ['users', 'sessions']
+    
+    async def _resolve_suite_name_mapping(self, suite_name: str) -> str:
+        """Resolve legacy suite name mappings from database configuration"""
+        if not self.database_url:
+            # Fallback to hardcoded mappings if no database
+            legacy_mappings = {
+                "authentication_tests": "security_tests",
+                "api_endpoints_tests": "api_tests", 
+                "monitoring_tests": "analytics_monitoring_tests",
+                "self_healing_tests": "auto_healing_tests"
+            }
+            return legacy_mappings.get(suite_name, suite_name)
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Check for direct suite name match first
+            result = await conn.fetchrow('''
+                SELECT suite_name FROM test_suite_configurations
+                WHERE suite_name = $1 AND enabled = true
+            ''', suite_name)
+            
+            if result:
+                await conn.close()
+                return suite_name  # Direct match found
+            
+            # Check for legacy name mapping
+            result = await conn.fetchrow('''
+                SELECT suite_name FROM test_suite_configurations
+                WHERE legacy_name = $1 AND enabled = true
+            ''', suite_name)
+            
+            await conn.close()
+            
+            if result:
+                mapped_name = result['suite_name']
+                logger.info(f"Mapping legacy suite name '{suite_name}' to '{mapped_name}' (from database)")
+                return mapped_name
+            else:
+                logger.warning(f"No mapping found for suite name '{suite_name}' in database")
+                return suite_name
+                
+        except Exception as e:
+            logger.warning(f"Could not resolve suite name mapping from database: {e}")
+            # Fallback to hardcoded mappings
+            legacy_mappings = {
+                "authentication_tests": "security_tests",
+                "api_endpoints_tests": "api_tests", 
+                "monitoring_tests": "analytics_monitoring_tests",
+                "self_healing_tests": "auto_healing_tests"
+            }
+            return legacy_mappings.get(suite_name, suite_name)
+    
+    async def _generate_suite_data_from_config(self, generator, suite_name: str, original_suite_name: str) -> Dict[str, Any]:
+        """Generate test suite data using database-driven method mapping"""
+        if not self.database_url:
+            # Fallback to integration tests if no database
+            logger.warning(f"No database available, falling back to integration_tests for '{suite_name}'")
+            return await generator.generate_integration_tests()
+            
+        try:
+            conn = await asyncpg.connect(self.database_url)
+            
+            # Get generator method from database configuration
+            result = await conn.fetchrow('''
+                SELECT generator_method, description FROM test_suite_configurations
+                WHERE suite_name = $1 AND enabled = true
+            ''', suite_name)
+            
+            await conn.close()
+            
+            if result and result['generator_method']:
+                generator_method_name = result['generator_method']
+                generator_method = getattr(generator, generator_method_name, None)
+                
+                if generator_method and callable(generator_method):
+                    logger.info(f"Generating test suite '{suite_name}' using method '{generator_method_name}' (from database)")
+                    return await generator_method()
+                else:
+                    logger.error(f"Generator method not found: {generator_method_name}")
+                    return await generator.generate_integration_tests()
+            else:
+                logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                return await generator.generate_integration_tests()
+                
+        except Exception as e:
+            logger.error(f"Failed to get generator method from database for '{suite_name}': {e}")
+            return await generator.generate_integration_tests()
 
 # CLI interface
 async def main():
