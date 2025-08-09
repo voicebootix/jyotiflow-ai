@@ -60,7 +60,8 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 9.0
+        cfg_scale: float = 9.0,
+        ip_adapter_weight: float = 0.75
     ) -> bytes:
         """
         Generate image with face reference preservation using IP-Adapter FaceID
@@ -135,6 +136,11 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
+            # 🔧 CONFIGURABLE WEIGHT: Clamp between 0.0 and 1.0 to prevent API errors
+            clamped_weight = max(0.0, min(1.0, ip_adapter_weight))
+            if clamped_weight != ip_adapter_weight:
+                logger.warning(f"⚠️ IP-Adapter weight clamped from {ip_adapter_weight} to {clamped_weight}")
+            
             # 🎯 CORRECT RUNWARE API SCHEMA - Following official documentation
             task_uuid = str(uuid.uuid4())
             payload = {
@@ -152,7 +158,7 @@ class RunWareService:
                     {
                         "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
                         "guideImage": face_data_uri,  # Direct base64 data URI
-                        "weight": 0.85  # 🔒 STRONG FACE LOCK: Preserve face, allow body/background transformation
+                        "weight": clamped_weight  # 🔧 CONFIGURABLE: Clamped between 0.0-1.0
                     }
                 ]
             }
@@ -374,7 +380,8 @@ class ThemeService:
         self, 
         base_image_bytes: bytes,
         theme_description: str,
-        custom_prompt: Optional[str] = None
+        custom_prompt: Optional[str] = None,
+        theme_day: Optional[int] = None
     ) -> Tuple[bytes, str]:
         """
         🚀 RUNWARE IP-ADAPTER FACEID GENERATION METHOD
@@ -393,27 +400,88 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🔥 AGGRESSIVE TRANSFORMATION: Strong body/background changes with face lock
+                # 🎨 DAILY COLOR TRANSFORMATION: Specific colors for each day with face lock
                 final_prompt = f"""TRANSFORM THIS PERSON: {theme_description}.
 
 MANDATORY TRANSFORMATION RULES:
 - PRESERVE FACE 100%: EXACT same person, same facial identity, same features, same skin tone
+- CHANGE CLOTHING COLORS COMPLETELY: Follow the EXACT colors described in the theme
 - COMPLETELY REPLACE CLOTHES: Remove all current clothing, add new spiritual attire as described
 - COMPLETELY REPLACE BACKGROUND: Remove current environment, create new setting as described  
-- DRAMATIC CHANGE: Make clothing and background transformation very obvious and complete
+- DRAMATIC COLOR CHANGE: Make clothing color transformation very obvious and complete
 - NO BUSINESS ATTIRE: Remove suit, tie, office clothing completely
-- SPIRITUAL TRANSFORMATION: Full conversion to spiritual master appearance
+- NO WRONG COLORS: Only use colors specifically mentioned in the description
+- SPIRITUAL TRANSFORMATION: Full conversion to spiritual master appearance with correct daily colors
 
 TECHNICAL SPECS: Photorealistic, high resolution, professional photography, cinematic lighting, masterpiece quality."""
 
-            # 🔒 FACE LOCK + TRANSFORMATION NEGATIVE PROMPT
-            negative_prompt = """different face, changed face, new face, altered face, face swap, face replacement, 
+            # 🎨 DAILY COLOR NEGATIVE PROMPT: Prevent wrong colors for each day
+            day_of_week = datetime.now().weekday() if theme_day is None else theme_day
+            
+            # 🎨 REFINED COLOR NEGATIVES: Enhanced synonyms and better filtering
+            color_negatives = {
+                0: ["orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire", 
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Monday: only WHITE
+                1: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Tuesday: only MAROON
+                2: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Wednesday: only GREEN
+                3: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"], # Thursday: only BLUE
+                4: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Friday: only GOLDEN
+                5: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire"], # Saturday: only GRAY
+                6: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"] # Sunday: only CREAM
+            }
+            
+            # 🔧 SAFE JOINING: Check if list exists and is not empty before joining
+            daily_color_list = color_negatives.get(day_of_week, [])
+            daily_color_negatives = ", ".join(daily_color_list) if daily_color_list else ""
+            
+            # 🔧 SAFE NEGATIVE PROMPT CONSTRUCTION: Handle empty color negatives
+            base_negatives = """different face, changed face, new face, altered face, face swap, face replacement, 
 different person, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, 
 face morph, artificial face, generic face, multiple faces, extra faces, face clone, face duplicate,
 business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
-office background, corporate setting, modern interior, business environment, contemporary setting,
+office background, corporate setting, modern interior, business environment, contemporary setting"""
+            
+            color_section = f", {daily_color_negatives}" if daily_color_negatives else ""
+            quality_negatives = """, wrong colors, incorrect clothing colors, mismatched theme colors,
 low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch,
 inconsistent lighting, poor composition, amateur photography, low resolution, pixelated, artifacts"""
+            
+            negative_prompt = base_negatives + color_section + quality_negatives
 
             logger.info("🚀 Starting RunWare IP-Adapter FaceID generation...")
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
@@ -946,7 +1014,8 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
                 theme_description=theme_description,
-                custom_prompt=custom_prompt
+                custom_prompt=custom_prompt,
+                theme_day=theme_day
             )
 
         except Exception as e:
