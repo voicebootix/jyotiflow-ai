@@ -17,7 +17,7 @@ import spiritualAPI from "../lib/api";
 import ServiceStatusCard from "./ServiceStatusCard";
 
 // ✅ FOLLOWING .CURSOR RULES: No hardcoded data, retrieve from database
-// Removed ALL_SERVICES_CONFIG hardcoded array - now fetched from API
+// All test configurations are fetched dynamically from database
 
 /**
  * AllServicesTab component for displaying and testing all services
@@ -41,25 +41,46 @@ const AllServicesTab = () => {
 
   /**
    * Fetch test configurations from database via API
-   * ✅ Replaces hardcoded ALL_SERVICES_CONFIG
+   * ✅ Database-driven configuration loading
    */
   const fetchTestConfigurations = async () => {
     try {
       setConfigLoading(true);
       setConfigError(null);
-      
+
+      console.log(
+        "🔄 Fetching test configurations from /api/monitoring/test-suites..."
+      );
       const response = await spiritualAPI.get("/api/monitoring/test-suites");
-      
-      if (response && response.status === "success") {
-        setServicesConfig(response.data.test_suites || []);
-        console.log(`✅ Loaded ${response.data.total_suites} test suites from database`);
+      console.log("📡 API Response:", response);
+
+      // ✅ FIXED: Proper API response structure handling
+      // Following .cursor rules: Thorough analysis of response structure, no assumptions
+      if (response && response.status === "success" && response.data) {
+        const testSuites = response.data.test_suites || [];
+        const totalSuites = response.data.total_suites || testSuites.length;
+
+        setServicesConfig(testSuites);
+        console.log(`✅ Loaded ${totalSuites} test suites from database`);
+
+        if (testSuites.length === 0) {
+          setConfigError(
+            "Database connected but no test configurations found. Please populate the test_suite_configurations table in your database."
+          );
+        }
       } else {
-        throw new Error(response?.message || "Failed to fetch test configurations");
+        // ✅ IMPROVED: Better error message extraction with proper fallback chain
+        const errorMsg =
+          response?.message ||
+          response?.data?.message ||
+          "API returned unsuccessful status";
+        console.error("❌ API Error:", errorMsg, "Full response:", response);
+        throw new Error(errorMsg);
       }
     } catch (err) {
       console.error("❌ Failed to fetch test configurations:", err);
-      setConfigError(`Failed to load test configurations: ${err.message}`);
-      // Fallback to empty array instead of hardcoded data (following .cursor rules)
+      const detailedError = `Database connection failed: ${err.message}. Please check: 1) Backend server is running, 2) Database tables exist, 3) API endpoint /api/monitoring/test-suites is accessible`;
+      setConfigError(detailedError);
       setServicesConfig([]);
     } finally {
       setConfigLoading(false);
@@ -79,7 +100,13 @@ const AllServicesTab = () => {
     const results = {};
 
     try {
-      // ✅ DATABASE-DRIVEN: Execute all test suites from database configuration
+      // ✅ DATABASE-DRIVEN: Execute all test suites from database configuration ONLY
+      if (!servicesConfig || servicesConfig.length === 0) {
+        throw new Error(
+          "No test configurations loaded from database. Please ensure the database contains test suite configurations."
+        );
+      }
+
       for (const category of servicesConfig) {
         for (const service of category.services) {
           try {
@@ -94,15 +121,20 @@ const AllServicesTab = () => {
               }
             );
 
-            if (response && response.status === "success") {
+            // ✅ FIXED: Consistent API response structure handling
+            // Following .cursor rules: Same response checking pattern as fetchTestConfigurations
+            if (response && response.status === "success" && response.data) {
               results[service.testType] = {
                 status: "passed",
-                data: response.data || response,
+                data: response.data,
               };
             } else {
               results[service.testType] = {
                 status: "failed",
-                error: response?.message || "Unknown error",
+                error:
+                  response?.message ||
+                  response?.data?.message ||
+                  "Unknown error",
               };
             }
           } catch (error) {
@@ -136,11 +168,22 @@ const AllServicesTab = () => {
 
   /**
    * Calculates overall statistics for all services
+   * ✅ FOLLOWING .CURSOR RULES: 100% database-driven, no hardcoded fallbacks
    * @returns {Object} Statistics object with counts and metrics
    */
   const getOverallStats = () => {
-    const totalServices = ALL_SERVICES_CONFIG.reduce(
-      (sum, category) => sum + category.services.length,
+    // ✅ DATABASE-ONLY: Only use data from database, never hardcoded fallbacks
+    if (!servicesConfig || servicesConfig.length === 0) {
+      return {
+        totalServices: 0,
+        completedTests: 0,
+        passedTests: 0,
+        failedTests: 0,
+      };
+    }
+
+    const totalServices = servicesConfig.reduce(
+      (sum, category) => sum + (category.services?.length || 0),
       0
     );
     const completedTests = Object.keys(testResults).length;
@@ -267,7 +310,6 @@ const AllServicesTab = () => {
           )}
         </CardContent>
       </Card>
-
       {/* Database-driven Service Categories (following .cursor rules) */}
       {configLoading ? (
         <Card>
@@ -281,9 +323,9 @@ const AllServicesTab = () => {
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             {configError}
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={fetchTestConfigurations}
               className="ml-2"
             >
@@ -296,35 +338,36 @@ const AllServicesTab = () => {
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
-            No test configurations found in database. Please check the database setup.
+            No test configurations found in database. Please check the database
+            setup.
           </AlertDescription>
         </Alert>
       ) : (
         servicesConfig.map((category, categoryIndex) => (
-        <Card key={categoryIndex}>
-          <CardHeader>
-            <CardTitle className="text-lg">
-              {category.category} Services
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {category.services.map((service, serviceIndex) => (
-                <ServiceStatusCard
-                  key={`${category.category}-${serviceIndex}`}
-                  title={service.title}
-                  description={service.description}
-                  endpoint="/api/monitoring/test-execute"
-                  testType={service.testType}
-                  icon={service.icon}
-                  priority={service.priority}
-                />
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )))
-      })
+          <Card key={categoryIndex}>
+            <CardHeader>
+              <CardTitle className="text-lg">
+                {category.category} Services
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(category.services ?? []).map((service, serviceIndex) => (
+                  <ServiceStatusCard
+                    key={`${category.category}-${serviceIndex}`}
+                    title={service.title}
+                    description={service.description}
+                    endpoint="/api/monitoring/test-execute"
+                    testType={service.testType}
+                    icon={service.icon}
+                    priority={service.priority}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        ))
+      )}
     </div>
   );
 };
