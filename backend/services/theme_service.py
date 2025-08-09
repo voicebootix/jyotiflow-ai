@@ -60,7 +60,7 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 8.5
+        cfg_scale: float = 9.0
     ) -> bytes:
         """
         Generate image with face reference preservation using IP-Adapter FaceID
@@ -152,7 +152,7 @@ class RunWareService:
                     {
                         "model": "runware:105@1",  # IP-Adapter FaceID model from documentation
                         "guideImage": face_data_uri,  # Direct base64 data URI
-                        "weight": 1.0  # 🔧 FIXED: Maximum allowed by RunWare API (1.5 caused 400 error)
+                        "weight": 0.7  # 🚀 BALANCED: Face preservation with transformation (1.0 was too strong)
                     }
                 ]
             }
