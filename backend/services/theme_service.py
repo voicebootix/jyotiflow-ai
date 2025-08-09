@@ -190,7 +190,7 @@ class RunWareService:
                             # 🛡️ ROBUST TYPE CHECKING - RunWare returns object with data array
                             if not isinstance(parsed_response, dict):
                                 logger.error(f"❌ Expected object response from RunWare API, got {type(parsed_response).__name__}")
-                                logger.error(f"🔍 Response structure: {str(parsed_response)[:200]}")
+                                logger.error("🔍 Response structure: [REDACTED - Contains sensitive data]")
                                 raise HTTPException(
                                     status_code=502, 
                                     detail=f"RunWare API returned unexpected response format: expected object, got {type(parsed_response).__name__}"
@@ -199,10 +199,20 @@ class RunWareService:
                             logger.info(f"🔍 RunWare API response structure: {list(parsed_response.keys())}")
                             
                             # 🎯 CORRECT RUNWARE RESPONSE PARSING - Following official documentation
-                            data_array = parsed_response.get('data', [])
+                            data_array = parsed_response.get('data')
+                            
+                            # 🛡️ ROBUST DATA VALIDATION - Check data exists, is list, and not empty
+                            if data_array is None:
+                                logger.error("❌ RunWare API response missing 'data' field")
+                                raise HTTPException(status_code=502, detail="RunWare API returned response without 'data' field")
+                            
+                            if not isinstance(data_array, list):
+                                logger.error(f"❌ RunWare API 'data' field is not a list, got {type(data_array).__name__}")
+                                raise HTTPException(status_code=502, detail="RunWare API returned invalid 'data' field format")
+                            
                             if not data_array:
                                 logger.error("❌ RunWare API returned empty data array")
-                                raise HTTPException(status_code=500, detail="No data returned by RunWare API")
+                                raise HTTPException(status_code=502, detail="RunWare API returned empty results")
                             
                             # Get first result from data array
                             first_result = data_array[0]
