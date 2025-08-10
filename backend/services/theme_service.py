@@ -67,10 +67,11 @@ class RunWareService:
         ip_adapter_weight: float = 0.05  # 🎯 ULTRA LOW: Minimal face influence, maximum AI generation freedom
     ) -> bytes:
         """
-        Generate image with face preservation using ultra-low weight IP-Adapter approach
+        Generate image with face preservation using masking + ultra-low weight IP-Adapter
         
-        Uses minimal IP-Adapter influence (0.05) + maximum CFG scale (15.0) to preserve
-        only the face while allowing AI complete freedom for body, clothing, and background.
+        Uses face-only cropped image with transparent background + minimal IP-Adapter weight (0.05)
+        + maximum CFG scale (15.0) to preserve only facial features while allowing AI complete
+        freedom for body, clothing, and background generation.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
@@ -102,42 +103,24 @@ class RunWareService:
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
 
-                # 🎯 COMMUNITY FIX: Use full-body image instead of cropped face
-                # Cropped input = cropped output. Full-body input = full-body output with face preservation
-                logger.info(f"📸 Using full-body image for IP-Adapter (community-verified approach)")
+                # 🎭 MASKING APPROACH: Face-only cropped image with transparent background
+                # Theory: IP-Adapter preserves only visible areas, ignores transparent background
+                logger.info(f"🎭 Using face-only masking approach with transparent background")
                 
-                # Check if format is supported (JPEG/PNG), otherwise transcode to JPEG
-                if original_format in ['JPEG', 'PNG']:
-                    # Save full image in original format
-                    output_buffer = io.BytesIO()
-                    if original_format == 'JPEG':
-                        pil_image.save(output_buffer, format='JPEG', quality=95)
-                        mime_type = 'image/jpeg'
-                    else:  # PNG
-                        pil_image.save(output_buffer, format='PNG')
-                        mime_type = 'image/png'
-                    processed_image_bytes = output_buffer.getvalue()
-                    logger.info(f"✅ Using full-body {original_format} format for RunWare")
-                else:
-                    # Transcode unsupported format to JPEG
-                    logger.info(f"🔄 Transcoding full-body {original_format} to JPEG for RunWare compatibility")
-                    
-                    # Convert to RGB if necessary (handles RGBA, P mode, etc.)
-                    if pil_image.mode in ('RGBA', 'LA', 'P'):
-                        # Create white background for transparent images
-                        rgb_image = Image.new('RGB', pil_image.size, (255, 255, 255))
-                        if pil_image.mode == 'P':
-                            pil_image = pil_image.convert('RGBA')
-                        rgb_image.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode in ('RGBA', 'LA') else None)
-                        pil_image = rgb_image
-                    elif pil_image.mode != 'RGB':
-                        pil_image = pil_image.convert('RGB')
-                    
-                    # Save full-body image as JPEG
-                    jpeg_buffer = io.BytesIO()
-                    pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
-                    processed_image_bytes = jpeg_buffer.getvalue()
-                    mime_type = 'image/jpeg'
+                # Step 1: Crop face area from full image
+                face_cropped = self._crop_face_area(pil_image)
+                logger.info(f"✂️ Face cropped to size: {face_cropped.size}")
+                
+                # Step 2: Create circular mask for face isolation
+                face_with_mask = self._apply_circular_face_mask(face_cropped)
+                logger.info(f"🎭 Applied circular mask for face isolation")
+                
+                # Step 3: Save as PNG with transparency support
+                png_buffer = io.BytesIO()
+                face_with_mask.save(png_buffer, format='PNG')
+                processed_image_bytes = png_buffer.getvalue()
+                mime_type = 'image/png'
+                logger.info(f"✅ Face-only PNG with transparency created: {len(processed_image_bytes)} bytes")
                     
             except Exception as image_error:
                 logger.error(f"❌ PIL image processing failed: {image_error}")
@@ -203,7 +186,7 @@ class RunWareService:
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (ULTRA LOW: Face-only preservation)")
             logger.info(f"📊 CFG Scale: {cfg_scale} (ULTRA HIGH: Maximum prompt dominance)")
-            logger.info("📸 Using full-body image input (community-verified: cropped input = cropped output)")
+            logger.info("🎭 Using face-only masking approach (transparent background isolates face features)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (from environment variable)")
             
@@ -406,6 +389,57 @@ class RunWareService:
             # Fallback: return original image if cropping fails
             return pil_image
     
+    def _apply_circular_face_mask(self, face_image: Image.Image) -> Image.Image:
+        """
+        🎭 Apply circular mask to isolate face with transparent background
+        
+        Creates a circular or oval mask around the face area, making everything outside
+        the face transparent. This allows IP-Adapter to focus only on facial features
+        while ignoring background elements completely.
+        
+        Args:
+            face_image: PIL Image object of cropped face area
+            
+        Returns:
+            PIL Image object with circular face mask and transparent background
+        """
+        try:
+            # Convert to RGBA for transparency support
+            if face_image.mode != 'RGBA':
+                face_image = face_image.convert('RGBA')
+            
+            width, height = face_image.size
+            
+            # Create a new transparent image
+            masked_image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
+            
+            # Create circular mask (slightly oval to match face shape)
+            from PIL import ImageDraw
+            mask = Image.new('L', (width, height), 0)  # Black background
+            draw = ImageDraw.Draw(mask)
+            
+            # Create oval mask (face is typically oval, not perfectly round)
+            margin = min(width, height) * 0.1  # 10% margin
+            oval_bounds = [
+                margin,                    # left
+                margin * 0.5,             # top (less margin at top for forehead)
+                width - margin,           # right  
+                height - margin * 0.3     # bottom (less margin at bottom for chin)
+            ]
+            
+            # Draw white oval on black background (white = visible, black = transparent)
+            draw.ellipse(oval_bounds, fill=255)
+            
+            # Apply mask to face image
+            masked_image.paste(face_image, (0, 0), mask)
+            
+            logger.info(f"🎭 Circular face mask applied: {width}x{height} with oval bounds {oval_bounds}")
+            return masked_image
+            
+        except Exception as mask_error:
+            logger.error(f"❌ Face masking failed: {mask_error}")
+            # Fallback: return original face image without masking
+            return face_image.convert('RGBA') if face_image.mode != 'RGBA' else face_image
 
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
