@@ -31,13 +31,11 @@ class TestThemeServiceMaskGeneration(unittest.TestCase):
     def setUp(self):
         """Set up test environment with mocked dependencies."""
         # Mock all external dependencies
-        self.mock_stability_service = MagicMock()
         self.mock_storage_service = MagicMock()
         
         # Create ThemeService instance with mocked dependencies
-        with patch('services.theme_service.get_stability_service', return_value=self.mock_stability_service):
-            with patch('services.theme_service.get_storage_service', return_value=self.mock_storage_service):
-                self.theme_service = ThemeService()
+        with patch('services.theme_service.get_storage_service', return_value=self.mock_storage_service):
+            self.theme_service = ThemeService()
 
     def test_small_image_100x100_boundary_validation(self):
         """Test mask generation for very small 100x100 images."""
