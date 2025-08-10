@@ -196,20 +196,22 @@ class RunWareService:
                     "guideImage": face_data_uri,  # Reference face image (now cropped to face area only)
                     "weight": clamped_weight  # 🎯 GUIDANCE FIX #1: Reduced to 0.5 for balanced influence
                 }],
-                # 🎯 RUNWARE OPTIMAL: ControlNet for pose stability while allowing dress/background changes
+                # 🎯 OFFICIAL RUNWARE CONTROLNET - Community research confirmed support!
                 "controlNet": [{
-                    "model": "pose",  # Pose model maintains body position
+                    "model": "pose",  # Official pose model for body position stability
                     "guideImage": face_data_uri,  # Same reference image for pose detection
-                    "weight": 0.7,  # Recommended weight from settings table
-                    "startStep": 0,
-                    "endStep": 1000  # Apply throughout entire generation process
+                    "weight": 0.7,  # Official recommended weight (0-1 influence strength)
+                    "startStep": 0,  # Start from beginning (official parameter)
+                    "endStep": 1000,  # Apply throughout entire generation (official parameter)
+                    "controlMode": "balanced"  # Official parameter: balanced prompt vs controlnet influence
                 }]
             }
             
             logger.info("🎯 RunWare IP-Adapter + ControlNet generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (face preservation)")
-            logger.info(f"🎭 ControlNet pose weight: 0.7 (body position stability)")
+            logger.info(f"🎭 ControlNet weight: 0.7 (pose stability - OFFICIAL API)")
+            logger.info(f"⚖️ ControlNet mode: balanced (official parameter)")
             logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
