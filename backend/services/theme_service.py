@@ -18,7 +18,7 @@ import asyncpg
 import json
 import base64
 from typing import Optional, Tuple, List
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageOps, ImageFilter
 import io
 import numpy as np
 from scipy import ndimage
@@ -414,7 +414,6 @@ class RunWareService:
             masked_image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
             
             # Create circular mask (slightly oval to match face shape)
-            from PIL import ImageDraw
             mask = Image.new('L', (width, height), 0)  # Black background
             draw = ImageDraw.Draw(mask)
             
@@ -429,6 +428,11 @@ class RunWareService:
             
             # Draw white oval on black background (white = visible, black = transparent)
             draw.ellipse(oval_bounds, fill=255)
+            
+            # Apply Gaussian blur to soften mask edges and avoid hard transition ring
+            blur_radius = min(width, height) * 0.02  # 2% of image size for subtle blur
+            mask = mask.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+            logger.info(f"🌟 Applied Gaussian blur (radius={blur_radius:.1f}) for smooth mask edges")
             
             # Apply mask to face image
             masked_image.paste(face_image, (0, 0), mask)
