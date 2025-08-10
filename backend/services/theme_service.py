@@ -504,28 +504,29 @@ class ThemeService:
         storage_service: SupabaseStorageService,
         db_conn: asyncpg.Connection,
     ):
-        # Note: stability_service removed - RunWare only
+        # RunWare-only face preservation service
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        # 🎯 ADVANCED FACE PRESERVATION CONFIGURATION
-        # Read environment variables for face preservation method
-        # Robust import pattern to handle different runtime entrypoints
+        # 🎯 RUNWARE CONFIGURATION
+        # Simple import pattern for EnhancedSettings
         try:
             from core_foundation_enhanced import EnhancedSettings
+            settings = EnhancedSettings()
         except ImportError:
-            try:
-                # Fallback for different runtime contexts (cwd=backend or package)
-                from backend.core_foundation_enhanced import EnhancedSettings
-            except ImportError:
-                # Final fallback for relative import contexts
-                from ..core_foundation_enhanced import EnhancedSettings
+            # Fallback: Get RunWare API key directly from environment
+            import os
+            settings = None
+            logger.warning("⚠️ EnhancedSettings not available, using direct environment access")
         
-        settings = EnhancedSettings()
-        
-        # 🚀 RUNWARE ONLY - Stability.AI completely removed
+        # 🚀 RUNWARE ONLY - Premium face preservation
         self.face_preservation_method = "runware_faceref"  # Force RunWare only
-        self.runware_api_key = settings.runware_api_key
+        
+        # Get RunWare API key from settings or environment
+        if settings:
+            self.runware_api_key = settings.runware_api_key
+        else:
+            self.runware_api_key = os.getenv("RUNWARE_API_KEY")
         
         # Initialize RunWare service - REQUIRED
         if not self.runware_api_key:
@@ -683,8 +684,8 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
                 negative_prompt=negative_prompt,
                 width=1024,
                 height=1024,
-                cfg_scale=self.BALANCED_CFG_SCALE,  # 🎯 BALANCED: Moderate prompt guidance for general avatars
-                ip_adapter_weight=self.BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
+                cfg_scale=self.runware_service.BALANCED_CFG_SCALE,  # 🎯 BALANCED: Moderate prompt guidance for general avatars
+                ip_adapter_weight=self.runware_service.BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
             )
             
             logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
@@ -1146,21 +1147,21 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
         """
         🎯 ENHANCED MULTI-METHOD FACE PRESERVATION GENERATION
         
-        Supports multiple face preservation methods via environment configuration:
-        - RunWare IP-Adapter FaceID (80-90% success, $0.0006/image)
-        - Stability AI img2img (20-30% success, legacy fallback)
+        Uses RunWare IP-Adapter FaceID for premium face preservation:
+        - 80-90% face consistency success rate
+        - $0.0006 per image cost efficiency
+        - Superior body/background variation while preserving identity
         
         Args:
             custom_prompt: Optional custom prompt to override theme-based generation
             theme_day: Optional day override (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.
-            strength_param: Transformation strength (0.0-1.0). Only used for Stability AI method.
+            strength_param: Not used (legacy parameter, kept for API compatibility)
         
         Returns:
             Tuple[bytes, str]: Generated image bytes and final prompt used
         
-        Environment Configuration:
-            FACE_PRESERVATION_METHOD=runware_faceref  # Use RunWare (recommended)
-            FACE_PRESERVATION_METHOD=stability_ai     # Use Stability AI (fallback)
+        Configuration:
+            RUNWARE_API_KEY: Required environment variable for RunWare API access
         """
         try:
             # 🔍 COMMON PREPARATION: Get base image and determine theme
@@ -1199,7 +1200,7 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
 
             # 🚀 RUNWARE IP-ADAPTER FACEID METHOD (ONLY METHOD - 80-90% success)
             logger.info("🚀 Using RunWare IP-Adapter FaceID for face preservation (80-90% success rate)")
-            logger.info("🎯 Active face preservation method: runware_faceref (Stability.AI removed)")
+            logger.info("🎯 Active face preservation method: runware_faceref (IP-Adapter FaceID)")
             
             return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
