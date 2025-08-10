@@ -424,10 +424,9 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🎯 RESEARCH-BACKED: Detailed, specific prompts for better AI understanding
-                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master, {theme_description}, 
-sitting in a serene temple courtyard with soft golden sunlight, detailed traditional background with ancient stone pillars, 
-flowering trees, and peaceful ambiance, professional photography, cinematic lighting, ultra-detailed, 8K quality.
+                # 🎯 CORE.MD FIX: Remove hard-coded temple, use theme_description only once, separate clothing/background
+                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {theme_description}, 
+professional photography, cinematic lighting, ultra-detailed, 8K quality.
 
 FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
 - Maintain exact facial features, bone structure, eyes, nose, mouth, and identity from reference image
@@ -436,16 +435,16 @@ FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
 - Face identity is completely protected from all theme transformations
 
 CLOTHING TRANSFORMATION (PRIORITY 2):
-- Transform clothing to {theme_description} with intricate details and flowing fabric
+- Transform clothing with intricate details and flowing fabric appropriate to the daily theme
 - Add elaborate traditional patterns, rich textures, and authentic spiritual attire
 - Remove current clothing completely and replace with theme-appropriate garments
-- Apply vibrant colors and ornate designs as specified in theme description
+- Apply vibrant colors and ornate designs matching the spiritual aesthetic
 
 BACKGROUND TRANSFORMATION (PRIORITY 3):
-- Create elaborate temple setting with detailed architectural elements: {theme_description}
-- Add natural elements like flowering trees, stone carvings, peaceful water features
+- Create immersive spiritual environment that complements the daily theme
+- Add natural elements like architectural details, stone carvings, peaceful water features
 - Implement atmospheric lighting with golden hour ambiance and soft shadows
-- Build immersive spiritual environment matching the daily theme
+- Build serene setting that enhances the spiritual presence without overpowering
 
 TECHNICAL SPECIFICATIONS: Sharp focus, perfect composition, rich vibrant colors, professional portrait photography, 
 cinematic depth of field, high dynamic range, photorealistic rendering, ultra-high definition."""
@@ -511,16 +510,27 @@ face morph, artificial face, generic face, multiple faces, extra faces, face clo
 business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
 office background, corporate setting, modern interior, business environment, contemporary setting"""
             
-            color_section = f", {daily_color_negatives}" if daily_color_negatives else ""
-            # 🚨 RESEARCH-BACKED: Reference-blocking negatives to prevent full image copying
-            reference_blocking = """, same background as reference, identical clothing, copying reference image style, 
-duplicate reference colors, same pose as reference, identical composition, reference image background"""
-
-            quality_negatives = """, wrong colors, incorrect clothing colors, mismatched theme colors,
+            # 🎯 CORE.MD FIX: Clean negative prompt assembly using list-based joining
+            # Build negative prompt segments as a list to avoid leading commas and empty separators
+            negative_segments = [
+                # Base face preservation negatives (always included)
+                base_negatives.strip(),
+                
+                # Daily color negatives (only if not empty)
+                daily_color_negatives.strip() if daily_color_negatives else "",
+                
+                # Reference-blocking negatives to prevent full image copying
+                """same background as reference, identical clothing, copying reference image style, 
+duplicate reference colors, same pose as reference, identical composition, reference image background""",
+                
+                # Quality and technical negatives
+                """wrong colors, incorrect clothing colors, mismatched theme colors,
 low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch,
 inconsistent lighting, poor composition, amateur photography, low resolution, pixelated, artifacts"""
+            ]
             
-            negative_prompt = base_negatives + color_section + reference_blocking + quality_negatives
+            # Filter out empty strings and join with clean comma separation
+            negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
 
             logger.info("🚀 Starting RunWare Image-to-Image generation...")
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
