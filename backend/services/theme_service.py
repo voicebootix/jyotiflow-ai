@@ -70,8 +70,8 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = ULTRA_MINIMAL_CFG_SCALE,  # 🎯 ULTRA HIGH: Maximum prompt dominance to force body/background changes
-        ip_adapter_weight: float = ULTRA_MINIMAL_IP_ADAPTER_WEIGHT  # 🎯 ULTRA MINIMAL: Just enough face preservation, maximum variation freedom
+        cfg_scale: float = BALANCED_CFG_SCALE,  # 🎯 BALANCED: Moderate prompt guidance for general avatars
+        ip_adapter_weight: float = BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
     ) -> bytes:
         """
         Generate image with face preservation using masking + ultra-minimal IP-Adapter approach
