@@ -209,25 +209,17 @@ class RunWareService:
                     "model": "runware:105@1",  # 🎯 GUIDANCE FIX #5: Face-only IP-Adapter model (TODO: verify if face-only or switch to confirmed face-only model)
                     "guideImage": face_data_uri,  # Reference face image (now cropped to face area only)
                     "weight": clamped_weight  # 🎯 GUIDANCE FIX #1: Reduced to 0.5 for balanced influence
-                }],
-                # 🎯 RUNWARE API V1 CONTROLNET - Full compliance with official specification
-                "controlNet": [{
-                    "model": "openpose",  # API v1: Changed from 'pose' to 'openpose' 
-                    "guideImage": pose_guide_data_uri,  # API v1: Full-body image for pose detection (not face crop)
-                    "weight": 0.7,  # Official recommended weight (0-1 influence strength)
-                    "startStep": 1,  # API v1: Must be within [1, steps] range, not 0
-                    "endStep": steps,  # API v1: Must be <= steps parameter (40 by default)
-                    "controlMode": "balanced"  # API v1 verified: one of "prompt", "controlnet", "balanced"
                 }]
+                # 🎯 CONTROLNET REMOVED - You want AI to create body/background from prompt!
+                # ControlNet preserves body structure/pose, but you want only FACE preservation
+                # IP-Adapter alone will preserve face while AI creates new body actions from prompt
             }
             
-            logger.info("🎯 RunWare IP-Adapter + ControlNet generation starting...")
+            logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (face preservation - cropped image)")
-            logger.info(f"🎭 ControlNet model: openpose (API v1 - full-body image)")
-            logger.info(f"📐 ControlNet steps: {1}-{steps} (API v1 compliant range)")
-            logger.info(f"⚖️ ControlNet mode: balanced (API v1 verified parameter)")
-            logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (FACE ONLY preservation)")
+            logger.info("🎭 ControlNet REMOVED - AI will create body/background from prompt")
+            logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence for body/background generation)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
