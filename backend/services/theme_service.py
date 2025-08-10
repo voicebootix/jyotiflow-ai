@@ -55,22 +55,22 @@ class RunWareService:
         else:
             logger.info("✅ RunWare Service initialized with IP-Adapter FaceID approach")
         
-    async def generate_with_face_reference(
-        self, 
-        face_image_bytes: bytes, 
-        prompt: str, 
+        async def generate_with_face_reference(
+        self,
+        face_image_bytes: bytes,
+        prompt: str,
         negative_prompt: str = "",
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 10.0,  # 🎯 COMMUNITY-FIXED: Increased from 7.5 to strengthen prompt vs IP-Adapter
-        ip_adapter_weight: float = 0.2  # 🎯 COMMUNITY-FIXED: Reduced from 0.5 to allow full body generation
+        cfg_scale: float = 15.0,  # 🎯 ULTRA HIGH: Maximum prompt dominance over IP-Adapter
+        ip_adapter_weight: float = 0.05  # 🎯 ULTRA LOW: Minimal face influence, maximum AI generation freedom
     ) -> bytes:
         """
-        Generate image with face preservation using IP-Adapter only approach
+        Generate image with face preservation using ultra-low weight IP-Adapter approach
         
-        This method uses RunWare's IP-Adapter model to preserve the face identity
-        while allowing AI to create new body poses, backgrounds, and clothing from prompts.
+        Uses minimal IP-Adapter influence (0.05) + maximum CFG scale (15.0) to preserve
+        only the face while allowing AI complete freedom for body, clothing, and background.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
@@ -201,10 +201,12 @@ class RunWareService:
             
             logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (COMMUNITY-FIXED: Reduced for full body generation)")
-            logger.info(f"📊 CFG Scale: {cfg_scale} (COMMUNITY-FIXED: Increased to strengthen prompt influence)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (ULTRA LOW: Face-only preservation)")
+            logger.info(f"📊 CFG Scale: {cfg_scale} (ULTRA HIGH: Maximum prompt dominance)")
             logger.info("📸 Using full-body image input (community-verified: cropped input = cropped output)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
+            logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (from environment variable)")
+            logger.info(f"🔍 DEBUG PAYLOAD: {json.dumps(payload, indent=2)[:1000]}...")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
             max_retries = 3
