@@ -100,6 +100,20 @@ class RunWareService:
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
+                # 🎯 RUNWARE API V1: Create full-body guide image for ControlNet (before cropping)
+                # ControlNet needs full-body image for pose detection, not cropped face
+                fullbody_buffer = io.BytesIO()
+                if original_format == 'JPEG':
+                    pil_image.save(fullbody_buffer, format='JPEG', quality=95)
+                    fullbody_mime_type = 'image/jpeg'
+                else:
+                    pil_image.save(fullbody_buffer, format='PNG')
+                    fullbody_mime_type = 'image/png'
+                fullbody_image_bytes = fullbody_buffer.getvalue()
+                fullbody_base64 = base64.b64encode(fullbody_image_bytes).decode('utf-8')
+                pose_guide_data_uri = f"data:{fullbody_mime_type};base64,{fullbody_base64}"
+                logger.info(f"🎭 Full-body guide image created for ControlNet: {len(fullbody_base64)} chars")
+                
                 # 🎯 FACE CROPPING IMPLEMENTATION (Guidance Fix #4)
                 # Crop face area to prevent full image influence in IP-Adapter
                 face_cropped_image = self._crop_face_area(pil_image)
@@ -196,22 +210,23 @@ class RunWareService:
                     "guideImage": face_data_uri,  # Reference face image (now cropped to face area only)
                     "weight": clamped_weight  # 🎯 GUIDANCE FIX #1: Reduced to 0.5 for balanced influence
                 }],
-                # 🎯 OFFICIAL RUNWARE CONTROLNET - Community research confirmed support!
+                # 🎯 RUNWARE API V1 CONTROLNET - Full compliance with official specification
                 "controlNet": [{
-                    "model": "pose",  # Official pose model for body position stability
-                    "guideImage": face_data_uri,  # Same reference image for pose detection
+                    "model": "openpose",  # API v1: Changed from 'pose' to 'openpose' 
+                    "guideImage": pose_guide_data_uri,  # API v1: Full-body image for pose detection (not face crop)
                     "weight": 0.7,  # Official recommended weight (0-1 influence strength)
-                    "startStep": 0,  # Start from beginning (official parameter)
-                    "endStep": 1000,  # Apply throughout entire generation (official parameter)
-                    "controlMode": "balanced"  # Official parameter: balanced prompt vs controlnet influence
+                    "startStep": 1,  # API v1: Must be within [1, steps] range, not 0
+                    "endStep": steps,  # API v1: Must be <= steps parameter (40 by default)
+                    "controlMode": "balanced"  # API v1 verified: one of "prompt", "controlnet", "balanced"
                 }]
             }
             
             logger.info("🎯 RunWare IP-Adapter + ControlNet generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (face preservation)")
-            logger.info(f"🎭 ControlNet weight: 0.7 (pose stability - OFFICIAL API)")
-            logger.info(f"⚖️ ControlNet mode: balanced (official parameter)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (face preservation - cropped image)")
+            logger.info(f"🎭 ControlNet model: openpose (API v1 - full-body image)")
+            logger.info(f"📐 ControlNet steps: {1}-{steps} (API v1 compliant range)")
+            logger.info(f"⚖️ ControlNet mode: balanced (API v1 verified parameter)")
             logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
