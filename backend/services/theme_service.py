@@ -140,6 +140,24 @@ class RunWareService:
                 "Content-Type": "application/json"
             }
             
+            # 🔧 CFG SCALE VALIDATION: Validate type and clamp between 1.0 and 20.0
+            if cfg_scale is None:
+                raise HTTPException(
+                    status_code=400, 
+                    detail="CFG scale cannot be None - must be a numeric value between 1.0 and 20.0"
+                )
+            
+            if not isinstance(cfg_scale, (int, float)):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"CFG scale must be numeric (int or float), got {type(cfg_scale).__name__}: {cfg_scale}"
+                )
+            
+            # Safe to clamp now that we've validated the type
+            clamped_cfg = max(1.0, min(20.0, float(cfg_scale)))
+            if clamped_cfg != cfg_scale:
+                logger.warning(f"⚠️ CFG scale clamped from {cfg_scale} to {clamped_cfg}")
+            
             # 🔧 IP-ADAPTER WEIGHT CONTROL: Validate type and clamp between 0.0 and 1.0
             if ip_adapter_weight is None:
                 raise HTTPException(
@@ -173,7 +191,7 @@ class RunWareService:
                 "width": width,
                 "numberResults": 1,
                 "steps": steps,  # Number of inference steps
-                "CFGScale": cfg_scale,  # Classifier-free guidance scale
+                "CFGScale": clamped_cfg,  # Classifier-free guidance scale (validated and clamped)
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [{
                     "model": self.ip_adapter_model,  # IP-Adapter model from environment variable
@@ -185,7 +203,7 @@ class RunWareService:
             logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (COMMUNITY BALANCED: Face preservation + prompt flexibility)")
-            logger.info(f"📊 CFG Scale: {cfg_scale} (COMMUNITY BALANCED: Moderate guidance without suppressing IP-Adapter)")
+            logger.info(f"📊 CFG Scale: {clamped_cfg} (COMMUNITY BALANCED: Moderate guidance without suppressing IP-Adapter)")
             logger.info("🎭 Using face-only masking approach (transparent background isolates face features)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (from environment variable)")
@@ -651,14 +669,14 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
             
             # Generate with RunWare Image-to-Image + Strength
-            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=4.0, strength=0.15) to avoid duplication
+            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=8.0, ip_adapter_weight=0.4) to avoid duplication
             generated_image_bytes = await self.runware_service.generate_with_face_reference(
                 face_image_bytes=base_image_bytes,
                 prompt=final_prompt,
                 negative_prompt=negative_prompt,
                 width=1024,
                 height=1024
-                # steps and cfg_scale use enhanced defaults from method signature
+                # steps, cfg_scale, and ip_adapter_weight use community-balanced defaults from method signature
             )
             
             logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
