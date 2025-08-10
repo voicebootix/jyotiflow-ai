@@ -63,7 +63,7 @@ class RunWareService:
         height: int = 1024,
         steps: int = 40,
         cfg_scale: float = 4.0,
-        ip_adapter_weight: float = 0.75
+        ip_adapter_weight: float = 0.5  # 🎯 RESEARCH-BACKED: 50% balanced influence (was 0.75)
     ) -> bytes:
         """
         Generate image with face preservation using IP-Adapter FaceID approach
@@ -424,30 +424,30 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🎯 EXPLICIT SCOPING: Theme applies ONLY to clothing/background, NEVER to face
-                final_prompt = f"""Keep the exact same face and expression, do not change identity.
+                # 🎯 CORE.MD FIX: Remove hard-coded temple, use theme_description only once, separate clothing/background
+                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {theme_description}, 
+professional photography, cinematic lighting, ultra-detailed, 8K quality.
 
-FACE PRESERVATION (PRIORITY 1 - OVERRIDES ALL):
-- Keep identical facial features, same person, same identity
-- Preserve exact same skin tone and facial expression  
-- Do not alter or morph the face in any way
-- FACE IS NEVER AFFECTED BY THEME CHANGES
+FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
+- Maintain exact facial features, bone structure, eyes, nose, mouth, and identity from reference image
+- Preserve identical skin tone, facial expression, and spiritual countenance
+- Do not alter, morph, or change the face in any way whatsoever
+- Face identity is completely protected from all theme transformations
 
-CLOTHING CHANGE (PRIORITY 2 - THEME APPLIES HERE):  
-- Apply theme description ONLY to clothing: {theme_description}
-- Remove current attire completely
-- Add new spiritual clothing as specified in the theme description
-- Theme colors and clothing style apply here only
+CLOTHING TRANSFORMATION (PRIORITY 2):
+- Transform clothing with intricate details and flowing fabric appropriate to the daily theme
+- Add elaborate traditional patterns, rich textures, and authentic spiritual attire
+- Remove current clothing completely and replace with theme-appropriate garments
+- Apply vibrant colors and ornate designs matching the spiritual aesthetic
 
-BACKGROUND CHANGE (PRIORITY 3 - THEME APPLIES HERE):
-- Apply theme description ONLY to background setting: {theme_description}
-- Create new environment as described in the theme
-- Remove current background completely
-- Theme setting and environment apply here only
+BACKGROUND TRANSFORMATION (PRIORITY 3):
+- Create immersive spiritual environment that complements the daily theme
+- Add natural elements like architectural details, stone carvings, peaceful water features
+- Implement atmospheric lighting with golden hour ambiance and soft shadows
+- Build serene setting that enhances the spiritual presence without overpowering
 
-CRITICAL: Face preservation (Priority 1) overrides all theme instructions. Theme changes apply ONLY to clothing (Priority 2) and background (Priority 3), never to face.
-
-QUALITY: Photorealistic, high resolution, professional photography, cinematic lighting."""
+TECHNICAL SPECIFICATIONS: Sharp focus, perfect composition, rich vibrant colors, professional portrait photography, 
+cinematic depth of field, high dynamic range, photorealistic rendering, ultra-high definition."""
 
             # 🎨 DAILY COLOR NEGATIVE PROMPT: Prevent wrong colors for each day
             day_of_week = datetime.now().weekday() if theme_day is None else theme_day
@@ -510,12 +510,27 @@ face morph, artificial face, generic face, multiple faces, extra faces, face clo
 business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
 office background, corporate setting, modern interior, business environment, contemporary setting"""
             
-            color_section = f", {daily_color_negatives}" if daily_color_negatives else ""
-            quality_negatives = """, wrong colors, incorrect clothing colors, mismatched theme colors,
+            # 🎯 CORE.MD FIX: Clean negative prompt assembly using list-based joining
+            # Build negative prompt segments as a list to avoid leading commas and empty separators
+            negative_segments = [
+                # Base face preservation negatives (always included)
+                base_negatives.strip(),
+                
+                # Daily color negatives (only if not empty)
+                daily_color_negatives.strip() if daily_color_negatives else "",
+                
+                # Reference-blocking negatives to prevent full image copying
+                """same background as reference, identical clothing, copying reference image style, 
+duplicate reference colors, same pose as reference, identical composition, reference image background""",
+                
+                # Quality and technical negatives
+                """wrong colors, incorrect clothing colors, mismatched theme colors,
 low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch,
 inconsistent lighting, poor composition, amateur photography, low resolution, pixelated, artifacts"""
+            ]
             
-            negative_prompt = base_negatives + color_section + quality_negatives
+            # Filter out empty strings and join with clean comma separation
+            negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
 
             logger.info("🚀 Starting RunWare Image-to-Image generation...")
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
