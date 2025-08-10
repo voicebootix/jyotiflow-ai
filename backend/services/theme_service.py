@@ -54,8 +54,8 @@ class RunWareService:
             logger.warning("⚠️ RunWare API key not provided - service will not be available")
         else:
             logger.info("✅ RunWare Service initialized with IP-Adapter FaceID approach")
-        
-        async def generate_with_face_reference(
+    
+    async def generate_with_face_reference(
         self,
         face_image_bytes: bytes,
         prompt: str,
@@ -206,7 +206,16 @@ class RunWareService:
             logger.info("📸 Using full-body image input (community-verified: cropped input = cropped output)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (from environment variable)")
-            logger.info(f"🔍 DEBUG PAYLOAD: {json.dumps(payload, indent=2)[:1000]}...")
+            
+            # 🔒 SANITIZED DEBUG LOGGING - Remove base64 image data to prevent PII exposure
+            sanitized_payload = payload.copy()
+            if 'ipAdapters' in sanitized_payload:
+                sanitized_payload['ipAdapters'] = [
+                    {k: v if k != 'guideImage' else '[REDACTED_BASE64_IMAGE]' 
+                     for k, v in adapter.items()}
+                    for adapter in sanitized_payload['ipAdapters']
+                ]
+            logger.debug(f"🔍 DEBUG PAYLOAD: {json.dumps(sanitized_payload, indent=2)[:1000]}...")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
             max_retries = 3
