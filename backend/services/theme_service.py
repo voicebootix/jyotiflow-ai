@@ -75,14 +75,14 @@ class RunWareService:
         ip_adapter_weight: float = BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
     ) -> bytes:
         """
-        Generate image with face preservation using FIXED approach based on user analysis
+        Generate image with face preservation using FULL IMAGE approach based on user analysis
         
         PROBLEM FIXED: IP-Adapter was duplicating entire reference image instead of just face
-        SOLUTION: Face-only model + aggressive cropping + low weight + high CFG + strong negatives
+        SOLUTION: Full image + ultra-low IP weight + high CFG + strong negatives (NO cropping/masking)
         
-        Uses face-only cropped image (30%x50%) + low IP-Adapter weight (0.15) + high CFG scale (15.0)
+        Uses COMPLETE reference image + ultra-low IP-Adapter weight (0.15) + high CFG scale (15.0)
         + strong reference-blocking negatives to preserve ONLY facial identity while forcing AI to generate
-        completely new body poses, clothing, and backgrounds from prompts.
+        completely new body poses, clothing, and backgrounds from prompts. No transparency issues.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
@@ -101,37 +101,38 @@ class RunWareService:
             if not self.api_key:
                 raise HTTPException(status_code=503, detail="RunWare API key not configured")
                 
-            # 🎯 GUIDANCE-BASED: Face detection and cropping for IP-Adapter optimization
-            # Load image to detect format, crop face area, and transcode if needed
+            # 🎯 FULL IMAGE APPROACH: Use complete reference image with ultra-low IP-Adapter weight
+            # Theory: Low weight (0.15) preserves only face identity, high CFG (15.0) forces prompt variation
             try:
                 pil_image = Image.open(io.BytesIO(face_image_bytes))
                 original_format = pil_image.format
                 logger.info(f"📸 Processing {original_format} image: {pil_image.size}")
                 
-                # 🎯 CORE.MD FIX: Handle EXIF orientation before cropping to prevent misaligned face crops
+                # 🎯 CORE.MD FIX: Handle EXIF orientation to ensure correct image display
                 # Mobile photos often have EXIF rotation data that needs to be applied
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
-
-                # 🎭 MASKING APPROACH: Face-only cropped image with transparent background
-                # Theory: IP-Adapter preserves only visible areas, ignores transparent background
-                logger.info(f"🎭 Using face-only masking approach with transparent background")
+                # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on ultra-low IP-Adapter weight
+                # Theory: IP-Adapter weight 0.15 + CFG 15.0 = face preserved, body/background from prompt
+                logger.info(f"🎯 Using FULL IMAGE approach with ultra-low IP-Adapter weight")
+                logger.info(f"🎯 Theory: Low IP weight preserves face only, high CFG forces prompt variation")
                 
-                # Step 1: Crop face area from full image
-                face_cropped = self._crop_face_area(pil_image)
-                logger.info(f"✂️ Face cropped to size: {face_cropped.size}")
+                # Convert to JPEG for consistent format (no transparency issues)
+                if pil_image.mode in ('RGBA', 'LA', 'P'):
+                    # Convert transparency to white background for clean JPEG
+                    background = Image.new('RGB', pil_image.size, (255, 255, 255))
+                    if pil_image.mode == 'P':
+                        pil_image = pil_image.convert('RGBA')
+                    background.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode == 'RGBA' else None)
+                    pil_image = background
                 
-                # Step 2: Create circular mask for face isolation
-                face_with_mask = self._apply_circular_face_mask(face_cropped)
-                logger.info(f"🎭 Applied circular mask for face isolation")
-                
-                # Step 3: Save as PNG with transparency support
-                png_buffer = io.BytesIO()
-                face_with_mask.save(png_buffer, format='PNG')
-                processed_image_bytes = png_buffer.getvalue()
-                mime_type = 'image/png'
-                logger.info(f"✅ Face-only PNG with transparency created: {len(processed_image_bytes)} bytes")
+                # Save as JPEG
+                jpeg_buffer = io.BytesIO()
+                pil_image.save(jpeg_buffer, format='JPEG', quality=95)
+                processed_image_bytes = jpeg_buffer.getvalue()
+                mime_type = 'image/jpeg'
+                logger.info(f"✅ Full image JPEG created: {len(processed_image_bytes)} bytes")
                     
             except Exception as image_error:
                 logger.error(f"❌ PIL image processing failed: {image_error}")
@@ -206,7 +207,7 @@ class RunWareService:
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [{
                     "model": self.ip_adapter_model,  # 🎯 FACE-ONLY IP-ADAPTER: Configurable face preservation model
-                    "guideImage": face_data_uri,  # Reference face-only cropped image with transparent background
+                    "guideImage": face_data_uri,  # Reference full image (no cropping/masking)
                     "weight": clamped_weight  # 🎯 LOW WEIGHT: Preserve face identity only, not full image style
                 }]
             }
@@ -215,7 +216,7 @@ class RunWareService:
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (LOW: Face identity only, not full image duplication)")
             logger.info(f"📊 CFG Scale: {clamped_cfg} (HIGH: Strong prompt guidance to override reference)")
-            logger.info("🎭 Using aggressive face-only cropping + masking (isolates face from body/background)")
+            logger.info("🎯 Using FULL IMAGE approach (no cropping/masking - relies on ultra-low IP weight)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (Face-only preservation model, not image mode)")
             
