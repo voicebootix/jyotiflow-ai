@@ -37,12 +37,12 @@ class FacePreservationMethod(Enum):
 # 🚀 RUNWARE API SERVICE CLASS
 class RunWareService:
     """
-    🎯 RunWare API Service for IP-Adapter only face preservation
+    🎯 RunWare API Service for IP-Adapter FULL IMAGE face preservation
     Achieves 80-90% face consistency with $0.0006 per image cost
     
-    This service uses RunWare's IP-Adapter approach to preserve face identity
-    while allowing AI to create new body poses, backgrounds, and clothing from prompts.
-    The face-only approach provides maximum creative freedom for body and background generation.
+    This service uses RunWare's IP-Adapter with COMPLETE reference images and ultra-low weights
+    to preserve face identity while allowing AI to create new body poses, backgrounds, and clothing from prompts.
+    The full-image approach with low IP-Adapter weight provides maximum creative freedom without masking artifacts.
     """
     
     # 🔧 CONFIGURATION CONSTANTS: FIXED BASED ON USER ANALYSIS
@@ -75,14 +75,14 @@ class RunWareService:
         ip_adapter_weight: float = BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
     ) -> bytes:
         """
-        Generate image with face preservation using FIXED approach based on user analysis
+        Generate image with face preservation using FULL IMAGE approach based on user analysis
         
         PROBLEM FIXED: IP-Adapter was duplicating entire reference image instead of just face
-        SOLUTION: Face-only model + aggressive cropping + low weight + high CFG + strong negatives
+        SOLUTION: Full image + ultra-low IP weight + high CFG + strong negatives (NO cropping/masking)
         
-        Uses face-only cropped image (30%x50%) + low IP-Adapter weight (0.15) + high CFG scale (15.0)
+        Uses COMPLETE reference image + ultra-low IP-Adapter weight (0.15) + high CFG scale (15.0)
         + strong reference-blocking negatives to preserve ONLY facial identity while forcing AI to generate
-        completely new body poses, clothing, and backgrounds from prompts.
+        completely new body poses, clothing, and backgrounds from prompts. No transparency issues.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
@@ -101,37 +101,50 @@ class RunWareService:
             if not self.api_key:
                 raise HTTPException(status_code=503, detail="RunWare API key not configured")
                 
-            # 🎯 GUIDANCE-BASED: Face detection and cropping for IP-Adapter optimization
-            # Load image to detect format, crop face area, and transcode if needed
+            # 🎯 FULL IMAGE APPROACH: Use complete reference image with ultra-low IP-Adapter weight
+            # Theory: Low weight (0.15) preserves only face identity, high CFG (15.0) forces prompt variation
             try:
                 pil_image = Image.open(io.BytesIO(face_image_bytes))
                 original_format = pil_image.format
                 logger.info(f"📸 Processing {original_format} image: {pil_image.size}")
                 
-                # 🎯 CORE.MD FIX: Handle EXIF orientation before cropping to prevent misaligned face crops
+                # 🎯 CORE.MD FIX: Handle EXIF orientation to ensure correct image display
                 # Mobile photos often have EXIF rotation data that needs to be applied
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
-
-                # 🎭 MASKING APPROACH: Face-only cropped image with transparent background
-                # Theory: IP-Adapter preserves only visible areas, ignores transparent background
-                logger.info(f"🎭 Using face-only masking approach with transparent background")
+                # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on ultra-low IP-Adapter weight
+                # Theory: IP-Adapter weight 0.15 + CFG 15.0 = face preserved, body/background from prompt
+                logger.info(f"🎯 Using FULL IMAGE approach with ultra-low IP-Adapter weight")
+                logger.info(f"🎯 Theory: Low IP weight preserves face only, high CFG forces prompt variation")
                 
-                # Step 1: Crop face area from full image
-                face_cropped = self._crop_face_area(pil_image)
-                logger.info(f"✂️ Face cropped to size: {face_cropped.size}")
+                # Convert to RGB for consistent JPEG format (handles all image modes)
+                if pil_image.mode != 'RGB':
+                    if pil_image.mode in ('RGBA', 'LA'):
+                        # Handle transparency modes - convert to white background
+                        background = Image.new('RGB', pil_image.size, (255, 255, 255))
+                        background.paste(pil_image, mask=pil_image.split()[-1])
+                        pil_image = background
+                        logger.info(f"🔄 Converted {pil_image.mode} to RGB with white background")
+                    elif pil_image.mode == 'P':
+                        # Handle palette mode - convert to RGBA first to preserve transparency if present
+                        pil_image = pil_image.convert('RGBA')
+                        background = Image.new('RGB', pil_image.size, (255, 255, 255))
+                        background.paste(pil_image, mask=pil_image.split()[-1])
+                        pil_image = background
+                        logger.info(f"🔄 Converted palette mode to RGB with white background")
+                    else:
+                        # Handle other modes (CMYK, L, LAB, HSV, etc.) - direct conversion to RGB
+                        original_mode = pil_image.mode
+                        pil_image = pil_image.convert('RGB')
+                        logger.info(f"🔄 Converted {original_mode} mode to RGB")
                 
-                # Step 2: Create circular mask for face isolation
-                face_with_mask = self._apply_circular_face_mask(face_cropped)
-                logger.info(f"🎭 Applied circular mask for face isolation")
-                
-                # Step 3: Save as PNG with transparency support
-                png_buffer = io.BytesIO()
-                face_with_mask.save(png_buffer, format='PNG')
-                processed_image_bytes = png_buffer.getvalue()
-                mime_type = 'image/png'
-                logger.info(f"✅ Face-only PNG with transparency created: {len(processed_image_bytes)} bytes")
+                # Save as optimized JPEG
+                jpeg_buffer = io.BytesIO()
+                pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
+                processed_image_bytes = jpeg_buffer.getvalue()
+                mime_type = 'image/jpeg'
+                logger.info(f"✅ Optimized full image JPEG created: {len(processed_image_bytes)} bytes")
                     
             except Exception as image_error:
                 logger.error(f"❌ PIL image processing failed: {image_error}")
@@ -206,7 +219,7 @@ class RunWareService:
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [{
                     "model": self.ip_adapter_model,  # 🎯 FACE-ONLY IP-ADAPTER: Configurable face preservation model
-                    "guideImage": face_data_uri,  # Reference face-only cropped image with transparent background
+                    "guideImage": face_data_uri,  # Reference full image (no cropping/masking)
                     "weight": clamped_weight  # 🎯 LOW WEIGHT: Preserve face identity only, not full image style
                 }]
             }
@@ -215,7 +228,7 @@ class RunWareService:
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (LOW: Face identity only, not full image duplication)")
             logger.info(f"📊 CFG Scale: {clamped_cfg} (HIGH: Strong prompt guidance to override reference)")
-            logger.info("🎭 Using aggressive face-only cropping + masking (isolates face from body/background)")
+            logger.info("🎯 Using FULL IMAGE approach (no cropping/masking - relies on ultra-low IP weight)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (Face-only preservation model, not image mode)")
             
@@ -371,109 +384,39 @@ class RunWareService:
     
     def _crop_face_area(self, pil_image: Image.Image) -> Image.Image:
         """
-        🎯 GUIDANCE FIX #4: Crop face area from full image to prevent full-image IP-Adapter influence
+        ⚠️ DEPRECATED: Legacy face cropping method - NO LONGER USED
         
-        This method implements smart face cropping to send only the face region to IP-Adapter,
-        preventing the AI from copying background/clothing from the reference image.
+        This method was part of the old masking approach that caused transparency issues.
+        The current implementation uses FULL IMAGE approach with ultra-low IP-Adapter weights.
+        
+        Kept for backwards compatibility only. Will be removed in future versions.
         
         Args:
-            pil_image: PIL Image object to crop
+            pil_image: PIL Image object of the reference photo
             
         Returns:
-            PIL Image object with face area cropped
+            PIL Image object (unchanged - deprecation fallback)
         """
-        try:
-            width, height = pil_image.size
-            
-            # 🎯 INTELLIGENT FACE CROP: Center-weighted crop with padding
-            # Assumes face is roughly centered in uploaded portrait photos
-            
-            # Calculate face region (30% width, 50% height, centered) - MORE AGGRESSIVE CROPPING
-            # Problem: Previous 40%x60% was including too much body/background
-            face_width_ratio = 0.3   # 30% of image width for face only (reduced from 40%)
-            face_height_ratio = 0.5  # 50% of image height for face only (reduced from 60%)
-            
-            face_width = int(width * face_width_ratio)
-            face_height = int(height * face_height_ratio)
-            
-            # Center the crop area
-            left = (width - face_width) // 2
-            top = int(height * 0.15)  # Start 15% from top (face usually in upper portion)
-            right = left + face_width
-            bottom = top + face_height
-            
-            # Ensure crop bounds are within image
-            left = max(0, left)
-            top = max(0, top)
-            right = min(width, right)
-            bottom = min(height, bottom)
-            
-            # Crop the face area
-            face_crop = pil_image.crop((left, top, right, bottom))
-            
-            logger.info(f"✂️ Face crop: {left},{top} to {right},{bottom} = {face_crop.size}")
-            return face_crop
-            
-        except Exception as crop_error:
-            logger.warning(f"⚠️ Face cropping failed: {crop_error}, using original image")
-            # Fallback: return original image if cropping fails
-            return pil_image
+        logger.warning("⚠️ _crop_face_area called - DEPRECATED method, using full image instead")
+        return pil_image  # Return original image unchanged
     
     def _apply_circular_face_mask(self, face_image: Image.Image) -> Image.Image:
         """
-        🎭 Apply circular mask to isolate face with transparent background
+        ⚠️ DEPRECATED: Legacy circular masking method - NO LONGER USED
         
-        Creates a circular or oval mask around the face area, making everything outside
-        the face transparent. This allows IP-Adapter to focus only on facial features
-        while ignoring background elements completely.
+        This method was part of the old masking approach that caused black/transparent backgrounds.
+        The current implementation uses FULL IMAGE approach without any masking.
+        
+        Kept for backwards compatibility only. Will be removed in future versions.
         
         Args:
-            face_image: PIL Image object of cropped face area
+            face_image: PIL Image object (returned unchanged)
             
         Returns:
-            PIL Image object with circular face mask and transparent background
+            PIL Image object (unchanged - deprecation fallback)
         """
-        try:
-            # Convert to RGBA for transparency support
-            if face_image.mode != 'RGBA':
-                face_image = face_image.convert('RGBA')
-            
-            width, height = face_image.size
-            
-            # Create a new transparent image
-            masked_image = Image.new('RGBA', (width, height), (0, 0, 0, 0))
-            
-            # Create circular mask (slightly oval to match face shape)
-            mask = Image.new('L', (width, height), 0)  # Black background
-            draw = ImageDraw.Draw(mask)
-            
-            # Create oval mask (face is typically oval, not perfectly round)
-            margin = min(width, height) * 0.1  # 10% margin
-            oval_bounds = [
-                margin,                    # left
-                margin * 0.5,             # top (less margin at top for forehead)
-                width - margin,           # right  
-                height - margin * 0.3     # bottom (less margin at bottom for chin)
-            ]
-            
-            # Draw white oval on black background (white = visible, black = transparent)
-            draw.ellipse(oval_bounds, fill=255)
-            
-            # Apply Gaussian blur to soften mask edges and avoid hard transition ring
-            blur_radius = min(width, height) * 0.02  # 2% of image size for subtle blur
-            mask = mask.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-            logger.info(f"🌟 Applied Gaussian blur (radius={blur_radius:.1f}) for smooth mask edges")
-            
-            # Apply mask to face image
-            masked_image.paste(face_image, (0, 0), mask)
-            
-            logger.info(f"🎭 Circular face mask applied: {width}x{height} with oval bounds {oval_bounds}")
-            return masked_image
-            
-        except Exception as mask_error:
-            logger.error(f"❌ Face masking failed: {mask_error}")
-            # Fallback: return original face image without masking
-            return face_image.convert('RGBA') if face_image.mode != 'RGBA' else face_image
+        logger.warning("⚠️ _apply_circular_face_mask called - DEPRECATED method, using full image instead")
+        return face_image  # Return original image unchanged
 
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
@@ -980,7 +923,10 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
 
     def _create_face_preservation_mask(self, image_width: int, image_height: int) -> bytes:
         """
-        🎭 FACE PRESERVATION MASK: Creates mask for inpainting where face area is preserved.
+        ⚠️ DEPRECATED: Legacy inpainting mask method - NO LONGER USED
+        
+        This method was part of the old inpainting approach. The current implementation
+        uses IP-Adapter FULL IMAGE approach without any masking or inpainting.
         
         USER SPECIFICATION: Face area-ஐ mask செய்யாதீர்கள் - Just mask dress & body only.
         
@@ -1235,10 +1181,10 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
         """
         try:
             # REFRESH.MD: FIX - Get both the image and the actual prompt used.
-            # PHASE 2: Using inpainting approach - no strength parameter needed (mask provides precision)
+            # PHASE 2: Using IP-Adapter FULL IMAGE approach with ultra-low weight
             generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(
                 custom_prompt=custom_prompt
-                # No strength_param needed - inpainting uses mask for precision control
+                # Using full image + low IP weight for face preservation without masking artifacts
             )
 
             unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
