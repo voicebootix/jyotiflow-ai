@@ -48,16 +48,6 @@ except ImportError:
         raise HTTPException(status_code=501, detail="Theme service is not available.")
 
 try:
-    from services.stability_ai_service import StabilityAiService, get_stability_service
-    STABILITY_SERVICE_AVAILABLE = True
-except ImportError:
-    STABILITY_SERVICE_AVAILABLE = False
-    class StabilityAiService: pass
-    async def get_stability_service() -> AsyncGenerator[None, None]:
-        raise HTTPException(status_code=501, detail="Stability AI service is not available.")
-        yield
-
-try:
     from services.supabase_storage_service import SupabaseStorageService, get_storage_service
     STORAGE_SERVICE_AVAILABLE = True
 except ImportError:

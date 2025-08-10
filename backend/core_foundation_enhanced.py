@@ -110,16 +110,15 @@ class EnhancedSettings(BaseSettings):
     # 🎯 ADVANCED FACE PRESERVATION CONFIGURATION
     runware_api_key: str = ""  # Runtime resolution by BaseSettings from RUNWARE_API_KEY
     face_preservation_method: str = Field(
-        default="stability_ai",
-        description="Face preservation method: 'stability_ai' or 'runware_faceref'"
+        default="runware_faceref",
+        description="Face preservation method: 'runware_faceref' (RunWare IP-Adapter)"
     )
-    stability_api_key: str = ""  # Runtime resolution by BaseSettings from STABILITY_API_KEY
     
     @field_validator('face_preservation_method')
     @classmethod
     def validate_face_preservation_method(cls, v: str) -> str:
         """Validate face preservation method is one of allowed values"""
-        allowed_methods = ['stability_ai', 'runware_faceref']
+        allowed_methods = ['runware_faceref']
         if v not in allowed_methods:
             raise ValueError(
                 f"face_preservation_method must be one of {allowed_methods}, got: '{v}'"
