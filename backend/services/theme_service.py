@@ -37,17 +37,18 @@ class FacePreservationMethod(Enum):
 # 🚀 RUNWARE API SERVICE CLASS
 class RunWareService:
     """
-    🎯 RunWare API Service for Image-to-Image + Strength face preservation
+    🎯 RunWare API Service for IP-Adapter only face preservation
     Achieves 80-90% face consistency with $0.0006 per image cost
     
-    This service uses RunWare's Image-to-Image workflow with low strength values
-    to preserve face identity while allowing dramatic background/clothing transformations.
-    The seedImage approach provides better control over what gets preserved vs. transformed.
+    This service uses RunWare's IP-Adapter approach to preserve face identity
+    while allowing AI to create new body poses, backgrounds, and clothing from prompts.
+    The face-only approach provides maximum creative freedom for body and background generation.
     """
     
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://api.runware.ai/v1"
+        self.ip_adapter_model = os.getenv("RUNWARE_IP_ADAPTER_MODEL", "runware:105@1")
         
         if not api_key:
             logger.warning("⚠️ RunWare API key not provided - service will not be available")
@@ -66,14 +67,14 @@ class RunWareService:
         ip_adapter_weight: float = 0.5  # 🎯 RESEARCH-BACKED: 50% balanced influence (was 0.75)
     ) -> bytes:
         """
-        Generate image with face preservation using IP-Adapter FaceID approach
+        Generate image with face preservation using IP-Adapter only approach
         
-        This method uses RunWare's IP-Adapter FaceID model to preserve the face identity
-        while allowing dramatic transformation of clothes and background based on prompts.
+        This method uses RunWare's IP-Adapter model to preserve the face identity
+        while allowing AI to create new body poses, backgrounds, and clothing from prompts.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
-            prompt: Theme generation prompt (focus on clothes/background changes)
+            prompt: Theme generation prompt (AI creates body/background from this)
             negative_prompt: Negative prompt to avoid unwanted features
             width: Output image width
             height: Output image height
@@ -82,7 +83,7 @@ class RunWareService:
             ip_adapter_weight: IP-Adapter influence weight (0.0-1.0, higher = stronger face preservation)
             
         Returns:
-            bytes: Generated image with preserved face and transformed clothes/background
+            bytes: Generated image with preserved face and AI-created body/background
         """
         try:
             if not self.api_key:
@@ -100,20 +101,7 @@ class RunWareService:
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
-                # 🎯 RUNWARE API V1: Create full-body guide image for ControlNet (before cropping)
-                # ControlNet needs full-body image for pose detection, not cropped face
-                fullbody_buffer = io.BytesIO()
-                if original_format == 'JPEG':
-                    pil_image.save(fullbody_buffer, format='JPEG', quality=95)
-                    fullbody_mime_type = 'image/jpeg'
-                else:
-                    pil_image.save(fullbody_buffer, format='PNG')
-                    fullbody_mime_type = 'image/png'
-                fullbody_image_bytes = fullbody_buffer.getvalue()
-                fullbody_base64 = base64.b64encode(fullbody_image_bytes).decode('utf-8')
-                pose_guide_data_uri = f"data:{fullbody_mime_type};base64,{fullbody_base64}"
-                logger.info(f"🎭 Full-body guide image created for ControlNet: {len(fullbody_base64)} chars")
-                
+
                 # 🎯 FACE CROPPING IMPLEMENTATION (Guidance Fix #4)
                 # Crop face area to prevent full image influence in IP-Adapter
                 face_cropped_image = self._crop_face_area(pil_image)
@@ -206,28 +194,17 @@ class RunWareService:
                 "CFGScale": cfg_scale,  # Classifier-free guidance scale
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [{
-                    "model": "runware:105@1",  # 🎯 GUIDANCE FIX #5: Face-only IP-Adapter model (TODO: verify if face-only or switch to confirmed face-only model)
-                    "guideImage": face_data_uri,  # Reference face image (now cropped to face area only)
-                    "weight": clamped_weight  # 🎯 GUIDANCE FIX #1: Reduced to 0.5 for balanced influence
-                }],
-                # 🎯 RUNWARE API V1 CONTROLNET - Full compliance with official specification
-                "controlNet": [{
-                    "model": "openpose",  # API v1: Changed from 'pose' to 'openpose' 
-                    "guideImage": pose_guide_data_uri,  # API v1: Full-body image for pose detection (not face crop)
-                    "weight": 0.7,  # Official recommended weight (0-1 influence strength)
-                    "startStep": 1,  # API v1: Must be within [1, steps] range, not 0
-                    "endStep": steps,  # API v1: Must be <= steps parameter (40 by default)
-                    "controlMode": "balanced"  # API v1 verified: one of "prompt", "controlnet", "balanced"
+                    "model": self.ip_adapter_model,  # IP-Adapter model from environment variable
+                    "guideImage": face_data_uri,  # Reference face image (cropped to face area only)
+                    "weight": clamped_weight  # Balanced influence for face preservation
                 }]
             }
             
-            logger.info("🎯 RunWare IP-Adapter + ControlNet generation starting...")
+            logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (face preservation - cropped image)")
-            logger.info(f"🎭 ControlNet model: openpose (API v1 - full-body image)")
-            logger.info(f"📐 ControlNet steps: {1}-{steps} (API v1 compliant range)")
-            logger.info(f"⚖️ ControlNet mode: balanced (API v1 verified parameter)")
-            logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (FACE ONLY preservation)")
+
+            logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence for body/background generation)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
