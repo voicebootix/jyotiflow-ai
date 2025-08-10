@@ -18,7 +18,7 @@ import asyncpg
 import json
 import base64
 from typing import Optional, Tuple, List
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 import io
 import numpy as np
 from scipy import ndimage
@@ -94,6 +94,11 @@ class RunWareService:
                 pil_image = Image.open(io.BytesIO(face_image_bytes))
                 original_format = pil_image.format
                 logger.info(f"📸 Processing {original_format} image: {pil_image.size}")
+                
+                # 🎯 CORE.MD FIX: Handle EXIF orientation before cropping to prevent misaligned face crops
+                # Mobile photos often have EXIF rotation data that needs to be applied
+                pil_image = ImageOps.exif_transpose(pil_image)
+                logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
                 # 🎯 FACE CROPPING IMPLEMENTATION (Guidance Fix #4)
                 # Crop face area to prevent full image influence in IP-Adapter
