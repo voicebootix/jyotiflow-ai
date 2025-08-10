@@ -485,11 +485,11 @@ THEMES = {
 
 class ThemeService:
     """
-    🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with Image-to-Image + Strength
-    Orchestrates daily theme generation using RunWare's Image-to-Image workflow for optimal control.
+    🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with IP-Adapter FaceID
+    Orchestrates daily theme generation using RunWare's IP-Adapter FaceID workflow for optimal control.
     
     Face Preservation Method:
-    - RunWare Image-to-Image + Strength (80-90% success rate, $0.0006 per image)
+    - RunWare IP-Adapter FaceID (80-90% success rate, $0.0006 per image)
     
     Features:
     - Superior face preservation through seedImage + low strength approach
@@ -522,8 +522,8 @@ class ThemeService:
         # 🚀 RUNWARE ONLY - Premium face preservation
         self.face_preservation_method = "runware_faceref"  # Force RunWare only
         
-        # Get RunWare API key from settings or environment
-        if settings:
+        # Get RunWare API key from settings or environment (safe retrieval)
+        if settings and hasattr(settings, 'runware_api_key') and settings.runware_api_key:
             self.runware_api_key = settings.runware_api_key
         else:
             self.runware_api_key = os.getenv("RUNWARE_API_KEY")
@@ -537,8 +537,8 @@ class ThemeService:
             )
         
         self.runware_service = RunWareService(self.runware_api_key)
-        logger.info("🚀 ThemeService initialized with RunWare Image-to-Image + Strength ONLY (80-90% success rate)")
-        logger.info("📝 Switched from IP-Adapter to Image-to-Image workflow for better face preservation control")
+        logger.info("🚀 ThemeService initialized with RunWare IP-Adapter FaceID ONLY (80-90% success rate)")
+        logger.info("📝 Switched from Stability.AI to IP-Adapter FaceID workflow for better face preservation control")
         logger.info(f"🎯 Active face preservation method: {self.face_preservation_method}")
     
     async def _generate_with_runware(
@@ -673,10 +673,10 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             # Filter out empty strings and join with clean comma separation
             negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
 
-            logger.info("🚀 Starting RunWare Image-to-Image generation...")
+            logger.info("🚀 Starting RunWare IP-Adapter FaceID generation...")
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
             
-            # Generate with RunWare Image-to-Image + Strength
+            # Generate with RunWare IP-Adapter FaceID
             # 🔧 EXPLICIT PARAMETERS: Use balanced approach for general avatar generation (not ultra-minimal)
             generated_image_bytes = await self.runware_service.generate_with_face_reference(
                 face_image_bytes=base_image_bytes,
@@ -1156,13 +1156,20 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             custom_prompt: Optional custom prompt to override theme-based generation
             theme_day: Optional day override (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.
             strength_param: Not used (legacy parameter, kept for API compatibility)
-        
+            
         Returns:
             Tuple[bytes, str]: Generated image bytes and final prompt used
         
         Configuration:
             RUNWARE_API_KEY: Required environment variable for RunWare API access
         """
+        
+        # 🚨 DEPRECATION WARNING: Log if strength_param is not default (0.4)
+        if strength_param != 0.4:
+            logger.warning(
+                f"⚠️ DEPRECATION WARNING: strength_param={strength_param} is ignored and will be removed. "
+                f"RunWare IP-Adapter FaceID workflow uses fixed parameters for optimal face preservation."
+            )
         try:
             # 🔍 COMMON PREPARATION: Get base image and determine theme
             base_image_bytes, base_image_url = await self._get_base_image_data()
