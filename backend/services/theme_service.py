@@ -62,7 +62,7 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 4.0,
+        cfg_scale: float = 7.5,  # 🎯 RUNWARE OPTIMAL: 7-8 range for strong prompt influence
         ip_adapter_weight: float = 0.5  # 🎯 RESEARCH-BACKED: 50% balanced influence (was 0.75)
     ) -> bytes:
         """
@@ -195,12 +195,22 @@ class RunWareService:
                     "model": "runware:105@1",  # 🎯 GUIDANCE FIX #5: Face-only IP-Adapter model (TODO: verify if face-only or switch to confirmed face-only model)
                     "guideImage": face_data_uri,  # Reference face image (now cropped to face area only)
                     "weight": clamped_weight  # 🎯 GUIDANCE FIX #1: Reduced to 0.5 for balanced influence
+                }],
+                # 🎯 RUNWARE OPTIMAL: ControlNet for pose stability while allowing dress/background changes
+                "controlNet": [{
+                    "model": "pose",  # Pose model maintains body position
+                    "guideImage": face_data_uri,  # Same reference image for pose detection
+                    "weight": 0.7,  # Recommended weight from settings table
+                    "startStep": 0,
+                    "endStep": 1000  # Apply throughout entire generation process
                 }]
             }
             
-            logger.info("🎯 RunWare IP-Adapter FaceID generation starting...")
+            logger.info("🎯 RunWare IP-Adapter + ControlNet generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (high = preserve face, low = transform more)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (face preservation)")
+            logger.info(f"🎭 ControlNet pose weight: 0.7 (body position stability)")
+            logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
