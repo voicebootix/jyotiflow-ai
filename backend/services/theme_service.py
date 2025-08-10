@@ -145,7 +145,7 @@ class RunWareService:
             face_data_uri = f"data:{mime_type};base64,{image_base64}"
             
             # 🎯 CORRECT RUNWARE API ENDPOINT
-            url = "https://api.runware.ai/v1"
+            url = self.base_url
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json"
@@ -205,7 +205,7 @@ class RunWareService:
                 "CFGScale": clamped_cfg,  # Classifier-free guidance scale (validated and clamped)
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [{
-                    "model": "runware:105@1",  # 🎯 FACE-ONLY IP-ADAPTER: Specific face preservation model (not image mode)
+                    "model": self.ip_adapter_model,  # 🎯 FACE-ONLY IP-ADAPTER: Configurable face preservation model
                     "guideImage": face_data_uri,  # Reference face-only cropped image with transparent background
                     "weight": clamped_weight  # 🎯 LOW WEIGHT: Preserve face identity only, not full image style
                 }]
@@ -217,7 +217,7 @@ class RunWareService:
             logger.info(f"📊 CFG Scale: {clamped_cfg} (HIGH: Strong prompt guidance to override reference)")
             logger.info("🎭 Using aggressive face-only cropping + masking (isolates face from body/background)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
-            logger.info("🔧 IP-Adapter model: runware:105@1 (Face-only preservation model, not image mode)")
+            logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (Face-only preservation model, not image mode)")
             
             # 🔒 SANITIZED DEBUG LOGGING - Remove base64 image data to prevent PII exposure
             sanitized_payload = payload.copy()
