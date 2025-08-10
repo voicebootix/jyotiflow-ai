@@ -63,8 +63,8 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 7.5,  # 🎯 RUNWARE OPTIMAL: 7-8 range for strong prompt influence
-        ip_adapter_weight: float = 0.5  # 🎯 RESEARCH-BACKED: 50% balanced influence (was 0.75)
+        cfg_scale: float = 10.0,  # 🎯 COMMUNITY-FIXED: Increased from 7.5 to strengthen prompt vs IP-Adapter
+        ip_adapter_weight: float = 0.2  # 🎯 COMMUNITY-FIXED: Reduced from 0.5 to allow full body generation
     ) -> bytes:
         """
         Generate image with face preservation using IP-Adapter only approach
@@ -102,41 +102,40 @@ class RunWareService:
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
 
-                # 🎯 FACE CROPPING IMPLEMENTATION (Guidance Fix #4)
-                # Crop face area to prevent full image influence in IP-Adapter
-                face_cropped_image = self._crop_face_area(pil_image)
-                logger.info(f"✂️ Face cropped from {pil_image.size} to {face_cropped_image.size}")
+                # 🎯 COMMUNITY FIX: Use full-body image instead of cropped face
+                # Cropped input = cropped output. Full-body input = full-body output with face preservation
+                logger.info(f"📸 Using full-body image for IP-Adapter (community-verified approach)")
                 
                 # Check if format is supported (JPEG/PNG), otherwise transcode to JPEG
                 if original_format in ['JPEG', 'PNG']:
-                    # Save cropped image in original format
+                    # Save full image in original format
                     output_buffer = io.BytesIO()
                     if original_format == 'JPEG':
-                        face_cropped_image.save(output_buffer, format='JPEG', quality=95)
+                        pil_image.save(output_buffer, format='JPEG', quality=95)
                         mime_type = 'image/jpeg'
                     else:  # PNG
-                        face_cropped_image.save(output_buffer, format='PNG')
+                        pil_image.save(output_buffer, format='PNG')
                         mime_type = 'image/png'
                     processed_image_bytes = output_buffer.getvalue()
-                    logger.info(f"✅ Using cropped {original_format} format for RunWare")
+                    logger.info(f"✅ Using full-body {original_format} format for RunWare")
                 else:
                     # Transcode unsupported format to JPEG
-                    logger.info(f"🔄 Transcoding cropped {original_format} to JPEG for RunWare compatibility")
+                    logger.info(f"🔄 Transcoding full-body {original_format} to JPEG for RunWare compatibility")
                     
                     # Convert to RGB if necessary (handles RGBA, P mode, etc.)
-                    if face_cropped_image.mode in ('RGBA', 'LA', 'P'):
+                    if pil_image.mode in ('RGBA', 'LA', 'P'):
                         # Create white background for transparent images
-                        rgb_image = Image.new('RGB', face_cropped_image.size, (255, 255, 255))
-                        if face_cropped_image.mode == 'P':
-                            face_cropped_image = face_cropped_image.convert('RGBA')
-                        rgb_image.paste(face_cropped_image, mask=face_cropped_image.split()[-1] if face_cropped_image.mode in ('RGBA', 'LA') else None)
-                        face_cropped_image = rgb_image
-                    elif face_cropped_image.mode != 'RGB':
-                        face_cropped_image = face_cropped_image.convert('RGB')
+                        rgb_image = Image.new('RGB', pil_image.size, (255, 255, 255))
+                        if pil_image.mode == 'P':
+                            pil_image = pil_image.convert('RGBA')
+                        rgb_image.paste(pil_image, mask=pil_image.split()[-1] if pil_image.mode in ('RGBA', 'LA') else None)
+                        pil_image = rgb_image
+                    elif pil_image.mode != 'RGB':
+                        pil_image = pil_image.convert('RGB')
                     
-                    # Save cropped image as JPEG
+                    # Save full-body image as JPEG
                     jpeg_buffer = io.BytesIO()
-                    face_cropped_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
+                    pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
                     processed_image_bytes = jpeg_buffer.getvalue()
                     mime_type = 'image/jpeg'
                     
@@ -195,16 +194,16 @@ class RunWareService:
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [{
                     "model": self.ip_adapter_model,  # IP-Adapter model from environment variable
-                    "guideImage": face_data_uri,  # Reference face image (cropped to face area only)
-                    "weight": clamped_weight  # Balanced influence for face preservation
+                    "guideImage": face_data_uri,  # Reference full-body image (community-verified approach)
+                    "weight": clamped_weight  # Community-fixed: Reduced weight for full body generation
                 }]
             }
             
             logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (FACE ONLY preservation)")
-
-            logger.info(f"📊 CFG Scale: {cfg_scale} (strong prompt influence for body/background generation)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (COMMUNITY-FIXED: Reduced for full body generation)")
+            logger.info(f"📊 CFG Scale: {cfg_scale} (COMMUNITY-FIXED: Increased to strengthen prompt influence)")
+            logger.info("📸 Using full-body image input (community-verified: cropped input = cropped output)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             
             # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
