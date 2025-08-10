@@ -63,15 +63,15 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 15.0,  # 🎯 ULTRA HIGH: Maximum prompt dominance over IP-Adapter
-        ip_adapter_weight: float = 0.05  # 🎯 ULTRA LOW: Minimal face influence, maximum AI generation freedom
+        cfg_scale: float = 8.0,  # 🎯 COMMUNITY BALANCED: Moderate prompt guidance without suppressing IP-Adapter
+        ip_adapter_weight: float = 0.4  # 🎯 COMMUNITY BALANCED: Sufficient face influence + prompt flexibility
     ) -> bytes:
         """
-        Generate image with face preservation using masking + ultra-low weight IP-Adapter
+        Generate image with face preservation using masking + balanced IP-Adapter approach
         
-        Uses face-only cropped image with transparent background + minimal IP-Adapter weight (0.05)
-        + maximum CFG scale (15.0) to preserve only facial features while allowing AI complete
-        freedom for body, clothing, and background generation.
+        Uses face-only cropped image with transparent background + balanced IP-Adapter weight (0.4)
+        + moderate CFG scale (8.0) to preserve facial identity while allowing AI to generate
+        new body poses, clothing, and backgrounds from prompts. Community-tested parameters.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
@@ -184,8 +184,8 @@ class RunWareService:
             
             logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (ULTRA LOW: Face-only preservation)")
-            logger.info(f"📊 CFG Scale: {cfg_scale} (ULTRA HIGH: Maximum prompt dominance)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (COMMUNITY BALANCED: Face preservation + prompt flexibility)")
+            logger.info(f"📊 CFG Scale: {cfg_scale} (COMMUNITY BALANCED: Moderate guidance without suppressing IP-Adapter)")
             logger.info("🎭 Using face-only masking approach (transparent background isolates face features)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (from environment variable)")
