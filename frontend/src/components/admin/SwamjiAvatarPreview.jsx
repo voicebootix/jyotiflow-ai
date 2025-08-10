@@ -24,7 +24,7 @@ const SwamjiAvatarPreview = () => {
     fetchCurrentConfiguration();
   }, []);
 
-  useEffect(() => {
+    useEffect(() => {
     return () => {
       if (previewImage && previewImage.startsWith('blob:')) {
         URL.revokeObjectURL(previewImage);
