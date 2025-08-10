@@ -45,6 +45,13 @@ class RunWareService:
     The face-only approach provides maximum creative freedom for body and background generation.
     """
     
+    # 🔧 CONFIGURATION CONSTANTS: Avoid magic numbers, easier future adjustments
+    BALANCED_CFG_SCALE = 8.0  # Moderate prompt guidance for general avatars
+    BALANCED_IP_ADAPTER_WEIGHT = 0.4  # Sufficient face influence for general avatars
+    
+    ULTRA_MINIMAL_CFG_SCALE = 12.0  # Maximum prompt dominance to force variation
+    ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.15  # Just enough face preservation
+    
     def __init__(self, api_key: str):
         self.api_key = api_key
         self.base_url = "https://api.runware.ai/v1"
@@ -63,8 +70,8 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 12.0,  # 🎯 ULTRA HIGH: Maximum prompt dominance to force body/background changes
-        ip_adapter_weight: float = 0.15  # 🎯 ULTRA MINIMAL: Just enough face preservation, maximum variation freedom
+        cfg_scale: float = ULTRA_MINIMAL_CFG_SCALE,  # 🎯 ULTRA HIGH: Maximum prompt dominance to force body/background changes
+        ip_adapter_weight: float = ULTRA_MINIMAL_IP_ADAPTER_WEIGHT  # 🎯 ULTRA MINIMAL: Just enough face preservation, maximum variation freedom
     ) -> bytes:
         """
         Generate image with face preservation using masking + ultra-minimal IP-Adapter approach
@@ -669,14 +676,15 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
             
             # Generate with RunWare Image-to-Image + Strength
-            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=12.0, ip_adapter_weight=0.15) to avoid duplication
+            # 🔧 EXPLICIT PARAMETERS: Use balanced approach for general avatar generation (not ultra-minimal)
             generated_image_bytes = await self.runware_service.generate_with_face_reference(
                 face_image_bytes=base_image_bytes,
                 prompt=final_prompt,
                 negative_prompt=negative_prompt,
                 width=1024,
-                height=1024
-                # steps, cfg_scale, and ip_adapter_weight use ultra-minimal defaults for maximum variation
+                height=1024,
+                cfg_scale=self.BALANCED_CFG_SCALE,  # 🎯 BALANCED: Moderate prompt guidance for general avatars
+                ip_adapter_weight=self.BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
             )
             
             logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
