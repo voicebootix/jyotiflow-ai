@@ -45,12 +45,13 @@ class RunWareService:
     The face-only approach provides maximum creative freedom for body and background generation.
     """
     
-    # 🔧 CONFIGURATION CONSTANTS: Avoid magic numbers, easier future adjustments
-    BALANCED_CFG_SCALE = 8.0  # Moderate prompt guidance for general avatars
-    BALANCED_IP_ADAPTER_WEIGHT = 0.4  # Sufficient face influence for general avatars
+    # 🔧 CONFIGURATION CONSTANTS: FIXED BASED ON USER ANALYSIS
+    # Problem: IP-Adapter was duplicating entire reference image instead of just face
+    BALANCED_CFG_SCALE = 15.0  # 🎯 HIGH PROMPT GUIDANCE: Force prompt to override reference image
+    BALANCED_IP_ADAPTER_WEIGHT = 0.15  # 🎯 LOW FACE INFLUENCE: Preserve only face identity, not full image
     
-    ULTRA_MINIMAL_CFG_SCALE = 12.0  # Maximum prompt dominance to force variation
-    ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.15  # Just enough face preservation
+    ULTRA_MINIMAL_CFG_SCALE = 18.0  # 🔥 MAXIMUM PROMPT GUIDANCE: Complete prompt dominance
+    ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.05  # 🔥 MINIMAL FACE INFLUENCE: Only basic face structure
     
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -74,11 +75,14 @@ class RunWareService:
         ip_adapter_weight: float = BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
     ) -> bytes:
         """
-        Generate image with face preservation using masking + ultra-minimal IP-Adapter approach
+        Generate image with face preservation using FIXED approach based on user analysis
         
-        Uses face-only cropped image with transparent background + ultra-minimal IP-Adapter weight (0.15)
-        + maximum CFG scale (12.0) to preserve facial identity while forcing AI to generate
-        completely new body poses, clothing, and backgrounds from prompts. Extreme variation approach.
+        PROBLEM FIXED: IP-Adapter was duplicating entire reference image instead of just face
+        SOLUTION: Face-only model + aggressive cropping + low weight + high CFG + strong negatives
+        
+        Uses face-only cropped image (30%x50%) + low IP-Adapter weight (0.15) + high CFG scale (15.0)
+        + strong reference-blocking negatives to preserve ONLY facial identity while forcing AI to generate
+        completely new body poses, clothing, and backgrounds from prompts.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
@@ -201,19 +205,19 @@ class RunWareService:
                 "CFGScale": clamped_cfg,  # Classifier-free guidance scale (validated and clamped)
                 "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
                 "ipAdapters": [{
-                    "model": self.ip_adapter_model,  # IP-Adapter model from environment variable
-                    "guideImage": face_data_uri,  # Reference full-body image (community-verified approach)
-                    "weight": clamped_weight  # Community-fixed: Reduced weight for full body generation
+                    "model": "runware:105@1",  # 🎯 FACE-ONLY IP-ADAPTER: Specific face preservation model (not image mode)
+                    "guideImage": face_data_uri,  # Reference face-only cropped image with transparent background
+                    "weight": clamped_weight  # 🎯 LOW WEIGHT: Preserve face identity only, not full image style
                 }]
             }
             
             logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (ULTRA MINIMAL: Just enough face preservation)")
-            logger.info(f"📊 CFG Scale: {clamped_cfg} (ULTRA HIGH: Maximum prompt dominance to force variation)")
-            logger.info("🎭 Using face-only masking approach (transparent background isolates face features)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (LOW: Face identity only, not full image duplication)")
+            logger.info(f"📊 CFG Scale: {clamped_cfg} (HIGH: Strong prompt guidance to override reference)")
+            logger.info("🎭 Using aggressive face-only cropping + masking (isolates face from body/background)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
-            logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (from environment variable)")
+            logger.info("🔧 IP-Adapter model: runware:105@1 (Face-only preservation model, not image mode)")
             
             # 🔒 SANITIZED DEBUG LOGGING - Remove base64 image data to prevent PII exposure
             sanitized_payload = payload.copy()
@@ -384,9 +388,10 @@ class RunWareService:
             # 🎯 INTELLIGENT FACE CROP: Center-weighted crop with padding
             # Assumes face is roughly centered in uploaded portrait photos
             
-            # Calculate face region (40% width, 60% height, centered)
-            face_width_ratio = 0.4   # 40% of image width for face
-            face_height_ratio = 0.6  # 60% of image height for face
+            # Calculate face region (30% width, 50% height, centered) - MORE AGGRESSIVE CROPPING
+            # Problem: Previous 40%x60% was including too much body/background
+            face_width_ratio = 0.3   # 30% of image width for face only (reduced from 40%)
+            face_height_ratio = 0.5  # 50% of image height for face only (reduced from 60%)
             
             face_width = int(width * face_width_ratio)
             face_height = int(height * face_height_ratio)
@@ -660,9 +665,11 @@ office background, corporate setting, modern interior, business environment, con
                 # Daily color negatives (only if not empty)
                 daily_color_negatives.strip() if daily_color_negatives else "",
                 
-                # Reference-blocking negatives to prevent full image copying
+                # 🚫 STRONG REFERENCE-BLOCKING NEGATIVES: Prevent full image duplication
                 """same background as reference, identical clothing, copying reference image style, 
-duplicate reference colors, same pose as reference, identical composition, reference image background""",
+duplicate reference colors, same pose as reference, identical composition, reference image background,
+copying entire reference image, duplicating reference style, same setting as reference,
+identical background elements, reference image duplication, full image copy from reference""",
                 
                 # Quality and technical negatives
                 """wrong colors, incorrect clothing colors, mismatched theme colors,
