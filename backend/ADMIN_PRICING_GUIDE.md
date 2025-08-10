@@ -143,8 +143,12 @@ GET /api/admin/pricing/alerts
 
 ### **Expected Scenarios:**
 - **High demand periods**: 18-20 credits (capture premium value)
-- **Normal periods**: 16-17 credits (balanced approach)
+- **Normal periods**: 16-17 credits (standard approach)
 - **Low demand periods**: 15-16 credits (stimulate demand)
+
+### **Avatar Generation Approaches:**
+- **Balanced approach**: CFG 8.0 + IP-Adapter 0.4 (general avatars)
+- **Ultra-minimal approach**: CFG 12.0 + IP-Adapter 0.15 (maximum variation)
 
 ## 🚨 Important Reminders
 
