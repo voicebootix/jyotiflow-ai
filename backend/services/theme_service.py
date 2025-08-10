@@ -63,15 +63,15 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
-        cfg_scale: float = 8.0,  # 🎯 COMMUNITY BALANCED: Moderate prompt guidance without suppressing IP-Adapter
-        ip_adapter_weight: float = 0.4  # 🎯 COMMUNITY BALANCED: Sufficient face influence + prompt flexibility
+        cfg_scale: float = 12.0,  # 🎯 ULTRA HIGH: Maximum prompt dominance to force body/background changes
+        ip_adapter_weight: float = 0.15  # 🎯 ULTRA MINIMAL: Just enough face preservation, maximum variation freedom
     ) -> bytes:
         """
-        Generate image with face preservation using masking + balanced IP-Adapter approach
+        Generate image with face preservation using masking + ultra-minimal IP-Adapter approach
         
-        Uses face-only cropped image with transparent background + balanced IP-Adapter weight (0.4)
-        + moderate CFG scale (8.0) to preserve facial identity while allowing AI to generate
-        new body poses, clothing, and backgrounds from prompts. Community-tested parameters.
+        Uses face-only cropped image with transparent background + ultra-minimal IP-Adapter weight (0.15)
+        + maximum CFG scale (12.0) to preserve facial identity while forcing AI to generate
+        completely new body poses, clothing, and backgrounds from prompts. Extreme variation approach.
         
         Args:
             face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
@@ -202,8 +202,8 @@ class RunWareService:
             
             logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
             logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (COMMUNITY BALANCED: Face preservation + prompt flexibility)")
-            logger.info(f"📊 CFG Scale: {clamped_cfg} (COMMUNITY BALANCED: Moderate guidance without suppressing IP-Adapter)")
+            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (ULTRA MINIMAL: Just enough face preservation)")
+            logger.info(f"📊 CFG Scale: {clamped_cfg} (ULTRA HIGH: Maximum prompt dominance to force variation)")
             logger.info("🎭 Using face-only masking approach (transparent background isolates face features)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (from environment variable)")
@@ -669,14 +669,14 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
             
             # Generate with RunWare Image-to-Image + Strength
-            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=8.0, ip_adapter_weight=0.4) to avoid duplication
+            # 🔧 DRY PRINCIPLE: Use method defaults (steps=40, cfg_scale=12.0, ip_adapter_weight=0.15) to avoid duplication
             generated_image_bytes = await self.runware_service.generate_with_face_reference(
                 face_image_bytes=base_image_bytes,
                 prompt=final_prompt,
                 negative_prompt=negative_prompt,
                 width=1024,
                 height=1024
-                # steps, cfg_scale, and ip_adapter_weight use community-balanced defaults from method signature
+                # steps, cfg_scale, and ip_adapter_weight use ultra-minimal defaults for maximum variation
             )
             
             logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
