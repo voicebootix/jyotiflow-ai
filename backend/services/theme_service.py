@@ -113,10 +113,10 @@ class RunWareService:
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
-                # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on balanced IP-Adapter weight
+                # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on optimal IP-Adapter weight
                 # Theory: IP-Adapter weight 0.3 + CFG 15.0 = face preserved, body/background completely transformed
-                logger.info(f"🎯 Using FULL IMAGE approach with optimal IP-Adapter weight (0.3)")
-                logger.info(f"🎯 Theory: Optimal IP weight preserves face identity while allowing complete background/clothing transformation")
+                logger.info("🎯 Using FULL IMAGE approach with optimal IP-Adapter weight (0.3)")
+                logger.info("🎯 Theory: Optimal IP weight preserves face identity while allowing complete background/clothing transformation")
                 
                 # Convert to RGB for consistent JPEG format (handles all image modes)
                 if pil_image.mode != 'RGB':
