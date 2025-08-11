@@ -147,7 +147,7 @@ GET /api/admin/pricing/alerts
 - **Low demand periods**: 15-16 credits (stimulate demand)
 
 ### **Avatar Generation Approaches:**
-- **Balanced approach**: CFG 15.0 + IP-Adapter 0.7 (default - strong face preservation with theme transformation)
+- **Optimal approach**: CFG 15.0 + IP-Adapter 0.3 (default - face preserved, complete background/clothing transformation)
 - **Ultra-minimal approach**: CFG 18.0 + IP-Adapter 0.15 (alternate setting for maximum variation)
 
 ## 🚨 Important Reminders
