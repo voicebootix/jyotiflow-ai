@@ -1406,7 +1406,6 @@ async def get_available_test_suites():
                 )
             except Exception as query_error:
                 # Any other query error (like column not found) - provide detailed error for debugging
-                error_details = str(query_error)
                 error_type = type(query_error).__name__
                 logger.error(f"Query error in test_suite_configurations: {error_type}: {query_error}")
                 
@@ -1425,7 +1424,7 @@ async def get_available_test_suites():
                 
                 return StandardResponse(
                     status="success", 
-                    message=f"Test configurations unavailable - database schema needs to be updated",
+                    message="Test configurations unavailable - database schema needs to be updated",
                     data={"test_suites": [], "total_suites": 0}
                 )
             
