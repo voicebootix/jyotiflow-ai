@@ -1442,13 +1442,8 @@ async def get_available_test_suites():
                     'monitoring': '📊'
                 }
                 
-                # Create display name from suite_name and description
-                display_name = suite['suite_name'].replace('_', ' ').title()
-                if suite['description']:
-                    display_name += f" - {suite['description']}"
-                
                 categorized_suites[category]["services"].append({
-                    "title": legacy_name,
+                    "title": suite['suite_name'].replace('_', ' ').title() + (f" - {suite['description']}" if suite['description'] else ""),
                     "testType": suite['suite_name'],
                     "icon": icon_mapping.get(suite['category'], '🔧'),
                     "priority": suite['priority'],
