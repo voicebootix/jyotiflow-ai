@@ -1405,7 +1405,7 @@ async def get_available_test_suites():
                     data={"test_suites": [], "total_suites": 0}
                 )
             except Exception as query_error:
-                # Any other query error (like column not found) - provide detailed error for debugging
+                # Any other query error (like column not found)  provide detailed error for debugging
                 error_type = type(query_error).__name__
                 logger.error(f"Query error in test_suite_configurations: {error_type}: {query_error}")
                 
