@@ -40,15 +40,15 @@ class RunWareService:
     🎯 RunWare API Service for IP-Adapter FULL IMAGE face preservation
     Achieves 80-90% face consistency with $0.0006 per image cost
     
-    This service uses RunWare's IP-Adapter with COMPLETE reference images and ultra-low weights
+    This service uses RunWare's IP-Adapter with COMPLETE reference images and proper weights
     to preserve face identity while allowing AI to create new body poses, backgrounds, and clothing from prompts.
-    The full-image approach with low IP-Adapter weight provides maximum creative freedom without masking artifacts.
+    The full-image approach with balanced IP-Adapter weight provides strong face preservation with theme transformation.
     """
     
     # 🔧 CONFIGURATION CONSTANTS: FIXED BASED ON USER ANALYSIS
     # Problem: IP-Adapter was duplicating entire reference image instead of just face
     BALANCED_CFG_SCALE = 15.0  # 🎯 HIGH PROMPT GUIDANCE: Force prompt to override reference image
-    BALANCED_IP_ADAPTER_WEIGHT = 0.15  # 🎯 LOW FACE INFLUENCE: Preserve only face identity, not full image
+    BALANCED_IP_ADAPTER_WEIGHT = 0.7   # 🎯 PROPER FACE PRESERVATION: Strong face identity while allowing theme transformation
     
     ULTRA_MINIMAL_CFG_SCALE = 18.0  # 🔥 MAXIMUM PROMPT GUIDANCE: Complete prompt dominance
     ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.05  # 🔥 MINIMAL FACE INFLUENCE: Only basic face structure
@@ -78,9 +78,9 @@ class RunWareService:
         Generate image with face preservation using FULL IMAGE approach based on user analysis
         
         PROBLEM FIXED: IP-Adapter was duplicating entire reference image instead of just face
-        SOLUTION: Full image + ultra-low IP weight + high CFG + strong negatives (NO cropping/masking)
+        SOLUTION: Full image + proper IP weight + high CFG + strong negatives (NO cropping/masking)
         
-        Uses COMPLETE reference image + ultra-low IP-Adapter weight (0.15) + high CFG scale (15.0)
+        Uses COMPLETE reference image + proper IP-Adapter weight (0.7) + high CFG scale (15.0)
         + strong reference-blocking negatives to preserve ONLY facial identity while forcing AI to generate
         completely new body poses, clothing, and backgrounds from prompts. No transparency issues.
         
