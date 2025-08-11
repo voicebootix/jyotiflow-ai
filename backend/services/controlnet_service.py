@@ -42,14 +42,37 @@ class ControlNetService:
         self.controlnet_models = {
             "pose": "lllyasviel/sd-controlnet-openpose",
             "depth": "lllyasviel/sd-controlnet-depth", 
-            "canny": "lllyasviel/sd-controlnet-canny",
-            "inpaint": "runwayml/stable-diffusion-inpainting"
+            "canny": "lllyasviel/sd-controlnet-canny"
         }
         
         if not self.hf_api_key:
             logger.warning("⚠️ Hugging Face API key not found - ControlNet service limited")
         else:
             logger.info("✅ ControlNet Service initialized with Hugging Face API")
+    
+    @staticmethod
+    def _sanitize_prompt(text: str, max_len: int = 1500) -> str:
+        """
+        Sanitize prompt text for safe logging and API usage
+        
+        Args:
+            text: Input prompt text
+            max_len: Maximum length for truncation
+            
+        Returns:
+            str: Sanitized and truncated prompt text
+        """
+        if not isinstance(text, str):
+            return ""
+        
+        # Collapse whitespace and strip
+        sanitized = " ".join(text.split())
+        
+        # Truncate if too long
+        if len(sanitized) > max_len:
+            sanitized = sanitized[:max_len].rsplit(' ', 1)[0] + "..."
+            
+        return sanitized
     
     async def transform_background_clothing(
         self,
@@ -73,15 +96,23 @@ class ControlNetService:
             bytes: Final transformed image with new background and clothing
         """
         try:
-            # Combine prompts for complete transformation
-            full_prompt = f"{clothing_prompt}, {background_prompt}, photorealistic, high quality, detailed"
+            # Sanitize prompts for safe processing
+            clean_clothing = self._sanitize_prompt(clothing_prompt)
+            clean_background = self._sanitize_prompt(background_prompt)
             
-            # Negative prompts to avoid face changes
-            negative_prompt = "different face, changed face, face swap, face replacement, wrong identity, mutated face, distorted face, blurry face, artificial face"
+            # Combine prompts for complete transformation
+            full_prompt = f"{clean_clothing}, {clean_background}, photorealistic, high quality, detailed"
+            
+            # Enhanced negative prompts with camera/framing negatives
+            negative_prompt = ("different face, changed face, face swap, face replacement, wrong identity, "
+                             "mutated face, distorted face, blurry face, artificial face, "
+                             "bad framing, camera occlusion, awkward crop, poor composition, "
+                             "distorted perspective, unnatural viewpoint")
             
             logger.info(f"🎨 Starting ControlNet transformation with {control_type} control")
-            logger.info(f"📝 Clothing: {clothing_prompt}")
-            logger.info(f"🏞️ Background: {background_prompt}")
+            logger.info(f"📝 Prompt lengths - Clothing: {len(clothing_prompt)} chars, Background: {len(background_prompt)} chars")
+            logger.debug(f"🔍 Clothing preview: {clean_clothing[:50]}{'...' if len(clean_clothing) > 50 else ''}")
+            logger.debug(f"🔍 Background preview: {clean_background[:50]}{'...' if len(clean_background) > 50 else ''}")
             
             # Try providers in order: Hugging Face -> Replicate -> Local
             last_error = None
@@ -133,6 +164,9 @@ class ControlNetService:
                     detail="ControlNet service not available - no API keys configured"
                 )
                 
+        except HTTPException:
+            # Re-raise HTTPException with original status code
+            raise
         except Exception as e:
             logger.error(f"❌ ControlNet transformation failed: {e}", exc_info=True)
             raise HTTPException(
@@ -156,20 +190,23 @@ class ControlNetService:
         # Convert image to base64 for API
         image_b64 = base64.b64encode(image_bytes).decode()
         
+        # Updated HF ControlNet API format
         payload = {
-            "inputs": {
-                "prompt": prompt,
+            "inputs": prompt,
+            "control_image": image_b64,
+            "parameters": {
                 "negative_prompt": negative_prompt,
-                "image": image_b64,
                 "num_inference_steps": 20,
                 "guidance_scale": 7.5,
-                "strength": strength
+                "controlnet_conditioning_scale": strength,
+                "controlnet_type": control_type
             }
         }
         
         headers = {
             "Authorization": f"Bearer {self.hf_api_key}",
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "Accept": "image/png"
         }
         
         async with httpx.AsyncClient(timeout=120.0) as client:
