@@ -14,6 +14,7 @@ Integrates with multiple ControlNet providers:
 import logging
 import httpx
 import base64
+import asyncio
 from fastapi import HTTPException
 import os
 
@@ -240,7 +241,7 @@ class ControlNetService:
         """Transform using Hugging Face Inference API"""
         
         # Use environment-configured model for img2img (guaranteed working HF Inference API model)
-        model_id = os.getenv("HF_IMG2IMG_MODEL", "CompVis/stable-diffusion-v1-4")
+        model_id = os.getenv("HF_IMG2IMG_MODEL", "runwayml/stable-diffusion-v1-5")
         api_url = f"{self.hf_base_url}/{model_id}"
         
         # HF Stable Diffusion img2img API format for face preservation
@@ -324,15 +325,54 @@ class ControlNetService:
         init_image_bytes: bytes | None = None,
         img2img_strength: float = 0.45
     ) -> bytes:
-        """Transform using Replicate API (fallback provider)"""
+        """Transform using Replicate API (reliable fallback provider)"""
         
-        # TODO: Implement Replicate ControlNet integration
-        # Would use replicate.run() with ControlNet models
-        logger.info("🔄 Attempting Replicate API transformation...")
-        raise HTTPException(
-            status_code=501, 
-            detail="Replicate ControlNet integration not yet implemented"
+        if not self.replicate_api_key:
+            raise HTTPException(status_code=501, detail="Replicate API key not configured")
+        
+        try:
+            import replicate
+        except ImportError:
+            raise HTTPException(status_code=501, detail="Replicate package not installed")
+        
+        logger.info("🔄 Using Replicate Stable Diffusion img2img...")
+        
+        # Convert image to base64 for Replicate
+        import base64
+        if init_image_bytes:
+            # Use init_image for face preservation
+            image_b64 = base64.b64encode(init_image_bytes).decode()
+            init_image_data_uri = f"data:image/png;base64,{image_b64}"
+        else:
+            # Use control image
+            image_b64 = base64.b64encode(image_bytes).decode()
+            init_image_data_uri = f"data:image/png;base64,{image_b64}"
+        
+        # Replicate Stable Diffusion img2img
+        output = replicate.run(
+            "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf",
+            input={
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "init_image": init_image_data_uri,
+                "strength": img2img_strength,
+                "guidance_scale": 7.5,
+                "num_inference_steps": 25,
+                "width": 512,
+                "height": 512
+            }
         )
+        
+        # Download result from Replicate
+        async with httpx.AsyncClient() as client:
+            response = await client.get(output[0])
+            if response.status_code == 200:
+                logger.info("✅ Replicate img2img transformation completed")
+                return response.content
+            else:
+                raise HTTPException(status_code=503, detail=f"Failed to download from Replicate: {response.status_code}")
+        
+        
     
     async def _transform_with_local(
         self,
