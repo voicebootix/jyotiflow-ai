@@ -1385,14 +1385,9 @@ async def get_available_test_suites():
                         created_at,
                         updated_at
                     FROM test_suite_configurations 
-                    WHERE enabled IS NOT FALSE 
+                    WHERE enabled = true 
                     ORDER BY 
-                        CASE 
-                            WHEN priority = 'critical' THEN 1 
-                            WHEN priority = 'high' THEN 2 
-                            WHEN priority = 'medium' THEN 3 
-                            ELSE 4 
-                        END,
+                        priority DESC,  -- Higher numbers = higher priority (100, 90, 80, etc.)
                         category,
                         suite_name
                 """)
