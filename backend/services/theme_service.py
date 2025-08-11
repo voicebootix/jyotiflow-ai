@@ -722,7 +722,7 @@ identical camera angle as reference, identical framing as reference, same crop a
                 width=1024,
                 height=1024,
                 cfg_scale=12.0,  # Moderate guidance for face preservation
-                ip_adapter_weight=0.4  # Strong face preservation for Step 1
+                ip_adapter_weight=0.3  # Optimal face preservation for Step 1
             )
             
             logger.info("✅ Step 1 completed: Face preserved with RunWare IP-Adapter")
@@ -1301,7 +1301,7 @@ identical camera angle as reference, identical framing as reference, same crop a
             # 🔥 CHOOSE GENERATION METHOD: Multi-API ControlNet vs RunWare-only
             use_multi_api = os.getenv("USE_MULTI_API_CONTROLNET", "true").lower() == "true"
             
-            if use_multi_api and hasattr(self, 'controlnet_service'):
+            if use_multi_api and getattr(self, 'controlnet_service', None) is not None:
                 logger.info("🔥 Using MULTI-API CONTROLNET approach (95%+ success rate)")
                 logger.info("🎯 Step 1: RunWare IP-Adapter (face) + Step 2: ControlNet (background/clothing)")
                 return await self._generate_with_multi_api_controlnet(

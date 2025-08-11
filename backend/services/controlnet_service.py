@@ -77,8 +77,7 @@ class ControlNetService:
             full_prompt = f"{clothing_prompt}, {background_prompt}, photorealistic, high quality, detailed"
             
             # Negative prompts to avoid face changes
-            negative_prompt = """different face, changed face, face swap, face replacement, 
-            wrong identity, mutated face, distorted face, blurry face, artificial face"""
+            negative_prompt = "different face, changed face, face swap, face replacement, wrong identity, mutated face, distorted face, blurry face, artificial face"
             
             logger.info(f"🎨 Starting ControlNet transformation with {control_type} control")
             logger.info(f"📝 Clothing: {clothing_prompt}")
