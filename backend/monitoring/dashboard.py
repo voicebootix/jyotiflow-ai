@@ -1423,43 +1423,87 @@ async def get_available_test_suites():
                     data={"test_suites": [], "total_suites": 0}
                 )
             
+            # Define icon mapping once outside the loop for performance
+            icon_mapping = {
+                'database': '🗄️',
+                'api': '🔌', 
+                'security': '🔒',
+                'integration': '🔗',
+                'performance': '⚡',
+                'auto_healing': '🔄',
+                'payment': '💳',
+                'spiritual': '🕉️',
+                'avatar': '🎭',
+                'live_media': '📹',
+                'social_media': '📱',
+                'user_mgmt': '👤',
+                'community': '🤝',
+                'notifications': '🔔',
+                'admin': '⚙️',
+                'monitoring': '📊'
+            }
+            
             # Group test suites by category for frontend consumption
             categorized_suites = {}
             for suite in test_suites:
-                category = suite['category']  # Use actual column name 'category'
+                # Normalize category: handle None/empty values and strip/lowercase
+                raw_category = suite.get('category')
+                category = raw_category.strip().lower() if raw_category else 'other_services'
                 if category not in categorized_suites:
                     categorized_suites[category] = {
                         "category": category.replace('_', ' ').title(),
                         "services": []
                     }
                 
-                # Map test categories to appropriate icons and descriptions (from database)
-                icon_mapping = {
-                    'database': '🗄️',
-                    'api': '🔌', 
-                    'security': '🔒',
-                    'integration': '🔗',
-                    'performance': '⚡',
-                    'auto_healing': '🔄',
-                    'payment': '💳',
-                    'spiritual': '🕉️',
-                    'avatar': '🎭',
-                    'live_media': '📹',
-                    'social_media': '📱',
-                    'user_mgmt': '👤',
-                    'community': '🤝',
-                    'notifications': '🔔',
-                    'admin': '⚙️',
-                    'monitoring': '📊'
-                }
+                # Map numeric priority to frontend-expected string values with defensive parsing
+                raw_priority = suite.get('priority')
+                if raw_priority is None:
+                    numeric_priority = 0  # Safe default for NULL values
+                else:
+                    try:
+                        # Handle string values, strip whitespace, parse as float then int
+                        if isinstance(raw_priority, str):
+                            numeric_priority = int(float(raw_priority.strip()))
+                        else:
+                            # Handle numeric types directly
+                            numeric_priority = int(float(raw_priority))
+                    except (ValueError, TypeError):
+                        # Fallback to safe default on parsing errors
+                        numeric_priority = 0
+                
+                if numeric_priority >= 90:
+                    priority_level = "critical"
+                elif numeric_priority >= 70:
+                    priority_level = "high" 
+                elif numeric_priority >= 40:
+                    priority_level = "medium"
+                else:
+                    priority_level = "low"
+                
+                # Defensive parsing for timeout_minutes
+                raw_timeout = suite.get('timeout_minutes')
+                if raw_timeout is None:
+                    timeout_minutes = 15  # Safe default (15 minutes)
+                else:
+                    try:
+                        if isinstance(raw_timeout, str):
+                            timeout_minutes = int(float(raw_timeout.strip()))
+                        else:
+                            timeout_minutes = int(float(raw_timeout))
+                    except (ValueError, TypeError):
+                        timeout_minutes = 15  # Fallback to default on parsing errors
+                
+                # Ensure description is properly cast to string
+                raw_description = suite.get('description')
+                description_text = str(raw_description) if raw_description else f"{suite['suite_name'].replace('_', ' ').title()} testing"
                 
                 categorized_suites[category]["services"].append({
-                    "title": suite['suite_name'].replace('_', ' ').title() + (f" - {suite['description']}" if suite['description'] else ""),
-                    "testType": suite['suite_name'],
-                    "icon": icon_mapping.get(suite['category'], '🔧'),
-                    "priority": suite['priority'],
-                    "description": suite['description'] or f"{suite['suite_name'].replace('_', ' ').title()} testing",
-                    "timeout_seconds": suite['timeout_minutes'] * 60  # Convert minutes to seconds for frontend
+                    "title": str(suite['suite_name']).replace('_', ' ').title() + (f" - {str(raw_description)}" if raw_description else ""),
+                    "testType": str(suite['suite_name']),
+                    "icon": icon_mapping.get(category, '🔧'),  # Use normalized category for case-insensitive lookup
+                    "priority": priority_level,  # Map numeric priority to frontend-expected values
+                    "description": description_text,
+                    "timeout_seconds": timeout_minutes * 60  # Convert minutes to seconds safely
                 })
             
             # Convert to list format expected by frontend

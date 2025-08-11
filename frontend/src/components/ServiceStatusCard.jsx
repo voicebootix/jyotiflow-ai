@@ -154,7 +154,7 @@ const ServiceStatusCard = ({
 
     return (
       <Badge className={config.className} aria-label={config.label}>
-        {priority.toUpperCase()}
+        {(priority || "medium").toUpperCase()}
       </Badge>
     );
   };
