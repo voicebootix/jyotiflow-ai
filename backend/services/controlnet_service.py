@@ -14,6 +14,8 @@ Integrates with multiple ControlNet providers:
 import logging
 import httpx
 import base64
+import asyncio
+import functools
 from fastapi import HTTPException
 import os
 
@@ -349,9 +351,6 @@ class ControlNetService:
         # Replicate Stable Diffusion img2img - Using async client approach
         try:
             # Create prediction using async approach to avoid blocking
-            import asyncio
-            import functools
-            
             # Run replicate.run in thread pool to avoid blocking event loop
             loop = asyncio.get_event_loop()
             output = await loop.run_in_executor(
