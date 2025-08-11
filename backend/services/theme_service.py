@@ -609,18 +609,17 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 # Daily color negatives (only if not empty)
                 daily_color_negatives.strip() if daily_color_negatives else "",
                 
-                # 🚫 ULTRA-STRONG REFERENCE-BLOCKING NEGATIVES: Force complete transformation
+                # 🚫 REFINED REFERENCE-BLOCKING NEGATIVES: Force complete transformation with proper scoping
                 """same background as reference, identical clothing as reference, copying reference image style, 
-duplicate reference colors, same pose as reference, identical composition, reference image background,
-copying entire reference image, duplicating reference style, same setting as reference,
-identical background elements, reference image duplication, full image copy from reference,
-original background, original clothing, original attire, original robes, original setting,
-keeping reference background, maintaining reference clothes, preserving reference style,
-temple background from reference, saffron robes from reference, orange clothing from reference,
-reference temple setting, reference architectural elements, reference lighting setup,
-unchanged from reference, unmodified from reference, identical to reference photo,
-same colors as reference, same environment as reference, same clothing style as reference,
-reference image replication, mirror copy of reference, exact reference reproduction""",
+same pose as reference, identical composition, reference image background, copying entire reference image, 
+duplicating reference style, same setting as reference, identical background elements, reference image duplication, 
+full image copy from reference, original background from the reference image, original clothing from the reference image, 
+original attire from the reference image, original robes from the reference image, original setting from the reference image,
+keeping reference background, maintaining reference clothes, preserving reference style, reference temple setting, 
+reference architectural elements, reference lighting setup, unchanged from reference, unmodified from reference, 
+identical to reference photo, same environment as reference, same clothing style as reference, reference image replication, 
+mirror copy of reference, exact reference reproduction, identical camera angle as reference, identical framing as reference, 
+same crop as reference, same viewpoint as reference, identical perspective as reference""",
                 
                 # Quality and technical negatives
                 """wrong colors, incorrect clothing colors, mismatched theme colors,
@@ -630,6 +629,33 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
             
             # Filter out empty strings and join with clean comma separation
             negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
+            
+            # 🔧 PROMPT LENGTH VALIDATION: Ensure we don't exceed API limits
+            # Most AI APIs have ~1000-2000 character limits for negative prompts
+            MAX_NEGATIVE_PROMPT_LENGTH = 1500  # Conservative limit for RunWare API
+            
+            if len(negative_prompt) > MAX_NEGATIVE_PROMPT_LENGTH:
+                logger.warning(f"⚠️ Negative prompt too long ({len(negative_prompt)} chars), truncating to {MAX_NEGATIVE_PROMPT_LENGTH}")
+                # Prioritize face preservation and reference blocking over quality negatives
+                priority_segments = [
+                    base_negatives.strip(),
+                    daily_color_negatives.strip() if daily_color_negatives else "",
+                    # Shortened reference-blocking negatives (most critical)
+                    """same background as reference, identical clothing as reference, copying reference image style, 
+same pose as reference, reference image background, copying entire reference image, original background from the reference image, 
+original clothing from the reference image, keeping reference background, maintaining reference clothes, unchanged from reference, 
+identical camera angle as reference, identical framing as reference, same crop as reference""",
+                    # Essential quality negatives only
+                    "low quality, blurry, deformed, bad anatomy, cartoon, anime"
+                ]
+                negative_prompt = ", ".join(segment.strip() for segment in priority_segments if segment.strip())
+                
+                # Final length check and hard truncation if still too long
+                if len(negative_prompt) > MAX_NEGATIVE_PROMPT_LENGTH:
+                    negative_prompt = negative_prompt[:MAX_NEGATIVE_PROMPT_LENGTH].rsplit(',', 1)[0]
+                    logger.warning(f"⚠️ Hard truncated negative prompt to {len(negative_prompt)} characters")
+            
+            logger.info(f"📝 Final negative prompt length: {len(negative_prompt)} characters")
 
             logger.info("🚀 Starting RunWare IP-Adapter FaceID generation...")
             logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
