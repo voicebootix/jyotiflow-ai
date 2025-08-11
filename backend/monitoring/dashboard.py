@@ -1,7 +1,8 @@
 """
 📊 MONITORING DASHBOARD - Real-time integration monitoring for JyotiFlow admin
-Integrates seamlessly with existing admin dashboard UI.
+Integrates seamlessly with existing admin dashboard UI .
 """
+
 import json
 import asyncio
 import asyncpg
@@ -1384,12 +1385,12 @@ async def get_available_test_suites():
                         created_at,
                         updated_at
                     FROM test_suite_configurations 
-                    WHERE enabled = true 
+                    WHERE enabled IS NOT FALSE 
                     ORDER BY 
-                        CASE priority 
-                            WHEN 'critical' THEN 1 
-                            WHEN 'high' THEN 2 
-                            WHEN 'medium' THEN 3 
+                        CASE 
+                            WHEN priority = 'critical' THEN 1 
+                            WHEN priority = 'high' THEN 2 
+                            WHEN priority = 'medium' THEN 3 
                             ELSE 4 
                         END,
                         category,
@@ -1404,8 +1405,23 @@ async def get_available_test_suites():
                     data={"test_suites": [], "total_suites": 0}
                 )
             except Exception as query_error:
-                # Any other query error (like column not found)
-                logger.error(f"Query error: {query_error}")
+                # Any other query error (like column not found)  provide detailed error for debugging
+                error_type = type(query_error).__name__
+                logger.error(f"Query error in test_suite_configurations: {error_type}: {query_error}")
+                
+                # For debugging: Let's try a simpler query to see what's wrong
+                try:
+                    # Test basic table access
+                    count_result = await conn.fetchval("SELECT COUNT(*) FROM test_suite_configurations")
+                    logger.info(f"Table exists and has {count_result} rows")
+                    
+                    # Test if the issue is with the WHERE clause or column names
+                    simple_result = await conn.fetch("SELECT suite_name, enabled FROM test_suite_configurations LIMIT 3")
+                    logger.info(f"Sample data: {simple_result}")
+                    
+                except Exception as debug_error:
+                    logger.error(f"Debug query also failed: {debug_error}")
+                
                 return StandardResponse(
                     status="success", 
                     message="Test configurations unavailable - database schema needs to be updated",
