@@ -100,12 +100,32 @@ class ControlNetService:
             bytes: Final transformed image with new background and clothing
         """
         try:
-            # Sanitize prompts for safe processing
+            # 1. Validate control_type against allowed set
+            valid_control_types = set(self.controlnet_models.keys())
+            if control_type not in valid_control_types:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid control_type '{control_type}'. Must be one of: {', '.join(valid_control_types)}"
+                )
+            
+            # 2. Clamp strength values to [0.0, 1.0] range
+            strength = max(0.0, min(1.0, strength))
+            img2img_strength = max(0.0, min(1.0, img2img_strength))
+            
+            # 3. Sanitize individual prompts
             clean_clothing = self._sanitize_prompt(clothing_prompt)
             clean_background = self._sanitize_prompt(background_prompt)
             
-            # Combine prompts for complete transformation
-            full_prompt = f"{clean_clothing}, {clean_background}, photorealistic, high quality, detailed"
+            # 4. Combine and sanitize full prompt
+            combined_prompt = f"{clean_clothing}, {clean_background}, photorealistic, high quality, detailed"
+            full_prompt = self._sanitize_prompt(combined_prompt, max_len=1500)
+            
+            # 5. Validate final prompt length
+            if len(full_prompt) > 1500:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Combined prompt too long ({len(full_prompt)} chars). Must be ≤1500 characters."
+                )
             
             # Enhanced negative prompts with camera/framing negatives
             negative_prompt = ("different face, changed face, face swap, face replacement, wrong identity, "
@@ -142,7 +162,8 @@ class ControlNetService:
             if self.replicate_api_key:
                 try:
                     return await self._transform_with_replicate(
-                        input_image_bytes, full_prompt, negative_prompt, control_type, strength
+                        input_image_bytes, full_prompt, negative_prompt, control_type, strength,
+                        init_image_bytes, img2img_strength
                     )
                 except HTTPException as e:
                     logger.warning(f"⚠️ Replicate API failed: {e.detail}")
@@ -159,7 +180,8 @@ class ControlNetService:
             if self.local_controlnet_url:
                 try:
                     return await self._transform_with_local(
-                        input_image_bytes, full_prompt, negative_prompt, control_type, strength
+                        input_image_bytes, full_prompt, negative_prompt, control_type, strength,
+                        init_image_bytes, img2img_strength
                     )
                 except HTTPException as e:
                     logger.warning(f"⚠️ Local deployment failed: {e.detail}")
@@ -251,7 +273,8 @@ class ControlNetService:
         headers = {
             "Authorization": f"Bearer {self.hf_api_key}",
             "Content-Type": "application/json",
-            "Accept": "image/png"
+            "Accept": "image/png",
+            "X-Wait-For-Model": "true"  # Wait for model loading to prevent 503s
         }
         
         async with httpx.AsyncClient(timeout=120.0) as client:
@@ -275,7 +298,9 @@ class ControlNetService:
         prompt: str,
         negative_prompt: str,
         control_type: str,
-        strength: float
+        strength: float,
+        init_image_bytes: bytes | None = None,
+        img2img_strength: float = 0.45
     ) -> bytes:
         """Transform using Replicate API (fallback provider)"""
         
@@ -293,7 +318,9 @@ class ControlNetService:
         prompt: str,
         negative_prompt: str,
         control_type: str,
-        strength: float
+        strength: float,
+        init_image_bytes: bytes | None = None,
+        img2img_strength: float = 0.45
     ) -> bytes:
         """Transform using local ControlNet deployment (final fallback)"""
         
