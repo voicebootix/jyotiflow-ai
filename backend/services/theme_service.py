@@ -47,10 +47,10 @@ class RunWareService:
     The full-image approach with balanced IP-Adapter weight provides strong face preservation with theme transformation.
     """
     
-    # 🔧 CONFIGURATION CONSTANTS: FIXED BASED ON USER ANALYSIS
-    # Problem: IP-Adapter was duplicating entire reference image instead of just face
+    # 🔧 CONFIGURATION CONSTANTS: OPTIMIZED WITH USER GUIDANCE
+    # User guidance: IP-Adapter 0.6-0.7 for face preservation + major environment change
     BALANCED_CFG_SCALE = 15.0  # 🎯 HIGH PROMPT GUIDANCE: Force prompt to override reference image
-    BALANCED_IP_ADAPTER_WEIGHT = 0.3   # 🎯 OPTIMAL TRANSFORMATION: Face preserved, background/clothing completely change
+    BALANCED_IP_ADAPTER_WEIGHT = 0.65   # 🎯 USER GUIDANCE: Face preserved + major background/clothing change
     
     ULTRA_MINIMAL_CFG_SCALE = 18.0  # 🔥 MAXIMUM PROMPT GUIDANCE: Complete prompt dominance
     ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.05  # 🔥 MINIMAL FACE INFLUENCE: Only basic face structure
@@ -717,12 +717,12 @@ identical camera angle as reference, identical framing as reference, same crop a
             
             face_preserved_bytes = await self.runware_service.generate_with_face_reference(
                 face_image_bytes=base_image_bytes,
-                prompt=face_preservation_prompt,
-                negative_prompt="different face, changed face, face swap, wrong identity",
+                prompt=final_prompt,  # Use full theme prompt instead of minimal
+                negative_prompt=enhanced_negative_prompt,  # Use strong negatives
                 width=1024,
                 height=1024,
-                cfg_scale=12.0,  # Moderate guidance for face preservation
-                ip_adapter_weight=0.3  # Optimal face preservation for Step 1
+                cfg_scale=15.0,  # Higher CFG for better prompt adherence
+                ip_adapter_weight=0.65  # User guidance: 0.6-0.7 for face preservation
             )
             
             logger.info("✅ Step 1 completed: Face preserved with RunWare IP-Adapter")
@@ -744,7 +744,7 @@ identical camera angle as reference, identical framing as reference, same crop a
                 clothing_prompt=clothing_prompt,
                 background_prompt=background_prompt,
                 control_type="pose",  # Preserve pose, transform everything else
-                strength=0.85  # High strength for complete transformation
+                strength=0.75  # Balanced strength: Face preserved + major environment change
             )
             
             logger.info("✅ Step 2 completed: Background/clothing transformed with ControlNet")
@@ -759,13 +759,16 @@ identical camera angle as reference, identical framing as reference, same crop a
             return await self._generate_with_runware(base_image_bytes, theme_description, custom_prompt, theme_day)
     
     def _parse_theme_for_controlnet(self, theme_description: str) -> Tuple[str, str]:
-        """Parse theme description into clothing and background prompts for ControlNet"""
+        """
+        Parse theme description into detailed clothing and background prompts for ControlNet
+        Following user guidance for specific, detailed prompts
+        """
         
-        # Extract clothing keywords
-        clothing_keywords = ["wearing", "robes", "kurta", "dhoti", "attire", "garments", "clothing"]
-        background_keywords = ["sitting", "standing", "mountain", "temple", "forest", "river", "background", "setting"]
+        # Enhanced clothing keywords for better detection
+        clothing_keywords = ["wearing", "robes", "kurta", "dhoti", "attire", "garments", "clothing", "silk", "cotton", "saffron", "white", "orange"]
+        background_keywords = ["sitting", "standing", "mountain", "temple", "forest", "river", "background", "setting", "lotus", "pond", "garden", "palace"]
         
-        # Simple parsing - in production, could use NLP
+        # Parse sentences for clothing and background
         clothing_parts = []
         background_parts = []
         
@@ -778,11 +781,23 @@ identical camera angle as reference, identical framing as reference, same crop a
             elif any(keyword in sentence.lower() for keyword in background_keywords):
                 background_parts.append(sentence)
         
-        clothing_prompt = ', '.join(clothing_parts) if clothing_parts else "traditional spiritual robes"
-        background_prompt = ', '.join(background_parts) if background_parts else "serene spiritual setting"
+        # Enhanced default prompts with specific details (as per user guidance)
+        if not clothing_parts:
+            clothing_prompt = "pure white silk robes with golden embroidery, traditional spiritual attire, flowing fabric, elegant draping"
+        else:
+            clothing_prompt = ', '.join(clothing_parts) + ", high quality fabric, detailed embroidery, traditional spiritual attire"
         
-        logger.info(f"👕 Clothing prompt: {clothing_prompt}")
-        logger.info(f"🏞️ Background prompt: {background_prompt}")
+        if not background_parts:
+            background_prompt = "ancient temple courtyard with lotus pond, soft morning sunlight, serene spiritual atmosphere, marble pillars, peaceful setting"
+        else:
+            background_prompt = ', '.join(background_parts) + ", soft lighting, peaceful atmosphere, high detail, photorealistic"
+        
+        # Add quality enhancers
+        clothing_prompt += ", photorealistic, high resolution, detailed textures"
+        background_prompt += ", cinematic lighting, architectural details, spiritual ambiance"
+        
+        logger.info(f"👕 Enhanced clothing prompt: {clothing_prompt[:100]}...")
+        logger.info(f"🏞️ Enhanced background prompt: {background_prompt[:100]}...")
         
         return clothing_prompt, background_prompt
 
@@ -1298,27 +1313,32 @@ identical camera angle as reference, identical framing as reference, same crop a
                 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
-            # 🔥 CHOOSE GENERATION METHOD: Multi-API ControlNet vs RunWare-only
+            # 🎯 SMART HYBRID APPROACH: Try Multi-API, fallback to optimized RunWare
             use_multi_api = os.getenv("USE_MULTI_API_CONTROLNET", "true").lower() == "true"
             
             if use_multi_api and getattr(self, 'controlnet_service', None) is not None:
-                logger.info("🔥 Using MULTI-API CONTROLNET approach (95%+ success rate)")
-                logger.info("🎯 Step 1: RunWare IP-Adapter (face) + Step 2: ControlNet (background/clothing)")
-                return await self._generate_with_multi_api_controlnet(
-                    base_image_bytes=base_image_bytes,
-                    theme_description=theme_description,
-                    custom_prompt=custom_prompt,
-                    theme_day=theme_day
-                )
-            else:
-                logger.info("🚀 Using RunWare-only approach (80-90% success rate)")
-                logger.info("🎯 Active face preservation method: runware_faceref (IP-Adapter + strong negatives)")
-                return await self._generate_with_runware(
-                    base_image_bytes=base_image_bytes,
-                    theme_description=theme_description,
-                    custom_prompt=custom_prompt,
-                    theme_day=theme_day
-                )
+                try:
+                    logger.info("🔥 Attempting MULTI-API CONTROLNET approach")
+                    logger.info("🎯 Step 1: RunWare IP-Adapter (face) + Step 2: ControlNet (background/clothing)")
+                    return await self._generate_with_multi_api_controlnet(
+                        base_image_bytes=base_image_bytes,
+                        theme_description=theme_description,
+                        custom_prompt=custom_prompt,
+                        theme_day=theme_day
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Multi-API failed: {e}")
+                    logger.info("🔄 Falling back to OPTIMIZED RunWare approach")
+            
+            # 🚀 OPTIMIZED RUNWARE FALLBACK (With user guidance applied)
+            logger.info("🚀 Using OPTIMIZED RunWare approach with user guidance settings")
+            logger.info("🎯 IP-Adapter weight: 0.65 + Enhanced prompts + Strong negatives")
+            return await self._generate_with_runware(
+                base_image_bytes=base_image_bytes,
+                theme_description=theme_description,
+                custom_prompt=custom_prompt,
+                theme_day=theme_day
+            )
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
