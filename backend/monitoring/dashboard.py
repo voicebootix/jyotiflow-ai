@@ -1373,8 +1373,8 @@ async def get_available_test_suites():
                 test_suites = await conn.fetch("""
                     SELECT 
                         suite_name,
-                        display_name,
-                        test_category,
+                        legacy_name,
+                        category,
                         description,
                         priority,
                         enabled,
@@ -1389,13 +1389,12 @@ async def get_available_test_suites():
                             WHEN 'medium' THEN 3 
                             ELSE 4 
                         END,
-                        test_category,
-                        display_name
+                        category,
+                        legacy_name
                 """)
-            except asyncpg.UndefinedTableError:
+            except asyncpg.exceptions.UndefinedTableError:
                 # Table doesn't exist - return empty result instead of error
                 logger.warning("test_suite_configurations table not found in database")
-                await db_manager.release_connection(conn)
                 return StandardResponse(
                     status="success",
                     message="No test configurations found - test_suite_configurations table needs to be created in database",
@@ -1404,7 +1403,6 @@ async def get_available_test_suites():
             except Exception as query_error:
                 # Any other query error (like column not found)
                 logger.error(f"Query error: {query_error}")
-                await db_manager.release_connection(conn)
                 return StandardResponse(
                     status="success", 
                     message="Test configurations unavailable - database schema needs to be updated",
