@@ -38,11 +38,11 @@ class ControlNetService:
         # Local ControlNet deployment (optional)
         self.local_controlnet_url = os.getenv("LOCAL_CONTROLNET_URL")
         
-        # ControlNet model endpoints
+        # ControlNet model endpoints (updated to working HF models)
         self.controlnet_models = {
-            "pose": "lllyasviel/sd-controlnet-openpose",
-            "depth": "lllyasviel/sd-controlnet-depth", 
-            "canny": "lllyasviel/sd-controlnet-canny"
+            "pose": "lllyasviel/control_v11p_sd15_openpose",
+            "depth": "lllyasviel/control_v11f1p_sd15_depth", 
+            "canny": "lllyasviel/control_v11p_sd15_canny"
         }
         
         if not self.hf_api_key:
@@ -127,11 +127,14 @@ class ControlNetService:
                     detail=f"Combined prompt too long ({len(full_prompt)} chars). Must be ≤1500 characters."
                 )
             
-            # Enhanced negative prompts with camera/framing negatives
+            # Enhanced negative prompts following user guidance for blocking original elements
             negative_prompt = ("different face, changed face, face swap, face replacement, wrong identity, "
                              "mutated face, distorted face, blurry face, artificial face, "
+                             "same clothes, same background, original outfit, old temple background, current clothing, "
+                             "identical attire, unchanged robes, original setting, same environment, "
+                             "copying reference clothing, maintaining original background, preserving old attire, "
                              "bad framing, camera occlusion, awkward crop, poor composition, "
-                             "distorted perspective, unnatural viewpoint")
+                             "distorted perspective, unnatural viewpoint, low quality, blurry")
             
             logger.info(f"🎨 Starting ControlNet transformation with {control_type} control")
             logger.info(f"📝 Prompt lengths - Clothing: {len(clothing_prompt)} chars, Background: {len(background_prompt)} chars")
@@ -279,6 +282,7 @@ class ControlNetService:
         
         async with httpx.AsyncClient(timeout=120.0) as client:
             logger.info(f"🔄 Calling Hugging Face ControlNet API: {model_name}")
+            logger.info(f"🔗 API URL: {api_url}")
             
             response = await client.post(api_url, json=payload, headers=headers)
             
@@ -287,9 +291,14 @@ class ControlNetService:
                 result_bytes = response.content
                 logger.info("✅ Hugging Face ControlNet transformation completed")
                 return result_bytes
+            elif response.status_code == 404:
+                error_msg = f"ControlNet model not found: {model_name}. Check if model exists on HuggingFace."
+                logger.error(f"❌ {error_msg}")
+                logger.error(f"💡 Available models should be: control_v11p_sd15_openpose, control_v11f1p_sd15_depth, etc.")
+                raise HTTPException(status_code=503, detail=error_msg)
             else:
                 error_msg = f"Hugging Face API error: {response.status_code} - {response.text}"
-                logger.error(error_msg)
+                logger.error(f"❌ {error_msg}")
                 raise HTTPException(status_code=503, detail=error_msg)
     
     async def _transform_with_replicate(
