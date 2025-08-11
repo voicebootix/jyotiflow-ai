@@ -776,39 +776,43 @@ class MonitoringDashboard:
             try:
                 conn = await db_manager.get_connection()
                 try:
-                    # Get unique test cases from test_case_results table
-                    test_cases = await conn.fetch("""
-                        SELECT DISTINCT 
-                            test_name,
+                    # FIXED: Get test suites from test_suite_configurations table (proper database source)
+                    test_suites_db = await conn.fetch("""
+                        SELECT 
+                            suite_name,
+                            display_name,
                             test_category,
-                            COALESCE(test_file, 'unknown') as test_type,
-                            'Database discovered test' as description,
-                            CASE 
-                                WHEN test_category IN ('auth', 'api', 'database') THEN 'critical'
-                                WHEN test_category IN ('integration', 'performance') THEN 'high'
-                                ELSE 'medium'
-                            END as priority
-                        FROM test_case_results
-                        WHERE test_name IS NOT NULL 
-                        AND test_name != ''
-                        ORDER BY test_category, test_name
+                            description,
+                            priority,
+                            enabled
+                        FROM test_suite_configurations
+                        WHERE enabled = true
+                        ORDER BY 
+                            CASE priority 
+                                WHEN 'critical' THEN 1
+                                WHEN 'high' THEN 2  
+                                WHEN 'medium' THEN 3
+                                WHEN 'low' THEN 4
+                                ELSE 5
+                            END,
+                            test_category,
+                            suite_name
                     """)
                     
-                    if test_cases:
-                        comprehensive_tests = [
-                            {
-                                "test_name": row["test_name"],
-                                "test_category": row["test_category"] or "unknown",
-                                "test_type": row["test_type"],
-                                "description": row["description"],
+                    if test_suites_db:
+                        comprehensive_tests = []
+                        for row in test_suites_db:
+                            comprehensive_tests.append({
+                                "test_name": f"{row['suite_name']}_test",
+                                "test_category": row["test_category"],
+                                "test_type": "integration",
+                                "description": row["description"] or f"{row['display_name']} - comprehensive system test",
                                 "priority": row["priority"],
-                                "suite_name": f"{row['test_category']}_suite",
-                                "suite_display_name": f"{row['test_category'].replace('_', ' ').title()} Tests"
-                            }
-                            for row in test_cases
-                        ]
+                                "suite_name": row["suite_name"],
+                                "suite_display_name": row["display_name"]
+                            })
                         
-                        logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from database")
+                        logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from database test_suite_configurations")
                         return comprehensive_tests
                     
                 finally:
