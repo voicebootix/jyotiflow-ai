@@ -38,6 +38,9 @@ class ControlNetService:
         # Replicate API as backup
         self.replicate_api_key = os.getenv("REPLICATE_API_TOKEN")
         
+        # Local ControlNet deployment (optional)
+        self.local_controlnet_url = os.getenv("LOCAL_CONTROLNET_URL")
+        
         # ControlNet model endpoints
         self.controlnet_models = {
             "pose": "lllyasviel/sd-controlnet-openpose",
@@ -80,7 +83,9 @@ class ControlNetService:
         clothing_prompt: str,
         background_prompt: str,
         control_type: str = "pose",
-        strength: float = 0.85  # High strength for background/clothing transformation (0.85)
+        strength: float = 0.85,  # High strength for background/clothing transformation (0.85)
+        init_image_bytes: bytes | None = None,
+        img2img_strength: float = 0.45  # Identity preservation strength for img2img
     ) -> bytes:
         """
         Transform background and clothing while preserving face and pose
@@ -90,7 +95,9 @@ class ControlNetService:
             clothing_prompt: Description of desired clothing transformation
             background_prompt: Description of desired background
             control_type: Type of control (pose, depth, canny)
-            strength: Transformation strength (0.0-1.0)
+            strength: ControlNet conditioning strength (0.0-1.0)
+            init_image_bytes: Optional init image for img2img identity preservation
+            img2img_strength: Denoising strength for img2img (0.0-1.0)
             
         Returns:
             bytes: Final transformed image with new background and clothing
@@ -118,16 +125,20 @@ class ControlNetService:
             last_error = None
             
             # 1. Try Hugging Face API first
+            original_error = None
             if self.hf_api_key:
                 try:
                     return await self._transform_with_huggingface(
-                        input_image_bytes, full_prompt, negative_prompt, control_type, strength
+                        input_image_bytes, full_prompt, negative_prompt, control_type, strength,
+                        init_image_bytes, img2img_strength
                     )
                 except HTTPException as e:
                     logger.warning(f"⚠️ Hugging Face API failed: {e.detail}")
+                    original_error = e
                     last_error = e
                 except Exception as e:
                     logger.warning(f"⚠️ Hugging Face API error: {e}")
+                    original_error = e
                     last_error = HTTPException(status_code=503, detail=f"Hugging Face API error: {str(e)}")
             
             # 2. Fallback to Replicate API
@@ -138,22 +149,42 @@ class ControlNetService:
                     )
                 except HTTPException as e:
                     logger.warning(f"⚠️ Replicate API failed: {e.detail}")
+                    if not original_error:
+                        original_error = e
                     last_error = e
                 except Exception as e:
                     logger.warning(f"⚠️ Replicate API error: {e}")
+                    if not original_error:
+                        original_error = e
                     last_error = HTTPException(status_code=503, detail=f"Replicate API error: {str(e)}")
             
-            # 3. Fallback to local deployment
-            try:
-                return await self._transform_with_local(
-                    input_image_bytes, full_prompt, negative_prompt, control_type, strength
-                )
-            except HTTPException as e:
-                logger.warning(f"⚠️ Local deployment failed: {e.detail}")
-                last_error = e
-            except Exception as e:
-                logger.warning(f"⚠️ Local deployment error: {e}")
-                last_error = HTTPException(status_code=503, detail=f"Local deployment error: {str(e)}")
+            # 3. Fallback to local deployment (only if configured)
+            if self.local_controlnet_url:
+                try:
+                    return await self._transform_with_local(
+                        input_image_bytes, full_prompt, negative_prompt, control_type, strength
+                    )
+                except HTTPException as e:
+                    logger.warning(f"⚠️ Local deployment failed: {e.detail}")
+                    # Keep original upstream error as primary cause
+                    if original_error:
+                        logger.info(f"💡 Raising original upstream error instead of local fallback error")
+                        last_error = original_error
+                    else:
+                        last_error = e
+                except Exception as e:
+                    logger.warning(f"⚠️ Local deployment error: {e}")
+                    # Keep original upstream error as primary cause
+                    if original_error:
+                        logger.info(f"💡 Raising original upstream error instead of local fallback error")
+                        last_error = HTTPException(
+                            status_code=503, 
+                            detail=f"Primary: {getattr(original_error, 'detail', str(original_error))}. Local fallback also failed: {str(e)}"
+                        )
+                    else:
+                        last_error = HTTPException(status_code=503, detail=f"Local deployment error: {str(e)}")
+            else:
+                logger.info("🔧 Local ControlNet deployment not configured (LOCAL_CONTROLNET_URL not set)")
             
             # All providers failed
             if last_error:
@@ -180,20 +211,22 @@ class ControlNetService:
         prompt: str,
         negative_prompt: str,
         control_type: str,
-        strength: float
+        strength: float,
+        init_image_bytes: bytes | None = None,
+        img2img_strength: float = 0.45
     ) -> bytes:
         """Transform using Hugging Face Inference API"""
         
         model_name = self.controlnet_models.get(control_type, self.controlnet_models["pose"])
         api_url = f"{self.hf_base_url}/{model_name}"
         
-        # Convert image to base64 for API
-        image_b64 = base64.b64encode(image_bytes).decode()
+        # Convert control image to base64 for API
+        control_image_b64 = base64.b64encode(image_bytes).decode()
         
-        # Updated HF ControlNet API format
+        # Updated HF ControlNet API format with optional init_image support
         payload = {
             "inputs": prompt,
-            "control_image": image_b64,
+            "control_image": control_image_b64,
             "parameters": {
                 "negative_prompt": negative_prompt,
                 "num_inference_steps": 20,
@@ -202,6 +235,12 @@ class ControlNetService:
                 "controlnet_type": control_type
             }
         }
+        
+        # Add init_image support for identity preservation
+        if init_image_bytes:
+            init_image_b64 = base64.b64encode(init_image_bytes).decode()
+            payload["init_image"] = init_image_b64
+            payload["parameters"]["strength"] = img2img_strength  # img2img denoising strength
         
         headers = {
             "Authorization": f"Bearer {self.hf_api_key}",
