@@ -1426,7 +1426,7 @@ async def get_available_test_suites():
             # Group test suites by category for frontend consumption
             categorized_suites = {}
             for suite in test_suites:
-                category = suite['category']  # Use actual column name 'category'
+                category = str(suite['category'])  # Ensure category is a string
                 if category not in categorized_suites:
                     categorized_suites[category] = {
                         "category": category.replace('_', ' ').title(),
@@ -1453,13 +1453,24 @@ async def get_available_test_suites():
                     'monitoring': '📊'
                 }
                 
+                # Map numeric priority to frontend-expected string values
+                numeric_priority = int(suite['priority'])
+                if numeric_priority >= 90:
+                    priority_level = "critical"
+                elif numeric_priority >= 70:
+                    priority_level = "high" 
+                elif numeric_priority >= 40:
+                    priority_level = "medium"
+                else:
+                    priority_level = "low"
+                
                 categorized_suites[category]["services"].append({
-                    "title": suite['suite_name'].replace('_', ' ').title() + (f" - {suite['description']}" if suite['description'] else ""),
-                    "testType": suite['suite_name'],
-                    "icon": icon_mapping.get(suite['category'], '🔧'),
-                    "priority": suite['priority'],
-                    "description": suite['description'] or f"{suite['suite_name'].replace('_', ' ').title()} testing",
-                    "timeout_seconds": suite['timeout_minutes'] * 60  # Convert minutes to seconds for frontend
+                    "title": str(suite['suite_name']).replace('_', ' ').title() + (f" - {suite['description']}" if suite['description'] else ""),
+                    "testType": str(suite['suite_name']),
+                    "icon": icon_mapping.get(str(suite['category']), '🔧'),
+                    "priority": priority_level,  # Map numeric priority to frontend-expected values
+                    "description": str(suite['description'] or f"{suite['suite_name'].replace('_', ' ').title()} testing"),
+                    "timeout_seconds": int(suite['timeout_minutes'] * 60)  # Ensure integer for timeout
                 })
             
             # Convert to list format expected by frontend
