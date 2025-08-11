@@ -15,7 +15,6 @@ import logging
 import httpx
 import base64
 import asyncio
-import functools
 from fastapi import HTTPException
 import os
 
@@ -350,25 +349,21 @@ class ControlNetService:
         
         # Replicate Stable Diffusion img2img - Using async client approach
         try:
-            # Create prediction using async approach to avoid blocking
+            # Create prediction using modern asyncio.to_thread approach
             # Run replicate.run in thread pool to avoid blocking event loop
-            loop = asyncio.get_event_loop()
-            output = await loop.run_in_executor(
-                None,
-                functools.partial(
-                    replicate.run,
-                    "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf",
-                    input={
-                        "prompt": prompt,
-                        "negative_prompt": negative_prompt,
-                        "init_image": init_image_data_uri,
-                        "strength": img2img_strength,
-                        "guidance_scale": 7.5,
-                        "num_inference_steps": 25,
-                        "width": 512,
-                        "height": 512
-                    }
-                )
+            output = await asyncio.to_thread(
+                replicate.run,
+                "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf",
+                input={
+                    "prompt": prompt,
+                    "negative_prompt": negative_prompt,
+                    "init_image": init_image_data_uri,
+                    "strength": img2img_strength,
+                    "guidance_scale": 7.5,
+                    "num_inference_steps": 25,
+                    "width": 512,
+                    "height": 512
+                }
             )
             
         except Exception as e:
