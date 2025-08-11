@@ -14,7 +14,6 @@ Integrates with multiple ControlNet providers:
 import logging
 import httpx
 import base64
-import asyncio
 from fastapi import HTTPException
 import os
 
@@ -332,13 +331,12 @@ class ControlNetService:
         
         try:
             import replicate
-        except ImportError:
-            raise HTTPException(status_code=501, detail="Replicate package not installed")
+        except ImportError as e:
+            raise HTTPException(status_code=501, detail="Replicate package not installed") from e
         
         logger.info("🔄 Using Replicate Stable Diffusion img2img...")
         
         # Convert image to base64 for Replicate
-        import base64
         if init_image_bytes:
             # Use init_image for face preservation
             image_b64 = base64.b64encode(init_image_bytes).decode()
@@ -348,29 +346,68 @@ class ControlNetService:
             image_b64 = base64.b64encode(image_bytes).decode()
             init_image_data_uri = f"data:image/png;base64,{image_b64}"
         
-        # Replicate Stable Diffusion img2img
-        output = replicate.run(
-            "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf",
-            input={
-                "prompt": prompt,
-                "negative_prompt": negative_prompt,
-                "init_image": init_image_data_uri,
-                "strength": img2img_strength,
-                "guidance_scale": 7.5,
-                "num_inference_steps": 25,
-                "width": 512,
-                "height": 512
-            }
-        )
+        # Replicate Stable Diffusion img2img - Using async client approach
+        try:
+            # Create prediction using async approach to avoid blocking
+            import asyncio
+            import functools
+            
+            # Run replicate.run in thread pool to avoid blocking event loop
+            loop = asyncio.get_event_loop()
+            output = await loop.run_in_executor(
+                None,
+                functools.partial(
+                    replicate.run,
+                    "stability-ai/stable-diffusion:db21e45d3f7023abc2a46ee38a23973f6dce16bb082a930b0c49861f96d1e5bf",
+                    input={
+                        "prompt": prompt,
+                        "negative_prompt": negative_prompt,
+                        "init_image": init_image_data_uri,
+                        "strength": img2img_strength,
+                        "guidance_scale": 7.5,
+                        "num_inference_steps": 25,
+                        "width": 512,
+                        "height": 512
+                    }
+                )
+            )
+            
+        except Exception as e:
+            logger.error(f"❌ Replicate API call failed: {e}", exc_info=True)
+            raise HTTPException(status_code=503, detail=f"Replicate API call failed: {str(e)}") from e
         
-        # Download result from Replicate
-        async with httpx.AsyncClient() as client:
-            response = await client.get(output[0])
-            if response.status_code == 200:
-                logger.info("✅ Replicate img2img transformation completed")
-                return response.content
-            else:
-                raise HTTPException(status_code=503, detail=f"Failed to download from Replicate: {response.status_code}")
+        # Validate output before indexing to prevent IndexError
+        if not output:
+            logger.error("❌ Replicate returned empty output")
+            raise HTTPException(status_code=503, detail="Replicate returned empty output")
+        
+        if not isinstance(output, (list, tuple)):
+            logger.error(f"❌ Replicate output is not a list/tuple, got: {type(output)}")
+            raise HTTPException(status_code=503, detail=f"Unexpected Replicate output format: {type(output)}")
+        
+        if len(output) == 0:
+            logger.error("❌ Replicate output list is empty")
+            raise HTTPException(status_code=503, detail="Replicate output list is empty")
+        
+        # Validate that first element is a valid URL string
+        image_url = output[0]
+        if not image_url or not isinstance(image_url, str):
+            logger.error(f"❌ Invalid Replicate output URL: {image_url}")
+            raise HTTPException(status_code=503, detail="Invalid Replicate output URL format")
+        
+        # Download result from Replicate with proper error handling
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(image_url)
+                if response.status_code == 200:
+                    logger.info("✅ Replicate img2img transformation completed")
+                    return response.content
+                else:
+                    logger.error(f"❌ Failed to download from Replicate: HTTP {response.status_code}")
+                    raise HTTPException(status_code=503, detail=f"Failed to download from Replicate: {response.status_code}")
+        except httpx.RequestError as e:
+            logger.error(f"❌ Network error downloading from Replicate: {e}", exc_info=True)
+            raise HTTPException(status_code=503, detail=f"Network error downloading from Replicate: {str(e)}") from e
         
         
     
