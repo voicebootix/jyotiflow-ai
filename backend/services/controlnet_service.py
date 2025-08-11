@@ -307,7 +307,7 @@ class ControlNetService:
             elif response.status_code == 404:
                 error_msg = f"HF img2img model not found: {model_id}. Check if model exists on HuggingFace."
                 logger.error(f"❌ {error_msg}")
-                logger.error(f"💡 Available models: runwayml/stable-diffusion-v1-5, stabilityai/stable-diffusion-2-1, etc.")
+                logger.error("💡 Available models: runwayml/stable-diffusion-v1-5, stabilityai/stable-diffusion-2-1, etc.")
                 raise HTTPException(status_code=503, detail=error_msg)
             else:
                 error_msg = f"Hugging Face API error: {response.status_code} - {response.text}"
