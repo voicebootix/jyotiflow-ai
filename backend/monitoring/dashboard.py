@@ -1370,6 +1370,7 @@ async def get_available_test_suites():
             # Try to get test suite configurations - wrap in try-catch to handle missing table
             try:
                 # Get test suite configurations from database (following .cursor rules: no hardcoded data)
+                # Use EXACT column names from your table: suite_name, legacy_name, generator_method, description, enabled, category, priority, timeout_minutes, created_at, updated_at
                 test_suites = await conn.fetch("""
                     SELECT 
                         suite_name,
@@ -1379,7 +1380,9 @@ async def get_available_test_suites():
                         priority,
                         enabled,
                         generator_method,
-                        timeout_seconds
+                        timeout_minutes,
+                        created_at,
+                        updated_at
                     FROM test_suite_configurations 
                     WHERE enabled = true 
                     ORDER BY 
@@ -1390,7 +1393,7 @@ async def get_available_test_suites():
                             ELSE 4 
                         END,
                         category,
-                        legacy_name
+                        suite_name
                 """)
             except asyncpg.exceptions.UndefinedTableError:
                 # Table doesn't exist - return empty result instead of error
@@ -1412,7 +1415,7 @@ async def get_available_test_suites():
             # Group test suites by category for frontend consumption
             categorized_suites = {}
             for suite in test_suites:
-                category = suite['test_category']
+                category = suite['category']  # Use actual column name 'category'
                 if category not in categorized_suites:
                     categorized_suites[category] = {
                         "category": category.replace('_', ' ').title(),
@@ -1440,12 +1443,12 @@ async def get_available_test_suites():
                 }
                 
                 categorized_suites[category]["services"].append({
-                    "title": suite['display_name'] or suite['suite_name'].replace('_', ' ').title(),
+                    "title": suite['suite_name'].replace('_', ' ').title() + (f" - {suite['description']}" if suite['description'] else ""),
                     "testType": suite['suite_name'],
-                    "icon": icon_mapping.get(suite['test_category'], '🔧'),
+                    "icon": icon_mapping.get(suite['category'], '🔧'),
                     "priority": suite['priority'],
                     "description": suite['description'] or f"{suite['suite_name'].replace('_', ' ').title()} testing",
-                    "timeout_seconds": suite['timeout_seconds']
+                    "timeout_seconds": suite['timeout_minutes'] * 60  # Convert minutes to seconds for frontend
                 })
             
             # Convert to list format expected by frontend
