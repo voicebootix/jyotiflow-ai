@@ -597,7 +597,8 @@ cinematic depth of field, high dynamic range, photorealistic rendering, ultra-hi
 different person, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, 
 face morph, artificial face, generic face, multiple faces, extra faces, face clone, face duplicate,
 business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
-office background, corporate setting, modern interior, business environment, contemporary setting"""
+office background, corporate setting, modern interior, business environment, contemporary setting,
+blurry face, distorted facial features, wrong facial structure, artificial looking face"""
             
             # 🎯 CORE.MD FIX: Clean negative prompt assembly using list-based joining
             # Build negative prompt segments as a list to avoid leading commas and empty separators
@@ -608,11 +609,18 @@ office background, corporate setting, modern interior, business environment, con
                 # Daily color negatives (only if not empty)
                 daily_color_negatives.strip() if daily_color_negatives else "",
                 
-                # 🚫 STRONG REFERENCE-BLOCKING NEGATIVES: Prevent full image duplication
-                """same background as reference, identical clothing, copying reference image style, 
+                # 🚫 ULTRA-STRONG REFERENCE-BLOCKING NEGATIVES: Force complete transformation
+                """same background as reference, identical clothing as reference, copying reference image style, 
 duplicate reference colors, same pose as reference, identical composition, reference image background,
 copying entire reference image, duplicating reference style, same setting as reference,
-identical background elements, reference image duplication, full image copy from reference""",
+identical background elements, reference image duplication, full image copy from reference,
+original background, original clothing, original attire, original robes, original setting,
+keeping reference background, maintaining reference clothes, preserving reference style,
+temple background from reference, saffron robes from reference, orange clothing from reference,
+reference temple setting, reference architectural elements, reference lighting setup,
+unchanged from reference, unmodified from reference, identical to reference photo,
+same colors as reference, same environment as reference, same clothing style as reference,
+reference image replication, mirror copy of reference, exact reference reproduction""",
                 
                 # Quality and technical negatives
                 """wrong colors, incorrect clothing colors, mismatched theme colors,
