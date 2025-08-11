@@ -1,6 +1,6 @@
 """
 📊 MONITORING DASHBOARD - Real-time integration monitoring for JyotiFlow admin
-Integrates seamlessly with existing admin dashboard UI.
+Integrates seamlessly with existing admin dashboard UI .
 """
 import json
 import asyncio
