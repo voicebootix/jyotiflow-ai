@@ -14,9 +14,6 @@ Integrates with multiple ControlNet providers:
 import logging
 import httpx
 import base64
-import io
-from PIL import Image
-from typing import Optional, Tuple
 from fastapi import HTTPException
 import os
 
@@ -220,27 +217,36 @@ class ControlNetService:
         model_name = self.controlnet_models.get(control_type, self.controlnet_models["pose"])
         api_url = f"{self.hf_base_url}/{model_name}"
         
-        # Convert control image to base64 for API
-        control_image_b64 = base64.b64encode(image_bytes).decode()
-        
-        # Updated HF ControlNet API format with optional init_image support
-        payload = {
-            "inputs": prompt,
-            "control_image": control_image_b64,
-            "parameters": {
-                "negative_prompt": negative_prompt,
-                "num_inference_steps": 20,
-                "guidance_scale": 7.5,
-                "controlnet_conditioning_scale": strength,
-                "controlnet_type": control_type
-            }
-        }
-        
-        # Add init_image support for identity preservation
+        # HF ControlNet API format: Use init_image for img2img flows, control_image for pure ControlNet
         if init_image_bytes:
-            init_image_b64 = base64.b64encode(init_image_bytes).decode()
-            payload["init_image"] = init_image_b64
-            payload["parameters"]["strength"] = img2img_strength  # img2img denoising strength
+            # img2img flow: Use init_image as base, control via parameters
+            image_b64 = base64.b64encode(init_image_bytes).decode()
+            payload = {
+                "prompt": prompt,
+                "image": image_b64,  # init_image for img2img identity preservation
+                "parameters": {
+                    "negative_prompt": negative_prompt,
+                    "num_inference_steps": 20,
+                    "guidance_scale": 7.5,
+                    "strength": img2img_strength,  # img2img denoising strength
+                    "controlnet_conditioning_scale": strength,
+                    "controlnet_type": control_type
+                }
+            }
+        else:
+            # Pure ControlNet flow: Use control_image
+            control_image_b64 = base64.b64encode(image_bytes).decode()
+            payload = {
+                "prompt": prompt,
+                "image": control_image_b64,  # control_image for ControlNet guidance
+                "parameters": {
+                    "negative_prompt": negative_prompt,
+                    "num_inference_steps": 20,
+                    "guidance_scale": 7.5,
+                    "controlnet_conditioning_scale": strength,
+                    "controlnet_type": control_type
+                }
+            }
         
         headers = {
             "Authorization": f"Bearer {self.hf_api_key}",
