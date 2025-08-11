@@ -239,8 +239,8 @@ class ControlNetService:
     ) -> bytes:
         """Transform using Hugging Face Inference API"""
         
-        # Use environment-configured model for img2img
-        model_id = os.getenv("HF_IMG2IMG_MODEL", "runwayml/stable-diffusion-v1-5")
+        # Use environment-configured model for img2img (guaranteed working HF Inference API model)
+        model_id = os.getenv("HF_IMG2IMG_MODEL", "CompVis/stable-diffusion-v1-4")
         api_url = f"{self.hf_base_url}/{model_id}"
         
         # HF Stable Diffusion img2img API format for face preservation
@@ -307,7 +307,7 @@ class ControlNetService:
             elif response.status_code == 404:
                 error_msg = f"HF img2img model not found: {model_id}. Check if model exists on HuggingFace."
                 logger.error(f"❌ {error_msg}")
-                logger.error("💡 Available models: runwayml/stable-diffusion-v1-5, stabilityai/stable-diffusion-2-1, etc.")
+                logger.error("💡 Available models: CompVis/stable-diffusion-v1-4, stabilityai/stable-diffusion-2-1, etc.")
                 raise HTTPException(status_code=503, detail=error_msg)
             else:
                 error_msg = f"Hugging Face API error: {response.status_code} - {response.text}"
