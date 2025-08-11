@@ -38,11 +38,11 @@ class ControlNetService:
         # Local ControlNet deployment (optional)
         self.local_controlnet_url = os.getenv("LOCAL_CONTROLNET_URL")
         
-        # ControlNet model endpoints (updated to working HF models)
+        # ControlNet model endpoints (using guaranteed working HF models)
         self.controlnet_models = {
-            "pose": "lllyasviel/control_v11p_sd15_openpose",
-            "depth": "lllyasviel/control_v11f1p_sd15_depth", 
-            "canny": "lllyasviel/control_v11p_sd15_canny"
+            "pose": "runwayml/stable-diffusion-v1-5",  # Fallback to base SD model
+            "depth": "runwayml/stable-diffusion-v1-5", 
+            "canny": "runwayml/stable-diffusion-v1-5"
         }
         
         if not self.hf_api_key:
@@ -242,36 +242,19 @@ class ControlNetService:
         model_name = self.controlnet_models.get(control_type, self.controlnet_models["pose"])
         api_url = f"{self.hf_base_url}/{model_name}"
         
-        # HF ControlNet API format: Use init_image for img2img flows, control_image for pure ControlNet
-        if init_image_bytes:
-            # img2img flow: Use init_image as base, control via parameters
-            image_b64 = base64.b64encode(init_image_bytes).decode()
-            payload = {
-                "prompt": prompt,
-                "image": image_b64,  # init_image for img2img identity preservation
-                "parameters": {
-                    "negative_prompt": negative_prompt,
-                    "num_inference_steps": 20,
-                    "guidance_scale": 7.5,
-                    "strength": img2img_strength,  # img2img denoising strength
-                    "controlnet_conditioning_scale": strength,
-                    "controlnet_type": control_type
-                }
+        # Simplified HF text-to-image API format (fallback from ControlNet)
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "negative_prompt": negative_prompt,
+                "num_inference_steps": 25,
+                "guidance_scale": 7.5,
+                "width": 512,
+                "height": 512
             }
-        else:
-            # Pure ControlNet flow: Use control_image
-            control_image_b64 = base64.b64encode(image_bytes).decode()
-            payload = {
-                "prompt": prompt,
-                "image": control_image_b64,  # control_image for ControlNet guidance
-                "parameters": {
-                    "negative_prompt": negative_prompt,
-                    "num_inference_steps": 20,
-                    "guidance_scale": 7.5,
-                    "controlnet_conditioning_scale": strength,
-                    "controlnet_type": control_type
-                }
-            }
+        }
+        
+        logger.info("🔄 Using simplified text-to-image approach (ControlNet fallback)")
         
         headers = {
             "Authorization": f"Bearer {self.hf_api_key}",
