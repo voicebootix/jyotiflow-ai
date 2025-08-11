@@ -101,8 +101,8 @@ class RunWareService:
             if not self.api_key:
                 raise HTTPException(status_code=503, detail="RunWare API key not configured")
                 
-            # 🎯 FULL IMAGE APPROACH: Use complete reference image with ultra-low IP-Adapter weight
-            # Theory: Low weight (0.15) preserves only face identity, high CFG (15.0) forces prompt variation
+            # 🎯 FULL IMAGE APPROACH: Use complete reference image with balanced IP-Adapter weight
+            # Theory: Balanced weight (~0.7) preserves face identity while allowing themed transformation
             try:
                 pil_image = Image.open(io.BytesIO(face_image_bytes))
                 original_format = pil_image.format
@@ -113,10 +113,10 @@ class RunWareService:
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
-                # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on ultra-low IP-Adapter weight
-                # Theory: IP-Adapter weight 0.15 + CFG 15.0 = face preserved, body/background from prompt
-                logger.info(f"🎯 Using FULL IMAGE approach with ultra-low IP-Adapter weight")
-                logger.info(f"🎯 Theory: Low IP weight preserves face only, high CFG forces prompt variation")
+                # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on balanced IP-Adapter weight
+                # Theory: IP-Adapter weight ~0.7 + CFG 15.0 = face preserved, body/background from prompt
+                logger.info(f"🎯 Using FULL IMAGE approach with balanced IP-Adapter weight (~0.7)")
+                logger.info(f"🎯 Theory: Balanced IP weight preserves face identity while allowing themed transformation")
                 
                 # Convert to RGB for consistent JPEG format (handles all image modes)
                 if pil_image.mode != 'RGB':
@@ -220,7 +220,7 @@ class RunWareService:
                 "ipAdapters": [{
                     "model": self.ip_adapter_model,  # 🎯 FACE-ONLY IP-ADAPTER: Configurable face preservation model
                     "guideImage": face_data_uri,  # Reference full image (no cropping/masking)
-                    "weight": clamped_weight  # 🎯 LOW WEIGHT: Preserve face identity only, not full image style
+                    "weight": clamped_weight  # 🎯 BALANCED WEIGHT: Strong face identity while allowing theme transformation
                 }]
             }
             
@@ -228,7 +228,7 @@ class RunWareService:
             logger.info(f"📝 Prompt: {prompt[:100]}...")
             logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (LOW: Face identity only, not full image duplication)")
             logger.info(f"📊 CFG Scale: {clamped_cfg} (HIGH: Strong prompt guidance to override reference)")
-            logger.info("🎯 Using FULL IMAGE approach (no cropping/masking - relies on ultra-low IP weight)")
+            logger.info("🎯 Using FULL IMAGE approach (no cropping/masking - relies on balanced IP-Adapter weight)")
             logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
             logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (Face-only preservation model, not image mode)")
             
@@ -387,7 +387,7 @@ class RunWareService:
         ⚠️ DEPRECATED: Legacy face cropping method - NO LONGER USED
         
         This method was part of the old masking approach that caused transparency issues.
-        The current implementation uses FULL IMAGE approach with ultra-low IP-Adapter weights.
+        The current implementation uses FULL IMAGE approach with balanced IP-Adapter weight (~0.7).
         
         Kept for backwards compatibility only. Will be removed in future versions.
         
@@ -1181,10 +1181,10 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
         """
         try:
             # REFRESH.MD: FIX - Get both the image and the actual prompt used.
-            # PHASE 2: Using IP-Adapter FULL IMAGE approach with ultra-low weight
+            # PHASE 2: Using IP-Adapter FULL IMAGE approach with balanced weight (~0.7)
             generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(
                 custom_prompt=custom_prompt
-                # Using full image + low IP weight for face preservation without masking artifacts
+                # Using full image + balanced IP weight for face preservation without masking artifacts
             )
 
             unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
