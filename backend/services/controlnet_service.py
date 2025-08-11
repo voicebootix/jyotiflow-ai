@@ -57,7 +57,7 @@ class ControlNetService:
         clothing_prompt: str,
         background_prompt: str,
         control_type: str = "pose",
-        strength: float = 0.8  # High strength for background/clothing transformation
+        strength: float = 0.85  # High strength for background/clothing transformation (0.85)
     ) -> bytes:
         """
         Transform background and clothing while preserving face and pose
