@@ -83,14 +83,53 @@ class ControlNetService:
             logger.info(f"📝 Clothing: {clothing_prompt}")
             logger.info(f"🏞️ Background: {background_prompt}")
             
-            # Try Hugging Face API first
+            # Try providers in order: Hugging Face -> Replicate -> Local
+            last_error = None
+            
+            # 1. Try Hugging Face API first
             if self.hf_api_key:
-                return await self._transform_with_huggingface(
+                try:
+                    return await self._transform_with_huggingface(
+                        input_image_bytes, full_prompt, negative_prompt, control_type, strength
+                    )
+                except HTTPException as e:
+                    logger.warning(f"⚠️ Hugging Face API failed: {e.detail}")
+                    last_error = e
+                except Exception as e:
+                    logger.warning(f"⚠️ Hugging Face API error: {e}")
+                    last_error = HTTPException(status_code=503, detail=f"Hugging Face API error: {str(e)}")
+            
+            # 2. Fallback to Replicate API
+            if self.replicate_api_key:
+                try:
+                    return await self._transform_with_replicate(
+                        input_image_bytes, full_prompt, negative_prompt, control_type, strength
+                    )
+                except HTTPException as e:
+                    logger.warning(f"⚠️ Replicate API failed: {e.detail}")
+                    last_error = e
+                except Exception as e:
+                    logger.warning(f"⚠️ Replicate API error: {e}")
+                    last_error = HTTPException(status_code=503, detail=f"Replicate API error: {str(e)}")
+            
+            # 3. Fallback to local deployment
+            try:
+                return await self._transform_with_local(
                     input_image_bytes, full_prompt, negative_prompt, control_type, strength
                 )
+            except HTTPException as e:
+                logger.warning(f"⚠️ Local deployment failed: {e.detail}")
+                last_error = e
+            except Exception as e:
+                logger.warning(f"⚠️ Local deployment error: {e}")
+                last_error = HTTPException(status_code=503, detail=f"Local deployment error: {str(e)}")
+            
+            # All providers failed
+            if last_error:
+                raise last_error
             else:
                 raise HTTPException(
-                    status_code=503, 
+                    status_code=503,
                     detail="ControlNet service not available - no API keys configured"
                 )
                 
@@ -146,7 +185,43 @@ class ControlNetService:
             else:
                 error_msg = f"Hugging Face API error: {response.status_code} - {response.text}"
                 logger.error(error_msg)
-                raise HTTPException(status_code=response.status_code, detail=error_msg)
+                raise HTTPException(status_code=503, detail=error_msg)
+    
+    async def _transform_with_replicate(
+        self,
+        image_bytes: bytes,
+        prompt: str,
+        negative_prompt: str,
+        control_type: str,
+        strength: float
+    ) -> bytes:
+        """Transform using Replicate API (fallback provider)"""
+        
+        # TODO: Implement Replicate ControlNet integration
+        # Would use replicate.run() with ControlNet models
+        logger.info("🔄 Attempting Replicate API transformation...")
+        raise HTTPException(
+            status_code=501, 
+            detail="Replicate ControlNet integration not yet implemented"
+        )
+    
+    async def _transform_with_local(
+        self,
+        image_bytes: bytes,
+        prompt: str,
+        negative_prompt: str,
+        control_type: str,
+        strength: float
+    ) -> bytes:
+        """Transform using local ControlNet deployment (final fallback)"""
+        
+        # TODO: Implement local ControlNet deployment integration
+        # Would connect to local Stable Diffusion + ControlNet setup
+        logger.info("🔄 Attempting local deployment transformation...")
+        raise HTTPException(
+            status_code=501, 
+            detail="Local ControlNet deployment not yet implemented"
+        )
     
     async def extract_pose_from_image(self, image_bytes: bytes) -> dict:
         """Extract pose information for ControlNet pose control"""
