@@ -50,7 +50,7 @@ class RunWareService:
     # 🔧 CONFIGURATION CONSTANTS: OPTIMIZED WITH USER GUIDANCE
     # User guidance: IP-Adapter 0.6-0.7 for face preservation + major environment change
     BALANCED_CFG_SCALE = 15.0  # 🎯 HIGH PROMPT GUIDANCE: Force prompt to override reference image
-    BALANCED_IP_ADAPTER_WEIGHT = 0.65   # 🎯 USER GUIDANCE: Face preserved + major background/clothing change
+    BALANCED_IP_ADAPTER_WEIGHT = 0.45   # 🎯 AGGRESSIVE TRANSFORMATION: More background/clothing change, face still preserved
     
     ULTRA_MINIMAL_CFG_SCALE = 18.0  # 🔥 MAXIMUM PROMPT GUIDANCE: Complete prompt dominance
     ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.05  # 🔥 MINIMAL FACE INFLUENCE: Only basic face structure
@@ -710,6 +710,111 @@ identical camera angle as reference, identical framing as reference, same crop a
         """
         try:
             logger.info("🔥 Starting MULTI-API CONTROLNET approach - Step 1: Face preservation")
+            
+            # 🎨 CONSTRUCT OPTIMIZED PROMPT FOR MULTI-API APPROACH
+            if custom_prompt:
+                final_prompt = custom_prompt
+            else:
+                # 🎯 CORE.MD FIX: Remove hard-coded temple, use theme_description only once, separate clothing/background
+                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {theme_description}, 
+professional photography, cinematic lighting, ultra-detailed, 8K quality.
+
+FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
+- Maintain exact facial features, bone structure, eyes, nose, mouth, and identity from reference image
+- Preserve identical skin tone, facial expression, and spiritual countenance
+- Do not alter, morph, or change the face in any way whatsoever
+- Face identity is completely protected from all theme transformations
+
+CLOTHING TRANSFORMATION (PRIORITY 2):
+- Transform clothing with intricate details and flowing fabric appropriate to the daily theme
+- Add elaborate traditional patterns, rich textures, and authentic spiritual attire
+- Remove current clothing completely and replace with theme-appropriate garments
+- Apply vibrant colors and ornate designs matching the spiritual aesthetic
+
+BACKGROUND TRANSFORMATION (PRIORITY 3):
+- Create immersive spiritual environment that complements the daily theme
+- Add natural elements like architectural details, stone carvings, peaceful water features
+- Implement atmospheric lighting with golden hour ambiance and soft shadows
+- Build serene setting that enhances the spiritual presence without overpowering
+
+TECHNICAL SPECIFICATIONS: Sharp focus, perfect composition, rich vibrant colors, professional portrait photography, 
+cinematic depth of field, high dynamic range, photorealistic rendering, ultra-high definition."""
+
+            # 🎨 DAILY COLOR NEGATIVE PROMPT: Prevent wrong colors for each day
+            day_of_week = datetime.now().weekday() if theme_day is None else theme_day
+            
+            # 🎨 REFINED COLOR NEGATIVES: Enhanced synonyms and better filtering
+            color_negatives = {
+                0: ["orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire", 
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Monday: only WHITE
+                1: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Tuesday: only MAROON
+                2: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Wednesday: only GREEN
+                3: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"], # Thursday: only BLUE
+                4: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Friday: only GOLDEN
+                5: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire"], # Saturday: only GRAY
+                6: ["white robe, white robes, white clothing, white cloth, white attire",
+                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
+                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
+                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
+                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
+                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
+                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"] # Sunday: only CREAM
+            }
+            
+            # 🔧 SAFE JOINING: Check if list exists and is not empty before joining
+            daily_color_list = color_negatives.get(day_of_week, [])
+            daily_color_negatives = ", ".join(daily_color_list) if daily_color_list else ""
+            
+            # 🔧 SAFE NEGATIVE PROMPT CONSTRUCTION: Handle empty color negatives
+            base_negatives = """different face, changed face, new face, altered face, face swap, face replacement, 
+different person, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, 
+face morph, artificial face, generic face, multiple faces, extra faces, face clone, face duplicate,
+business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
+office background, corporate setting, modern interior, business environment, contemporary setting,
+blurry face, distorted facial features, wrong facial structure, artificial looking face"""
+            
+            # 🎯 CORE.MD FIX: Clean negative prompt assembly using list-based joining
+            negative_segments = [
+                base_negatives.strip(),
+                daily_color_negatives.strip() if daily_color_negatives else "",
+                """same background as reference, identical clothing as reference, copying reference image style, 
+same pose as reference, reference image background, copying entire reference image, original background from the reference image, 
+original clothing from the reference image, keeping reference background, maintaining reference clothes, unchanged from reference, 
+identical camera angle as reference, identical framing as reference, same crop as reference""",
+                "low quality, blurry, deformed, bad anatomy, cartoon, anime"
+            ]
+            
+            # Filter out empty strings and join with clean comma separation
+            enhanced_negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
             
             # STEP 1: RunWare IP-Adapter for face preservation only
             # Use minimal prompt to avoid background/clothing influence
