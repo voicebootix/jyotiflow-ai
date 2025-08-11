@@ -239,22 +239,52 @@ class ControlNetService:
     ) -> bytes:
         """Transform using Hugging Face Inference API"""
         
-        model_name = self.controlnet_models.get(control_type, self.controlnet_models["pose"])
-        api_url = f"{self.hf_base_url}/{model_name}"
+        # Use environment-configured model for img2img
+        model_id = os.getenv("HF_IMG2IMG_MODEL", "runwayml/stable-diffusion-v1-5")
+        api_url = f"{self.hf_base_url}/{model_id}"
         
-        # Simplified HF text-to-image API format (fallback from ControlNet)
-        payload = {
-            "inputs": prompt,
-            "parameters": {
-                "negative_prompt": negative_prompt,
-                "num_inference_steps": 25,
-                "guidance_scale": 7.5,
-                "width": 512,
-                "height": 512
-            }
+        # HF Stable Diffusion img2img API format for face preservation
+        # Use init_image (input_image_bytes) as base to preserve face structure
+        if not image_bytes:
+            raise HTTPException(status_code=400, detail="Input image required for img2img transformation")
+        
+        # Base64 encode the init image for HF img2img API
+        init_image_b64 = base64.b64encode(image_bytes).decode()
+        
+        # Read configuration from environment with sensible defaults
+        hf_strength = float(os.getenv("HF_IMG2IMG_STRENGTH", str(img2img_strength)))
+        hf_guidance_scale = float(os.getenv("HF_IMG2IMG_GUIDANCE_SCALE", "7.5"))
+        hf_num_steps = int(os.getenv("HF_IMG2IMG_STEPS", "25"))
+        hf_width = int(os.getenv("HF_IMG2IMG_WIDTH", "512"))
+        hf_height = int(os.getenv("HF_IMG2IMG_HEIGHT", "512"))
+        hf_seed = os.getenv("HF_IMG2IMG_SEED")  # Optional, can be None
+        
+        # Build parameters dict, excluding None values
+        parameters = {
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "strength": hf_strength,
+            "guidance_scale": hf_guidance_scale,
+            "num_inference_steps": hf_num_steps,
+            "width": hf_width,
+            "height": hf_height
         }
         
-        logger.info("🔄 Using simplified text-to-image approach (ControlNet fallback)")
+        # Add seed only if provided
+        if hf_seed is not None:
+            try:
+                parameters["seed"] = int(hf_seed)
+            except ValueError:
+                logger.warning(f"⚠️ Invalid seed value: {hf_seed}, skipping")
+        
+        # HF img2img API payload format
+        payload = {
+            "inputs": init_image_b64,  # Base64 encoded init image
+            "parameters": parameters
+        }
+        
+        logger.info(f"🔄 Using HF Stable Diffusion img2img API: {model_id}")
+        logger.info(f"🎨 img2img strength: {hf_strength} (face preservation balance)")
         
         headers = {
             "Authorization": f"Bearer {self.hf_api_key}",
@@ -264,7 +294,7 @@ class ControlNetService:
         }
         
         async with httpx.AsyncClient(timeout=120.0) as client:
-            logger.info(f"🔄 Calling Hugging Face ControlNet API: {model_name}")
+            logger.info(f"🔄 Calling Hugging Face img2img API: {model_id}")
             logger.info(f"🔗 API URL: {api_url}")
             
             response = await client.post(api_url, json=payload, headers=headers)
@@ -272,12 +302,12 @@ class ControlNetService:
             if response.status_code == 200:
                 # HF returns image bytes directly
                 result_bytes = response.content
-                logger.info("✅ Hugging Face ControlNet transformation completed")
+                logger.info("✅ Hugging Face img2img transformation completed")
                 return result_bytes
             elif response.status_code == 404:
-                error_msg = f"ControlNet model not found: {model_name}. Check if model exists on HuggingFace."
+                error_msg = f"HF img2img model not found: {model_id}. Check if model exists on HuggingFace."
                 logger.error(f"❌ {error_msg}")
-                logger.error(f"💡 Available models should be: control_v11p_sd15_openpose, control_v11f1p_sd15_depth, etc.")
+                logger.error(f"💡 Available models: runwayml/stable-diffusion-v1-5, stabilityai/stable-diffusion-2-1, etc.")
                 raise HTTPException(status_code=503, detail=error_msg)
             else:
                 error_msg = f"Hugging Face API error: {response.status_code} - {response.text}"
