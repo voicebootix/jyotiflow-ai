@@ -1362,6 +1362,7 @@ identical camera angle as reference, identical framing as reference, same crop a
 def get_theme_service(
     storage_service: SupabaseStorageService = Depends(get_storage_service),
     db_conn: asyncpg.Connection = Depends(db.get_db),
+    controlnet_service: ControlNetService = Depends(get_controlnet_service),
 ) -> "ThemeService":
-    """Creates an instance of the ThemeService with RunWare-only dependencies."""
-    return ThemeService(storage_service, db_conn)
+    """Creates an instance of the ThemeService with Multi-API ControlNet support."""
+    return ThemeService(storage_service, db_conn, controlnet_service)
