@@ -26,6 +26,12 @@ class ControlNetService:
     
     Designed to work as Step 2 after RunWare IP-Adapter face preservation.
     Uses pose/structure preservation while allowing complete background/clothing changes.
+
+    NOTE ON HUGGING FACE MODELS:
+    The default HF_IMG2IMG_MODEL must be a model that supports the image-to-image
+    pipeline on the free Inference API. Not all Stable Diffusion models do.
+    - Good examples: `stabilityai/stable-diffusion-xl-refiner-1.0`, `runwayml/stable-diffusion-v1-5`
+    - Bad example: `CompVis/stable-diffusion-v1-4` (only works for self-hosted Diffusers)
     """
     
     def __init__(self):
@@ -236,7 +242,7 @@ class ControlNetService:
         """Transform using Hugging Face Inference API"""
         
         # Use environment-configured model for img2img (guaranteed working HF Inference API model)
-        model_id = os.getenv("HF_IMG2IMG_MODEL", "stabilityai/stable-diffusion-2-1")
+        model_id = os.getenv("HF_IMG2IMG_MODEL", "stabilityai/stable-diffusion-xl-refiner-1.0")
         api_url = f"{self.hf_base_url}/{model_id}"
         
         # HF Stable Diffusion img2img API format for face preservation
