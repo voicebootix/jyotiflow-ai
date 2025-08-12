@@ -439,46 +439,28 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             # Filter out empty strings and join with clean comma separation
             negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
             
-            # 🔧 PROMPT LENGTH VALIDATION: Ensure we don't exceed API limits
-            # Most AI APIs have ~1000-2000 character limits for negative prompts
-            MAX_NEGATIVE_PROMPT_LENGTH = 1500  # Conservative limit for RunWare API
-            
-            if len(negative_prompt) > MAX_NEGATIVE_PROMPT_LENGTH:
-                logger.warning(f"⚠️ Negative prompt too long ({len(negative_prompt)} chars), truncating to {MAX_NEGATIVE_PROMPT_LENGTH}")
-                # Prioritize face preservation and reference blocking over quality negatives
-                priority_segments = [
-                    base_negatives.strip(),
-                    daily_color_negatives.strip() if daily_color_negatives else "",
-                    # Use the constant here as well for consistency
-                    REFERENCE_BLOCKING_NEGATIVES,
-                    # Essential quality negatives only
-                    "low quality, blurry, deformed, bad anatomy, cartoon, anime"
-                ]
-                negative_prompt = ", ".join(segment.strip() for segment in priority_segments if segment.strip())
-                
-                # Final length check and hard truncation if still too long
-                if len(negative_prompt) > MAX_NEGATIVE_PROMPT_LENGTH:
-                    negative_prompt = negative_prompt[:MAX_NEGATIVE_PROMPT_LENGTH].rsplit(',', 1)[0]
-                    logger.warning(f"⚠️ Hard truncated negative prompt to {len(negative_prompt)} characters")
-            
-            logger.info(f"📝 Final negative prompt length: {len(negative_prompt)} characters")
+            # 🚀 NEW TWO-STEP ARCHITECTURE 🚀
 
-            logger.info("🚀 Starting RunWare IP-Adapter FaceID generation...")
-            logger.info(f"📝 Final prompt: {final_prompt[:150]}...")
-            
-            # Generate with RunWare IP-Adapter FaceID
-            # 🔧 EXPLICIT PARAMETERS: Use balanced approach for general avatar generation (not ultra-minimal)
-            generated_image_bytes = await self.runware_service.generate_with_face_reference(
-                face_image_bytes=base_image_bytes,
+            # 1. Generate the scene without a face reference
+            logger.info("🚀 Starting new two-step generation process...")
+            scene_bytes = await self.runware_service.generate_scene_only(
                 prompt=final_prompt,
                 negative_prompt=negative_prompt,
-                width=1024,
-                height=1024,
-                cfg_scale=self.runware_service.BALANCED_CFG_SCALE,  # 🎯 BALANCED: Moderate prompt guidance for general avatars
-                ip_adapter_weight=self.runware_service.BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
+            )
+
+            # 2. Refine the generated scene with Swamiji's face
+            refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face"
+            refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon"
+
+            # 🎯 FIX: Pass the `scene_bytes` from Step 1 as `scene_image_bytes` to Step 2.
+            generated_image_bytes = await self.runware_service.generate_with_face_reference(
+                scene_image_bytes=scene_bytes,
+                face_image_bytes=base_image_bytes,
+                prompt=refinement_prompt,
+                negative_prompt=refinement_negative_prompt,
             )
             
-            logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
+            logger.info("✅ Two-step theme generation completed successfully!")
             return generated_image_bytes, final_prompt
             
         except Exception as e:
