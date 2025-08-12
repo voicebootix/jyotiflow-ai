@@ -469,7 +469,7 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
                     logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
                     refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
             except (ValueError, TypeError):
-                logger.warning(f"⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.85.")
+                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.85.")
                 refinement_ip_weight = 0.85
 
             logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
