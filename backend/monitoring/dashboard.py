@@ -1372,15 +1372,16 @@ async def get_available_test_suites():
                 # Get test categories from test_case_results table (following .cursor rules: 100% database-driven)
                 # Query the actual test execution results to get the 16 test categories
                 test_categories = await conn.fetch("""
-                    SELECT DISTINCT 
+                    SELECT 
                         test_category,
                         COUNT(*) as total_tests,
-                        COUNT(CASE WHEN status = 'passed' THEN 1 END) as passed_tests,
-                        COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_tests,
+                        COUNT(*) FILTER (WHERE status = 'passed') as passed_tests,
+                        COUNT(*) FILTER (WHERE status = 'failed') as failed_tests,
                         MAX(created_at) as last_execution
                     FROM test_case_results
                     WHERE test_category IS NOT NULL 
                     AND test_category != ''
+                    GROUP BY test_category
                     ORDER BY test_category
                 """)
             except asyncpg.exceptions.UndefinedTableError:
