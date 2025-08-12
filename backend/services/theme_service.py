@@ -18,7 +18,7 @@ import asyncpg
 import json
 import base64
 from typing import Optional, Tuple, List
-from PIL import Image, ImageDraw, ImageOps, ImageFilter
+from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageEnhance
 import io
 import numpy as np
 from scipy import ndimage
@@ -141,12 +141,13 @@ class RunWareService:
                         pil_image = pil_image.convert('RGB')
                         logger.info(f"🔄 Converted {original_mode} mode to RGB")
                 
-                # 🎯 FINAL FIX (Grayscale): Convert to grayscale to remove all source color information.
-                # This is done *after* transparency handling to prevent artifacts like black fringes.
-                # This feature can be disabled by setting the environment variable to "false".
+                # 🎯 FINAL FIX (Desaturation): Drastically reduce the reference image's color saturation.
+                # This removes the strong color influence without making the image fully grayscale,
+                # forcing the AI to use the prompt for colors while avoiding a B&W output.
                 if os.getenv("RUNWARE_NEUTRALIZE_REFERENCE_COLORS", "true").lower() == "true":
-                    logger.info("🎨 Converting reference image to grayscale to neutralize color influence.")
-                    pil_image = ImageOps.grayscale(pil_image).convert('RGB')
+                    logger.info("🎨 Desaturating reference image to neutralize color influence.")
+                    enhancer = ImageEnhance.Color(pil_image)
+                    pil_image = enhancer.enhance(0.05) # 0.0=grayscale, 1.0=original. 0.05 is almost B&W.
 
                 # Save as optimized JPEG
                 jpeg_buffer = io.BytesIO()
@@ -723,9 +724,9 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
                 # Also sanitize custom prompts
                 final_prompt = self._sanitize_prompt_input(custom_prompt, max_length=400)
             else:
-                # 🎯 CORE.MD FIX: Remove hard-coded temple, use theme_description only once, separate clothing/background
+                # 🎯 CORE.MD FIX: Add color reinforcement here as well for consistency.
                 final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {sanitized_theme_description}, 
-professional photography, cinematic lighting, ultra-detailed, 8K quality.
+full color, vibrant colors, professional photography, cinematic lighting, ultra-detailed, 8K quality.
 
 FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
 - Maintain exact facial features, bone structure, eyes, nose, mouth, and identity from reference image
