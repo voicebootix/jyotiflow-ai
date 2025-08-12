@@ -1363,7 +1363,7 @@ async def execute_test(request: dict):
                 }
             )
         else:
-            # Execute all test suites (for "Run All Tests" button)
+            # Execute all test suites (for "Run All Tests" button )
             logger.info("Executing all test suites")
             result = await engine.execute_all_test_suites()
             
