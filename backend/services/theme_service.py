@@ -94,7 +94,7 @@ class RunWareService:
             "taskUUID": str(uuid.uuid4()),
             "positivePrompt": prompt, # A minimal prompt helps guide the refinement
             "negativePrompt": negative_prompt,
-            "model": "runware:sd-1.5@1", # Use a specialized model for image-to-image refinement
+            "model": "runware:101@1", # CORRECTED: Use the same proven model for both txt2img and img2img refinement
             "imageDataURI": scene_data_uri, # Use the scene as the base for img2img
             "strength": 0.45, # Moderate strength to blend the face without destroying the scene
             "height": height,
