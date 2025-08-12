@@ -446,9 +446,36 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
                 cfg_scale=18.0, # CORE FIX: Increased strictness to force prompt adherence for color.
             )
 
+            # FINAL FIX: Convert the base reference image to grayscale before sending to Step 2
+            # This prevents the original image's colors (e.g., orange) from bleeding into the final result.
+            try:
+                pil_image = Image.open(io.BytesIO(base_image_bytes))
+                
+                # Handle EXIF orientation tag which can cause rotation issues
+                pil_image = ImageOps.exif_transpose(pil_image)
+
+                # Ensure image has no transparency to avoid black backgrounds
+                if pil_image.mode in ('RGBA', 'LA', 'P'):
+                    background = Image.new('RGB', pil_image.size, (255, 255, 255))
+                    background.paste(pil_image, (0, 0), pil_image.split()[-1])
+                    pil_image = background
+                elif pil_image.mode != 'RGB':
+                    pil_image = pil_image.convert('RGB')
+                    
+                grayscale_image = ImageOps.grayscale(pil_image)
+                
+                buffer = io.BytesIO()
+                grayscale_image.save(buffer, format="PNG")
+                grayscale_face_bytes = buffer.getvalue()
+                logger.info("🎨 Converted reference face to grayscale to prevent color bleed.")
+            except Exception as e:
+                logger.error(f"❌ Failed to convert reference image to grayscale, using original: {e}")
+                grayscale_face_bytes = base_image_bytes
+
+
             # 2. Refine the generated scene with Swamiji's face
-            refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face"
-            refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon"
+            refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face, full color, vibrant colors" # Add color prompts back
+            refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon, grayscale, black and white" # Add anti-grayscale prompts
 
             # CORE FIX: Dynamically determine Step 2 parameters from environment variables for safe, flexible tuning
             refinement_strength = await self._determine_safe_strength(0.35) # FINAL FIX: Lower strength for scene preservation
@@ -469,7 +496,7 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
 
             final_image_bytes = await self.runware_service.generate_with_face_reference(
                 scene_image_bytes=scene_bytes,
-                face_image_bytes=base_image_bytes,
+                face_image_bytes=grayscale_face_bytes, # Use the grayscale version
                 prompt=refinement_prompt,
                 negative_prompt=refinement_negative_prompt,
                 strength=refinement_strength, # CORE FIX: Lower strength preserves the generated scene's integrity.
