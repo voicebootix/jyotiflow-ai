@@ -115,6 +115,11 @@ class RunWareService:
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
+                # 🎯 FINAL FIX (Grayscale): Convert to grayscale to remove all source color information.
+                # This forces the AI to rely exclusively on the prompt for colors, solving the color bleed issue.
+                logger.info("🎨 Converting reference image to grayscale to neutralize color influence.")
+                pil_image = pil_image.convert('L').convert('RGB')
+                
                 # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on optimal IP-Adapter weight
                 # Theory: IP-Adapter weight 0.3 + CFG 15.0 = face preserved, body/background completely transformed
                 logger.info("🎯 Using FULL IMAGE approach with optimal IP-Adapter weight (0.3)")
@@ -1436,7 +1441,7 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
             
             # 🚀 OPTIMIZED RUNWARE FALLBACK (With user guidance applied)
             logger.info("🚀 Using OPTIMIZED RunWare approach with user guidance settings")
-            logger.info("🎯 IP-Adapter weight: 0.65 + Enhanced prompts + Strong negatives")
+            logger.info(f"🎯 IP-Adapter weight: {self.runware_service.BALANCED_IP_ADAPTER_WEIGHT} + CFG Scale: {self.runware_service.BALANCED_CFG_SCALE} + Enhanced prompts")
             return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
                 theme_description=theme_description,
