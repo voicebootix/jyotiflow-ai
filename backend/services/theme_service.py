@@ -449,9 +449,21 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face"
             refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon"
 
-            # CORE FIX: Define and log the exact parameters for Step 2 to make debugging transparent.
-            refinement_strength = 0.4
-            refinement_ip_weight = 0.75
+            # CORE FIX: Dynamically determine Step 2 parameters from environment variables for safe, flexible tuning
+            refinement_strength = await self._determine_safe_strength(0.4) # Get strength from safe evaluation
+            
+            # Get IP Adapter weight from environment with safe fallback and validation
+            try:
+                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.75")
+                refinement_ip_weight = float(ip_weight_str)
+                # Clamp the value to a safe range (0.0 to 1.0)
+                if not (0.0 <= refinement_ip_weight <= 1.0):
+                    logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
+                    refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
+            except (ValueError, TypeError):
+                logger.warning(f"⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.75.")
+                refinement_ip_weight = 0.75
+
             logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
 
             final_image_bytes = await self.runware_service.generate_with_face_reference(
