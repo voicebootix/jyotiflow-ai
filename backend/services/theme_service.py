@@ -626,10 +626,9 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 # 🚫 OPTIMIZED REFERENCE-BLOCKING NEGATIVES: Replaced with a reusable constant
                 REFERENCE_BLOCKING_NEGATIVES,
                 
-                # Quality and technical negatives
+                # Quality and technical negatives - Shortened to prevent truncation
                 """wrong colors, incorrect clothing colors, mismatched theme colors,
-low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch,
-inconsistent lighting, poor composition, amateur photography, low resolution, pixelated, artifacts"""
+low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illustration, sketch"""
             ]
             
             # Filter out empty strings and join with clean comma separation
