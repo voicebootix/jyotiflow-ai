@@ -115,11 +115,6 @@ class RunWareService:
                 pil_image = ImageOps.exif_transpose(pil_image)
                 logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
                 
-                # 🎯 FINAL FIX (Grayscale): Convert to grayscale to remove all source color information.
-                # This forces the AI to rely exclusively on the prompt for colors, solving the color bleed issue.
-                logger.info("🎨 Converting reference image to grayscale to neutralize color influence.")
-                pil_image = pil_image.convert('L').convert('RGB')
-                
                 # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on optimal IP-Adapter weight
                 # Theory: IP-Adapter weight 0.3 + CFG 15.0 = face preserved, body/background completely transformed
                 logger.info("🎯 Using FULL IMAGE approach with optimal IP-Adapter weight (0.3)")
@@ -146,6 +141,13 @@ class RunWareService:
                         pil_image = pil_image.convert('RGB')
                         logger.info(f"🔄 Converted {original_mode} mode to RGB")
                 
+                # 🎯 FINAL FIX (Grayscale): Convert to grayscale to remove all source color information.
+                # This is done *after* transparency handling to prevent artifacts like black fringes.
+                # This feature can be disabled by setting the environment variable to "false".
+                if os.getenv("RUNWARE_NEUTRALIZE_REFERENCE_COLORS", "true").lower() == "true":
+                    logger.info("🎨 Converting reference image to grayscale to neutralize color influence.")
+                    pil_image = ImageOps.grayscale(pil_image).convert('RGB')
+
                 # Save as optimized JPEG
                 jpeg_buffer = io.BytesIO()
                 pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
