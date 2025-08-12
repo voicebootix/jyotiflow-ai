@@ -842,7 +842,7 @@ class MonitoringDashboard:
                             "priority": "medium",
                             "suite_name": f"{test_category}_tests",
                             "suite_display_name": f"{test_category.replace('_', ' ').title()} Tests",
-                            "test_case_count": 1  # Unknown count for auto-discovered suites
+                            "test_case_count": 0  # Unknown count for auto-discovered suites (0 = unknown)
                         })
                     
                     logger.info(f"Retrieved {len(comprehensive_tests)} test suites from TestExecutionEngine")
@@ -1263,13 +1263,18 @@ async def get_test_metrics():
             """)
             
             # FIXED: Calculate actual total individual test cases from database
-            total_available_individual_tests = await conn.fetchval("""
-                SELECT COUNT(*) FROM (
-                    SELECT DISTINCT test_name 
-                    FROM test_case_results 
-                    WHERE created_at >= NOW() - INTERVAL '7 days'
-                ) t
-            """) or total_individual_tests  # Fallback to calculated total from test suites
+            try:
+                total_available_individual_tests = await conn.fetchval("""
+                    SELECT COUNT(*) FROM (
+                        SELECT DISTINCT test_name 
+                        FROM test_case_results 
+                        WHERE created_at >= NOW() - INTERVAL '7 days'
+                    ) t
+                """) or total_individual_tests  # Fallback to calculated total from test suites
+            except Exception as e:
+                # Handle database/schema errors (table or column missing)
+                logger.warning(f"DISTINCT test_name query failed: {e}")
+                total_available_individual_tests = total_individual_tests
             
             return StandardResponse(
                 status="success", 
