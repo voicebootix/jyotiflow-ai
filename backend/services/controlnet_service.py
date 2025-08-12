@@ -39,12 +39,8 @@ class ControlNetService:
         # Local ControlNet deployment (optional)
         self.local_controlnet_url = os.getenv("LOCAL_CONTROLNET_URL")
         
-        # ControlNet model endpoints (using guaranteed working HF models)
-        self.controlnet_models = {
-            "pose": "runwayml/stable-diffusion-v1-5",  # Fallback to base SD model
-            "depth": "runwayml/stable-diffusion-v1-5", 
-            "canny": "runwayml/stable-diffusion-v1-5"
-        }
+        # Define the set of valid control types for validation
+        self.valid_control_types = {"pose", "depth", "canny"}
         
         if not self.hf_api_key:
             logger.warning("⚠️ Hugging Face API key not found - ControlNet service limited")
@@ -102,11 +98,10 @@ class ControlNetService:
         """
         try:
             # 1. Validate control_type against allowed set
-            valid_control_types = set(self.controlnet_models.keys())
-            if control_type not in valid_control_types:
+            if control_type not in self.valid_control_types:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid control_type '{control_type}'. Must be one of: {', '.join(valid_control_types)}"
+                    detail=f"Invalid control_type '{control_type}'. Must be one of: {', '.join(self.valid_control_types)}"
                 )
             
             # 2. Clamp strength values to [0.0, 1.0] range
@@ -241,7 +236,7 @@ class ControlNetService:
         """Transform using Hugging Face Inference API"""
         
         # Use environment-configured model for img2img (guaranteed working HF Inference API model)
-        model_id = os.getenv("HF_IMG2IMG_MODEL", "runwayml/stable-diffusion-v1-5")
+        model_id = os.getenv("HF_IMG2IMG_MODEL", "stabilityai/stable-diffusion-2-1")
         api_url = f"{self.hf_base_url}/{model_id}"
         
         # HF Stable Diffusion img2img API format for face preservation
