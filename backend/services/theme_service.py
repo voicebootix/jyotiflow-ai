@@ -253,10 +253,10 @@ class RunWareService:
                     logger.info(f"🔄 RunWare API attempt {attempt + 1}/{max_retries}")
                     
                     async with httpx.AsyncClient(timeout=60.0) as client:
-                        # 🎯 FINAL FIX: RunWare expects a single JSON object, not an array.
-                        # The previous implementation wrapped the payload in a list `[payload]`,
-                        # causing an `InvalidJSONSyntax` error.
-                        response = await client.post(url, headers=headers, json=payload)
+                        # 🎯 CORRECTED BASED ON API ERROR: RunWare API explicitly requires the payload to be an array.
+                        # The previous fix incorrectly removed the array wrapper, causing a 400 Bad Request.
+                        # This reverts the change and adheres to the API specification.
+                        response = await client.post(url, headers=headers, json=[payload])
                         
                         # Check for success status codes
                         if 200 <= response.status_code < 300:
