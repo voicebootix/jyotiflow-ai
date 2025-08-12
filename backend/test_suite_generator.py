@@ -2933,7 +2933,7 @@ async def test_credit_payment_database_schema():
                                 """,
                                 session_id,
                                 test_case.get('test_name', 'unnamed_test'),
-                                test_case.get('test_category', suite_data['test_category']),
+                                suite_data['test_category'],  # FIXED: Always use suite category, no individual override
                                 "generated",
                                 json.dumps(test_case),
                                 json.dumps(test_case),

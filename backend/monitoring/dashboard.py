@@ -755,7 +755,7 @@ class MonitoringDashboard:
                         for test_case in suite_data["test_cases"]:
                             comprehensive_tests.append({
                                 "test_name": test_case.get("test_name", f"{suite_name}_test"),
-                                "test_category": suite_data.get("test_category", "unknown"),
+                                "test_category": suite_data.get("test_category", suite_name.replace("_tests", "")),  # FIXED: Use suite name instead of "unknown"
                                 "test_type": test_case.get("test_type", suite_data.get("test_type", "unit")),
                                 "description": test_case.get("description", suite_data.get("description", "")),
                                 "priority": test_case.get("priority", "medium"),
@@ -1381,6 +1381,7 @@ async def get_available_test_suites():
                     FROM test_case_results
                     WHERE test_category IS NOT NULL 
                     AND test_category != ''
+                    AND test_category NOT IN ('Authentication', 'unknown', 'Unknown')  -- FIXED: Exclude legacy bad categories
                     GROUP BY test_category
                     ORDER BY test_category
                 """)
