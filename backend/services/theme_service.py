@@ -75,7 +75,7 @@ class RunWareService:
         height: int = 1024,
         steps: int = 30, # Fewer steps needed for refinement
         cfg_scale: float = 8.0, 
-        ip_adapter_weight: float = 0.75 # High weight for strong face application
+        ip_adapter_weight: float = 0.55 # BALANCED: Enough face influence without destroying the scene's colors/attire
     ) -> bytes:
         """
         Refines a scene image with a reference face using IP-Adapter (Step 2 of 2-step process).
@@ -96,7 +96,7 @@ class RunWareService:
             "negativePrompt": negative_prompt,
             "model": "runware:101@1", # CORRECTED: Use the same proven model for both txt2img and img2img refinement
             "imageDataURI": scene_data_uri, # Use the scene as the base for img2img
-            "strength": 0.45, # Moderate strength to blend the face without destroying the scene
+            "strength": 0.5, # BALANCED: Enough strength to replace the face without altering the entire scene
             "height": height,
             "width": width,
             "numberResults": 1,
