@@ -435,6 +435,11 @@ THEMES = {
     6: {"name": "Serene Sunday", "description": "wearing flowing CREAM-COLORED cotton dhoti with subtle silver threads, walking barefoot on pristine white sand along an endless ocean beach at peaceful dawn, gentle waves lapping the shore, seagulls in the distance, palm trees swaying, soft morning sunlight creating a heavenly coastal sanctuary"},
 }
 
+# 🚫 Reusable negative prompt to prevent AI from copying the reference image
+REFERENCE_BLOCKING_NEGATIVES = """copying the reference image, duplicating the reference image, same background, same clothing, same pose, 
+original background, original clothing, original attire, unchanged from reference, identical to reference photo"""
+
+
 class ThemeService:
     """
     🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with IP-Adapter FaceID
@@ -618,11 +623,8 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 # Daily color negatives (only if not empty)
                 daily_color_negatives.strip() if daily_color_negatives else "",
                 
-                # 🚫 OPTIMIZED REFERENCE-BLOCKING NEGATIVES: Shortened to prevent truncation while maintaining strength.
-                # The previous version was too long and was being cut off, causing color restrictions to be ignored.
-                # This concise version ensures the full prompt is processed by the AI.
-                """copying the reference image, duplicating the reference image, same background, same clothing, same pose, 
-original background, original clothing, original attire, unchanged from reference, identical to reference photo""",
+                # 🚫 OPTIMIZED REFERENCE-BLOCKING NEGATIVES: Replaced with a reusable constant
+                REFERENCE_BLOCKING_NEGATIVES,
                 
                 # Quality and technical negatives
                 """wrong colors, incorrect clothing colors, mismatched theme colors,
@@ -643,11 +645,8 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
                 priority_segments = [
                     base_negatives.strip(),
                     daily_color_negatives.strip() if daily_color_negatives else "",
-                    # Shortened reference-blocking negatives (most critical)
-                    """same background as reference, identical clothing as reference, copying reference image style, 
-same pose as reference, reference image background, copying entire reference image, original background from the reference image, 
-original clothing from the reference image, keeping reference background, maintaining reference clothes, unchanged from reference, 
-identical camera angle as reference, identical framing as reference, same crop as reference""",
+                    # Use the constant here as well for consistency
+                    REFERENCE_BLOCKING_NEGATIVES,
                     # Essential quality negatives only
                     "low quality, blurry, deformed, bad anatomy, cartoon, anime"
                 ]
@@ -809,10 +808,8 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
             negative_segments = [
                 base_negatives.strip(),
                 daily_color_negatives.strip() if daily_color_negatives else "",
-                """same background as reference, identical clothing as reference, copying reference image style, 
-same pose as reference, reference image background, copying entire reference image, original background from the reference image, 
-original clothing from the reference image, keeping reference background, maintaining reference clothes, unchanged from reference, 
-identical camera angle as reference, identical framing as reference, same crop as reference""",
+                # Use the constant here as well for consistency
+                REFERENCE_BLOCKING_NEGATIVES,
                 "low quality, blurry, deformed, bad anatomy, cartoon, anime"
             ]
             
