@@ -161,11 +161,24 @@ class DatabaseSchemaFixer:
             
             for name, display_name, description, credits, duration, price in services:
                 try:
-                    await self.conn.execute("""
-                        INSERT INTO service_types (name, display_name, description, credits_required, duration_minutes, price_usd, enabled)
-                        VALUES ($1, $2, $3, $4, $5, $6, true)
-                        ON CONFLICT (name) DO NOTHING
-                    """, name, display_name, description, credits, duration, price)
+                    # Check if display_name column exists before inserting
+                    column_exists = await self.conn.fetchval("""
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'service_types' AND column_name = 'display_name'
+                    """)
+                    
+                    if column_exists:
+                        await self.conn.execute("""
+                            INSERT INTO service_types (name, display_name, description, credits_required, duration_minutes, price_usd, enabled)
+                            VALUES ($1, $2, $3, $4, $5, $6, true)
+                            ON CONFLICT (name) DO NOTHING
+                        """, name, display_name, description, credits, duration, price)
+                    else:
+                        await self.conn.execute("""
+                            INSERT INTO service_types (name, description, credits_required, duration_minutes, price_usd, enabled)
+                            VALUES ($1, $2, $3, $4, $5, true)
+                            ON CONFLICT (name) DO NOTHING
+                        """, name, description, credits, duration, price)
                     logger.info(f"✅ Added service type: {name}")
                 except Exception as e:
                     logger.error(f"❌ Failed to add service type {name}: {e}")

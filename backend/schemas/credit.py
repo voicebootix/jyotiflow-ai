@@ -1,31 +1,56 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional
-import uuid
+from datetime import datetime
+from .validators import validate_datetime_fields, DATETIME_JSON_ENCODERS
+
 
 # கிரெடிட் தொகுப்பு உருவாக்கம் - Credit Package Creation Schema
 class CreditPackageCreate(BaseModel):
     name: str  # தொகுப்பின் பெயர்
     credits_amount: int  # கிரெடிட் அளவு
-    price: float  # விலை
+    price_usd: float  # விலை (matches database column name)
     bonus_credits: Optional[int] = 0  # போனஸ் கிரெடிட்கள்
-    is_active: Optional[bool] = True  # செயலில் உள்ளதா
+    description: Optional[str] = None  # விளக்கம்
+    enabled: Optional[bool] = True  # செயலில் உள்ளதா (matches database column name)
 
 # கிரெடிட் தொகுப்பு புதுப்பிப்பு - Credit Package Update Schema
 class CreditPackageUpdate(BaseModel):
-    name: Optional[str]  # தொகுப்பின் பெயர்
-    credits_amount: Optional[int]  # கிரெடிட் அளவு
-    price: Optional[float]  # விலை
-    bonus_credits: Optional[int]  # போனஸ் கிரெடிட்கள்
-    is_active: Optional[bool]  # செயலில் உள்ளதா
+    name: Optional[str] = None  # தொகுப்பின் பெயர்
+    credits_amount: Optional[int] = None  # கிரெடிட் அளவு
+    price_usd: Optional[float] = None  # விலை (matches database column name)
+    bonus_credits: Optional[int] = None  # போனஸ் கிரெடிட்கள்
+    description: Optional[str] = None  # விளக்கம்
+    enabled: Optional[bool] = None  # செயலில் உள்ளதா (matches database column name)
 
 # கிரெடிட் தொகுப்பு வெளியீடு - Credit Package Output Schema
+# FIXED: Aligned with actual database structure (evidence from migrations/002_fix_missing_tables_and_columns.sql)
 class CreditPackageOut(BaseModel):
-    id: uuid.UUID  # தனித்துவ அடையாளம்
+    id: int  # தனித்துவ அடையாளம் - FIXED: Database uses SERIAL (INTEGER), not UUID
     name: str  # தொகுப்பின் பெயர்
     credits_amount: int  # கிரெடிட் அளவு
-    price: float  # விலை
+    price_usd: float  # விலை - FIXED: Database column is 'price_usd', not 'price'
     bonus_credits: int  # போனஸ் கிரெடிட்கள்
-    stripe_product_id: Optional[str]  # Stripe தயாரிப்பு ID
-    stripe_price_id: Optional[str]  # Stripe விலை ID
-    is_active: bool  # செயலில் உள்ளதா
-    created_at: Optional[str]  # உருவாக்கப்பட்ட நேரம் 
+    description: Optional[str] = None  # விளக்கம்
+    enabled: bool  # செயலில் உள்ளதா - FIXED: Database column is 'enabled', not 'is_active'
+    stripe_product_id: Optional[str] = None  # Stripe தயாரிப்பு ID
+    stripe_price_id: Optional[str] = None  # Stripe விலை ID
+    created_at: Optional[str] = None  # உருவாக்கப்பட்ட நேரம் - FIXED: Convert datetime to string
+    updated_at: Optional[str] = None  # புதுப்பிக்கப்பட்ட நேரம் - FIXED: Convert datetime to string
+    
+    # Backwards compatibility fields for existing frontend code
+    price: Optional[float] = None  # Legacy field mapping to price_usd
+    is_active: Optional[bool] = None  # Legacy field mapping to enabled 
+
+    
+    # FIXED: Use shared validator to avoid code duplication (DRY principle)
+    @validator('created_at', 'updated_at', pre=True)
+    def validate_datetime_fields(cls, v):
+        """
+        FIXED: Use shared validator from validators.py to avoid code duplication.
+        Ensures datetime fields are properly serialized as ISO-8601 strings.
+        """
+        return validate_datetime_fields(cls, v)
+    
+    class Config:
+        # FIXED: Use shared JSON encoders configuration
+        json_encoders = DATETIME_JSON_ENCODERS

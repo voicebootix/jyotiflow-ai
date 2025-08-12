@@ -104,7 +104,9 @@ const SwamjiAvatarPreview = () => {
 
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
       if (response.blob) {
-        // CORE.MD & FINAL FIX: Convert blob to file, upload for a stable URL, then use the URL.
+        // MERGE FIX: Combining the best of both branches.
+        // We use the blob-to-file upload logic from our branch for a stable URL,
+        // and incorporate the enhanced debugging logs from the master branch.
         const imageFile = new File([response.blob], "swamiji_preview.png", { type: 'image/png' });
         const formData = new FormData();
         formData.append('image', imageFile);
@@ -113,7 +115,14 @@ const SwamjiAvatarPreview = () => {
 
         if (uploadResponse.success && uploadResponse.data?.image_url) {
           setPreviewImage(uploadResponse.data.image_url);
+          
+          // Debugging logs from master branch
           console.log('🔍 Debug - Received prompt:', response.prompt);
+          console.log('🔍 Debug - Diff:', response.imageDiff, '| gen:', response.genHash, '| base:', response.baseHash);
+          if (response.previewUrl) { // This might be part of a future implementation
+            console.log('🔗 Stable preview URL from master branch logic (for reference):', response.previewUrl);
+          }
+          
           setPromptText(response.prompt || 'Daily theme generated successfully'); 
           addNotification('success', '✅ Image preview generated and secured!');
         } else {
