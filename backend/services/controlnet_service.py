@@ -236,7 +236,7 @@ class ControlNetService:
         """Transform using Hugging Face Inference API"""
         
         # Use environment-configured model for img2img (guaranteed working HF Inference API model)
-        model_id = os.getenv("HF_IMG2IMG_MODEL", "stabilityai/stable-diffusion-2-1")
+        model_id = os.getenv("HF_IMG2IMG_MODEL", "CompVis/stable-diffusion-v1-4")
         api_url = f"{self.hf_base_url}/{model_id}"
         
         # HF Stable Diffusion img2img API format for face preservation
