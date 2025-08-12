@@ -1247,26 +1247,11 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
-            # 🎯 SMART HYBRID APPROACH: Try Multi-API, fallback to optimized RunWare
-            use_multi_api = False # os.getenv("USE_MULTI_API_CONTROLNET", "true").lower() == "true"
-            
-            if use_multi_api and getattr(self, 'controlnet_service', None) is not None:
-                try:
-                    logger.info("🔥 Attempting MULTI-API CONTROLNET approach")
-                    logger.info("🎯 Step 1: RunWare IP-Adapter (face) + Step 2: ControlNet (background/clothing)")
-                    return await self._generate_with_multi_api_controlnet(
-                        base_image_bytes=base_image_bytes,
-                        theme_description=theme_description,
-                        custom_prompt=custom_prompt,
-                        theme_day=theme_day
-                    )
-                except Exception as e:
-                    logger.warning(f"⚠️ Multi-API failed: {e}")
-                    logger.info("🔄 Falling back to OPTIMIZED RunWare approach")
-            
-            # 🚀 OPTIMIZED RUNWARE FALLBACK (With user guidance applied)
-            logger.info("🚀 Using OPTIMIZED RunWare approach with user guidance settings")
-            logger.info(f"🎯 IP-Adapter weight: {self.runware_service.BALANCED_IP_ADAPTER_WEIGHT} + CFG Scale: {self.runware_service.BALANCED_CFG_SCALE} + Enhanced prompts")
+            # 🚀 FINAL FIX: Force the correct two-step generation logic to run ALWAYS.
+            # The previous if/else logic was flawed and caused the system to fall back
+            # to the old, broken single-step method. This change ensures that our
+            # new two-step architecture is always used as intended.
+            logger.info("🚀 Forcing new two-step generation logic. No fallback to old methods.")
             return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
                 theme_description=theme_description,
