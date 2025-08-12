@@ -827,7 +827,7 @@ identical camera angle as reference, identical framing as reference, same crop a
                 width=1024,
                 height=1024,
                 cfg_scale=15.0,  # Higher CFG for better prompt adherence
-                ip_adapter_weight=0.65  # User guidance: 0.6-0.7 for face preservation
+                ip_adapter_weight=0.4  # CORRECTED: Was 0.65, which was too high and blocked transformation
             )
             
             logger.info("✅ Step 1 completed: Face preserved with RunWare IP-Adapter")
@@ -1419,7 +1419,7 @@ identical camera angle as reference, identical framing as reference, same crop a
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
             # 🎯 SMART HYBRID APPROACH: Try Multi-API, fallback to optimized RunWare
-            use_multi_api = os.getenv("USE_MULTI_API_CONTROLNET", "true").lower() == "true"
+            use_multi_api = False # os.getenv("USE_MULTI_API_CONTROLNET", "true").lower() == "true"
             
             if use_multi_api and getattr(self, 'controlnet_service', None) is not None:
                 try:
