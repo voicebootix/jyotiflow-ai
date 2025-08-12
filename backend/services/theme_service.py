@@ -618,17 +618,11 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 # Daily color negatives (only if not empty)
                 daily_color_negatives.strip() if daily_color_negatives else "",
                 
-                # 🚫 REFINED REFERENCE-BLOCKING NEGATIVES: Force complete transformation with proper scoping
-                """same background as reference, identical clothing as reference, copying reference image style, 
-same pose as reference, identical composition, reference image background, copying entire reference image, 
-duplicating reference style, same setting as reference, identical background elements, reference image duplication, 
-full image copy from reference, original background from the reference image, original clothing from the reference image, 
-original attire from the reference image, original robes from the reference image, original setting from the reference image,
-keeping reference background, maintaining reference clothes, preserving reference style, reference temple setting, 
-reference architectural elements, reference lighting setup, unchanged from reference, unmodified from reference, 
-identical to reference photo, same environment as reference, same clothing style as reference, reference image replication, 
-mirror copy of reference, exact reference reproduction, identical camera angle as reference, identical framing as reference, 
-same crop as reference, same viewpoint as reference, identical perspective as reference""",
+                # 🚫 OPTIMIZED REFERENCE-BLOCKING NEGATIVES: Shortened to prevent truncation while maintaining strength.
+                # The previous version was too long and was being cut off, causing color restrictions to be ignored.
+                # This concise version ensures the full prompt is processed by the AI.
+                """copying the reference image, duplicating the reference image, same background, same clothing, same pose, 
+original background, original clothing, original attire, unchanged from reference, identical to reference photo""",
                 
                 # Quality and technical negatives
                 """wrong colors, incorrect clothing colors, mismatched theme colors,
