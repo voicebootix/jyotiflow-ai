@@ -739,6 +739,7 @@ class MonitoringDashboard:
         Get comprehensive test definitions dynamically from backend systems and database
         This discovers available tests from TestSuiteGenerator and existing test data
         Following .cursor rules: No hardcoded data, retrieve from database and backend systems
+        Returns test suites (not individual test cases) for proper grouping
         """
         try:
             # Method 1: Try to get test definitions from TestSuiteGenerator (primary source)
@@ -748,23 +749,26 @@ class MonitoringDashboard:
                 generator = TestSuiteGenerator()
                 test_suites = await generator.generate_all_test_suites()
                 
-                # Flatten test suites into individual test definitions
+                # Keep test suites grouped (don't flatten into individual test cases)
                 comprehensive_tests = []
                 for suite_name, suite_data in test_suites.items():
                     if "error" not in suite_data and "test_cases" in suite_data:
-                        for test_case in suite_data["test_cases"]:
-                            comprehensive_tests.append({
-                                "test_name": test_case.get("test_name", f"{suite_name}_test"),
-                                "test_category": suite_data.get("test_category", suite_name.replace("_tests", "")),  # FIXED: Use suite name instead of "unknown"
-                                "test_type": test_case.get("test_type", suite_data.get("test_type", "unit")),
-                                "description": test_case.get("description", suite_data.get("description", "")),
-                                "priority": test_case.get("priority", "medium"),
-                                "suite_name": suite_name,
-                                "suite_display_name": suite_data.get("test_suite_name", suite_name)
-                            })
+                        # Count individual test cases within this suite
+                        test_case_count = len(suite_data.get("test_cases", []))
+                        
+                        comprehensive_tests.append({
+                            "test_name": suite_name,
+                            "test_category": suite_data.get("test_category", suite_name.replace("_tests", "")),
+                            "test_type": suite_data.get("test_type", "integration"),
+                            "description": suite_data.get("description", ""),
+                            "priority": suite_data.get("priority", "medium"),
+                            "suite_name": suite_name,
+                            "suite_display_name": suite_data.get("test_suite_name", suite_name),
+                            "test_case_count": test_case_count  # Track individual test cases within suite
+                        })
                 
                 if comprehensive_tests:
-                    logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from TestSuiteGenerator")
+                    logger.info(f"Retrieved {len(comprehensive_tests)} test suites from TestSuiteGenerator")
                     return comprehensive_tests
                     
             except ImportError:
@@ -776,38 +780,38 @@ class MonitoringDashboard:
             try:
                 conn = await db_manager.get_connection()
                 try:
-                    # Get unique test cases from test_case_results table
-                    test_cases = await conn.fetch("""
-                        SELECT DISTINCT 
-                            test_name,
+                    # Get test suites grouped by category from test_case_results table
+                    test_suites_data = await conn.fetch("""
+                        SELECT 
                             test_category,
-                            COALESCE(test_file, 'unknown') as test_type,
-                            'Database discovered test' as description,
+                            COUNT(*) as test_case_count,
                             CASE 
                                 WHEN test_category IN ('auth', 'api', 'database') THEN 'critical'
                                 WHEN test_category IN ('integration', 'performance') THEN 'high'
                                 ELSE 'medium'
                             END as priority
                         FROM test_case_results
-                        WHERE test_name IS NOT NULL 
-                        AND test_name != ''
-                        ORDER BY test_category, test_name
+                        WHERE test_category IS NOT NULL 
+                        AND test_category != ''
+                        GROUP BY test_category
+                        ORDER BY test_category
                     """)
                     
-                    if test_suites_db:
+                    if test_suites_data:
                         comprehensive_tests = []
-                        for row in test_suites_db:
+                        for row in test_suites_data:
                             comprehensive_tests.append({
-                                "test_name": f"{row['suite_name']}_test",
+                                "test_name": f"{row['test_category']}_tests",
                                 "test_category": row["test_category"],
                                 "test_type": "integration",
-                                "description": row["description"] or f"{row['display_name']} - comprehensive system test",
+                                "description": f"Database discovered {row['test_category']} test suite",
                                 "priority": row["priority"],
-                                "suite_name": row["suite_name"],
-                                "suite_display_name": row["display_name"]
+                                "suite_name": f"{row['test_category']}_tests",
+                                "suite_display_name": row["test_category"].replace("_", " ").title(),
+                                "test_case_count": row["test_case_count"]
                             })
                         
-                        logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from database test_suite_configurations")
+                        logger.info(f"Retrieved {len(comprehensive_tests)} test suites from database")
                         return comprehensive_tests
                     
                 finally:
@@ -831,16 +835,17 @@ class MonitoringDashboard:
                         test_category = suite.get("test_category", "unknown")
                         
                         comprehensive_tests.append({
-                            "test_name": f"{test_type}_{test_category}_test",
+                            "test_name": f"{test_category}_tests",
                             "test_category": test_category,
                             "test_type": test_type,
-                            "description": f"Auto-discovered {test_type} test for {test_category}",
+                            "description": f"Auto-discovered {test_category} test suite",
                             "priority": "medium",
-                            "suite_name": f"{test_category}_suite",
-                            "suite_display_name": f"{test_category.replace('_', ' ').title()} Tests"
+                            "suite_name": f"{test_category}_tests",
+                            "suite_display_name": f"{test_category.replace('_', ' ').title()} Tests",
+                            "test_case_count": 0  # Unknown count for auto-discovered suites (0 = unknown)
                         })
                     
-                    logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from TestExecutionEngine")
+                    logger.info(f"Retrieved {len(comprehensive_tests)} test suites from TestExecutionEngine")
                     return comprehensive_tests
                     
             except Exception as e:
@@ -971,10 +976,13 @@ async def get_test_status():
             # Get comprehensive test definitions from monitoring dashboard
             try:
                 comprehensive_tests = await monitoring_dashboard.get_comprehensive_test_definitions()
-                total_comprehensive_tests = len(comprehensive_tests)
+                total_test_suites = len(comprehensive_tests)  # Count of test suites (16)
+                # Calculate total individual test cases by summing test_case_count from all suites
+                total_comprehensive_tests = sum(test.get("test_case_count", 0) for test in comprehensive_tests)
             except Exception as e:
                 logger.error(f"Failed to get comprehensive test definitions: {e}")
                 comprehensive_tests = []
+                total_test_suites = 0
                 total_comprehensive_tests = 0
             
             # Get the latest completed test execution
@@ -993,7 +1001,8 @@ async def get_test_status():
                     message="Comprehensive test status retrieved",
                     data={
                         "last_execution": latest_execution['completed_at'].isoformat() if latest_execution['completed_at'] else None,
-                        "total_tests": total_comprehensive_tests,  # Always show 41 comprehensive tests
+                        "total_tests": total_comprehensive_tests,  # Individual test cases (41)
+                        "total_test_suites": total_test_suites,  # Test suites count (16)
                         "passed_tests": latest_execution['passed_tests'] or 0,
                         "failed_tests": latest_execution['failed_tests'] or 0,
                         "test_coverage": float(latest_execution['coverage_percentage'] or 0),
@@ -1016,7 +1025,8 @@ async def get_test_status():
                     message="No test executions found - showing comprehensive test suite",
                     data={
                         "last_execution": None,
-                        "total_tests": total_comprehensive_tests,  # Show 41 comprehensive tests
+                        "total_tests": total_comprehensive_tests,  # Individual test cases (41)
+                        "total_test_suites": total_test_suites,  # Test suites count (16)
                         "passed_tests": 0,
                         "failed_tests": 0,
                         "test_coverage": 0,
@@ -1161,11 +1171,14 @@ async def get_test_metrics():
             # Get comprehensive test definitions and their latest execution status
             try:
                 comprehensive_tests = await monitoring_dashboard.get_comprehensive_test_definitions()
-                total_tests = len(comprehensive_tests)  # Dynamic count from database and backend systems
+                total_test_suites = len(comprehensive_tests)  # Count of test suites (16)
+                # Calculate total individual test cases by summing test_case_count from all suites
+                total_individual_tests = sum(test.get("test_case_count", 0) for test in comprehensive_tests)
             except Exception as e:
                 logger.error(f"Failed to get comprehensive test definitions: {e}")
                 comprehensive_tests = []
-                total_tests = 0
+                total_test_suites = 0
+                total_individual_tests = 0
             
             # Get latest test execution results for each test
             latest_executions = await conn.fetch("""
@@ -1249,21 +1262,27 @@ async def get_test_metrics():
                 LIMIT 1
             """)
             
-            # FIXED: Calculate actual total tests from test suite definitions
-            total_available_tests = await conn.fetchval("""
-                SELECT COUNT(*) FROM (
-                    SELECT DISTINCT test_name 
-                    FROM test_case_results 
-                    WHERE created_at >= NOW() - INTERVAL '7 days'
-                ) t
-            """) or 41  # Fallback to expected 41 tests
+            # FIXED: Calculate actual total individual test cases from database
+            try:
+                total_available_individual_tests = await conn.fetchval("""
+                    SELECT COUNT(*) FROM (
+                        SELECT DISTINCT test_name 
+                        FROM test_case_results 
+                        WHERE created_at >= NOW() - INTERVAL '7 days'
+                    ) t
+                """) or total_individual_tests  # Fallback to calculated total from test suites
+            except Exception as e:
+                # Handle database/schema errors (table or column missing)
+                logger.warning(f"DISTINCT test_name query failed: {e}")
+                total_available_individual_tests = total_individual_tests
             
             return StandardResponse(
                 status="success", 
                 message="Comprehensive test metrics retrieved",
                 data={
-                    # FIXED: Use actual test counts from database
-                    "total_tests": total_available_tests,
+                    # FIXED: Use actual test counts - individual test cases for execution metrics
+                    "total_tests": total_available_individual_tests,
+                    "total_test_suites": total_test_suites,  # For dashboard display (16)
                     "total_executed_tests": total_executed_tests,
                     "success_rate": round(success_rate, 1),
                     "avg_execution_time": round(avg_execution_time, 1),
@@ -1273,7 +1292,7 @@ async def get_test_metrics():
                     # FIXED: Latest execution summary from actual test results
                     "latest_execution": {
                         "last_run": latest_overall_execution['completed_at'].isoformat() if latest_overall_execution and latest_overall_execution['completed_at'] else None,
-                        "total_tests": latest_overall_execution['total_tests'] if latest_overall_execution else total_available_tests,
+                        "total_tests": latest_overall_execution['total_tests'] if latest_overall_execution else total_available_individual_tests,
                         "passed_tests": latest_overall_execution['passed_tests'] if latest_overall_execution else 0,
                         "failed_tests": latest_overall_execution['failed_tests'] if latest_overall_execution else 0,
                         "test_coverage": float(latest_overall_execution['coverage_percentage']) if latest_overall_execution and latest_overall_execution['coverage_percentage'] else 0,
@@ -1381,7 +1400,6 @@ async def get_available_test_suites():
                     FROM test_case_results
                     WHERE test_category IS NOT NULL 
                     AND test_category != ''
-                    AND test_category NOT IN ('Authentication', 'unknown', 'Unknown')  -- FIXED: Exclude legacy bad categories
                     GROUP BY test_category
                     ORDER BY test_category
                 """)
