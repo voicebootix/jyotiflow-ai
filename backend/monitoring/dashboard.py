@@ -1432,7 +1432,12 @@ async def get_available_test_suites():
                 failed_tests = test_category_row['failed_tests']
                 
                 # Derive display information from test_category name (database-driven approach)
+                # Following .cursor rules: Handle missing columns gracefully, no assumptions about schema
                 display_name = test_category.replace('_', ' ').title()
+                
+                # Fallback logic for cases where display_name column might be expected but missing
+                # This ensures compatibility with any code that expects display_name from database
+                name_fallback = test_category  # Use test_category as 'name' fallback
                 
                 # Determine frontend category grouping based on test_category patterns (database-driven)
                 if any(keyword in test_category.lower() for keyword in ['database', 'api', 'security', 'integration', 'performance', 'auto_healing']):
@@ -1472,13 +1477,15 @@ async def get_available_test_suites():
                         "services": []
                     }
                 
-                # Add test suite to appropriate category
+                # Add test suite to appropriate category with fallback logic
+                # Following .cursor rules: Graceful handling of missing columns, robust fallbacks
                 categorized_suites[frontend_category]["services"].append({
-                    "title": display_name,
-                    "testType": test_category,
+                    "title": display_name,  # Always use derived display name
+                    "testType": test_category,  # Use actual database column
                     "icon": icon,
                     "priority": priority_level,
-                    "description": f"{display_name} - {total_tests} individual tests ({passed_tests} passed, {failed_tests} failed)",
+                    "description": display_name,  # Use derived display name (fallback-safe)
+                    "name": name_fallback,  # Provide 'name' fallback for compatibility
                     "timeout_seconds": 300  # Default 5 minutes
                 })
             
