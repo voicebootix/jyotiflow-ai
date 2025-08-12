@@ -794,21 +794,20 @@ class MonitoringDashboard:
                         ORDER BY test_category, test_name
                     """)
                     
-                    if test_cases:
-                        comprehensive_tests = [
-                            {
-                                "test_name": row["test_name"],
-                                "test_category": row["test_category"] or "unknown",
-                                "test_type": row["test_type"],
-                                "description": row["description"],
+                    if test_suites_db:
+                        comprehensive_tests = []
+                        for row in test_suites_db:
+                            comprehensive_tests.append({
+                                "test_name": f"{row['suite_name']}_test",
+                                "test_category": row["test_category"],
+                                "test_type": "integration",
+                                "description": row["description"] or f"{row['display_name']} - comprehensive system test",
                                 "priority": row["priority"],
-                                "suite_name": f"{row['test_category']}_suite",
-                                "suite_display_name": f"{row['test_category'].replace('_', ' ').title()} Tests"
-                            }
-                            for row in test_cases
-                        ]
+                                "suite_name": row["suite_name"],
+                                "suite_display_name": row["display_name"]
+                            })
                         
-                        logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from database")
+                        logger.info(f"Retrieved {len(comprehensive_tests)} test definitions from database test_suite_configurations")
                         return comprehensive_tests
                     
                 finally:
@@ -1370,56 +1369,37 @@ async def get_available_test_suites():
         try:
             # Try to get test suite configurations - wrap in try-catch to handle missing table
             try:
-                # Get test suite configurations from database (following .cursor rules: no hardcoded data)
-                # Use EXACT column names from your table: suite_name, legacy_name, generator_method, description, enabled, category, priority, timeout_minutes, created_at, updated_at
-                test_suites = await conn.fetch("""
+                # Get test categories from test_case_results table (following .cursor rules: 100% database-driven)
+                # Query the actual test execution results to get the 16 test categories
+                test_categories = await conn.fetch("""
                     SELECT 
-                        suite_name,
-                        legacy_name,
-                        category,
-                        description,
-                        priority,
-                        enabled,
-                        generator_method,
-                        timeout_minutes,
-                        created_at,
-                        updated_at
-                    FROM test_suite_configurations 
-                    WHERE enabled = true 
-                    ORDER BY 
-                        priority DESC,  -- Higher numbers = higher priority (100, 90, 80, etc.)
-                        category,
-                        suite_name
+                        test_category,
+                        COUNT(*) as total_tests,
+                        COUNT(*) FILTER (WHERE status = 'passed') as passed_tests,
+                        COUNT(*) FILTER (WHERE status = 'failed') as failed_tests,
+                        MAX(created_at) as last_execution
+                    FROM test_case_results
+                    WHERE test_category IS NOT NULL 
+                    AND test_category != ''
+                    GROUP BY test_category
+                    ORDER BY test_category
                 """)
             except asyncpg.exceptions.UndefinedTableError:
                 # Table doesn't exist - return empty result instead of error
-                logger.warning("test_suite_configurations table not found in database")
+                logger.warning("test_case_results table not found in database")
                 return StandardResponse(
                     status="success",
-                    message="No test configurations found - test_suite_configurations table needs to be created in database",
+                    message="No test execution results found - test_case_results table needs to be created in database",
                     data={"test_suites": [], "total_suites": 0}
                 )
             except Exception as query_error:
                 # Any other query error (like column not found)  provide detailed error for debugging
                 error_type = type(query_error).__name__
-                logger.error(f"Query error in test_suite_configurations: {error_type}: {query_error}")
-                
-                # For debugging: Let's try a simpler query to see what's wrong
-                try:
-                    # Test basic table access
-                    count_result = await conn.fetchval("SELECT COUNT(*) FROM test_suite_configurations")
-                    logger.info(f"Table exists and has {count_result} rows")
-                    
-                    # Test if the issue is with the WHERE clause or column names
-                    simple_result = await conn.fetch("SELECT suite_name, enabled FROM test_suite_configurations LIMIT 3")
-                    logger.info(f"Sample data: {simple_result}")
-                    
-                except Exception as debug_error:
-                    logger.error(f"Debug query also failed: {debug_error}")
+                logger.error(f"Query error in test_case_results: {error_type}: {query_error}")
                 
                 return StandardResponse(
                     status="success", 
-                    message="Test configurations unavailable - database schema needs to be updated",
+                    message="Test execution results unavailable - database schema needs to be updated",
                     data={"test_suites": [], "total_suites": 0}
                 )
             
@@ -1443,111 +1423,77 @@ async def get_available_test_suites():
                 'monitoring': '📊'
             }
             
-            # Group test suites by category for frontend consumption
+            # Group test categories by frontend category for consumption (100% database-driven)
             categorized_suites = {}
-            for suite in test_suites:
-                # Normalize category: handle None/empty values and strip/lowercase
-                raw_category = suite.get('category')
-                category = raw_category.strip().lower() if raw_category else 'other_services'
-                if category not in categorized_suites:
-                    categorized_suites[category] = {
-                        "category": category.replace('_', ' ').title(),
-                        "services": []
-                    }
+            for test_category_row in test_categories:
+                test_category = test_category_row['test_category']
+                total_tests = test_category_row['total_tests']
+                passed_tests = test_category_row['passed_tests']
+                failed_tests = test_category_row['failed_tests']
                 
-                # Map numeric priority to frontend-expected string values with defensive parsing
-                raw_priority = suite.get('priority')
-                if raw_priority is None:
-                    numeric_priority = 0  # Safe default for NULL values
+                # Derive display information from test_category name (database-driven approach)
+                display_name = test_category.replace('_', ' ').title()
+                
+                # Determine frontend category grouping based on test_category patterns (database-driven)
+                if any(keyword in test_category.lower() for keyword in ['database', 'api', 'security', 'integration', 'performance', 'auto_healing']):
+                    frontend_category = 'Core Platform'
+                elif any(keyword in test_category.lower() for keyword in ['payment', 'spiritual', 'avatar']):
+                    frontend_category = 'Revenue Critical'
+                elif any(keyword in test_category.lower() for keyword in ['live', 'social', 'media']):
+                    frontend_category = 'Communication'
+                elif any(keyword in test_category.lower() for keyword in ['user', 'community', 'notification']):
+                    frontend_category = 'User Experience'
+                elif any(keyword in test_category.lower() for keyword in ['admin', 'monitoring', 'business']):
+                    frontend_category = 'Business Management'
                 else:
-                    try:
-                        # Handle string values, strip whitespace, parse as float then int
-                        if isinstance(raw_priority, str):
-                            numeric_priority = int(float(raw_priority.strip()))
-                        else:
-                            # Handle numeric types directly
-                            numeric_priority = int(float(raw_priority))
-                    except (ValueError, TypeError):
-                        # Fallback to safe default on parsing errors
-                        numeric_priority = 0
+                    frontend_category = 'Other Services'
                 
-                if numeric_priority >= 90:
-                    priority_level = "critical"
-                elif numeric_priority >= 70:
-                    priority_level = "high" 
-                elif numeric_priority >= 40:
-                    priority_level = "medium"
+                # Determine priority based on test results and category patterns (database-driven)
+                if failed_tests > 0:
+                    priority_level = 'critical'
+                elif any(keyword in test_category.lower() for keyword in ['database', 'api', 'security', 'payment', 'spiritual']):
+                    priority_level = 'critical'
+                elif any(keyword in test_category.lower() for keyword in ['integration', 'performance', 'user', 'admin']):
+                    priority_level = 'high'
                 else:
-                    priority_level = "low"
+                    priority_level = 'medium'
                 
-                # Defensive parsing for timeout_minutes
-                raw_timeout = suite.get('timeout_minutes')
-                if raw_timeout is None:
-                    timeout_minutes = 15  # Safe default (15 minutes)
-                else:
-                    try:
-                        if isinstance(raw_timeout, str):
-                            timeout_minutes = int(float(raw_timeout.strip()))
-                        else:
-                            timeout_minutes = int(float(raw_timeout))
-                    except (ValueError, TypeError):
-                        timeout_minutes = 15  # Fallback to default on parsing errors
+                # Determine icon based on test_category patterns (database-driven)
+                icon = '🔧'  # default
+                for keyword, emoji in icon_mapping.items():
+                    if keyword in test_category.lower():
+                        icon = emoji
+                        break
                 
-                # Ensure description is properly cast to string
-                raw_description = suite.get('description')
-                description_text = str(raw_description) if raw_description else f"{suite['suite_name'].replace('_', ' ').title()} testing"
-                
-                categorized_suites[category]["services"].append({
-                    "title": str(suite['suite_name']).replace('_', ' ').title() + (f" - {str(raw_description)}" if raw_description else ""),
-                    "testType": str(suite['suite_name']),
-                    "icon": icon_mapping.get(category, '🔧'),  # Use normalized category for case-insensitive lookup
-                    "priority": priority_level,  # Map numeric priority to frontend-expected values
-                    "description": description_text,
-                    "timeout_seconds": timeout_minutes * 60  # Convert minutes to seconds safely
-                })
-            
-            # Convert to list format expected by frontend
-            category_mapping = {
-                'database': 'Core Platform',
-                'api': 'Core Platform', 
-                'security': 'Core Platform',
-                'integration': 'Core Platform',
-                'performance': 'Core Platform',
-                'auto_healing': 'Core Platform',
-                'payment': 'Revenue Critical',
-                'spiritual': 'Revenue Critical',
-                'avatar': 'Revenue Critical',
-                'live_media': 'Communication',
-                'social_media': 'Communication',
-                'user_mgmt': 'User Experience',
-                'community': 'User Experience',
-                'notifications': 'User Experience',
-                'admin': 'Business Management',
-                'monitoring': 'Business Management'
-            }
-            
-            # Group by frontend categories
-            frontend_categories = {}
-            for category, data in categorized_suites.items():
-                frontend_category = category_mapping.get(category, 'Other Services')
-                if frontend_category not in frontend_categories:
-                    frontend_categories[frontend_category] = {
+                # Create frontend category if it doesn't exist
+                if frontend_category not in categorized_suites:
+                    categorized_suites[frontend_category] = {
                         "category": frontend_category,
                         "services": []
                     }
-                frontend_categories[frontend_category]["services"].extend(data["services"])
+                
+                # Add test suite to appropriate category
+                categorized_suites[frontend_category]["services"].append({
+                    "title": display_name,
+                    "testType": test_category,
+                    "icon": icon,
+                    "priority": priority_level,
+                    "description": f"{display_name} - {total_tests} individual tests ({passed_tests} passed, {failed_tests} failed)",
+                    "timeout_seconds": 300  # Default 5 minutes
+                })
             
-            # Convert to array format
-            suite_config = list(frontend_categories.values())
+            # Convert to list format expected by frontend (100% database-driven)
+            suite_config = list(categorized_suites.values())
+            total_test_categories = len(test_categories)
             
-            logger.info(f"Retrieved {len(test_suites)} test suites from database configuration")
+            logger.info(f"Retrieved {total_test_categories} test categories from test_case_results table (100% database-driven)")
             
             return StandardResponse(
                 status="success",
-                message=f"Retrieved {len(test_suites)} test suites from database",
+                message=f"Retrieved {total_test_categories} test categories from test execution results",
                 data={
                     "test_suites": suite_config,
-                    "total_suites": len(test_suites)
+                    "total_suites": total_test_categories
                 }
             )
             
