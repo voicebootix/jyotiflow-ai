@@ -48,11 +48,11 @@ class RunWareService:
     """
     
     # 🔧 CONFIGURATION CONSTANTS: OPTIMIZED WITH USER GUIDANCE
-    # User guidance: IP-Adapter 0.6-0.7 for face preservation + major environment change
-    BALANCED_CFG_SCALE = 15.0  # 🎯 HIGH PROMPT GUIDANCE: Force prompt to override reference image
-    BALANCED_IP_ADAPTER_WEIGHT = 0.3   # 🎯 OPTIMAL TRANSFORMATION: Balances face preservation with background/clothing change
+    # User guidance: BALANCED uses ~0.25 IP-Adapter weight, ULTRA_MINIMAL uses ~0.05
+    BALANCED_CFG_SCALE = 18.0  # 🎯 AGGRESSIVE PROMPT GUIDANCE: Force prompt to override reference image
+    BALANCED_IP_ADAPTER_WEIGHT = 0.25   # 🎯 AGGRESSIVE TRANSFORMATION: Low weight for more background/clothing change
     
-    ULTRA_MINIMAL_CFG_SCALE = 18.0  # 🔥 MAXIMUM PROMPT GUIDANCE: Complete prompt dominance
+    ULTRA_MINIMAL_CFG_SCALE = 20.0  # 🔥 MAXIMUM PROMPT GUIDANCE: Complete prompt dominance
     ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.05  # 🔥 MINIMAL FACE INFLUENCE: Only basic face structure
     
     def __init__(self, api_key: str):
