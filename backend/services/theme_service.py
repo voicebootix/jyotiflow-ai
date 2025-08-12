@@ -128,8 +128,9 @@ class RunWareService:
         width: int = 1024,
         height: int = 1024,
         steps: int = 30, # Fewer steps needed for refinement
-        cfg_scale: float = 8.0, 
-        ip_adapter_weight: float = 0.55 # BALANCED: Enough face influence without destroying the scene's colors/attire
+        cfg_scale: float = 8.0,
+        strength: float = 0.4, # CORE FIX: Controls how much the scene is preserved. Lower value = more preservation.
+        ip_adapter_weight: float = 0.75 # CORE FIX: Controls face influence. Higher value = stronger face match.
     ) -> bytes:
         """
         Refines a scene image with a reference face using IP-Adapter (Step 2 of 2-step process).
@@ -150,7 +151,7 @@ class RunWareService:
             "negativePrompt": negative_prompt,
             "model": "runware:101@1", # CORRECTED: Use the same proven model for both txt2img and img2img refinement
             "imageDataURI": scene_data_uri, # Use the scene as the base for img2img
-            "strength": 0.5, # BALANCED: Enough strength to replace the face without altering the entire scene
+            "strength": strength, # CORE FIX: Use the strength parameter to control scene preservation.
             "height": height,
             "width": width,
             "numberResults": 1,
@@ -448,11 +449,30 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face"
             refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon"
 
+            # CORE FIX: Dynamically determine Step 2 parameters from environment variables for safe, flexible tuning
+            refinement_strength = await self._determine_safe_strength(0.4) # Get strength from safe evaluation
+            
+            # Get IP Adapter weight from environment with safe fallback and validation
+            try:
+                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.75")
+                refinement_ip_weight = float(ip_weight_str)
+                # Clamp the value to a safe range (0.0 to 1.0)
+                if not (0.0 <= refinement_ip_weight <= 1.0):
+                    logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
+                    refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
+            except (ValueError, TypeError):
+                logger.warning(f"⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.75.")
+                refinement_ip_weight = 0.75
+
+            logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
+
             final_image_bytes = await self.runware_service.generate_with_face_reference(
                 scene_image_bytes=scene_bytes,
                 face_image_bytes=base_image_bytes,
                 prompt=refinement_prompt,
                 negative_prompt=refinement_negative_prompt,
+                strength=refinement_strength, # CORE FIX: Lower strength preserves the generated scene's integrity.
+                ip_adapter_weight=refinement_ip_weight, # CORE FIX: Higher weight ensures the face is applied correctly.
             )
 
             logger.info("✅ Two-step theme generation completed successfully!")
