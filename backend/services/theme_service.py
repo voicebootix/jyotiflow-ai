@@ -67,332 +67,75 @@ class RunWareService:
     
     async def generate_with_face_reference(
         self,
-        face_image_bytes: bytes,
+        scene_image_bytes: bytes, # STEP 2: Input is the generated scene
+        face_image_bytes: bytes,  # STEP 2: Face reference to apply to the scene
         prompt: str,
         negative_prompt: str = "",
         width: int = 1024,
         height: int = 1024,
-        steps: int = 40,
-        cfg_scale: float = BALANCED_CFG_SCALE,  # 🎯 BALANCED: Moderate prompt guidance for general avatars
-        ip_adapter_weight: float = BALANCED_IP_ADAPTER_WEIGHT  # 🎯 BALANCED: Sufficient face influence for general avatars
+        steps: int = 30, # Fewer steps needed for refinement
+        cfg_scale: float = 8.0, 
+        ip_adapter_weight: float = 0.75 # High weight for strong face application
     ) -> bytes:
         """
-        Generate image with face preservation using FULL IMAGE approach based on user analysis
-        
-        PROBLEM FIXED: IP-Adapter was duplicating entire reference image instead of just face
-        SOLUTION: Full image + proper IP weight + high CFG + strong negatives (NO cropping/masking)
-        
-        Uses COMPLETE reference image + optimal IP-Adapter weight (0.3) + high CFG scale (15.0)
-        + strong reference-blocking negatives to preserve ONLY facial identity while forcing AI to generate
-        completely new body poses, clothing, and backgrounds from prompts. No transparency issues.
-        
-        Args:
-            face_image_bytes: Reference face image bytes (Swamiji photo) for identity preservation
-            prompt: Theme generation prompt (AI creates body/background from this)
-            negative_prompt: Negative prompt to avoid unwanted features
-            width: Output image width
-            height: Output image height
-            steps: Number of inference steps
-            cfg_scale: Classifier-free guidance scale
-            ip_adapter_weight: IP-Adapter influence weight (0.0-1.0, higher = stronger face preservation)
-            
-        Returns:
-            bytes: Generated image with preserved face and AI-created body/background
+        Refines a scene image with a reference face using IP-Adapter (Step 2 of 2-step process).
         """
-        try:
-            if not self.api_key:
-                raise HTTPException(status_code=503, detail="RunWare API key not configured")
-                
-            # 🎯 FULL IMAGE APPROACH: Use complete reference image with balanced IP-Adapter weight
-            # Theory: Optimal weight (0.3) preserves face identity while allowing complete background/clothing transformation
-            try:
-                pil_image = Image.open(io.BytesIO(face_image_bytes))
-                original_format = pil_image.format
-                logger.info(f"📸 Processing {original_format} image: {pil_image.size}")
-                
-                # 🎯 CORE.MD FIX: Handle EXIF orientation to ensure correct image display
-                # Mobile photos often have EXIF rotation data that needs to be applied
-                pil_image = ImageOps.exif_transpose(pil_image)
-                logger.info(f"🔄 EXIF orientation applied, final size: {pil_image.size}")
-                
-                # 🎯 FULL IMAGE APPROACH: No cropping, no masking - rely on optimal IP-Adapter weight
-                # Theory: IP-Adapter weight 0.3 + CFG 15.0 = face preserved, body/background completely transformed
-                logger.info("🎯 Using FULL IMAGE approach with optimal IP-Adapter weight (0.3)")
-                logger.info("🎯 Theory: Optimal IP weight preserves face identity while allowing complete background/clothing transformation")
-                
-                # Convert to RGB for consistent JPEG format (handles all image modes)
-                if pil_image.mode != 'RGB':
-                    if pil_image.mode in ('RGBA', 'LA'):
-                        # Handle transparency modes - convert to white background
-                        background = Image.new('RGB', pil_image.size, (255, 255, 255))
-                        background.paste(pil_image, mask=pil_image.split()[-1])
-                        pil_image = background
-                        logger.info(f"🔄 Converted {pil_image.mode} to RGB with white background")
-                    elif pil_image.mode == 'P':
-                        # Handle palette mode - convert to RGBA first to preserve transparency if present
-                        pil_image = pil_image.convert('RGBA')
-                        background = Image.new('RGB', pil_image.size, (255, 255, 255))
-                        background.paste(pil_image, mask=pil_image.split()[-1])
-                        pil_image = background
-                        logger.info(f"🔄 Converted palette mode to RGB with white background")
-                    else:
-                        # Handle other modes (CMYK, L, LAB, HSV, etc.) - direct conversion to RGB
-                        original_mode = pil_image.mode
-                        pil_image = pil_image.convert('RGB')
-                        logger.info(f"🔄 Converted {original_mode} mode to RGB")
-                
-                # 🎯 FINAL FIX (Desaturation): Drastically reduce the reference image's color saturation.
-                # This removes the strong color influence without making the image fully grayscale,
-                # forcing the AI to use the prompt for colors while avoiding a B&W output.
-                if os.getenv("RUNWARE_NEUTRALIZE_REFERENCE_COLORS", "true").lower() == "true":
-                    logger.info("🎨 Desaturating reference image to neutralize color influence.")
-                    enhancer = ImageEnhance.Color(pil_image)
-                    pil_image = enhancer.enhance(0.05) # 0.0=grayscale, 1.0=original. 0.05 is almost B&W.
+        if not self.api_key:
+            raise HTTPException(status_code=503, detail="RunWare API key not configured")
 
-                # Save as optimized JPEG
-                jpeg_buffer = io.BytesIO()
-                pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
-                processed_image_bytes = jpeg_buffer.getvalue()
-                mime_type = 'image/jpeg'
-                logger.info(f"✅ Optimized full image JPEG created: {len(processed_image_bytes)} bytes")
-                    
-            except Exception as image_error:
-                logger.error(f"❌ PIL image processing failed: {image_error}")
-                # Fallback: use original bytes as JPEG
-                processed_image_bytes = face_image_bytes
-                mime_type = 'image/jpeg'
-                logger.warning("⚠️ Using original image bytes with JPEG MIME type as fallback")
-            
-            # Convert processed image to base64
-            image_base64 = base64.b64encode(processed_image_bytes).decode('utf-8')
-            face_data_uri = f"data:{mime_type};base64,{image_base64}"
-            
-            # 🎯 CORRECT RUNWARE API ENDPOINT
-            url = self.base_url
-            headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            # 🔧 CFG SCALE VALIDATION: Validate type and clamp between 1.0 and 20.0
-            if cfg_scale is None:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="CFG scale cannot be None - must be a numeric value between 1.0 and 20.0"
-                )
-            
-            if not isinstance(cfg_scale, (int, float)):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"CFG scale must be numeric (int or float), got {type(cfg_scale).__name__}: {cfg_scale}"
-                )
-            
-            # Safe to clamp now that we've validated the type
-            clamped_cfg = max(1.0, min(20.0, float(cfg_scale)))
-            if clamped_cfg != cfg_scale:
-                logger.warning(f"⚠️ CFG scale clamped from {cfg_scale} to {clamped_cfg}")
-            
-            # 🔧 IP-ADAPTER WEIGHT CONTROL: Validate type and clamp between 0.0 and 1.0
-            if ip_adapter_weight is None:
-                raise HTTPException(
-                    status_code=400, 
-                    detail="IP-Adapter weight cannot be None - must be a numeric value between 0.0 and 1.0"
-                )
-            
-            if not isinstance(ip_adapter_weight, (int, float)):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"IP-Adapter weight must be numeric (int or float), got {type(ip_adapter_weight).__name__}: {ip_adapter_weight}"
-                )
-            
-            # Safe to clamp now that we've validated the type
-            clamped_weight = max(0.0, min(1.0, float(ip_adapter_weight)))
-            if clamped_weight != ip_adapter_weight:
-                logger.warning(f"⚠️ IP-Adapter weight clamped from {ip_adapter_weight} to {clamped_weight}")
-            
-            # 🎯 IP-ADAPTER APPROACH - Face identity preservation with transformation freedom
-            task_uuid = str(uuid.uuid4())
-            # 🎲 SEED RANDOMIZATION: Prevent cached identical results
-            random_seed = random.randint(1, 1000000)
-            
-            payload = {
-                "taskType": "imageInference",
-                "taskUUID": task_uuid,
-                "positivePrompt": prompt,
-                "negativePrompt": negative_prompt,
-                "model": "runware:101@1",  # Standard RunWare model from documentation
-                "height": height,
-                "width": width,
-                "numberResults": 1,
-                "steps": steps,  # Number of inference steps
-                "CFGScale": clamped_cfg,  # Classifier-free guidance scale (validated and clamped)
-                "seed": random_seed,  # 🎲 FORCE NEW GENERATION: Prevents RunWare caching
-                "ipAdapters": [{
-                    "model": self.ip_adapter_model,  # 🎯 FACE-ONLY IP-ADAPTER: Configurable face preservation model
-                    "guideImage": face_data_uri,  # Reference full image (no cropping/masking)
-                    "weight": clamped_weight  # 🎯 OPTIMAL WEIGHT: Face preserved, background/clothing completely change
-                }]
-            }
-            
-            logger.info("🎯 RunWare IP-Adapter ONLY generation starting...")
-            logger.info(f"📝 Prompt: {prompt[:100]}...")
-            logger.info(f"🔧 IP-Adapter weight: {clamped_weight} (LOW: Face identity only, not full image duplication)")
-            logger.info(f"📊 CFG Scale: {clamped_cfg} (HIGH: Strong prompt guidance to override reference)")
-            logger.info("🎯 Using FULL IMAGE approach (no cropping/masking - relies on balanced IP-Adapter weight)")
-            logger.info(f"🎲 Random seed: {random_seed} (prevents caching)")
-            logger.info(f"🔧 IP-Adapter model: {self.ip_adapter_model} (Face-only preservation model, not image mode)")
-            
-            # 🔒 SANITIZED DEBUG LOGGING - Remove base64 image data to prevent PII exposure
-            sanitized_payload = payload.copy()
-            if 'ipAdapters' in sanitized_payload:
-                sanitized_payload['ipAdapters'] = [
-                    {k: v if k != 'guideImage' else '[REDACTED_BASE64_IMAGE]' 
-                     for k, v in adapter.items()}
-                    for adapter in sanitized_payload['ipAdapters']
-                ]
-            logger.debug(f"🔍 DEBUG PAYLOAD: {json.dumps(sanitized_payload, indent=2)[:1000]}...")
-            
-            # 🔄 RETRY MECHANISM - Following CORE.MD resilience patterns
-            max_retries = 3
-            base_delay = 2
-            
-            for attempt in range(max_retries):
-                try:
-                    logger.info(f"🔄 RunWare API attempt {attempt + 1}/{max_retries}")
-                    
-                    async with httpx.AsyncClient(timeout=60.0) as client:
-                        # 🎯 CORRECTED BASED ON API ERROR: RunWare API explicitly requires the payload to be an array.
-                        # The previous fix incorrectly removed the array wrapper, causing a 400 Bad Request.
-                        # This reverts the change and adheres to the API specification.
-                        response = await client.post(url, headers=headers, json=[payload])
-                        
-                        # Check for success status codes
-                        if 200 <= response.status_code < 300:
-                            # 🛡️ ROBUST JSON PARSING - Following CORE.MD error handling principles
-                            try:
-                                parsed_response = response.json()
-                            except json.JSONDecodeError as json_error:
-                                logger.error(f"❌ Invalid JSON response from RunWare API: {json_error}")
-                                logger.error(f"🔍 Raw response text: {response.text[:500]}...")
-                                raise HTTPException(
-                                    status_code=502, 
-                                    detail="RunWare API returned invalid JSON response"
-                                ) from json_error
-                            
-                            logger.info(f"✅ RunWare API successful with status {response.status_code}")
-                            
-                            # 🛡️ ROBUST TYPE CHECKING - RunWare returns object with data array
-                            if not isinstance(parsed_response, dict):
-                                logger.error(f"❌ Expected object response from RunWare API, got {type(parsed_response).__name__}")
-                                # 🔒 SECURITY: Redact response body to prevent data leaks (no base64/PII logging)
-                                logger.error("🔍 Response structure: [REDACTED - contains potentially sensitive data]")
-                                raise HTTPException(
-                                    status_code=502, 
-                                    detail=f"RunWare API returned unexpected response format: expected object, got {type(parsed_response).__name__}"
-                                )
-                            
-                            logger.info(f"🔍 RunWare API response structure: {list(parsed_response.keys())}")
-                            
-                            # 🎯 CORRECT RUNWARE RESPONSE PARSING - Following official documentation
-                            data_array = parsed_response.get('data')
-                            
-                            # 🛡️ ENHANCED VALIDATION - Check data exists, is list, and not empty
-                            if data_array is None:
-                                logger.error("❌ RunWare API response missing 'data' field")
-                                raise HTTPException(status_code=502, detail="RunWare API returned malformed response: missing 'data' field")
-                            
-                            if not isinstance(data_array, list):
-                                logger.error(f"❌ RunWare API 'data' field is not a list, got {type(data_array).__name__}")
-                                raise HTTPException(status_code=502, detail="RunWare API returned malformed response: 'data' field is not an array")
-                            
-                            if not data_array:
-                                logger.error("❌ RunWare API returned empty data array")
-                                raise HTTPException(status_code=502, detail="RunWare API returned no results in data array")
-                            
-                            # Get first result from validated data array
-                            first_result = data_array[0]
-                            
-                            # 🛡️ SAFE STRUCTURE LOGGING - Handle case where result is not a dict
-                            if isinstance(first_result, dict):
-                                logger.info(f"🔍 RunWare result structure: {list(first_result.keys())}")
-                            else:
-                                logger.warning(f"⚠️ Unexpected result type: {type(first_result).__name__}, value: {str(first_result)[:100]}")
-                                raise HTTPException(
-                                    status_code=502, 
-                                    detail=f"RunWare API returned unexpected result format: expected object, got {type(first_result).__name__}"
-                                )
-                            
-                            # Extract image URL or base64 data
-                            img_url = first_result.get('imageURL')
-                            if not img_url:
-                                # Try alternative fields
-                                img_url = first_result.get('imageBase64Data') or first_result.get('imageDataURI')
-                                if not img_url:
-                                    raise HTTPException(status_code=500, detail="No image URL or data found in RunWare response")
-                            
-                            # Download the generated image if it's a URL, otherwise decode base64
-                            if img_url.startswith('http'):
-                                img_response = await client.get(img_url)
-                                img_response.raise_for_status()
-                                image_content = img_response.content
-                            else:
-                                # Handle base64 data
-                                if img_url.startswith('data:image/'):
-                                    # Remove data URL prefix
-                                    img_url = img_url.split(',', 1)[1]
-                                image_content = base64.b64decode(img_url)
-                            
-                            logger.info("✅ RunWare IP-Adapter FaceID generation completed successfully")
-                            return image_content
-                        
-                        # For non-success status, raise to be handled by retry logic
-                        response.raise_for_status()
-                
-                except httpx.HTTPStatusError as e:
-                    # Parse error response for better debugging
-                    try:
-                        error_details = e.response.json()
-                        error_message = error_details.get("message", json.dumps(error_details))
-                    except json.JSONDecodeError:
-                        error_message = e.response.text
-                    
-                    logger.error(f"🚨 RunWare API HTTP error - Status: {e.response.status_code}, Response: {error_message}")
-                    
-                    # Retry on 5xx server errors and 429 rate limits
-                    if (e.response.status_code >= 500 or e.response.status_code == 429) and attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)
-                        logger.warning(f"🔄 Retryable error ({e.response.status_code}). Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
-                        await asyncio.sleep(delay)
-                        continue
-                    else:
-                        # Final attempt failed or non-retryable error
-                        raise HTTPException(
-                            status_code=e.response.status_code, 
-                            detail=f"RunWare API Call Failed: {error_message}"
-                        ) from e
-                
-                except httpx.RequestError as e:
-                    logger.error(f"🌐 RunWare API network error: {e}")
-                    
-                    # Retry network errors (timeouts, connection issues)
-                    if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)
-                        logger.warning(f"🔄 Network error. Retrying in {delay}s... (attempt {attempt + 1}/{max_retries})")
-                        await asyncio.sleep(delay)
-                        continue
-                    else:
-                        # Final attempt failed
-                        raise HTTPException(status_code=502, detail=f"RunWare API network error: {str(e)}") from e
-            
-            # This should never be reached due to the retry logic above
-            raise HTTPException(status_code=500, detail="RunWare API call failed after all retry attempts")
+        # The SCENE image is the main image data for img2img
+        scene_data_uri = f"data:image/jpeg;base64,{base64.b64encode(scene_image_bytes).decode('utf-8')}"
         
-        except HTTPException:
-            # Re-raise HTTPExceptions unchanged to preserve status codes and details
-            raise
+        # The SWAMIJI face is the guideImage for the IP-Adapter
+        face_data_uri = f"data:image/jpeg;base64,{base64.b64encode(face_image_bytes).decode('utf-8')}"
+
+        payload = {
+            "taskType": "imageInference",
+            "taskUUID": str(uuid.uuid4()),
+            "positivePrompt": prompt, # A minimal prompt helps guide the refinement
+            "negativePrompt": negative_prompt,
+            "model": "runware:sd-1.5@1", # Use a specialized model for image-to-image refinement
+            "imageDataURI": scene_data_uri, # Use the scene as the base for img2img
+            "strength": 0.45, # Moderate strength to blend the face without destroying the scene
+            "height": height,
+            "width": width,
+            "numberResults": 1,
+            "steps": steps,
+            "CFGScale": cfg_scale,
+            "seed": random.randint(1, 1000000),
+            "ipAdapters": [{
+                "model": self.ip_adapter_model,
+                "guideImage": face_data_uri,
+                "weight": ip_adapter_weight
+            }]
+        }
+
+        logger.info("🎨 Step 2: Refining scene with reference face...")
+        try:
+            async with httpx.AsyncClient(timeout=90.0) as client:
+                response = await client.post(
+                    self.base_url,
+                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                    json=[payload]
+                )
+                response.raise_for_status()
+                parsed_response = response.json()
+
+                if not parsed_response.get('data') or not parsed_response['data'][0].get('imageURL'):
+                    raise HTTPException(status_code=502, detail="RunWare API did not return an image URL for face refinement.")
+
+                img_url = parsed_response['data'][0]['imageURL']
+                img_response = await client.get(img_url)
+                img_response.raise_for_status()
+                
+                logger.info("✅ Step 2 complete: Face refined successfully.")
+                return img_response.content
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ RunWare face refinement failed with status {e.response.status_code}: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"RunWare face refinement failed: {e.response.text}")
         except Exception as e:
-            logger.error(f"❌ Unexpected RunWare generation error: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail=f"Unexpected RunWare generation error: {str(e)}") from e
+            logger.error(f"❌ Unexpected error during face refinement: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during face refinement.")
     
     def _crop_face_area(self, pil_image: Image.Image) -> Image.Image:
         """
@@ -429,6 +172,60 @@ class RunWareService:
         """
         logger.warning("⚠️ _apply_circular_face_mask called - DEPRECATED method, using full image instead")
         return face_image  # Return original image unchanged
+
+    async def generate_scene_only(
+        self,
+        prompt: str,
+        negative_prompt: str = "",
+        width: int = 1024,
+        height: int = 1024,
+        steps: int = 40,
+        cfg_scale: float = 12.0 # Moderate CFG for creative freedom
+    ) -> bytes:
+        """Generates an image from a text prompt without any image reference (Step 1 of 2-step process)."""
+        if not self.api_key:
+            raise HTTPException(status_code=503, detail="RunWare API key not configured")
+
+        payload = {
+            "taskType": "imageInference",
+            "taskUUID": str(uuid.uuid4()),
+            "positivePrompt": prompt,
+            "negativePrompt": negative_prompt,
+            "model": "runware:101@1", # Standard text-to-image model
+            "height": height,
+            "width": width,
+            "numberResults": 1,
+            "steps": steps,
+            "CFGScale": cfg_scale,
+            "seed": random.randint(1, 1000000),
+        }
+
+        logger.info("🎨 Step 1: Generating scene from prompt only...")
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    self.base_url,
+                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                    json=[payload] # API requires an array
+                )
+                response.raise_for_status()
+                parsed_response = response.json()
+
+                if not parsed_response.get('data') or not parsed_response['data'][0].get('imageURL'):
+                    raise HTTPException(status_code=502, detail="RunWare API did not return an image URL for the scene.")
+
+                img_url = parsed_response['data'][0]['imageURL']
+                img_response = await client.get(img_url)
+                img_response.raise_for_status()
+                
+                logger.info("✅ Step 1 complete: Scene generated successfully.")
+                return img_response.content
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ RunWare scene generation failed with status {e.response.status_code}: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"RunWare scene generation failed: {e.response.text}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during scene generation: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during scene generation.")
 
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
