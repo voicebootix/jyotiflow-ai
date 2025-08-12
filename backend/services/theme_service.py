@@ -65,6 +65,60 @@ class RunWareService:
         else:
             logger.info("✅ RunWare Service initialized with IP-Adapter FaceID approach")
     
+    async def generate_scene_only(
+        self,
+        prompt: str,
+        negative_prompt: str = "",
+        width: int = 1024,
+        height: int = 1024,
+        steps: int = 40,
+        cfg_scale: float = 12.0 # Moderate CFG for creative freedom
+    ) -> bytes:
+        """Generates an image from a text prompt without any image reference (Step 1 of 2-step process)."""
+        if not self.api_key:
+            raise HTTPException(status_code=503, detail="RunWare API key not configured")
+
+        payload = {
+            "taskType": "imageInference",
+            "taskUUID": str(uuid.uuid4()),
+            "positivePrompt": prompt,
+            "negativePrompt": negative_prompt,
+            "model": "runware:101@1", # Standard text-to-image model
+            "height": height,
+            "width": width,
+            "numberResults": 1,
+            "steps": steps,
+            "CFGScale": cfg_scale,
+            "seed": random.randint(1, 1000000),
+        }
+
+        logger.info("🎨 Step 1: Generating scene from prompt only...")
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    self.base_url,
+                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                    json=[payload] # API requires an array
+                )
+                response.raise_for_status()
+                parsed_response = response.json()
+
+                if not parsed_response.get('data') or not parsed_response['data'][0].get('imageURL'):
+                    raise HTTPException(status_code=502, detail="RunWare API did not return an image URL for the scene.")
+
+                img_url = parsed_response['data'][0]['imageURL']
+                img_response = await client.get(img_url)
+                img_response.raise_for_status()
+                
+                logger.info("✅ Step 1 complete: Scene generated successfully.")
+                return img_response.content
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ RunWare scene generation failed with status {e.response.status_code}: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"RunWare scene generation failed: {e.response.text}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during scene generation: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during scene generation.")
+
     async def generate_with_face_reference(
         self,
         scene_image_bytes: bytes, # STEP 2: Input is the generated scene
@@ -172,60 +226,6 @@ class RunWareService:
         """
         logger.warning("⚠️ _apply_circular_face_mask called - DEPRECATED method, using full image instead")
         return face_image  # Return original image unchanged
-
-    async def generate_scene_only(
-        self,
-        prompt: str,
-        negative_prompt: str = "",
-        width: int = 1024,
-        height: int = 1024,
-        steps: int = 40,
-        cfg_scale: float = 12.0 # Moderate CFG for creative freedom
-    ) -> bytes:
-        """Generates an image from a text prompt without any image reference (Step 1 of 2-step process)."""
-        if not self.api_key:
-            raise HTTPException(status_code=503, detail="RunWare API key not configured")
-
-        payload = {
-            "taskType": "imageInference",
-            "taskUUID": str(uuid.uuid4()),
-            "positivePrompt": prompt,
-            "negativePrompt": negative_prompt,
-            "model": "runware:101@1", # Standard text-to-image model
-            "height": height,
-            "width": width,
-            "numberResults": 1,
-            "steps": steps,
-            "CFGScale": cfg_scale,
-            "seed": random.randint(1, 1000000),
-        }
-
-        logger.info("🎨 Step 1: Generating scene from prompt only...")
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    self.base_url,
-                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
-                    json=[payload] # API requires an array
-                )
-                response.raise_for_status()
-                parsed_response = response.json()
-
-                if not parsed_response.get('data') or not parsed_response['data'][0].get('imageURL'):
-                    raise HTTPException(status_code=502, detail="RunWare API did not return an image URL for the scene.")
-
-                img_url = parsed_response['data'][0]['imageURL']
-                img_response = await client.get(img_url)
-                img_response.raise_for_status()
-                
-                logger.info("✅ Step 1 complete: Scene generated successfully.")
-                return img_response.content
-        except httpx.HTTPStatusError as e:
-            logger.error(f"❌ RunWare scene generation failed with status {e.response.status_code}: {e.response.text}")
-            raise HTTPException(status_code=e.response.status_code, detail=f"RunWare scene generation failed: {e.response.text}")
-        except Exception as e:
-            logger.error(f"❌ Unexpected error during scene generation: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="An unexpected error occurred during scene generation.")
 
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
@@ -343,16 +343,12 @@ class ThemeService:
             # 🛡️ Sanitize the theme description before using it in prompts
             sanitized_theme_description = self._sanitize_prompt_input(theme_description)
 
-            # 🎨 CONSTRUCT OPTIMIZED PROMPT FOR RUNWARE
+            # 🎨 CONSTRUCT PROMPT for Step 1 (Scene Generation)
             if custom_prompt:
-                # Also sanitize custom prompts
-                final_prompt = self._sanitize_prompt_input(custom_prompt, max_length=400)
+                scene_prompt = self._sanitize_prompt_input(custom_prompt, max_length=400)
             else:
-                # 🎯 FINAL FIX: Use a simple, direct, and powerful prompt structure.
-                # The previous instructional format was confusing the AI, causing it to ignore the prompt
-                # and replicate the reference image. This direct descriptive format is a proven best practice.
-                final_prompt = (
-                    f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, "
+                scene_prompt = (
+                    f"A photorealistic, full color, vibrant colors, high-resolution portrait of a wise Indian spiritual master, "
                     f"{sanitized_theme_description}, "
                     f"professional photography, cinematic lighting, ultra-detailed, 8K quality, sharp focus."
                 )
@@ -440,11 +436,11 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
             
             # 🚀 NEW TWO-STEP ARCHITECTURE 🚀
-
+            
             # 1. Generate the scene without a face reference
             logger.info("🚀 Starting new two-step generation process...")
             scene_bytes = await self.runware_service.generate_scene_only(
-                prompt=final_prompt,
+                prompt=scene_prompt,
                 negative_prompt=negative_prompt,
             )
 
@@ -452,16 +448,15 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face"
             refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon"
 
-            # 🎯 FIX: Pass the `scene_bytes` from Step 1 as `scene_image_bytes` to Step 2.
-            generated_image_bytes = await self.runware_service.generate_with_face_reference(
+            final_image_bytes = await self.runware_service.generate_with_face_reference(
                 scene_image_bytes=scene_bytes,
                 face_image_bytes=base_image_bytes,
                 prompt=refinement_prompt,
                 negative_prompt=refinement_negative_prompt,
             )
-            
+
             logger.info("✅ Two-step theme generation completed successfully!")
-            return generated_image_bytes, final_prompt
+            return final_image_bytes, scene_prompt # Return the original scene prompt
             
         except Exception as e:
             logger.error(f"❌ RunWare generation failed: {e}", exc_info=True)
