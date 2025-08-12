@@ -113,18 +113,16 @@ const SwamjiAvatarPreview = () => {
 
         const uploadResponse = await enhanced_api.uploadPreviewImage(formData);
 
-        if (uploadResponse.success && uploadResponse.data?.image_url) {
-          setPreviewImage(uploadResponse.data.image_url);
-          
-          // Debugging logs from master branch
-          console.log('🔍 Debug - Received prompt:', response.prompt);
-          console.log('🔍 Debug - Diff:', response.imageDiff, '| gen:', response.genHash, '| base:', response.baseHash);
-          if (response.previewUrl) { // This might be part of a future implementation
-            console.log('🔗 Stable preview URL from master branch logic (for reference):', response.previewUrl);
+        if (uploadResponse.success && uploadResponse.data) {
+          const imageUrl = uploadResponse.data.image_url || uploadResponse.data.preview_url;
+          if (imageUrl) {
+            setPreviewImage(imageUrl);
+            console.log('🔍 Debug - Received prompt:', response.prompt);
+            setPromptText(response.prompt || 'Daily theme generated successfully'); 
+            addNotification('success', '✅ Image preview generated and secured!');
+          } else {
+            addNotification('error', '❌ Upload succeeded but no image URL was returned.');
           }
-          
-          setPromptText(response.prompt || 'Daily theme generated successfully'); 
-          addNotification('success', '✅ Image preview generated and secured!');
         } else {
           const uploadError = uploadResponse?.message || 'Failed to secure the generated image.';
           addNotification('error', `❌ ${uploadError}`);
