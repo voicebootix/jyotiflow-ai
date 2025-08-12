@@ -495,6 +495,21 @@ class ThemeService:
         logger.info("📝 Switched from Stability.AI to IP-Adapter FaceID workflow for better face preservation control")
         logger.info(f"🎯 Active face preservation method: {self.face_preservation_method}")
     
+    def _sanitize_prompt_input(self, text: str, max_length: int = 250) -> str:
+        """
+        Sanitizes and normalizes user-provided text to prevent prompt injection and runaway inputs.
+        - Trims leading/trailing whitespace.
+        - Collapses consecutive whitespace characters (including newlines) into a single space.
+        - Truncates the result to a maximum length.
+        """
+        if not isinstance(text, str):
+            return ""
+        # Collapse whitespace and newlines, then strip
+        normalized_text = ' '.join(text.split()).strip()
+        # Truncate to max length
+        truncated_text = normalized_text[:max_length]
+        return truncated_text
+
     async def _generate_with_runware(
         self, 
         base_image_bytes: bytes,
@@ -515,16 +530,20 @@ class ThemeService:
             Tuple[bytes, str]: Generated image bytes and final prompt used
         """
         try:
+            # 🛡️ Sanitize the theme description before using it in prompts
+            sanitized_theme_description = self._sanitize_prompt_input(theme_description)
+
             # 🎨 CONSTRUCT OPTIMIZED PROMPT FOR RUNWARE
             if custom_prompt:
-                final_prompt = custom_prompt
+                # Also sanitize custom prompts
+                final_prompt = self._sanitize_prompt_input(custom_prompt, max_length=400)
             else:
                 # 🎯 FINAL FIX: Use a simple, direct, and powerful prompt structure.
                 # The previous instructional format was confusing the AI, causing it to ignore the prompt
                 # and replicate the reference image. This direct descriptive format is a proven best practice.
                 final_prompt = (
                     f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, "
-                    f"{theme_description}, "
+                    f"{sanitized_theme_description}, "
                     f"professional photography, cinematic lighting, ultra-detailed, 8K quality, sharp focus."
                 )
 
@@ -697,12 +716,16 @@ identical camera angle as reference, identical framing as reference, same crop a
         try:
             logger.info("🔥 Starting MULTI-API CONTROLNET approach - Step 1: Face preservation")
             
+            # 🛡️ Sanitize the theme description before using it in prompts
+            sanitized_theme_description = self._sanitize_prompt_input(theme_description)
+
             # 🎨 CONSTRUCT OPTIMIZED PROMPT FOR MULTI-API APPROACH
             if custom_prompt:
-                final_prompt = custom_prompt
+                # Also sanitize custom prompts
+                final_prompt = self._sanitize_prompt_input(custom_prompt, max_length=400)
             else:
                 # 🎯 CORE.MD FIX: Remove hard-coded temple, use theme_description only once, separate clothing/background
-                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {theme_description}, 
+                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {sanitized_theme_description}, 
 professional photography, cinematic lighting, ultra-detailed, 8K quality.
 
 FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
