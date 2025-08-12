@@ -1478,7 +1478,7 @@ async def get_available_test_suites():
                     "testType": test_category,
                     "icon": icon,
                     "priority": priority_level,
-                    "description": f"{display_name} - {total_tests} individual tests ({passed_tests} passed, {failed_tests} failed)",
+                    "description": display_name,
                     "timeout_seconds": 300  # Default 5 minutes
                 })
             
