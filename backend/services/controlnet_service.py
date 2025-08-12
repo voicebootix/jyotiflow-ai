@@ -41,9 +41,9 @@ class ControlNetService:
         
         # ControlNet model endpoints (using guaranteed working HF models)
         self.controlnet_models = {
-            "pose": "runwayml/stable-diffusion-v1-5",  # Fallback to base SD model
-            "depth": "runwayml/stable-diffusion-v1-5", 
-            "canny": "runwayml/stable-diffusion-v1-5"
+            "pose": "stabilityai/stable-diffusion-2-1",
+            "depth": "stabilityai/stable-diffusion-2-1", 
+            "canny": "stabilityai/stable-diffusion-2-1"
         }
         
         if not self.hf_api_key:
@@ -241,7 +241,7 @@ class ControlNetService:
         """Transform using Hugging Face Inference API"""
         
         # Use environment-configured model for img2img (guaranteed working HF Inference API model)
-        model_id = os.getenv("HF_IMG2IMG_MODEL", "runwayml/stable-diffusion-v1-5")
+        model_id = os.getenv("HF_IMG2IMG_MODEL", "stabilityai/stable-diffusion-2-1")
         api_url = f"{self.hf_base_url}/{model_id}"
         
         # HF Stable Diffusion img2img API format for face preservation
