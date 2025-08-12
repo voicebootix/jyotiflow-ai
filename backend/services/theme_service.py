@@ -129,8 +129,8 @@ class RunWareService:
         height: int = 1024,
         steps: int = 30, # Fewer steps needed for refinement
         cfg_scale: float = 8.0,
-        strength: float = 0.35, # FINAL FIX: Lower strength to better preserve the generated scene.
-        ip_adapter_weight: float = 0.95 # FINAL FIX: Higher weight for 1:1 face replication.
+        strength: float = 0.2, # Keep low to preserve the Step 1 scene
+        ip_adapter_weight: float = 0.55 # FINAL FIX v3: Lowered significantly to prevent context/clothing bleed from reference.
     ) -> bytes:
         """
         Refines a scene image with a reference face using IP-Adapter (Step 2 of 2-step process).
@@ -462,15 +462,15 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             
             # Get IP Adapter weight from environment with safe fallback and validation
             try:
-                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.85") # FINAL FIX v2: Lowered to prevent bleed
+                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.55") # FINAL FIX v3: Lowered to prevent bleed
                 refinement_ip_weight = float(ip_weight_str)
                 # Clamp the value to a safe range (0.0 to 1.0)
                 if not (0.0 <= refinement_ip_weight <= 1.0):
                     logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
                     refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
             except (ValueError, TypeError):
-                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.85.")
-                refinement_ip_weight = 0.85
+                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.55.")
+                refinement_ip_weight = 0.55
 
             logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
 
