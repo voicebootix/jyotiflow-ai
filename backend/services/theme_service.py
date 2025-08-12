@@ -50,7 +50,7 @@ class RunWareService:
     # 🔧 CONFIGURATION CONSTANTS: OPTIMIZED WITH USER GUIDANCE
     # User guidance: IP-Adapter 0.6-0.7 for face preservation + major environment change
     BALANCED_CFG_SCALE = 15.0  # 🎯 HIGH PROMPT GUIDANCE: Force prompt to override reference image
-    BALANCED_IP_ADAPTER_WEIGHT = 0.45   # 🎯 AGGRESSIVE TRANSFORMATION: More background/clothing change, face still preserved
+    BALANCED_IP_ADAPTER_WEIGHT = 0.3   # 🎯 OPTIMAL TRANSFORMATION: Balances face preservation with background/clothing change
     
     ULTRA_MINIMAL_CFG_SCALE = 18.0  # 🔥 MAXIMUM PROMPT GUIDANCE: Complete prompt dominance
     ULTRA_MINIMAL_IP_ADAPTER_WEIGHT = 0.05  # 🔥 MINIMAL FACE INFLUENCE: Only basic face structure
@@ -559,25 +559,25 @@ cinematic depth of field, high dynamic range, photorealistic rendering, ultra-hi
                     "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
                     "golden robe, golden robes, golden clothing, golden cloth, golden attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Tuesday: only MAROON
-                2: ["white robe, white robes, white clothing, white cloth, white attire",
+                2: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
                     "golden robe, golden robes, golden clothing, golden cloth, golden attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Wednesday: only GREEN
-                3: ["white robe, white robes, white clothing, white cloth, white attire",
+                3: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "green kurta, green robe, green robes, green clothing, green cloth, green attire",
                     "golden robe, golden robes, golden clothing, golden cloth, golden attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"], # Thursday: only BLUE
-                4: ["white robe, white robes, white clothing, white cloth, white attire",
+                4: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "green kurta, green robe, green robes, green clothing, green cloth, green attire",
                     "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Friday: only GOLDEN
-                5: ["white robe, white robes, white clothing, white cloth, white attire",
+                5: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "green kurta, green robe, green robes, green clothing, green cloth, green attire",
@@ -757,25 +757,25 @@ cinematic depth of field, high dynamic range, photorealistic rendering, ultra-hi
                     "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
                     "golden robe, golden robes, golden clothing, golden cloth, golden attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Tuesday: only MAROON
-                2: ["white robe, white robes, white clothing, white cloth, white attire",
+                2: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
                     "golden robe, golden robes, golden clothing, golden cloth, golden attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Wednesday: only GREEN
-                3: ["white robe, white robes, white clothing, white cloth, white attire",
+                3: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "green kurta, green robe, green robes, green clothing, green cloth, green attire",
                     "golden robe, golden robes, golden clothing, golden cloth, golden attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"], # Thursday: only BLUE
-                4: ["white robe, white robes, white clothing, white cloth, white attire",
+                4: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "green kurta, green robe, green robes, green clothing, green cloth, green attire",
                     "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
                     "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Friday: only GOLDEN
-                5: ["white robe, white robes, white clothing, white cloth, white attire",
+                5: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
                     "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
                     "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
                     "green kurta, green robe, green robes, green clothing, green cloth, green attire",
