@@ -39,12 +39,8 @@ class ControlNetService:
         # Local ControlNet deployment (optional)
         self.local_controlnet_url = os.getenv("LOCAL_CONTROLNET_URL")
         
-        # ControlNet model endpoints (using guaranteed working HF models)
-        self.controlnet_models = {
-            "pose": "stabilityai/stable-diffusion-2-1",
-            "depth": "stabilityai/stable-diffusion-2-1", 
-            "canny": "stabilityai/stable-diffusion-2-1"
-        }
+        # Define the set of valid control types for validation
+        self.valid_control_types = {"pose", "depth", "canny"}
         
         if not self.hf_api_key:
             logger.warning("⚠️ Hugging Face API key not found - ControlNet service limited")
@@ -102,11 +98,10 @@ class ControlNetService:
         """
         try:
             # 1. Validate control_type against allowed set
-            valid_control_types = set(self.controlnet_models.keys())
-            if control_type not in valid_control_types:
+            if control_type not in self.valid_control_types:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Invalid control_type '{control_type}'. Must be one of: {', '.join(valid_control_types)}"
+                    detail=f"Invalid control_type '{control_type}'. Must be one of: {', '.join(self.valid_control_types)}"
                 )
             
             # 2. Clamp strength values to [0.0, 1.0] range
