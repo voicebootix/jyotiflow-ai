@@ -443,6 +443,7 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             scene_bytes = await self.runware_service.generate_scene_only(
                 prompt=scene_prompt,
                 negative_prompt=negative_prompt,
+                cfg_scale=18.0, # CORE FIX: Increased strictness to force prompt adherence for color.
             )
 
             # 2. Refine the generated scene with Swamiji's face
