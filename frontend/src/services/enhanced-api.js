@@ -275,6 +275,13 @@ class EnhancedAPI {
     });
   }
 
+  async uploadPreviewImage(formData) {
+    return this.request('/api/admin/social-marketing/upload-preview-image', {
+      method: 'POST',
+      body: formData
+    });
+  }
+
   async generateVideoFromPreview(videoData) {
     return this.post('/api/admin/social-marketing/generate-video-from-preview', videoData);
   }

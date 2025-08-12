@@ -104,18 +104,29 @@ const SwamjiAvatarPreview = () => {
 
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
       if (response.blob) {
-        // CORE.MD: FIX - Force cache refresh by always creating fresh blob URL
-        const imageUrl = URL.createObjectURL(response.blob);
-        setPreviewImage(imageUrl);
-        
-        // CORE.MD: FIX - Debug log the prompt extraction
-        console.log('🔍 Debug - Received prompt:', response.prompt);
-        console.log('🔍 Debug - Diff:', response.imageDiff, '| gen:', response.genHash, '| base:', response.baseHash);
-        if (response.previewUrl) {
-          console.log('🔗 Stable preview URL:', response.previewUrl);
+        // MERGE FIX: Combining the best of both branches.
+        // We use the blob-to-file upload logic from our branch for a stable URL,
+        // and incorporate the enhanced debugging logs from the master branch.
+        const imageFile = new File([response.blob], "swamiji_preview.png", { type: 'image/png' });
+        const formData = new FormData();
+        formData.append('image', imageFile);
+
+        const uploadResponse = await enhanced_api.uploadPreviewImage(formData);
+
+        if (uploadResponse.success && uploadResponse.data) {
+          const imageUrl = uploadResponse.data.image_url || uploadResponse.data.preview_url;
+          if (imageUrl) {
+            setPreviewImage(imageUrl);
+            console.log('🔍 Debug - Received prompt:', response.prompt);
+            setPromptText(response.prompt || 'Daily theme generated successfully'); 
+            addNotification('success', '✅ Image preview generated and secured!');
+          } else {
+            addNotification('error', '❌ Upload succeeded but no image URL was returned.');
+          }
+        } else {
+          const uploadError = uploadResponse?.message || 'Failed to secure the generated image.';
+          addNotification('error', `❌ ${uploadError}`);
         }
-        setPromptText(response.prompt || 'Daily theme generated successfully'); 
-        addNotification('success', '✅ Image preview generated!');
       } else {
         const errorMessage = response?.message || 'Failed to generate image preview.';
         addNotification('error', `❌ ${errorMessage}`);
@@ -140,6 +151,7 @@ const SwamjiAvatarPreview = () => {
       setIsGeneratingVideo(true);
       setFinalVideo(null);
 
+      // FINAL FIX: No change needed here anymore. `previewImage` is now a stable public URL.
       const response = await enhanced_api.generateVideoFromPreview({
         image_url: previewImage,
         voice_id: selectedVoice,
