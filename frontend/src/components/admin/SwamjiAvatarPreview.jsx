@@ -104,14 +104,22 @@ const SwamjiAvatarPreview = () => {
 
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
       if (response.blob) {
-        // CORE.MD: FIX - Force cache refresh by always creating fresh blob URL
-        const imageUrl = URL.createObjectURL(response.blob);
-        setPreviewImage(imageUrl);
-        
-        // CORE.MD: FIX - Debug log the prompt extraction
-        console.log('🔍 Debug - Received prompt:', response.prompt);
-        setPromptText(response.prompt || 'Daily theme generated successfully'); 
-        addNotification('success', '✅ Image preview generated!');
+        // CORE.MD & FINAL FIX: Convert blob to file, upload for a stable URL, then use the URL.
+        const imageFile = new File([response.blob], "swamiji_preview.png", { type: 'image/png' });
+        const formData = new FormData();
+        formData.append('image', imageFile);
+
+        const uploadResponse = await enhanced_api.uploadPreviewImage(formData);
+
+        if (uploadResponse.success && uploadResponse.data?.image_url) {
+          setPreviewImage(uploadResponse.data.image_url);
+          console.log('🔍 Debug - Received prompt:', response.prompt);
+          setPromptText(response.prompt || 'Daily theme generated successfully'); 
+          addNotification('success', '✅ Image preview generated and secured!');
+        } else {
+          const uploadError = uploadResponse?.message || 'Failed to secure the generated image.';
+          addNotification('error', `❌ ${uploadError}`);
+        }
       } else {
         const errorMessage = response?.message || 'Failed to generate image preview.';
         addNotification('error', `❌ ${errorMessage}`);
@@ -136,6 +144,7 @@ const SwamjiAvatarPreview = () => {
       setIsGeneratingVideo(true);
       setFinalVideo(null);
 
+      // FINAL FIX: No change needed here anymore. `previewImage` is now a stable public URL.
       const response = await enhanced_api.generateVideoFromPreview({
         image_url: previewImage,
         voice_id: selectedVoice,

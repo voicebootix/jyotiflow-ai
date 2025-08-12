@@ -306,6 +306,43 @@ async def generate_image_preview(
         if isinstance(e, HTTPException): raise e
         raise HTTPException(status_code=500, detail=f"Error generating image preview: {e}") from e
 
+@social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
+async def upload_preview_image(
+    image: UploadFile = File(...),
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    storage_service: SupabaseStorageService = Depends(get_storage_service)
+):
+    """
+    Uploads a generated preview image to storage and returns the public URL.
+    This is used by the frontend to get a stable URL for a generated preview.
+    """
+    if image.content_type not in ALLOWED_MIME_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid file type for preview.")
+    
+    contents = await image.read()
+    if len(contents) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=400, detail="Preview file size exceeds limit.")
+
+    try:
+        import uuid
+        unique_filename = f"preview_{uuid.uuid4()}.png"
+        file_path_in_bucket = f"previews/{unique_filename}"
+        
+        public_url = storage_service.upload_file(
+            bucket_name="avatars",
+            file_path_in_bucket=file_path_in_bucket,
+            file=contents,
+            content_type="image/png"
+        )
+        
+        logger.info(f"✅ Successfully uploaded preview image to {public_url}")
+        return StandardResponse(success=True, data={"image_url": public_url}, message="Preview image uploaded successfully.")
+        
+    except Exception as e:
+        logger.error(f"Failed to upload preview image: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to upload preview image.")
+
+
 class VideoFromPreviewRequest(BaseModel):
     image_url: str
     sample_text: str
