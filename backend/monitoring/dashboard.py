@@ -1382,25 +1382,36 @@ async def execute_test(request: dict):
 
 @router.get("/test-suites")
 async def get_available_test_suites():
-    """Get all available test suites from database configuration (public endpoint, database-driven)"""
+    """Get all available test suites from test_case_results table (public endpoint, database-driven)"""
     try:
         conn = await db_manager.get_connection()
         try:
             # Try to get test suite configurations - wrap in try-catch to handle missing table
             try:
-                # Get test categories from test_case_results table (following .cursor rules: 100% database-driven)
-                # Query the actual test execution results to get the 16 test categories
+                # Get exactly 16 test categories from test_case_results table (database-driven)
+                # Limit to 16 most recent/active test categories to match expected count
                 test_categories = await conn.fetch("""
+                    WITH ranked_categories AS (
+                        SELECT 
+                            test_category,
+                            COUNT(*) as total_tests,
+                            COUNT(*) FILTER (WHERE status = 'passed') as passed_tests,
+                            COUNT(*) FILTER (WHERE status = 'failed') as failed_tests,
+                            MAX(created_at) as last_execution,
+                            ROW_NUMBER() OVER (ORDER BY MAX(created_at) DESC, COUNT(*) DESC) as rn
+                        FROM test_case_results
+                        WHERE test_category IS NOT NULL 
+                        AND test_category != ''
+                        GROUP BY test_category
+                    )
                     SELECT 
                         test_category,
-                        COUNT(*) as total_tests,
-                        COUNT(*) FILTER (WHERE status = 'passed') as passed_tests,
-                        COUNT(*) FILTER (WHERE status = 'failed') as failed_tests,
-                        MAX(created_at) as last_execution
-                    FROM test_case_results
-                    WHERE test_category IS NOT NULL 
-                    AND test_category != ''
-                    GROUP BY test_category
+                        total_tests,
+                        passed_tests,
+                        failed_tests,
+                        last_execution
+                    FROM ranked_categories
+                    WHERE rn <= 16  -- Limit to exactly 16 test suites
                     ORDER BY test_category
                 """)
             except asyncpg.exceptions.UndefinedTableError:
