@@ -253,8 +253,10 @@ class RunWareService:
                     logger.info(f"🔄 RunWare API attempt {attempt + 1}/{max_retries}")
                     
                     async with httpx.AsyncClient(timeout=60.0) as client:
-                        # RunWare API requires payload to be wrapped in an array
-                        response = await client.post(url, headers=headers, json=[payload])
+                        # 🎯 FINAL FIX: RunWare expects a single JSON object, not an array.
+                        # The previous implementation wrapped the payload in a list `[payload]`,
+                        # causing an `InvalidJSONSyntax` error.
+                        response = await client.post(url, headers=headers, json=payload)
                         
                         # Check for success status codes
                         if 200 <= response.status_code < 300:
@@ -517,30 +519,14 @@ class ThemeService:
             if custom_prompt:
                 final_prompt = custom_prompt
             else:
-                # 🎯 CORE.MD FIX: Remove hard-coded temple, use theme_description only once, separate clothing/background
-                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {theme_description}, 
-professional photography, cinematic lighting, ultra-detailed, 8K quality.
-
-FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
-- Maintain exact facial features, bone structure, eyes, nose, mouth, and identity from reference image
-- Preserve identical skin tone, facial expression, and spiritual countenance
-- Do not alter, morph, or change the face in any way whatsoever
-- Face identity is completely protected from all theme transformations
-
-CLOTHING TRANSFORMATION (PRIORITY 2):
-- Transform clothing with intricate details and flowing fabric appropriate to the daily theme
-- Add elaborate traditional patterns, rich textures, and authentic spiritual attire
-- Remove current clothing completely and replace with theme-appropriate garments
-- Apply vibrant colors and ornate designs matching the spiritual aesthetic
-
-BACKGROUND TRANSFORMATION (PRIORITY 3):
-- Create immersive spiritual environment that complements the daily theme
-- Add natural elements like architectural details, stone carvings, peaceful water features
-- Implement atmospheric lighting with golden hour ambiance and soft shadows
-- Build serene setting that enhances the spiritual presence without overpowering
-
-TECHNICAL SPECIFICATIONS: Sharp focus, perfect composition, rich vibrant colors, professional portrait photography, 
-cinematic depth of field, high dynamic range, photorealistic rendering, ultra-high definition."""
+                # 🎯 FINAL FIX: Use a simple, direct, and powerful prompt structure.
+                # The previous instructional format was confusing the AI, causing it to ignore the prompt
+                # and replicate the reference image. This direct descriptive format is a proven best practice.
+                final_prompt = (
+                    f"A photorealistic, high-resolution portrait of a wise Indian spiritual master, "
+                    f"{theme_description}, "
+                    f"professional photography, cinematic lighting, ultra-detailed, 8K quality, sharp focus."
+                )
 
             # 🎨 DAILY COLOR NEGATIVE PROMPT: Prevent wrong colors for each day
             day_of_week = datetime.now().weekday() if theme_day is None else theme_day
