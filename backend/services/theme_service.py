@@ -446,57 +446,37 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
                 cfg_scale=18.0, # CORE FIX: Increased strictness to force prompt adherence for color.
             )
 
-            # FINAL FIX: Convert the base reference image to grayscale before sending to Step 2
-            # This prevents the original image's colors (e.g., orange) from bleeding into the final result.
-            try:
-                pil_image = Image.open(io.BytesIO(base_image_bytes))
-                
-                # Handle EXIF orientation tag which can cause rotation issues
-                pil_image = ImageOps.exif_transpose(pil_image)
-
-                # Ensure image has no transparency to avoid black backgrounds
-                if pil_image.mode in ('RGBA', 'LA', 'P'):
-                    background = Image.new('RGB', pil_image.size, (255, 255, 255))
-                    background.paste(pil_image, (0, 0), pil_image.split()[-1])
-                    pil_image = background
-                elif pil_image.mode != 'RGB':
-                    pil_image = pil_image.convert('RGB')
-                    
-                grayscale_image = ImageOps.grayscale(pil_image)
-                
-                buffer = io.BytesIO()
-                grayscale_image.save(buffer, format="PNG")
-                grayscale_face_bytes = buffer.getvalue()
-                logger.info("🎨 Converted reference face to grayscale to prevent color bleed.")
-            except Exception as e:
-                logger.error(f"❌ Failed to convert reference image to grayscale, using original: {e}")
-                grayscale_face_bytes = base_image_bytes
+            # FINAL FIX V2: The grayscale experiment was a failure. It forced the AI to generate
+            # B&W images. Removing it completely to allow color generation.
+            # The color bleed issue will be controlled by a lower `strength` parameter in Step 2.
+            logger.info("🎨 Using original reference image for Step 2 to ensure color output.")
+            face_ref_bytes = base_image_bytes
 
 
             # 2. Refine the generated scene with Swamiji's face
-            refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face, full color, vibrant colors" # Add color prompts back
-            refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon, grayscale, black and white" # Add anti-grayscale prompts
+            refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face, full color, vibrant colors"
+            refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon, grayscale, black and white"
 
             # CORE FIX: Dynamically determine Step 2 parameters from environment variables for safe, flexible tuning
-            refinement_strength = await self._determine_safe_strength(0.35) # FINAL FIX: Lower strength for scene preservation
+            refinement_strength = await self._determine_safe_strength(0.2) # FINAL FIX v2: Drastically lower for scene preservation
             
             # Get IP Adapter weight from environment with safe fallback and validation
             try:
-                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.95") # FINAL FIX: Higher weight for face accuracy
+                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.85") # FINAL FIX v2: Lowered to prevent bleed
                 refinement_ip_weight = float(ip_weight_str)
                 # Clamp the value to a safe range (0.0 to 1.0)
                 if not (0.0 <= refinement_ip_weight <= 1.0):
                     logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
                     refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
             except (ValueError, TypeError):
-                logger.warning(f"⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.95.")
-                refinement_ip_weight = 0.95
+                logger.warning(f"⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.85.")
+                refinement_ip_weight = 0.85
 
             logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
 
             final_image_bytes = await self.runware_service.generate_with_face_reference(
                 scene_image_bytes=scene_bytes,
-                face_image_bytes=grayscale_face_bytes, # Use the grayscale version
+                face_image_bytes=face_ref_bytes, # Use the original color image
                 prompt=refinement_prompt,
                 negative_prompt=refinement_negative_prompt,
                 strength=refinement_strength, # CORE FIX: Lower strength preserves the generated scene's integrity.
@@ -1131,7 +1111,7 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 logger.warning(f"🔒 PRODUCTION SAFETY: Requested strength {requested_strength} exceeds safe range, capping at 0.4")
                 return 0.4
             else:
-                return max(requested_strength, 0.3)  # Minimum 0.3 for some transformation
+                return max(requested_strength, 0.15)  # Minimum 0.15 for some transformation
 
     async def _get_base_image_data(self) -> tuple[bytes, str]:
         """
