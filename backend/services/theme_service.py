@@ -141,6 +141,13 @@ class RunWareService:
                         pil_image = pil_image.convert('RGB')
                         logger.info(f"🔄 Converted {original_mode} mode to RGB")
                 
+                # 🎯 FINAL FIX (Grayscale): Convert to grayscale to remove all source color information.
+                # This is done *after* transparency handling to prevent artifacts like black fringes.
+                # This feature can be disabled by setting the environment variable to "false".
+                if os.getenv("RUNWARE_NEUTRALIZE_REFERENCE_COLORS", "true").lower() == "true":
+                    logger.info("🎨 Converting reference image to grayscale to neutralize color influence.")
+                    pil_image = ImageOps.grayscale(pil_image).convert('RGB')
+
                 # Save as optimized JPEG
                 jpeg_buffer = io.BytesIO()
                 pil_image.save(jpeg_buffer, format='JPEG', quality=95, optimize=True)
@@ -1436,7 +1443,7 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
             
             # 🚀 OPTIMIZED RUNWARE FALLBACK (With user guidance applied)
             logger.info("🚀 Using OPTIMIZED RunWare approach with user guidance settings")
-            logger.info("🎯 IP-Adapter weight: 0.65 + Enhanced prompts + Strong negatives")
+            logger.info(f"🎯 IP-Adapter weight: {self.runware_service.BALANCED_IP_ADAPTER_WEIGHT} + CFG Scale: {self.runware_service.BALANCED_CFG_SCALE} + Enhanced prompts")
             return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
                 theme_description=theme_description,
