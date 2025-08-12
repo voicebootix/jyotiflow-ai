@@ -435,6 +435,11 @@ THEMES = {
     6: {"name": "Serene Sunday", "description": "wearing flowing CREAM-COLORED cotton dhoti with subtle silver threads, walking barefoot on pristine white sand along an endless ocean beach at peaceful dawn, gentle waves lapping the shore, seagulls in the distance, palm trees swaying, soft morning sunlight creating a heavenly coastal sanctuary"},
 }
 
+# 🚫 Reusable negative prompt to prevent AI from copying the reference image
+REFERENCE_BLOCKING_NEGATIVES = """copying the reference image, duplicating the reference image, same background, same clothing, same pose, 
+original background, original clothing, original attire, unchanged from reference, identical to reference photo"""
+
+
 class ThemeService:
     """
     🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with IP-Adapter FaceID
@@ -618,17 +623,8 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 # Daily color negatives (only if not empty)
                 daily_color_negatives.strip() if daily_color_negatives else "",
                 
-                # 🚫 REFINED REFERENCE-BLOCKING NEGATIVES: Force complete transformation with proper scoping
-                """same background as reference, identical clothing as reference, copying reference image style, 
-same pose as reference, identical composition, reference image background, copying entire reference image, 
-duplicating reference style, same setting as reference, identical background elements, reference image duplication, 
-full image copy from reference, original background from the reference image, original clothing from the reference image, 
-original attire from the reference image, original robes from the reference image, original setting from the reference image,
-keeping reference background, maintaining reference clothes, preserving reference style, reference temple setting, 
-reference architectural elements, reference lighting setup, unchanged from reference, unmodified from reference, 
-identical to reference photo, same environment as reference, same clothing style as reference, reference image replication, 
-mirror copy of reference, exact reference reproduction, identical camera angle as reference, identical framing as reference, 
-same crop as reference, same viewpoint as reference, identical perspective as reference""",
+                # 🚫 OPTIMIZED REFERENCE-BLOCKING NEGATIVES: Replaced with a reusable constant
+                REFERENCE_BLOCKING_NEGATIVES,
                 
                 # Quality and technical negatives
                 """wrong colors, incorrect clothing colors, mismatched theme colors,
@@ -649,11 +645,8 @@ inconsistent lighting, poor composition, amateur photography, low resolution, pi
                 priority_segments = [
                     base_negatives.strip(),
                     daily_color_negatives.strip() if daily_color_negatives else "",
-                    # Shortened reference-blocking negatives (most critical)
-                    """same background as reference, identical clothing as reference, copying reference image style, 
-same pose as reference, reference image background, copying entire reference image, original background from the reference image, 
-original clothing from the reference image, keeping reference background, maintaining reference clothes, unchanged from reference, 
-identical camera angle as reference, identical framing as reference, same crop as reference""",
+                    # Use the constant here as well for consistency
+                    REFERENCE_BLOCKING_NEGATIVES,
                     # Essential quality negatives only
                     "low quality, blurry, deformed, bad anatomy, cartoon, anime"
                 ]
@@ -815,10 +808,8 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
             negative_segments = [
                 base_negatives.strip(),
                 daily_color_negatives.strip() if daily_color_negatives else "",
-                """same background as reference, identical clothing as reference, copying reference image style, 
-same pose as reference, reference image background, copying entire reference image, original background from the reference image, 
-original clothing from the reference image, keeping reference background, maintaining reference clothes, unchanged from reference, 
-identical camera angle as reference, identical framing as reference, same crop as reference""",
+                # Use the constant here as well for consistency
+                REFERENCE_BLOCKING_NEGATIVES,
                 "low quality, blurry, deformed, bad anatomy, cartoon, anime"
             ]
             
