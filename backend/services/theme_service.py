@@ -30,11 +30,6 @@ from enum import Enum
 
 logger = logging.getLogger(__name__)
 
-    # 🚀 MULTI-API FACE PRESERVATION METHODS
-class FacePreservationMethod(Enum):
-    """Multi-API face preservation methods"""
-    RUNWARE_FACEREF = "runware_faceref"  # IP-Adapter FaceID (80-90% success)
-    MULTI_API_CONTROLNET = "multi_api_controlnet"  # RunWare + ControlNet (95%+ success)
 
 # 🚀 RUNWARE API SERVICE CLASS
 class RunWareService:
@@ -130,7 +125,7 @@ class RunWareService:
         steps: int = 30, # Fewer steps needed for refinement
         cfg_scale: float = 8.0,
         strength: float = 0.2, # Keep low to preserve the Step 1 scene
-        ip_adapter_weight: float = 0.55 # FINAL FIX v3: Lowered significantly to prevent context/clothing bleed from reference.
+        ip_adapter_weight: float = 0.35 # FINAL FIX v4: Balanced weight for face transfer without scene destruction.
     ) -> bytes:
         """
         Refines a scene image with a reference face using IP-Adapter (Step 2 of 2-step process).
@@ -191,42 +186,6 @@ class RunWareService:
         except Exception as e:
             logger.error(f"❌ Unexpected error during face refinement: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred during face refinement.")
-    
-    def _crop_face_area(self, pil_image: Image.Image) -> Image.Image:
-        """
-        ⚠️ DEPRECATED: Legacy face cropping method - NO LONGER USED
-        
-        This method was part of the old masking approach that caused transparency issues.
-        The current implementation uses FULL IMAGE approach with optimal IP-Adapter weight (0.3).
-        
-        Kept for backwards compatibility only. Will be removed in future versions.
-        
-        Args:
-            pil_image: PIL Image object of the reference photo
-            
-        Returns:
-            PIL Image object (unchanged - deprecation fallback)
-        """
-        logger.warning("⚠️ _crop_face_area called - DEPRECATED method, using full image instead")
-        return pil_image  # Return original image unchanged
-    
-    def _apply_circular_face_mask(self, face_image: Image.Image) -> Image.Image:
-        """
-        ⚠️ DEPRECATED: Legacy circular masking method - NO LONGER USED
-        
-        This method was part of the old masking approach that caused black/transparent backgrounds.
-        The current implementation uses FULL IMAGE approach without any masking.
-        
-        Kept for backwards compatibility only. Will be removed in future versions.
-        
-        Args:
-            face_image: PIL Image object (returned unchanged)
-            
-        Returns:
-            PIL Image object (unchanged - deprecation fallback)
-        """
-        logger.warning("⚠️ _apply_circular_face_mask called - DEPRECATED method, using full image instead")
-        return face_image  # Return original image unchanged
 
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
@@ -251,13 +210,9 @@ class ThemeService:
     🚀 RUNWARE-ONLY THEME SERVICE: Premium face preservation with IP-Adapter FaceID
     Orchestrates daily theme generation using RunWare's IP-Adapter FaceID workflow for optimal control.
     
-    Face Preservation Method:
-    - RunWare IP-Adapter FaceID (80-90% success rate, $0.0006 per image)
-    
     Features:
-    - Superior face preservation through seedImage + low strength approach
+    - Superior face preservation through a two-step generation process
     - Dramatic transformation of clothes/background while preserving identity
-    - Better control over what gets preserved vs. what gets transformed
     - Production-ready with retry mechanisms and error handling
     - Cost-effective and high-quality image generation
     """
@@ -266,15 +221,11 @@ class ThemeService:
         self,
         storage_service: SupabaseStorageService,
         db_conn: asyncpg.Connection,
-        controlnet_service: Optional[ControlNetService] = None,
     ):
-        # Multi-API face preservation service
         self.storage_service = storage_service
         self.db_conn = db_conn
-        self.controlnet_service = controlnet_service or get_controlnet_service()
         
         # 🎯 RUNWARE CONFIGURATION
-        # Simple import pattern for EnhancedSettings
         try:
             from core_foundation_enhanced import EnhancedSettings
             settings = EnhancedSettings()
@@ -284,16 +235,12 @@ class ThemeService:
             settings = None
             logger.warning("⚠️ EnhancedSettings not available, using direct environment access")
         
-        # 🚀 RUNWARE ONLY - Premium face preservation
-        self.face_preservation_method = "runware_faceref"  # Force RunWare only
-        
         # Get RunWare API key from settings or environment (safe retrieval)
         if settings and hasattr(settings, 'runware_api_key') and settings.runware_api_key:
             self.runware_api_key = settings.runware_api_key
         else:
             self.runware_api_key = os.getenv("RUNWARE_API_KEY")
         
-        # Initialize RunWare service - REQUIRED
         if not self.runware_api_key:
             logger.error("❌ RUNWARE_API_KEY environment variable is required!")
             raise HTTPException(
@@ -302,9 +249,7 @@ class ThemeService:
             )
         
         self.runware_service = RunWareService(self.runware_api_key)
-        logger.info("🚀 ThemeService initialized with RunWare IP-Adapter FaceID ONLY (80-90% success rate)")
-        logger.info("📝 Switched from Stability.AI to IP-Adapter FaceID workflow for better face preservation control")
-        logger.info(f"🎯 Active face preservation method: {self.face_preservation_method}")
+        logger.info("🚀 ThemeService initialized with RunWare IP-Adapter FaceID workflow.")
     
     def _sanitize_prompt_input(self, text: str, max_length: int = 250) -> str:
         """
@@ -446,18 +391,6 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
                 cfg_scale=18.0, # CORE FIX: Increased strictness to force prompt adherence for color.
             )
 
-            # --- DIAGNOSTIC CODE START ---
-            try:
-                temp_filename = f"step1_scene_{uuid.uuid4()}.png"
-                temp_path = f"temp_scenes/{temp_filename}"
-                scene_url = self.storage_service.upload_file("avatars", temp_path, scene_bytes, "image/png")
-                logger.info(f"🔍 DIAGNOSTIC: Step 1 scene saved to temporary URL: {scene_url}")
-            except Exception as e:
-                logger.error(f"❌ DIAGNOSTIC: Failed to upload Step 1 scene for inspection: {e}")
-            # --- DIAGNOSTIC CODE END ---
-
-            # FINAL FIX V2: The grayscale experiment was a failure. It forced the AI to generate
-            # B&W images. Removing it completely to allow color generation.
             # The color bleed issue will be controlled by a lower `strength` parameter in Step 2.
             logger.info("🎨 Using original reference image for Step 2 to ensure color output.")
             face_ref_bytes = base_image_bytes
@@ -468,19 +401,19 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon, grayscale, black and white"
 
             # CORE FIX: Dynamically determine Step 2 parameters from environment variables for safe, flexible tuning
-            refinement_strength = await self._determine_safe_strength(0.2) # FINAL FIX v2: Drastically lower for scene preservation
+            refinement_strength = float(os.getenv("THEME_REFINE_STRENGTH", "0.2")) # FINAL FIX v2: Drastically lower for scene preservation
             
             # Get IP Adapter weight from environment with safe fallback and validation
             try:
-                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.55") # FINAL FIX v3: Lowered to prevent bleed
+                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.35") # FINAL FIX v4: Balanced weight
                 refinement_ip_weight = float(ip_weight_str)
                 # Clamp the value to a safe range (0.0 to 1.0)
                 if not (0.0 <= refinement_ip_weight <= 1.0):
                     logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
                     refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
             except (ValueError, TypeError):
-                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.55.")
-                refinement_ip_weight = 0.55
+                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.35.")
+                refinement_ip_weight = 0.35
 
             logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
 
@@ -501,628 +434,6 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             # Re-raise the exception to be handled by the calling method
             raise
     
-    async def _generate_with_multi_api_controlnet(
-        self, 
-        base_image_bytes: bytes,
-        theme_description: str,
-        custom_prompt: Optional[str] = None,
-        theme_day: Optional[int] = None
-    ) -> Tuple[bytes, str]:
-        """
-        🔥 MULTI-API CONTROLNET GENERATION METHOD - ULTIMATE SOLUTION
-        
-        Step 1: RunWare IP-Adapter preserves face identity
-        Step 2: ControlNet transforms background and clothing completely
-        
-        This approach solves the 1-month background/clothing transformation problem
-        by using specialized APIs for each task.
-        
-        Args:
-            base_image_bytes: Swamiji reference image bytes
-            theme_description: Daily theme description
-            custom_prompt: Optional custom prompt override
-            
-        Returns:
-            Tuple[bytes, str]: Final transformed image bytes and prompt used
-        """
-        try:
-            logger.info("🔥 Starting MULTI-API CONTROLNET approach - Step 1: Face preservation")
-            
-            # 🛡️ Sanitize the theme description before using it in prompts
-            sanitized_theme_description = self._sanitize_prompt_input(theme_description)
-
-            # 🎨 CONSTRUCT OPTIMIZED PROMPT FOR MULTI-API APPROACH
-            if custom_prompt:
-                # Also sanitize custom prompts
-                final_prompt = self._sanitize_prompt_input(custom_prompt, max_length=400)
-            else:
-                # 🎯 CORE.MD FIX: Add color reinforcement here as well for consistency.
-                final_prompt = f"""A photorealistic, high-resolution portrait of a wise Indian spiritual master embodying {sanitized_theme_description}, 
-full color, vibrant colors, professional photography, cinematic lighting, ultra-detailed, 8K quality.
-
-FACE PRESERVATION (ABSOLUTE PRIORITY - OVERRIDES ALL):
-- Maintain exact facial features, bone structure, eyes, nose, mouth, and identity from reference image
-- Preserve identical skin tone, facial expression, and spiritual countenance
-- Do not alter, morph, or change the face in any way whatsoever
-- Face identity is completely protected from all theme transformations
-
-CLOTHING TRANSFORMATION (PRIORITY 2):
-- Transform clothing with intricate details and flowing fabric appropriate to the daily theme
-- Add elaborate traditional patterns, rich textures, and authentic spiritual attire
-- Remove current clothing completely and replace with theme-appropriate garments
-- Apply vibrant colors and ornate designs matching the spiritual aesthetic
-
-BACKGROUND TRANSFORMATION (PRIORITY 3):
-- Create immersive spiritual environment that complements the daily theme
-- Add natural elements like architectural details, stone carvings, peaceful water features
-- Implement atmospheric lighting with golden hour ambiance and soft shadows
-- Build serene setting that enhances the spiritual presence without overpowering
-
-TECHNICAL SPECIFICATIONS: Sharp focus, perfect composition, rich vibrant colors, professional portrait photography, 
-cinematic depth of field, high dynamic range, photorealistic rendering, ultra-high definition."""
-
-            # 🎨 DAILY COLOR NEGATIVE PROMPT: Prevent wrong colors for each day
-            day_of_week = datetime.now().weekday() if theme_day is None else theme_day
-            
-            # 🎨 REFINED COLOR NEGATIVES: Enhanced synonyms and better filtering
-            color_negatives = {
-                0: ["orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
-                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire", 
-                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
-                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
-                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
-                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Monday: only WHITE
-                1: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
-                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
-                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
-                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
-                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
-                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Tuesday: only MAROON
-                2: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
-                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
-                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
-                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
-                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
-                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],  # Wednesday: only GREEN
-                3: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
-                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
-                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
-                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
-                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
-                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"], # Thursday: only BLUE
-                4: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
-                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
-                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
-                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
-                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
-                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"],   # Friday: only GOLDEN
-                5: ["white robe, white robes, white clothing, white cloth, white attire, cream clothing",
-                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
-                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
-                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
-                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
-                    "golden robe, golden robes, golden clothing, golden cloth, golden attire"], # Saturday: only GRAY
-                6: ["white robe, white robes, white clothing, white cloth, white attire",
-                    "orange robe, orange robes, saffron clothing, saffron cloth, saffron attire",
-                    "maroon robe, maroon robes, maroon clothing, maroon cloth, maroon attire",
-                    "green kurta, green robe, green robes, green clothing, green cloth, green attire",
-                    "blue kurta, blue robe, blue robes, blue clothing, blue cloth, blue attire",
-                    "golden robe, golden robes, golden clothing, golden cloth, golden attire",
-                    "gray robe, gray robes, gray clothing, gray cloth, gray attire"] # Sunday: only CREAM
-            }
-            
-            # 🔧 SAFE JOINING: Check if list exists and is not empty before joining
-            daily_color_list = color_negatives.get(day_of_week, [])
-            daily_color_negatives = ", ".join(daily_color_list) if daily_color_list else ""
-            
-            # 🔧 SAFE NEGATIVE PROMPT CONSTRUCTION: Handle empty color negatives
-            base_negatives = """different face, changed face, new face, altered face, face swap, face replacement, 
-different person, wrong identity, mutated face, distorted face, different eyes, different nose, different mouth, 
-face morph, artificial face, generic face, multiple faces, extra faces, face clone, face duplicate,
-business suit, office attire, tie, corporate clothing, modern clothing, western dress, formal wear,
-office background, corporate setting, modern interior, business environment, contemporary setting,
-blurry face, distorted facial features, wrong facial structure, artificial looking face"""
-            
-            # 🎯 CORE.MD FIX: Clean negative prompt assembly using list-based joining
-            negative_segments = [
-                base_negatives.strip(),
-                daily_color_negatives.strip() if daily_color_negatives else "",
-                # Use the constant here as well for consistency
-                REFERENCE_BLOCKING_NEGATIVES,
-                "low quality, blurry, deformed, bad anatomy, cartoon, anime"
-            ]
-            
-            # Filter out empty strings and join with clean comma separation
-            enhanced_negative_prompt = ", ".join(segment.strip() for segment in negative_segments if segment.strip())
-            
-            # STEP 1: RunWare IP-Adapter for face preservation only
-            # Use minimal prompt to avoid background/clothing influence
-            face_preservation_prompt = "A wise Indian spiritual master, professional portrait photography, high quality"
-            
-            face_preserved_bytes = await self.runware_service.generate_with_face_reference(
-                face_image_bytes=base_image_bytes,
-                prompt=final_prompt,  # Use full theme prompt instead of minimal
-                negative_prompt=enhanced_negative_prompt,  # Use strong negatives
-                width=1024,
-                height=1024,
-                cfg_scale=15.0,  # Higher CFG for better prompt adherence
-                ip_adapter_weight=0.4  # CORRECTED: Was 0.65, which was too high and blocked transformation
-            )
-            
-            logger.info("✅ Step 1 completed: Face preserved with RunWare IP-Adapter")
-            logger.info("🎨 Starting Step 2: ControlNet background/clothing transformation")
-            
-            # STEP 2: Extract clothing and background from theme
-            if custom_prompt:
-                final_prompt = custom_prompt
-            else:
-                theme = THEMES.get(theme_day or datetime.now().weekday(), THEMES.get(0))
-                final_prompt = theme['description']
-            
-            # Parse theme for clothing and background
-            clothing_prompt, background_prompt = self._parse_theme_for_controlnet(final_prompt)
-            
-            # STEP 2: ControlNet for complete background/clothing transformation
-            final_image_bytes = await self.controlnet_service.transform_background_clothing(
-                input_image_bytes=face_preserved_bytes,
-                clothing_prompt=clothing_prompt,
-                background_prompt=background_prompt,
-                control_type="pose",  # Preserve pose, transform everything else
-                strength=0.75  # Balanced strength: Face preserved + major environment change
-            )
-            
-            logger.info("✅ Step 2 completed: Background/clothing transformed with ControlNet")
-            logger.info("🎉 MULTI-API CONTROLNET generation completed successfully!")
-            
-            return final_image_bytes, final_prompt
-            
-        except Exception as e:
-            logger.error(f"❌ Multi-API ControlNet generation failed: {e}", exc_info=True)
-            # Fallback to RunWare-only approach
-            logger.info("🔄 Falling back to RunWare-only approach")
-            return await self._generate_with_runware(base_image_bytes, theme_description, custom_prompt, theme_day)
-    
-    def _parse_theme_for_controlnet(self, theme_description: str) -> Tuple[str, str]:
-        """
-        Parse theme description into detailed clothing and background prompts for ControlNet
-        Following user guidance for specific, detailed prompts
-        """
-        
-        # Enhanced clothing keywords for better detection
-        clothing_keywords = ["wearing", "robes", "kurta", "dhoti", "attire", "garments", "clothing", "silk", "cotton", "saffron", "white", "orange"]
-        background_keywords = ["sitting", "standing", "mountain", "temple", "forest", "river", "background", "setting", "lotus", "pond", "garden", "palace"]
-        
-        # Parse sentences for clothing and background
-        clothing_parts = []
-        background_parts = []
-        
-        sentences = theme_description.split(',')
-        
-        for sentence in sentences:
-            sentence = sentence.strip()
-            if any(keyword in sentence.lower() for keyword in clothing_keywords):
-                clothing_parts.append(sentence)
-            elif any(keyword in sentence.lower() for keyword in background_keywords):
-                background_parts.append(sentence)
-        
-        # Enhanced default prompts with specific details (as per user guidance)
-        if not clothing_parts:
-            clothing_prompt = "pure white silk robes with golden embroidery, traditional spiritual attire, flowing fabric, elegant draping"
-        else:
-            clothing_prompt = ', '.join(clothing_parts) + ", high quality fabric, detailed embroidery, traditional spiritual attire"
-        
-        if not background_parts:
-            background_prompt = "ancient temple courtyard with lotus pond, soft morning sunlight, serene spiritual atmosphere, marble pillars, peaceful setting"
-        else:
-            background_prompt = ', '.join(background_parts) + ", soft lighting, peaceful atmosphere, high detail, photorealistic"
-        
-        # Add quality enhancers
-        clothing_prompt += ", photorealistic, high resolution, detailed textures"
-        background_prompt += ", cinematic lighting, architectural details, spiritual ambiance"
-        
-        logger.info(f"👕 Enhanced clothing prompt: {clothing_prompt[:100]}...")
-        logger.info(f"🏞️ Enhanced background prompt: {background_prompt[:100]}...")
-        
-        return clothing_prompt, background_prompt
-
-    
-
-
-
-
-    async def _apply_color_harmonization(
-        self, 
-        generated_image_bytes: bytes, 
-        original_image_bytes: bytes,
-        mask_bytes: bytes,
-        image_width: int, 
-        image_height: int
-    ) -> bytes:
-        """
-        🎨 ADVANCED COLOR HARMONIZATION: Fix face-body color mismatch for natural blending.
-        
-        USER REQUIREMENT: "body oda face porunthanu" - Face and body should blend naturally
-        - Analyzes AI-generated body colors and lighting
-        - Adjusts preserved face region to match body's color palette
-        - Applies smooth gradient blending at mask edges
-        - Maintains face identity while improving color consistency
-        
-        HARMONIZATION TECHNIQUES:
-        1. Color Temperature Matching: Adjust face warmth/coolness to match body
-        2. Saturation Matching: Align face saturation with AI-generated style
-        3. Brightness/Contrast Matching: Match lighting conditions
-        4. Gradient Blending: Smooth transitions at preserved region edges
-        
-        Args:
-            generated_image_bytes: AI-generated image with face-body mismatch
-            original_image_bytes: Original Swamiji photo for reference
-            mask_bytes: Mask used for inpainting (to identify preserved regions)
-            image_width: Image width
-            image_height: Image height
-            
-        Returns:
-            bytes: Color-harmonized image with natural face-body blending
-        """
-        try:
-            # Load images
-            generated_image = Image.open(io.BytesIO(generated_image_bytes)).convert('RGB')
-            mask_image = Image.open(io.BytesIO(mask_bytes)).convert('L')
-            
-            # Convert to numpy arrays for processing
-            generated_array = np.array(generated_image)
-            mask_array = np.array(mask_image)
-            
-            # Create face and body region masks
-            # Face region: where mask is dark (preserved areas)
-            face_mask = mask_array < 128  # Black/dark areas = preserved face
-            body_mask = mask_array >= 192  # White/bright areas = AI-generated body
-            
-            # Extract color statistics from each region
-            face_pixels = generated_array[face_mask]
-            body_pixels = generated_array[body_mask]
-            
-            if len(face_pixels) == 0 or len(body_pixels) == 0:
-                logger.warning("⚠️ Color harmonization: Insufficient face or body pixels, using original")
-                return generated_image_bytes
-            
-            # Calculate color statistics
-            face_mean = np.mean(face_pixels, axis=0)
-            body_mean = np.mean(body_pixels, axis=0)
-            
-            face_std = np.std(face_pixels, axis=0)
-            body_std = np.std(body_pixels, axis=0)
-            
-            # 🎨 COLOR HARMONIZATION: Adjust face colors to match body
-            # 1. Calculate color shift needed
-            color_shift = body_mean - face_mean
-            
-            # 2. Calculate saturation adjustment
-            face_saturation = np.mean(face_std)
-            body_saturation = np.mean(body_std)
-            saturation_ratio = body_saturation / max(face_saturation, 1.0)
-            
-            # 3. Create harmonized image
-            harmonized_array = generated_array.copy()
-            
-            # 🚀 VECTORIZED COLOR HARMONIZATION: High-performance color adjustments
-            adjustment_strength = 0.4  # Subtle adjustment to maintain face identity
-            
-            # Create float copy for processing
-            harmonized_array_float = harmonized_array.astype(float)
-            
-            # Get indices of face pixels for vectorized operations
-            face_indices = np.where(face_mask)
-            
-            if len(face_indices[0]) > 0:
-                # Extract face pixels for vectorized processing
-                face_pixels_float = harmonized_array_float[face_indices]
-                
-                # 1. Apply color temperature shift (vectorized)
-                adjusted_pixels = face_pixels_float + (color_shift * adjustment_strength)
-                
-                # 2. Apply saturation adjustment (vectorized)
-                pixel_means = np.mean(adjusted_pixels, axis=1, keepdims=True)
-                adjusted_pixels = pixel_means + (adjusted_pixels - pixel_means) * (
-                    saturation_ratio ** adjustment_strength
-                )
-                
-                # 3. Ensure valid range
-                adjusted_pixels = np.clip(adjusted_pixels, 0, 255)
-                
-                # 4. Calculate blend factors based on mask values (vectorized)
-                mask_values = mask_array[face_indices]
-                blend_factors = np.where(
-                    mask_values < 64,
-                    adjustment_strength,  # Core preserved area
-                    adjustment_strength * 0.3  # Edge area - less adjustment
-                )
-                
-                # 5. Apply blended adjustment (vectorized)
-                blended_pixels = (
-                    face_pixels_float * (1 - blend_factors[:, np.newaxis]) + 
-                    adjusted_pixels * blend_factors[:, np.newaxis]
-                )
-                
-                # Update harmonized array with processed pixels
-                harmonized_array_float[face_indices] = blended_pixels
-            
-            # Convert back to uint8
-            harmonized_array = harmonized_array_float.astype(np.uint8)
-            
-            # Convert back to PIL Image
-            harmonized_image = Image.fromarray(harmonized_array, mode='RGB')
-            
-            # Convert to bytes
-            harmonized_buffer = io.BytesIO()
-            harmonized_image.save(harmonized_buffer, format='PNG')
-            harmonized_bytes = harmonized_buffer.getvalue()
-            
-            logger.info(f"🎨 COLOR HARMONIZATION SUCCESS: Face-body color matching applied | "
-                       f"Face mean: {face_mean.astype(int)} → Body mean: {body_mean.astype(int)} | "
-                       f"Saturation ratio: {saturation_ratio:.2f}")
-            
-            return harmonized_bytes
-            
-        except Exception as e:
-            logger.error(f"❌ Color harmonization failed, using original: {str(e)}")
-            # Fallback: return generated image without harmonization
-            return generated_image_bytes
-
-    def _analyze_face_skin_color(self, image_bytes: bytes) -> str:
-        """
-        🎨 OPTION 6: Advanced color analysis - Extract dominant skin colors from face area.
-        
-        Analyzes the preserved face area to extract dominant skin tone colors and
-        converts them to descriptive terms for prompt injection.
-        
-        Args:
-            image_bytes: Original image bytes to analyze
-            
-        Returns:
-            str: Descriptive color terms for prompt injection
-            
-        Analysis Process:
-        1. Load image and extract face area pixels
-        2. Calculate dominant RGB colors using clustering
-        3. Convert RGB values to descriptive color terms
-        4. Return formatted color description for prompts
-        """
-        try:
-            # Load image and convert to RGB
-            image = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-            image_width, image_height = image.size
-            
-            # Calculate face area coordinates (same as mask inner zone)
-            face_width_ratio = 0.28   # 28% of image width
-            face_height_ratio = 0.32  # 32% of image height
-            
-            face_width = int(image_width * face_width_ratio)
-            face_height = int(image_height * face_height_ratio)
-            
-            face_left = (image_width - face_width) // 2
-            face_top = int(image_height * 0.15)
-            face_right = face_left + face_width
-            face_bottom = face_top + face_height
-            
-            # Extract face area pixels
-            face_area = image.crop((face_left, face_top, face_right, face_bottom))
-            face_pixels = np.array(face_area)
-            
-            # Reshape to list of RGB values
-            pixels_reshaped = face_pixels.reshape(-1, 3)
-            
-            # Calculate average RGB values (dominant color) with safe conversion
-            try:
-                avg_r = float(np.mean(pixels_reshaped[:, 0]))
-                avg_g = float(np.mean(pixels_reshaped[:, 1]))
-                avg_b = float(np.mean(pixels_reshaped[:, 2]))
-                
-                # Clamp to valid RGB range and convert to int
-                avg_r = max(0, min(255, int(round(avg_r))))
-                avg_g = max(0, min(255, int(round(avg_g))))
-                avg_b = max(0, min(255, int(round(avg_b))))
-                
-            except (ValueError, OverflowError, TypeError) as e:
-                logger.warning(f"RGB calculation error, using fallback values: {e}")
-                avg_r, avg_g, avg_b = 139, 102, 85  # Safe fallback values
-            
-            # Convert RGB to descriptive color terms with error handling
-            color_description = self._rgb_to_skin_tone_description(avg_r, avg_g, avg_b)
-            
-            logger.info(f"🎨 FACE COLOR ANALYSIS: RGB({avg_r}, {avg_g}, {avg_b}) → {color_description}")
-            return color_description
-            
-        except Exception as e:
-            logger.error(f"❌ Face color analysis failed: {e}")
-            # Fallback to generic description
-            return "warm natural skin tone with consistent complexion"
-    
-    def _rgb_to_skin_tone_description(self, r: int, g: int, b: int) -> str:
-        """
-        Convert RGB values to descriptive skin tone terms for AI prompts.
-        
-        CORE.MD & REFRESH.MD COMPLIANCE: Enhanced with RGB validation, improved warmth calculation,
-        and accurate color terminology without hardcoded assumptions.
-        
-        Args:
-            r, g, b: RGB color values (must be 0-255)
-            
-        Returns:
-            str: Descriptive color terms for prompt injection
-            
-        Raises:
-            ValueError: If RGB values are outside valid 0-255 range
-        """
-        # 🛡️ RGB VALIDATION - CORE.MD: Input validation with clear error messages
-        if not all(isinstance(val, (int, float)) for val in [r, g, b]):
-            raise ValueError(f"RGB values must be numeric. Received: r={type(r).__name__}, g={type(g).__name__}, b={type(b).__name__}")
-        
-        if not all(0 <= val <= 255 for val in [r, g, b]):
-            raise ValueError(f"RGB values must be in range 0-255. Received: r={r}, g={g}, b={b}")
-        
-        # Convert to int for consistency
-        r, g, b = int(r), int(g), int(b)
-        
-        # 🎨 ENHANCED WARMTH CALCULATION - Include green channel for accurate color temperature
-        brightness = (r + g + b) / 3
-        # Improved warmth: considers both red-blue and green-blue relationships for accurate skin tone analysis
-        warmth = (r - b) + (g - b) * 0.5  # Weighted formula: red-blue primary, green-blue secondary
-        
-        # 🎯 ENHANCED BASE TONE DETERMINATION - More accurate skin tone categories
-        if brightness > 200:
-            base_tone = "very fair"
-        elif brightness > 180:
-            base_tone = "fair"
-        elif brightness > 140:
-            base_tone = "medium" 
-        elif brightness > 100:
-            base_tone = "olive"
-        elif brightness > 60:
-            base_tone = "deep"
-        else:
-            base_tone = "very deep"
-            
-        # 🌡️ ENHANCED WARMTH CATEGORIZATION - Improved thresholds for green-enhanced calculation
-        if warmth > 30:
-            warmth_desc = "warm golden"
-        elif warmth > 15:
-            warmth_desc = "warm"
-        elif warmth > -15:
-            warmth_desc = "neutral"
-        elif warmth > -30:
-            warmth_desc = "cool"
-        else:
-            warmth_desc = "cool pink"
-            
-        # ✅ ACCURATE COLOR DESCRIPTION - Remove hardcoded "brown", use precise terminology
-        # No assumptions about skin color - let the AI determine the actual hue based on RGB values
-        color_description = f"{warmth_desc} {base_tone} skin tone with RGB({r}, {g}, {b}) undertones"
-        
-        return color_description
-
-    def _create_face_preservation_mask(self, image_width: int, image_height: int) -> bytes:
-        """
-        ⚠️ DEPRECATED: Legacy inpainting mask method - NO LONGER USED
-        
-        This method was part of the old inpainting approach. The current implementation
-        uses IP-Adapter FULL IMAGE approach without any masking or inpainting.
-        
-        USER SPECIFICATION: Face area-ஐ mask செய்யாதீர்கள் - Just mask dress & body only.
-        
-        Mask Logic:
-        - BLACK pixels (0) = Face area = PRESERVE (never touched by AI)
-        - WHITE pixels (255) = Dress/body/background = TRANSFORM
-        
-        Args:
-            image_width: Width of the base image
-            image_height: Height of the base image
-            
-        Returns:
-            bytes: PNG mask image where face is black (preserved), rest is white (transformed)
-        """
-        try:
-            # Create white background (all areas will be transformed by default)
-            mask = Image.new('L', (image_width, image_height), 255)  # White = transform
-            draw = ImageDraw.Draw(mask)
-            
-            # 🎯 FACE AREA CALCULATION - Small centered area for face preservation
-            # Conservative face area - only core facial features
-            face_width_ratio = 0.22   # 22% of image width (smaller than before)
-            face_height_ratio = 0.28  # 28% of image height (smaller than before)
-            
-            face_width = int(image_width * face_width_ratio)
-            face_height = int(image_height * face_height_ratio)
-            
-            # Center the face area
-            face_left = (image_width - face_width) // 2
-            face_top = int(image_height * 0.18)  # Slightly higher position for face
-            face_right = face_left + face_width
-            face_bottom = face_top + face_height
-            
-            # 🎭 DRAW FACE PRESERVATION AREA - Black ellipse for natural face shape
-            draw.ellipse(
-                [face_left, face_top, face_right, face_bottom],
-                fill=0  # Black = preserve face area
-            )
-            
-            # Convert to bytes
-            mask_buffer = io.BytesIO()
-            mask.save(mask_buffer, format='PNG')
-            mask_bytes = mask_buffer.getvalue()
-            
-            logger.info(f"🎭 FACE MASK CREATED: {image_width}x{image_height} | Face area: {face_width}x{face_height} | Position: ({face_left},{face_top}) to ({face_right},{face_bottom})")
-            logger.info(f"🎯 MASK LOGIC: Face ellipse BLACK (preserve), rest WHITE (transform) | Mask size: {len(mask_bytes)/1024:.1f}KB")
-            
-            return mask_bytes
-            
-        except Exception as e:
-            logger.error(f"❌ Face preservation mask creation failed: {e}")
-            # Fallback: create simple center rectangle mask
-            mask = Image.new('L', (image_width, image_height), 255)
-            draw = ImageDraw.Draw(mask)
-            center_x, center_y = image_width // 2, image_height // 2
-            face_size = min(image_width, image_height) // 4
-            draw.rectangle([
-                center_x - face_size//2, center_y - face_size//2,
-                center_x + face_size//2, center_y + face_size//2
-            ], fill=0)
-            
-            mask_buffer = io.BytesIO()
-            mask.save(mask_buffer, format='PNG')
-            return mask_buffer.getvalue()
-
-    async def _determine_safe_strength(self, requested_strength: float) -> float:
-        """
-        🎯 FEATURE FLAG CONTROLLED STRENGTH DETERMINATION - CORE.MD & REFRESH.MD COMPLIANCE
-        Implements A/B testing and controlled rollout for aggressive transformation parameters.
-        
-        Args:
-            requested_strength: The requested strength parameter (default 0.4)
-            
-        Returns:
-            float: The final strength to use, controlled by feature flags and safety checks
-            
-        Feature Flag Logic:
-        - AGGRESSIVE_THEME_TESTING=true: Enables controlled aggressive testing (0.6-0.8)
-        - TESTING_MODE=true: Allows higher strength for development testing
-        - Default: Uses safe range (0.3-0.4) for production
-        - A/B Testing: Future enhancement for user subset testing
-        """
-        # Environment-based feature flags
-        aggressive_testing_enabled = os.getenv("AGGRESSIVE_THEME_TESTING", "false").lower() == "true"
-        testing_mode = os.getenv("TESTING_MODE", "false").lower() == "true"
-        environment = os.getenv("ENVIRONMENT", "production").lower()
-        
-        # Safety validation - ensure strength is within valid range
-        if not (0.0 <= requested_strength <= 1.0):
-            logger.error(f"❌ INVALID STRENGTH: {requested_strength} outside range 0.0-1.0, defaulting to 0.4")
-            return 0.4
-            
-        # Feature flag decision tree
-        if aggressive_testing_enabled and environment in ["development", "staging", "testing"]:
-            # Controlled aggressive testing in non-production environments
-            if requested_strength > 0.4:
-                logger.warning(f"🧪 FEATURE FLAG ACTIVE: Aggressive testing enabled, using requested strength {requested_strength}")
-                return min(requested_strength, 0.8)  # Cap at 0.8 maximum
-            else:
-                return requested_strength
-                
-        elif testing_mode and environment != "production":
-            # Development testing mode - allow requested strength but with logging
-            if requested_strength > 0.4:
-                logger.warning(f"🔧 TESTING MODE: Using requested strength {requested_strength} in {environment}")
-                return min(requested_strength, 0.8)  # Cap at 0.8 maximum
-            else:
-                return requested_strength
-                
-        else:
-            # Production safety - enforce safe range
-            if requested_strength > 0.4:
-                logger.warning(f"🔒 PRODUCTION SAFETY: Requested strength {requested_strength} exceeds safe range, capping at 0.4")
-                return 0.4
-            else:
-                return max(requested_strength, 0.15)  # Minimum 0.15 for some transformation
-
     async def _get_base_image_data(self) -> tuple[bytes, str]:
         """
         Fetches the uploaded Swamiji image URL from the DB, downloads the image,
@@ -1173,21 +484,18 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
     async def generate_themed_image_bytes(
         self, 
         custom_prompt: Optional[str] = None, 
-        theme_day: Optional[int] = None,
-        strength_param: float = 0.4  # Transformation strength (0.1-0.4 clamped for face safety)
+        theme_day: Optional[int] = None
     ) -> Tuple[bytes, str]:
         """
-        🎯 ENHANCED MULTI-METHOD FACE PRESERVATION GENERATION
+        🎯 RUNWARE-ONLY FACE PRESERVATION GENERATION
         
-        Uses RunWare IP-Adapter FaceID for premium face preservation:
+        Uses RunWare's advanced IP-Adapter FaceID in a two-step process for premium results:
         - 80-90% face consistency success rate
-        - $0.0006 per image cost efficiency
         - Superior body/background variation while preserving identity
         
         Args:
             custom_prompt: Optional custom prompt to override theme-based generation
-            theme_day: Optional day override (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.
-            strength_param: Not used (legacy parameter, kept for API compatibility)
+            theme_day: Optional day override (0-6). If None, uses current day.
             
         Returns:
             Tuple[bytes, str]: Generated image bytes and final prompt used
@@ -1195,13 +503,6 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
         Configuration:
             RUNWARE_API_KEY: Required environment variable for RunWare API access
         """
-        
-        # 🚨 DEPRECATION WARNING: Log if strength_param is not default (0.4)
-        if strength_param != 0.4:
-            logger.warning(
-                f"⚠️ DEPRECATION WARNING: strength_param={strength_param} is ignored and will be removed. "
-                f"RunWare IP-Adapter FaceID workflow uses fixed parameters for optimal face preservation."
-            )
         try:
             # 🔍 COMMON PREPARATION: Get base image and determine theme
             base_image_bytes, base_image_url = await self._get_base_image_data()
@@ -1215,7 +516,7 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 # CORE.MD & REFRESH.MD: Explicit validation instead of silent fallback
                 if theme_day is not None:
                     # Validate theme_day is within valid range 0-6 (Monday=0, Sunday=6)
-                    if not isinstance(theme_day, int) or theme_day < 0 or theme_day > 6:
+                    if not isinstance(theme_day, int) or not (0 <= theme_day <= 6):
                         day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                         valid_range = ', '.join([f"{i}={day_names[i]}" for i in range(7)])
                         error_msg = (
@@ -1237,11 +538,8 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
                 day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
                 logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
 
-            # 🚀 FINAL FIX: Force the correct two-step generation logic to run ALWAYS.
-            # The previous if/else logic was flawed and caused the system to fall back
-            # to the old, broken single-step method. This change ensures that our
-            # new two-step architecture is always used as intended.
-            logger.info("🚀 Forcing new two-step generation logic. No fallback to old methods.")
+            # Always use the modern, two-step generation process
+            logger.info("🚀 Using new two-step generation logic via RunWare.")
             return await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
                 theme_description=theme_description,
@@ -1261,10 +559,8 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
         """
         try:
             # REFRESH.MD: FIX - Get both the image and the actual prompt used.
-            # PHASE 2: Using IP-Adapter FULL IMAGE approach with optimal weight (0.3)
             generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(
                 custom_prompt=custom_prompt
-                # Using full image + optimal IP weight for face preservation with complete transformation
             )
 
             unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
@@ -1291,7 +587,6 @@ blurry face, distorted facial features, wrong facial structure, artificial looki
 def get_theme_service(
     storage_service: SupabaseStorageService = Depends(get_storage_service),
     db_conn: asyncpg.Connection = Depends(db.get_db),
-    controlnet_service: ControlNetService = Depends(get_controlnet_service),
 ) -> "ThemeService":
-    """Creates an instance of the ThemeService with Multi-API ControlNet support."""
-    return ThemeService(storage_service, db_conn, controlnet_service)
+    """Creates an instance of the ThemeService."""
+    return ThemeService(storage_service, db_conn)
