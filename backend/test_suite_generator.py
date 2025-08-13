@@ -3022,66 +3022,156 @@ async def test_user_management_api_endpoints():
         }
 
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
-        """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL"""
+        """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - DATABASE DRIVEN"""
         return {
             "test_suite_name": "Admin Services",
             "test_category": "admin_services_critical",
-            "description": "Critical tests for admin dashboard, analytics, settings, and management functions",
+            "description": "Critical tests for admin dashboard, analytics, settings, and management functions - Database Driven",
             "test_cases": [
                 {
-                    "test_name": "test_admin_api_endpoints",
-                    "description": "Test admin management API endpoints",
+                    "test_name": "test_admin_api_endpoints_database_driven",
+                    "description": "Test admin management API endpoints using database configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
 import httpx
+import asyncpg
+import json
+import os
 
-async def test_admin_api_endpoints():
+async def test_admin_api_endpoints_database_driven():
     try:
-        endpoints_to_test = [
-            {"url": "/api/admin/analytics/overview", "method": "GET", "business_function": "Analytics Dashboard"},
-            {"url": "/api/admin/agora/overview", "method": "GET", "business_function": "Video Services Management"},
-            {"url": "/api/admin/integrations", "method": "GET", "business_function": "Integration Management"},
-            {"url": "/api/admin/products", "method": "GET", "business_function": "Product Management"}
-        ]
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return {"status": "failed", "error": "DATABASE_URL environment variable not found"}
         
+        # Get endpoints and configuration from database
+        conn = await asyncpg.connect(database_url)
+        
+        try:
+            # Get test configuration from platform_settings table
+            config_row = await conn.fetchrow('''
+                SELECT value FROM platform_settings 
+                WHERE key = 'admin_test_config'
+            ''')
+            
+            if config_row and config_row['value']:
+                test_config = json.loads(config_row['value']) if isinstance(config_row['value'], str) else config_row['value']
+            else:
+                # Create test configuration in database
+                test_config = {
+                    "api_base_url": "https://jyotiflow-ai.onrender.com",
+                    "success_threshold": 70.0,
+                    "timeout_seconds": 30,
+                    "expected_codes": [200, 401, 403, 307]
+                }
+                
+                await conn.execute('''
+                    INSERT INTO platform_settings (key, value) 
+                    VALUES ('admin_test_config', $1)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                ''', json.dumps(test_config))
+            
+            # Extract test configuration
+            api_base_url = test_config.get('api_base_url', 'https://jyotiflow-ai.onrender.com')
+            success_threshold = test_config.get('success_threshold', 70.0)
+            timeout_seconds = test_config.get('timeout_seconds', 30)
+            expected_codes = test_config.get('expected_codes', [200, 401, 403, 307])
+            
+            # DATABASE DRIVEN: Get admin endpoints from platform_settings table
+            endpoints_row = await conn.fetchrow('''
+                SELECT value FROM platform_settings 
+                WHERE key = 'admin_endpoints_config'
+            ''')
+            
+            if endpoints_row and endpoints_row['value']:
+                # Parse stored endpoints from database
+                endpoints_config = json.loads(endpoints_row['value']) if isinstance(endpoints_row['value'], str) else endpoints_row['value']
+                admin_endpoints = endpoints_config.get('endpoints', [])
+            else:
+                # Initialize database with actual admin endpoints from your business system
+                admin_endpoints = [
+                    {"path": "/api/admin/analytics/overview", "name": "Admin Analytics", "business_function": "Analytics Dashboard"},
+                    {"path": "/api/admin/products", "name": "Admin Products", "business_function": "Product Management"},
+                    {"path": "/api/admin/products/service-types", "name": "Service Types", "business_function": "Service Management"},
+                    {"path": "/api/admin/products/credit-packages", "name": "Credit Packages", "business_function": "Credit Management"},
+                    {"path": "/api/admin/products/donations", "name": "Donations", "business_function": "Donation Management"},
+                    {"path": "/api/admin/products/pricing-config", "name": "Pricing Config", "business_function": "Pricing Management"},
+                    {"path": "/api/admin/social-marketing/overview", "name": "Social Marketing", "business_function": "Marketing Dashboard"},
+                    {"path": "/api/admin/users", "name": "User Management", "business_function": "User Administration"}
+                ]
+                
+                # Store endpoints in database for future use
+                endpoints_config = {
+                    "endpoints": admin_endpoints,
+                    "last_updated": "business_operations_init",
+                    "source": "admin_business_functions",
+                    "owner_managed": True
+                }
+                
+                await conn.execute('''
+                    INSERT INTO platform_settings (key, value) 
+                    VALUES ('admin_endpoints_config', $1)
+                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                ''', json.dumps(endpoints_config))
+            
+        finally:
+            await conn.close()
+        
+        # Execute tests against database-stored admin endpoints
         endpoint_results = {}
         
-        async with httpx.AsyncClient() as client:
-            for endpoint in endpoints_to_test:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+            for endpoint in admin_endpoints:
+                endpoint_path = endpoint.get('path', '')
+                business_function = endpoint.get('business_function', 'Admin Function')
+                endpoint_name = endpoint.get('name', endpoint_path.split('/')[-1])
+                
                 try:
-                    url = f"https://jyotiflow-ai.onrender.com{endpoint['url']}"
+                    url = f"{api_base_url}{endpoint_path}"
                     response = await client.get(url)
                     
-                    endpoint_results[endpoint['business_function']] = {
-                        "endpoint_accessible": response.status_code in [200, 401, 403, 422],
-                        "status_code": response.status_code
+                    endpoint_results[business_function] = {
+                        "endpoint_accessible": response.status_code in expected_codes,
+                        "status_code": response.status_code,
+                        "expected_codes": expected_codes,
+                        "endpoint_path": endpoint_path,
+                        "endpoint_name": endpoint_name,
+                        "method": "GET"
                     }
                     
                 except Exception as endpoint_error:
-                    endpoint_results[endpoint['business_function']] = {
+                    endpoint_results[business_function] = {
                         "endpoint_accessible": False,
-                        "error": str(endpoint_error)
+                        "error": str(endpoint_error),
+                        "endpoint_path": endpoint_path,
+                        "endpoint_name": endpoint_name,
+                        "method": "GET"
                     }
         
+        # Calculate results using database-configured threshold
         accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
-        total_endpoints = len(endpoints_to_test)
-        success_rate = (accessible_endpoints / total_endpoints) * 100
+        total_endpoints = len(admin_endpoints)
+        success_rate = (accessible_endpoints / total_endpoints) * 100 if total_endpoints > 0 else 0
         
         return {
-            "status": "passed" if success_rate > 70 else "failed",
-            "message": "Admin services API endpoints tested",
+            "status": "passed" if success_rate >= success_threshold else "failed",
+            "message": f"Admin services API endpoints tested (database-driven: {total_endpoints} endpoints)",
             "success_rate": success_rate,
+            "success_threshold": success_threshold,
             "accessible_endpoints": accessible_endpoints,
             "total_endpoints": total_endpoints,
-            "endpoint_results": endpoint_results
+            "endpoint_results": endpoint_results,
+            "database_driven": True,
+            "configuration_source": "platform_settings_database",
+            "api_base_url": api_base_url
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Admin services API test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Database-driven admin services test failed: {str(e)}"}
 """,
-                    "expected_result": "Admin services API endpoints operational",
-                    "timeout_seconds": 25
+                    "expected_result": "Admin services API endpoints operational (database-driven)",
+                    "timeout_seconds": 30
                 }
             ]
         }

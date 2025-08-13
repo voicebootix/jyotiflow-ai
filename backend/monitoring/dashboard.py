@@ -1380,6 +1380,36 @@ async def execute_test(request: dict):
             data={}
         )
 
+@router.post("/clear-cached-tests")
+async def clear_cached_test_suites():
+    """Clear cached test suites to force regeneration with latest code (owner management endpoint)"""
+    try:
+        from test_execution_engine import TestExecutionEngine
+        
+        engine = TestExecutionEngine()
+        success = await engine.clear_cached_test_suites()
+        
+        if success:
+            return StandardResponse(
+                status="success",
+                message="Cached test suites cleared successfully. Next test run will use latest database-driven code.",
+                data={"cache_cleared": True, "regeneration_required": True}
+            )
+        else:
+            return StandardResponse(
+                status="error",
+                message="Failed to clear cached test suites",
+                data={"cache_cleared": False}
+            )
+            
+    except Exception as e:
+        logger.error(f"Failed to clear cached test suites: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Error clearing cached test suites: {str(e)}",
+            data={"cache_cleared": False}
+        )
+
 @router.get("/test-suites")
 async def get_available_test_suites():
     """Get all available test suites from test_case_results table (public endpoint, database-driven)"""
