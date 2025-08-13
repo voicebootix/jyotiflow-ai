@@ -10,7 +10,7 @@ asyncpg==0.30.0  # Updated PostgreSQL driver (FIXED: Removed duplicate)
 psycopg2-binary==2.9.10
 
 # தமிழ் - Authentication and security
-PyJWT==2.10.1  # Latest stable version of PyJWT
+PyJWT==2.8.0  # Updated to a secure version
 bcrypt==4.1.3  # Latest stable version
 python-multipart==0.0.20
 
