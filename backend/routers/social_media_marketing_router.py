@@ -290,11 +290,21 @@ async def set_master_avatar(
         if not image_url:
             raise HTTPException(status_code=400, detail="Image URL is required.")
 
-        # Download the selected image
-        async with httpx.AsyncClient() as client:
-            response = await client.get(image_url)
-            response.raise_for_status()
-            image_bytes = response.content
+        # Download the selected image with timeout and error handling
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(image_url, timeout=10.0)
+                response.raise_for_status()
+                image_bytes = response.content
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout while downloading master avatar from {image_url}: {e}", exc_info=True)
+            raise HTTPException(status_code=408, detail="Request to image storage timed out.") from e
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error when downloading master avatar: {e.response.status_code} from {image_url}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Failed to download image from storage (HTTP {e.response.status_code}).") from e
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during image download: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred while downloading the image.") from e
 
         # Upload it as the new master/base avatar
         file_name_in_bucket = "public/swamiji_base_avatar.png"
