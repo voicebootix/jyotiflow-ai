@@ -290,6 +290,15 @@ class EnhancedAPI {
     return this.post('/api/admin/social-marketing/approve-swamiji-avatar', avatarData);
   }
 
+  // Phase 1: LoRA Training - Candidate Management
+  async generateAvatarCandidates() {
+    return this.post('/api/admin/social-marketing/generate-avatar-candidates', {});
+  }
+
+  async setMasterAvatar(data) {
+    return this.post('/api/admin/social-marketing/set-master-avatar', data);
+  }
+
   // Agent Chat
   async sendAgentMessage(message) {
     return this.post('/api/admin/social-marketing/agent-chat', { message });
