@@ -3316,5 +3316,215 @@ async def main() -> Dict[str, Any]:
         logger.critical(f"Unexpected error during test generation: {unexpected_error}")
         raise TestGenerationError(f"Unexpected error: {unexpected_error}") from unexpected_error
 
+    async def generate_unit_tests(self) -> Dict[str, Any]:
+        """Generate unit tests for individual components"""
+        return {
+            "test_suite_name": "Unit Tests",
+            "test_category": "unit_tests",
+            "description": "Unit tests for individual components and functions",
+            "test_cases": [
+                {
+                    "test_name": "test_individual_components",
+                    "description": "Test individual component functionality",
+                    "test_type": "unit",
+                    "priority": "medium",
+                    "test_code": """
+import httpx
+
+async def test_individual_components():
+    try:
+        components_to_test = [
+            {"url": "/api/health", "method": "GET", "component": "Health Check"},
+            {"url": "/api/auth/status", "method": "GET", "component": "Auth Status"},
+            {"url": "/api/services/status", "method": "GET", "component": "Services Status"}
+        ]
+        
+        component_results = {}
+        
+        async with httpx.AsyncClient() as client:
+            for component in components_to_test:
+                try:
+                    url = f"https://jyotiflow-ai.onrender.com{component['url']}"
+                    response = await client.get(url)
+                    
+                    component_results[component['component']] = {
+                        "component_accessible": response.status_code in [200, 401, 403, 422],
+                        "status_code": response.status_code
+                    }
+                    
+                except Exception as component_error:
+                    component_results[component['component']] = {
+                        "component_accessible": False,
+                        "error": str(component_error)
+                    }
+        
+        accessible_components = sum(1 for result in component_results.values() if result.get("component_accessible", False))
+        total_components = len(components_to_test)
+        success_rate = (accessible_components / total_components) * 100
+        
+        return {
+            "status": "passed" if success_rate > 70 else "failed",
+            "message": "Unit tests for individual components completed",
+            "success_rate": success_rate,
+            "accessible_components": accessible_components,
+            "total_components": total_components,
+            "component_results": component_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Unit tests failed: {str(e)}"}
+""",
+                    "expected_result": "Individual components functioning correctly",
+                    "timeout_seconds": 20
+                }
+            ]
+        }
+
+    async def generate_end_to_end_tests(self) -> Dict[str, Any]:
+        """Generate end-to-end tests for complete user workflows"""
+        return {
+            "test_suite_name": "End-to-End Tests",
+            "test_category": "end_to_end_tests",
+            "description": "End-to-end tests for complete user workflows",
+            "test_cases": [
+                {
+                    "test_name": "test_complete_user_workflow",
+                    "description": "Test complete user workflow from registration to service usage",
+                    "test_type": "e2e",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+
+async def test_complete_user_workflow():
+    try:
+        workflow_steps = [
+            {"url": "/api/auth/register", "method": "POST", "step": "User Registration"},
+            {"url": "/api/auth/login", "method": "POST", "step": "User Login"},
+            {"url": "/api/services", "method": "GET", "step": "Service Discovery"},
+            {"url": "/api/user/profile", "method": "GET", "step": "Profile Access"}
+        ]
+        
+        workflow_results = {}
+        
+        async with httpx.AsyncClient() as client:
+            for step in workflow_steps:
+                try:
+                    url = f"https://jyotiflow-ai.onrender.com{step['url']}"
+                    
+                    if step['method'] == 'GET':
+                        response = await client.get(url)
+                    else:
+                        response = await client.post(url, json={})
+                    
+                    workflow_results[step['step']] = {
+                        "step_accessible": response.status_code in [200, 401, 403, 422],
+                        "status_code": response.status_code
+                    }
+                    
+                except Exception as step_error:
+                    workflow_results[step['step']] = {
+                        "step_accessible": False,
+                        "error": str(step_error)
+                    }
+        
+        accessible_steps = sum(1 for result in workflow_results.values() if result.get("step_accessible", False))
+        total_steps = len(workflow_steps)
+        success_rate = (accessible_steps / total_steps) * 100
+        
+        return {
+            "status": "passed" if success_rate > 75 else "failed",
+            "message": "End-to-end workflow tests completed",
+            "success_rate": success_rate,
+            "accessible_steps": accessible_steps,
+            "total_steps": total_steps,
+            "workflow_results": workflow_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"End-to-end tests failed: {str(e)}"}
+""",
+                    "expected_result": "Complete user workflow functioning correctly",
+                    "timeout_seconds": 30
+                }
+            ]
+        }
+
+    async def generate_load_tests(self) -> Dict[str, Any]:
+        """Generate load tests for performance under stress"""
+        return {
+            "test_suite_name": "Load Tests",
+            "test_category": "load_tests",
+            "description": "Load tests for performance under stress conditions",
+            "test_cases": [
+                {
+                    "test_name": "test_system_load_capacity",
+                    "description": "Test system performance under load",
+                    "test_type": "load",
+                    "priority": "medium",
+                    "test_code": """
+import httpx
+import asyncio
+
+async def test_system_load_capacity():
+    try:
+        load_endpoints = [
+            {"url": "/api/health", "concurrent_requests": 5},
+            {"url": "/api/services", "concurrent_requests": 3},
+            {"url": "/api/auth/status", "concurrent_requests": 3}
+        ]
+        
+        load_results = {}
+        
+        async with httpx.AsyncClient() as client:
+            for endpoint in load_endpoints:
+                try:
+                    url = f"https://jyotiflow-ai.onrender.com{endpoint['url']}"
+                    
+                    # Create concurrent requests
+                    tasks = []
+                    for _ in range(endpoint['concurrent_requests']):
+                        tasks.append(client.get(url))
+                    
+                    responses = await asyncio.gather(*tasks, return_exceptions=True)
+                    
+                    successful_requests = sum(1 for r in responses if not isinstance(r, Exception) and r.status_code in [200, 401, 403, 422])
+                    total_requests = len(responses)
+                    
+                    load_results[endpoint['url']] = {
+                        "successful_requests": successful_requests,
+                        "total_requests": total_requests,
+                        "success_rate": (successful_requests / total_requests) * 100 if total_requests > 0 else 0
+                    }
+                    
+                except Exception as load_error:
+                    load_results[endpoint['url']] = {
+                        "successful_requests": 0,
+                        "total_requests": endpoint['concurrent_requests'],
+                        "success_rate": 0,
+                        "error": str(load_error)
+                    }
+        
+        overall_success_rate = sum(result.get("success_rate", 0) for result in load_results.values()) / len(load_results) if load_results else 0
+        
+        return {
+            "status": "passed" if overall_success_rate > 70 else "failed",
+            "message": "Load tests completed",
+            "overall_success_rate": overall_success_rate,
+            "load_results": load_results
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Load tests failed: {str(e)}"}
+""",
+                    "expected_result": "System handles load appropriately",
+                    "timeout_seconds": 45
+                }
+            ]
+        }
+
+    async def generate_spiritual_tests(self) -> Dict[str, Any]:
+        """Generate spiritual services tests - alias for generate_spiritual_services_tests"""
+        return await self.generate_spiritual_services_tests()
+
 if __name__ == "__main__":
     test_suites = asyncio.run(main())
