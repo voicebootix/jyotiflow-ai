@@ -29,6 +29,30 @@ logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
+# Module-level constant for allowed generator methods
+# This improves maintainability and testability by centralizing the allowlist
+ALLOWED_GENERATOR_METHODS = {
+    'generate_integration_tests',
+    'generate_security_tests', 
+    'generate_database_tests',
+    'generate_api_tests',
+    'generate_analytics_monitoring_tests',
+    'generate_auto_healing_tests',
+    'generate_performance_tests',
+    'generate_unit_tests',
+    'generate_end_to_end_tests',
+    'generate_load_tests',
+    'generate_admin_services_tests',
+    'generate_spiritual_tests',
+    'generate_credit_payment_tests',
+    'generate_user_management_tests',
+    'generate_avatar_generation_tests',
+    'generate_social_media_tests',
+    'generate_community_services_tests',
+    'generate_notification_services_tests',
+    'generate_live_audio_video_tests'
+}
+
 class TestExecutionError(Exception):
     """Custom exception for test execution failures"""
     pass
@@ -1481,26 +1505,7 @@ class TestExecutionEngine:
                 return False
             
             # 7. ALLOWLIST CHECK: Additional safety - only allow known safe methods
-            ALLOWED_GENERATOR_METHODS = {
-                'generate_integration_tests',
-                'generate_security_tests', 
-                'generate_database_tests',
-                'generate_api_tests',
-                'generate_analytics_monitoring_tests',
-                'generate_auto_healing_tests',
-                'generate_performance_tests',
-                'generate_unit_tests',
-                'generate_end_to_end_tests',
-                'generate_load_tests',
-                'generate_admin_services_tests',
-                'generate_spiritual_tests',
-                'generate_credit_payment_tests',
-                'generate_user_management_tests',
-                'generate_avatar_generation_tests',
-                'generate_social_media_tests',
-                'generate_community_services_tests',
-                'generate_notification_services_tests'
-            }
+            # Using module-level constant for better maintainability
             
             if method_name not in ALLOWED_GENERATOR_METHODS:
                 logger.warning(f"Method '{method_name}' not in approved allowlist. Allowed: {sorted(ALLOWED_GENERATOR_METHODS)}")
