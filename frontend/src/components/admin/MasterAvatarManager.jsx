@@ -45,18 +45,19 @@ const MasterAvatarManager = () => {
       // Step 1: Set the master avatar
       const setMasterResponse = await enhanced_api.setMasterAvatar({ image_url: imageUrl });
       
-      if (!setMasterResponse?.success) {
-        setError(setMasterResponse?.message || 'Failed to set master avatar.');
+      if (!setMasterResponse?.success || !setMasterResponse?.data?.new_avatar_url) {
+        setError(setMasterResponse?.message || 'Failed to set master avatar or did not receive a new URL.');
         setIsLoading(false);
         setLoadingMessage('');
         return;
       }
       
-      setSuccess(`Successfully set master avatar! Now generating 20 training variations...`);
+      const masterAvatarUrl = setMasterResponse.data.new_avatar_url;
+      setSuccess(`Master avatar set to: ${masterAvatarUrl}. Now generating 20 training variations...`);
       setLoadingMessage('Master avatar set! Generating 20 training variations (this may take a minute)...');
       
-      // Step 2: Generate training variations from the new master
-      const variationsResponse = await enhanced_api.generateTrainingVariations({ image_url: imageUrl });
+      // Step 2: Generate training variations from the new master URL
+      const variationsResponse = await enhanced_api.generateTrainingVariations({ image_url: masterAvatarUrl });
 
       if (variationsResponse?.success && Array.isArray(variationsResponse?.data?.variation_urls)) {
         setVariations(variationsResponse.data.variation_urls);

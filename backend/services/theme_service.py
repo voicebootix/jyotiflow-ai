@@ -243,10 +243,10 @@ class RunWareService:
                 return img_response.content
         except httpx.HTTPStatusError as e:
             logger.error(f"❌ RunWare variation generation failed with status {e.response.status_code}: {e.response.text}")
-            raise HTTPException(status_code=e.response.status_code, detail=f"RunWare variation generation failed: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"RunWare variation generation failed: {e.response.text}") from e
         except Exception as e:
             logger.error(f"❌ Unexpected error during variation generation: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="An unexpected error occurred during variation generation.")
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during variation generation.") from e
 
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts

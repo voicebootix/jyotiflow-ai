@@ -13,6 +13,7 @@ import httpx
 import uuid
 import json
 from datetime import datetime, timedelta
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Request
 from pydantic import BaseModel, Field
@@ -246,7 +247,6 @@ async def generate_avatar_candidates(
             "Studio portrait of a smiling young Indian Swamiji, looking approachable and kind, against a neutral grey background, high resolution, exuding positivity."
         ]
 
-        import asyncio
         tasks = []
         for prompt in candidate_prompts:
             # We don't need the base image for this initial generation
@@ -389,7 +389,9 @@ async def generate_training_variations(
         image_urls = []
         for i, image_bytes in enumerate(image_bytes_list):
             if image_bytes:
-                unique_filename = f"variation_{datetime.now().strftime('%Y%m%d')}_{i+1}.png"
+                # Add a short UUID to prevent filename collisions
+                unique_suffix = uuid.uuid4().hex[:8]
+                unique_filename = f"variation_{datetime.now().strftime('%Y%m%d')}_{i+1}_{unique_suffix}.png"
                 file_path_in_bucket = f"lora_training_variations/{unique_filename}"
                 public_url = storage_service.upload_file(
                     bucket_name="avatars",
