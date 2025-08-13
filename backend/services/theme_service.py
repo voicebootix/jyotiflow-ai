@@ -436,15 +436,15 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             
             # Get IP Adapter weight from environment with safe fallback and validation
             try:
-                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.35") # FINAL FIX v4: Balanced weight
+                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.2") # FINAL FIX: Reduced weight to prevent style bleed
                 refinement_ip_weight = float(ip_weight_str)
                 # Clamp the value to a safe range (0.0 to 1.0)
                 if not (0.0 <= refinement_ip_weight <= 1.0):
                     logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
                     refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
             except (ValueError, TypeError):
-                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.35.")
-                refinement_ip_weight = 0.35
+                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.2.")
+                refinement_ip_weight = 0.2
 
             logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
 
