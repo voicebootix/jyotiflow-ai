@@ -1314,15 +1314,36 @@ class TestExecutionEngine:
             
             try:
                 # Get health check configurations from database
-                results = await conn.fetch('''
-                    SELECT test_name, test_function, display_name, description, priority, timeout_seconds
-                    FROM health_check_configurations
-                    WHERE enabled = true
-                    ORDER BY order_index, test_name
-                ''')
+                try:
+                    # Try to query with display_name column (new schema)
+                    results = await conn.fetch('''
+                        SELECT test_name, test_function, display_name, description, priority, timeout_seconds
+                        FROM health_check_configurations
+                        WHERE enabled = true
+                        ORDER BY order_index, test_name
+                    ''')
+                except asyncpg.UndefinedColumnError:
+                    # Fallback for older databases without display_name column
+                    logger.info("display_name column not found, falling back to existing columns")
+                    results = await conn.fetch('''
+                        SELECT test_name, test_function, description, priority, timeout_seconds
+                        FROM health_check_configurations
+                        WHERE enabled = true
+                        ORDER BY test_name
+                    ''')
                 
                 health_checks = []
-                for row in results:
+                for record in results:
+                    # Build plain dict explicitly from asyncpg.Record fields
+                    row = {
+                        'test_name': record['test_name'],
+                        'test_function': record['test_function'],
+                        'description': record['description'],
+                        'priority': record['priority'],
+                        'timeout_seconds': record['timeout_seconds'],
+                        'display_name': record['display_name'] if 'display_name' in record else record['test_name']
+                    }
+                    
                     function_name = row['test_function']
                     
                     # ✅ NAMING CONVENTION FIX: Ensure function name has leading underscore for private method lookup
