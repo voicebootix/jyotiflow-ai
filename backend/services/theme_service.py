@@ -18,10 +18,9 @@ import asyncpg
 import json
 import base64
 from typing import Optional, Tuple, List
-from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageEnhance
 import io
 import numpy as np
-import face_recognition
+from PIL import Image
 
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 from services.controlnet_service import ControlNetService, get_controlnet_service
@@ -225,8 +224,7 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        # No need to load any cascade files for face_recognition library
-        logger.info("✅ ThemeService initialized with Pillow & face_recognition for image processing.")
+        logger.info("✅ ThemeService initialized with Pillow for image processing.")
 
         # 🎯 RUNWARE CONFIGURATION
         try:
@@ -256,46 +254,35 @@ class ThemeService:
 
     async def _crop_to_face(self, image_bytes: bytes) -> bytes:
         """
-        Detects a face using face_recognition and crops it with Pillow.
-        This is a pure Python implementation, avoiding OpenCV.
+        Crops the center of the image using Pillow.
+        This is a simple, reliable method that avoids heavy dependencies.
+        Assumes the face is in the center, as per photo guidelines.
         """
         try:
-            image = face_recognition.load_image_file(io.BytesIO(image_bytes))
-            face_locations = face_recognition.face_locations(image)
-
-            if not face_locations:
-                logger.warning("⚠️ No face detected using face_recognition, returning original image.")
-                return image_bytes
-
-            # Get the first face found
-            top, right, bottom, left = face_locations[0]
-
-            # Add padding to the crop
-            padding_w = int((right - left) * 0.4)
-            padding_h = int((bottom - top) * 0.4)
-
-            # Open image with Pillow to crop
             pil_image = Image.open(io.BytesIO(image_bytes))
             width, height = pil_image.size
 
-            # Ensure coordinates are within image bounds
-            left = max(0, left - padding_w)
-            top = max(0, top - padding_h)
-            right = min(width, right + padding_w)
-            bottom = min(height, bottom + padding_h)
+            # Define crop dimensions (e.g., 50% of width and height, centered)
+            crop_width = int(width * 0.5)
+            crop_height = int(height * 0.5)
             
-            cropped_face_pil = pil_image.crop((left, top, right, bottom))
+            left = (width - crop_width) // 2
+            top = (height - crop_height) // 2
+            right = (width + crop_width) // 2
+            bottom = (height + crop_height) // 2
+
+            cropped_image = pil_image.crop((left, top, right, bottom))
 
             # Convert cropped image back to bytes
             with io.BytesIO() as output:
-                cropped_face_pil.save(output, format="PNG")
+                cropped_image.save(output, format="PNG")
                 cropped_bytes = output.getvalue()
 
-            logger.info(f"✅ Face detected and cropped with face_recognition/Pillow. Cropped size: {len(cropped_bytes)/1024:.1f}KB")
+            logger.info(f"✅ Image center-cropped successfully with Pillow. Cropped size: {len(cropped_bytes)/1024:.1f}KB")
             return cropped_bytes
 
         except Exception as e:
-            logger.error(f"❌ Error during face cropping with face_recognition: {e}", exc_info=True)
+            logger.error(f"❌ Error during Pillow center-cropping: {e}", exc_info=True)
             return image_bytes # Fallback to original image on error
     
     def _sanitize_prompt_input(self, text: str, max_length: int = 250) -> str:
