@@ -397,10 +397,9 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
 
 
             # 2. Refine the generated scene with Swamiji's face
-            refinement_prompt = "photograph of a wise indian spiritual master, high resolution, sharp focus, clear face, full color, vibrant colors"
-            refinement_negative_prompt = "deformed face, ugly, bad anatomy, blurry face, distorted face, extra limbs, cartoon, grayscale, black and white"
-
-            # CORE FIX: Dynamically determine Step 2 parameters from environment variables for safe, flexible tuning
+            # Use the powerful, detailed prompt from Step 1 to guide the final composition.
+            # This ensures the background, clothing, and theme from Step 1 are correctly
+            # integrated with the face from the reference image.
             refinement_strength = float(os.getenv("THEME_REFINE_STRENGTH", "0.2")) # FINAL FIX v2: Drastically lower for scene preservation
             
             # Get IP Adapter weight from environment with safe fallback and validation
@@ -420,8 +419,8 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             final_image_bytes = await self.runware_service.generate_with_face_reference(
                 scene_image_bytes=scene_bytes,
                 face_image_bytes=face_ref_bytes, # Use the original color image
-                prompt=refinement_prompt,
-                negative_prompt=refinement_negative_prompt,
+                prompt=scene_prompt, # CORE FIX: Use the detailed scene prompt from Step 1
+                negative_prompt=negative_prompt, # CORE FIX: Use the detailed negative prompt from Step 1
                 strength=refinement_strength, # CORE FIX: Lower strength preserves the generated scene's integrity.
                 ip_adapter_weight=refinement_ip_weight, # CORE FIX: Higher weight ensures the face is applied correctly.
             )
