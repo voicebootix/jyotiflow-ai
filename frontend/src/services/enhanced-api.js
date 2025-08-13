@@ -299,6 +299,10 @@ class EnhancedAPI {
     return this.post('/api/admin/social-marketing/set-master-avatar', data);
   }
 
+  async generateTrainingVariations(data) {
+    return this.post('/api/admin/social-marketing/generate-training-variations', data);
+  }
+
   // Agent Chat
   async sendAgentMessage(message) {
     return this.post('/api/admin/social-marketing/agent-chat', { message });

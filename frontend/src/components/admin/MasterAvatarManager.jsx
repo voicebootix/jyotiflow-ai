@@ -1,19 +1,23 @@
 import React, { useState } from 'react';
 import { Button } from '../ui/button';
 import enhanced_api from '../../services/enhanced-api';
-import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, CheckCircle, AlertTriangle, Download } from 'lucide-react';
 
 const MasterAvatarManager = () => {
   const [candidates, setCandidates] = useState([]);
+  const [variations, setVariations] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
 
   const handleGenerateCandidates = async () => {
     setIsLoading(true);
+    setLoadingMessage('Generating 10 new avatar candidates...');
     setError(null);
     setSuccess(null);
     setCandidates([]);
+    setVariations([]); // Clear old variations
     try {
       const response = await enhanced_api.generateAvatarCandidates();
       // 🛡️ Robust response handling
@@ -27,35 +31,55 @@ const MasterAvatarManager = () => {
       console.error("Error generating candidates:", err);
     }
     setIsLoading(false);
+    setLoadingMessage('');
   };
 
   const handleSetMasterAvatar = async (imageUrl) => {
     setIsLoading(true);
+    setLoadingMessage('Setting master avatar...');
     setError(null);
     setSuccess(null);
+    setVariations([]); // Clear old variations
+
     try {
-      const response = await enhanced_api.setMasterAvatar({ image_url: imageUrl });
-      // 🛡️ Robust response handling
-      if (response?.success) {
-        const newUrl = response?.data?.new_avatar_url || 'N/A';
-        setSuccess(`Successfully set new master avatar! New URL: ${newUrl}`);
-        // Optionally, you can refresh the main avatar preview here if needed
-      } else {
-        setError(response?.message || 'Failed to set master avatar. Please try again.');
+      // Step 1: Set the master avatar
+      const setMasterResponse = await enhanced_api.setMasterAvatar({ image_url: imageUrl });
+      
+      if (!setMasterResponse?.success) {
+        setError(setMasterResponse?.message || 'Failed to set master avatar.');
+        setIsLoading(false);
+        setLoadingMessage('');
+        return;
       }
+      
+      setSuccess(`Successfully set master avatar! Now generating 20 training variations...`);
+      setLoadingMessage('Master avatar set! Generating 20 training variations (this may take a minute)...');
+      
+      // Step 2: Generate training variations from the new master
+      const variationsResponse = await enhanced_api.generateTrainingVariations({ image_url: imageUrl });
+
+      if (variationsResponse?.success && Array.isArray(variationsResponse?.data?.variation_urls)) {
+        setVariations(variationsResponse.data.variation_urls);
+        setSuccess(`Successfully generated ${variationsResponse.data.variation_urls.length} training variations.`);
+      } else {
+        setError(variationsResponse?.message || 'Failed to generate training variations.');
+      }
+
     } catch (err) {
-      setError('A critical client-side error occurred while setting the master avatar.');
-      console.error("Error setting master avatar:", err);
+      setError('A critical client-side error occurred during the process.');
+      console.error("Error in master avatar process:", err);
     }
+    
     setIsLoading(false);
+    setLoadingMessage('');
   };
 
   return (
     <div className="bg-white rounded-lg shadow p-6 space-y-6">
       <div>
-        <h3 className="text-lg font-semibold">Master Avatar Selection (for LoRA Training)</h3>
+        <h3 className="text-lg font-semibold">Phase 1: Master Avatar Selection</h3>
         <p className="text-sm text-gray-600 mt-1">
-          Generate a set of AI-created avatars. Choose the one that best represents Swamiji. This selected avatar will be used as the 'master' image to train a LoRA model for consistent face generation.
+          First, generate a set of AI-created avatars. Then, choose the one that best represents Swamiji to become the 'master' avatar for training.
         </p>
       </div>
 
@@ -86,13 +110,13 @@ const MasterAvatarManager = () => {
       <div className="flex items-center">
         <Button onClick={handleGenerateCandidates} disabled={isLoading}>
           {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Generate New Avatar Candidates
+          {loadingMessage || 'Generate New Avatar Candidates'}
         </Button>
       </div>
 
       {candidates.length > 0 && (
         <div>
-          <h4 className="font-semibold mb-4">Select the Best Avatar:</h4>
+          <h4 className="font-semibold mb-4">Select the Best Avatar Candidate:</h4>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
             {candidates.map((url, index) => (
               <div key={index} className="border rounded-lg p-2 space-y-2 flex flex-col items-center">
@@ -105,6 +129,34 @@ const MasterAvatarManager = () => {
                 >
                   Set as Master
                 </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {variations.length > 0 && (
+        <div className="pt-6 mt-6 border-t">
+          <h3 className="text-lg font-semibold">Phase 2: Training Data Variations</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Here are 20 variations of your selected master avatar. Download the best 5-10 images to create your `swamiji_training_data.zip` file for LoRA training.
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4 mt-4">
+            {variations.map((url, index) => (
+              <div key={index} className="border rounded-lg p-2 space-y-2 flex flex-col items-center">
+                <img src={url} alt={`Variation ${index + 1}`} className="w-full h-auto rounded" />
+                <a 
+                  href={url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  download={`swamiji_variation_${index + 1}.png`}
+                  className="w-full"
+                >
+                  <Button size="sm" variant="ghost" className="w-full">
+                    <Download className="mr-2 h-4 w-4" />
+                    Download
+                  </Button>
+                </a>
               </div>
             ))}
           </div>

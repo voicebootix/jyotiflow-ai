@@ -185,6 +185,69 @@ class RunWareService:
             logger.error(f"❌ Unexpected error during face refinement: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred during face refinement.")
 
+    async def generate_variation_from_face(
+        self,
+        face_image_bytes: bytes,
+        prompt: str,
+        negative_prompt: str = "",
+        width: int = 1024,
+        height: int = 1024,
+        steps: int = 40,
+        cfg_scale: float = 12.0,
+        ip_adapter_weight: float = 0.6 # Higher weight to ensure face consistency
+    ) -> bytes:
+        """Generates a new image from a text prompt while using a face reference via IP-Adapter (txt2img + IP-Adapter)."""
+        if not self.api_key:
+            raise HTTPException(status_code=503, detail="RunWare API key not configured")
+
+        face_data_uri = f"data:image/jpeg;base64,{base64.b64encode(face_image_bytes).decode('utf-8')}"
+
+        payload = {
+            "taskType": "imageInference",
+            "taskUUID": str(uuid.uuid4()),
+            "positivePrompt": prompt,
+            "negativePrompt": negative_prompt,
+            "model": "runware:101@1",
+            "height": height,
+            "width": width,
+            "numberResults": 1,
+            "steps": steps,
+            "CFGScale": cfg_scale,
+            "seed": random.randint(1, 1000000),
+            "ipAdapters": [{
+                "model": self.ip_adapter_model,
+                "guideImage": face_data_uri,
+                "weight": ip_adapter_weight
+            }]
+        }
+
+        logger.info(f"🎨 Generating variation for prompt: {prompt[:50]}...")
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    self.base_url,
+                    headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"},
+                    json=[payload]
+                )
+                response.raise_for_status()
+                parsed_response = response.json()
+
+                if not parsed_response.get('data') or not parsed_response['data'][0].get('imageURL'):
+                    raise HTTPException(status_code=502, detail="RunWare API did not return an image URL for the variation.")
+
+                img_url = parsed_response['data'][0]['imageURL']
+                img_response = await client.get(img_url)
+                img_response.raise_for_status()
+                
+                logger.info("✅ Variation generated successfully.")
+                return img_response.content
+        except httpx.HTTPStatusError as e:
+            logger.error(f"❌ RunWare variation generation failed with status {e.response.status_code}: {e.response.text}")
+            raise HTTPException(status_code=e.response.status_code, detail=f"RunWare variation generation failed: {e.response.text}")
+        except Exception as e:
+            logger.error(f"❌ Unexpected error during variation generation: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during variation generation.")
+
 
 # 🎯 PHASE 1: DRAMATIC COLOR REDESIGN - Maximum contrast to avoid saffron conflicts
 # Each theme uses COMPLETELY DIFFERENT colors + varied clothing styles for better AI differentiation
