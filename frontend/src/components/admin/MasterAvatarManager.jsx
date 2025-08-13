@@ -16,14 +16,14 @@ const MasterAvatarManager = () => {
     setCandidates([]);
     try {
       const response = await enhanced_api.generateAvatarCandidates();
-      if (response.success) {
-        setCandidates(response.data.candidate_urls || []);
+      // 🛡️ Robust response handling
+      if (response?.success && Array.isArray(response?.data?.candidate_urls)) {
+        setCandidates(response.data.candidate_urls);
       } else {
-        setError(response.message || 'Failed to generate candidates. Please check the logs.');
+        setError(response?.message || 'Failed to generate candidates. Response was invalid.');
       }
     } catch (err) {
-      // This catch block might not be hit if enhanced_api handles all errors, but it's good practice to keep it.
-      setError('An unexpected client-side error occurred.');
+      setError('A critical client-side error occurred.');
       console.error("Error generating candidates:", err);
     }
     setIsLoading(false);
@@ -35,14 +35,16 @@ const MasterAvatarManager = () => {
     setSuccess(null);
     try {
       const response = await enhanced_api.setMasterAvatar({ image_url: imageUrl });
-      if (response.success) {
-        setSuccess(`Successfully set new master avatar! New URL: ${response.data.new_avatar_url}`);
+      // 🛡️ Robust response handling
+      if (response?.success) {
+        const newUrl = response?.data?.new_avatar_url || 'N/A';
+        setSuccess(`Successfully set new master avatar! New URL: ${newUrl}`);
         // Optionally, you can refresh the main avatar preview here if needed
       } else {
-        setError(response.message || 'Failed to set master avatar. Please try again.');
+        setError(response?.message || 'Failed to set master avatar. Please try again.');
       }
     } catch (err) {
-      setError('An unexpected client-side error occurred while setting the master avatar.');
+      setError('A critical client-side error occurred while setting the master avatar.');
       console.error("Error setting master avatar:", err);
     }
     setIsLoading(false);
