@@ -3,13 +3,14 @@ import {
   Calendar, Users, TrendingUp, DollarSign, Target, MessageCircle, 
   Video, Image, BarChart3, Settings, Play, Pause, Edit, Eye,
   Zap, Globe, Heart, Share2, ThumbsUp, Filter, Search, RefreshCw,
-  AlertCircle, CheckCircle, Clock, ArrowUp, ArrowDown, Star
+  AlertCircle, CheckCircle, Clock, ArrowUp, ArrowDown, Star, BrainCircuit
 } from 'lucide-react';
 import enhanced_api from '../../services/enhanced-api';
 import PlatformConfiguration from './PlatformConfiguration';
 import SwamjiAvatarPreview from './SwamjiAvatarPreview';
 import MarketingAgentChat from './MarketingAgentChat';
 import MasterAvatarManager from './MasterAvatarManager';
+import LoraTrainingCenter from './LoraTrainingCenter';
 
 const SocialMediaMarketing = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -101,7 +102,8 @@ const SocialMediaMarketing = () => {
     { id: 'performance', label: 'Analytics', icon: TrendingUp },
     { id: 'automation', label: 'Automation', icon: Zap },
     { id: 'comments', label: 'Engagement', icon: MessageCircle },
-    { id: 'avatar', label: 'Avatar Preview', icon: Video }
+    { id: 'avatar', label: 'Avatar Generation', icon: Video },
+    { id: 'lora', label: 'LoRA Training', icon: BrainCircuit }
   ];
 
   if (loading && !marketingData) {
@@ -200,6 +202,10 @@ const SocialMediaMarketing = () => {
           <MasterAvatarManager />
           <SwamjiAvatarPreview />
         </div>
+      )}
+      
+      {activeTab === 'lora' && (
+        <LoraTrainingCenter />
       )}
     </div>
   );
