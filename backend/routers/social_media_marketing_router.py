@@ -13,6 +13,7 @@ import httpx
 import uuid
 import json
 from datetime import datetime, timedelta
+import asyncio
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Request
 from pydantic import BaseModel, Field
@@ -246,7 +247,6 @@ async def generate_avatar_candidates(
             "Studio portrait of a smiling young Indian Swamiji, looking approachable and kind, against a neutral grey background, high resolution, exuding positivity."
         ]
 
-        import asyncio
         tasks = []
         for prompt in candidate_prompts:
             # We don't need the base image for this initial generation
@@ -325,6 +325,91 @@ async def set_master_avatar(
     except Exception as e:
         logger.error(f"Failed to set master avatar: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to set master avatar.") from e
+
+class TrainingVariationsRequest(BaseModel):
+    image_url: str = Field(..., description="The URL of the master avatar image to generate variations from.")
+
+@social_marketing_router.post("/generate-training-variations", response_model=StandardResponse)
+async def generate_training_variations(
+    request: TrainingVariationsRequest,
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    theme_service: ThemeService = Depends(get_theme_service),
+    storage_service: SupabaseStorageService = Depends(get_storage_service)
+):
+    """
+    Generates 20 variations of a single master avatar image for LoRA training.
+    """
+    try:
+        # 1. Download the master image
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(request.image_url)
+            response.raise_for_status()
+            master_image_bytes = response.content
+
+        # 2. Define 20 diverse prompts for training data
+        variation_prompts = [
+            # Environment Variations
+            "A youthful spiritual master in his 30s, inside a peaceful ashram library, surrounded by ancient texts.",
+            "A youthful spiritual master in his 30s, meditating in a serene cave, with soft light from an oil lamp.",
+            "A youthful spiritual master in his 30s, standing on a Himalayan mountain peak, with a clear blue sky.",
+            "A youthful spiritual master in his 30s, walking through a vibrant, colorful Indian market.",
+            "A youthful spiritual master in his 30s, sitting by a flowing river at sunrise.",
+            # Expression & Pose Variations
+            "A close-up portrait of a youthful spiritual master in his 30s, with a joyful, laughing expression.",
+            "A close-up portrait of a youthful spiritual master in his 30s, with a deep, thoughtful, and serious expression.",
+            "A youthful spiritual master in his 30s, with hands in a prayer (Anjali Mudra) position.",
+            "A youthful spiritual master in his 30s, looking upwards towards the sky with a hopeful expression.",
+            "A youthful spiritual master in his 30s, teaching a small group of disciples, with an engaging expression.",
+            # Clothing & Style Variations
+            "A youthful spiritual master in his 30s, wearing simple white cotton robes.",
+            "A youthful spiritual master in his 30s, wearing a saffron-colored shawl over one shoulder.",
+            "A youthful spiritual master in his 30s, with hair tied back neatly.",
+            "A youthful spiritual master in his 30s, wearing traditional wooden prayer beads (rudraksha).",
+            "A full-body shot of a youthful spiritual master in his 30s, in traditional dhoti and kurta.",
+            # Lighting Variations
+            "A portrait of a youthful spiritual master in his 30s, with dramatic side lighting, creating strong shadows.",
+            "A portrait of a youthful spiritual master in his 30s, backlit by a golden sunset.",
+            "A portrait of a youthful spiritual master in his 30s, in the soft, diffused light of an overcast day.",
+            "A portrait of a youthful spiritual master in his 30s, with a single light source from above (Rembrandt lighting).",
+            "A portrait of a youthful spiritual master in his 30s, in the bright, direct sunlight of midday.",
+        ]
+        
+        # 3. Generate variations in parallel
+        tasks = []
+        for prompt in variation_prompts:
+            task = theme_service.runware_service.generate_variation_from_face(
+                face_image_bytes=master_image_bytes,
+                prompt=f"photorealistic, high-resolution, {prompt}"
+            )
+            tasks.append(task)
+        
+        image_bytes_list = await asyncio.gather(*tasks)
+
+        # 4. Upload variations and collect URLs
+        image_urls = []
+        for i, image_bytes in enumerate(image_bytes_list):
+            if image_bytes:
+                # Add a short UUID to prevent filename collisions
+                unique_suffix = uuid.uuid4().hex[:8]
+                unique_filename = f"variation_{datetime.now().strftime('%Y%m%d')}_{i+1}_{unique_suffix}.png"
+                file_path_in_bucket = f"lora_training_variations/{unique_filename}"
+                public_url = storage_service.upload_file(
+                    bucket_name="avatars",
+                    file_path_in_bucket=file_path_in_bucket,
+                    file=image_bytes,
+                    content_type="image/png"
+                )
+                image_urls.append(public_url)
+
+        return StandardResponse(success=True, data={"variation_urls": image_urls}, message=f"Successfully generated {len(image_urls)} training variations.")
+
+    except httpx.HTTPError as e:
+        logger.error(f"Failed to download the master image for variation generation: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Could not download the master image to generate variations.") from e
+    except Exception as e:
+        logger.error(f"Failed to generate training variations: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while generating training variations.") from e
+
 
 @social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
 async def upload_preview_image(
