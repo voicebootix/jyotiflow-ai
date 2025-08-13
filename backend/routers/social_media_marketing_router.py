@@ -308,8 +308,7 @@ async def generate_image_preview(
     try:
         image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(
             custom_prompt=request.custom_prompt, 
-            theme_day=request.theme_day,
-            strength_param=request.strength_param  # 🎯 Configurable strength with feature flag control
+            theme_day=request.theme_day
         )
         # Compute hash of generated image (first 16 hex chars for brevity)
         generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
