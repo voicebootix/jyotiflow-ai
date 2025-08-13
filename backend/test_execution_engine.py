@@ -1174,7 +1174,7 @@ class TestExecutionEngine:
             logger.info("Initializing test suites using TestSuiteGenerator...")
             generator = TestSuiteGenerator()
             
-            # Generate all test suites
+            # Generate all test  suites
             test_suites = await generator.generate_all_test_suites()
             
             # Store test suites in database
