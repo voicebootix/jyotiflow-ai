@@ -21,6 +21,7 @@ from typing import Optional, Tuple, List
 from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageEnhance
 import io
 import numpy as np
+import cv2
 from scipy import ndimage
 
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
@@ -225,6 +226,15 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
+        # Load the Haar Cascade for face detection once during initialization
+        cascade_path = os.path.join(os.path.dirname(__file__), '..', 'assets', 'haarcascade_frontalface_default.xml')
+        if not os.path.exists(cascade_path):
+            logger.error(f"❌ Haar Cascade file not found at {cascade_path}")
+            self.face_cascade = None
+        else:
+            self.face_cascade = cv2.CascadeClassifier(cascade_path)
+            logger.info("✅ Face detection model (Haar Cascade) loaded successfully.")
+
         # 🎯 RUNWARE CONFIGURATION
         try:
             from core_foundation_enhanced import EnhancedSettings
@@ -250,6 +260,58 @@ class ThemeService:
         
         self.runware_service = RunWareService(self.runware_api_key)
         logger.info("🚀 ThemeService initialized with RunWare IP-Adapter FaceID workflow.")
+
+    async def _crop_to_face(self, image_bytes: bytes) -> bytes:
+        """
+        Detects and crops the face from an image using OpenCV Haar Cascade.
+        Adds padding to ensure the cropped area is natural.
+
+        Args:
+            image_bytes: The input image as bytes.
+
+        Returns:
+            Bytes of the cropped face image. Returns original bytes if no face is found.
+        """
+        if self.face_cascade is None:
+            logger.warning("⚠️ Face detection model not loaded, returning original image.")
+            return image_bytes
+
+        try:
+            # Convert image bytes to an OpenCV image
+            np_arr = np.frombuffer(image_bytes, np.uint8)
+            img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+            # Detect faces
+            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
+
+            if len(faces) == 0:
+                logger.warning("⚠️ No face detected, returning original image for reference.")
+                return image_bytes
+
+            # Use the largest detected face
+            x, y, w, h = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)[0]
+
+            # Add padding to the crop
+            padding_w = int(w * 0.4)  # 40% horizontal padding
+            padding_h = int(h * 0.4)  # 40% vertical padding
+            x1 = max(0, x - padding_w)
+            y1 = max(0, y - padding_h)
+            x2 = min(img.shape[1], x + w + padding_w)
+            y2 = min(img.shape[0], y + h + padding_h)
+
+            cropped_face = img[y1:y2, x1:x2]
+
+            # Convert cropped image back to bytes
+            _, buffer = cv2.imencode('.png', cropped_face)
+            cropped_bytes = buffer.tobytes()
+
+            logger.info(f"✅ Face detected and cropped successfully. Original size: {len(image_bytes)/1024:.1f}KB, Cropped size: {len(cropped_bytes)/1024:.1f}KB")
+            return cropped_bytes
+
+        except Exception as e:
+            logger.error(f"❌ Error during face cropping: {e}", exc_info=True)
+            return image_bytes # Fallback to original image on error
     
     def _sanitize_prompt_input(self, text: str, max_length: int = 250) -> str:
         """
@@ -391,10 +453,9 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
                 cfg_scale=18.0, # CORE FIX: Increased strictness to force prompt adherence for color.
             )
 
-            # The color bleed issue will be controlled by a lower `strength` parameter in Step 2.
-            logger.info("🎨 Using original reference image for Step 2 to ensure color output.")
-            face_ref_bytes = base_image_bytes
-
+            # Crop the base image to just the face to use as a better guide
+            logger.info("🎨 Cropping base image to face for Step 2 reference...")
+            face_ref_bytes = await self._crop_to_face(base_image_bytes)
 
             # 2. Refine the generated scene with Swamiji's face
             # Use the powerful, detailed prompt from Step 1 to guide the final composition.
@@ -484,7 +545,7 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
         self, 
         custom_prompt: Optional[str] = None, 
         theme_day: Optional[int] = None
-    ) -> Tuple[bytes, str]:
+    ) -> Tuple[bytes, str, bytes]:
         """
         🎯 RUNWARE-ONLY FACE PRESERVATION GENERATION
         
@@ -497,7 +558,7 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             theme_day: Optional day override (0-6). If None, uses current day.
             
         Returns:
-            Tuple[bytes, str]: Generated image bytes and final prompt used
+            Tuple[bytes, str, bytes]: Generated image bytes, final prompt used, and the base image bytes.
         
         Configuration:
             RUNWARE_API_KEY: Required environment variable for RunWare API access
@@ -539,12 +600,14 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
 
             # Always use the modern, two-step generation process
             logger.info("🚀 Using new two-step generation logic via RunWare.")
-            return await self._generate_with_runware(
+            final_image_bytes, scene_prompt = await self._generate_with_runware(
                 base_image_bytes=base_image_bytes,
                 theme_description=theme_description,
                 custom_prompt=custom_prompt,
                 theme_day=theme_day
             )
+            
+            return final_image_bytes, scene_prompt, base_image_bytes
 
         except Exception as e:
             logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)

@@ -303,38 +303,30 @@ async def generate_image_preview(
     request: ImagePreviewRequest, 
     admin_user: dict = Depends(get_admin_or_test_bypass),  # Secure + testable
     theme_service: ThemeService = Depends(get_theme_service),
-    conn: asyncpg.Connection = Depends(db.get_db),
 ):
     try:
-        image_bytes, final_prompt = await theme_service.generate_themed_image_bytes(
+        # The service now returns the generated image, the prompt, and the base image bytes
+        image_bytes, final_prompt, base_image_bytes = await theme_service.generate_themed_image_bytes(
             custom_prompt=request.custom_prompt, 
             theme_day=request.theme_day
         )
-        # Compute hash of generated image (first 16 hex chars for brevity)
+        
+        # Compute hash of generated image
         generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
         generated_hash_short = generated_hash_full[:16]
 
-        # Try to compute base image hash to determine if output differs from input
+        # EFFICIENCY FIX: No need to download the base image again.
+        # Compute its hash from the bytes returned by the service.
         image_diff = "unknown"
         base_hash_short = ""
-        try:
-            record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
-            if record and record['value']:
-                raw_value = record['value']
-                try:
-                    base_url = json.loads(raw_value) if isinstance(raw_value, str) else raw_value
-                except json.JSONDecodeError:
-                    base_url = raw_value if isinstance(raw_value, str) else None
-                if isinstance(base_url, str) and base_url.startswith('http'):
-                    async with httpx.AsyncClient(timeout=30.0) as client:
-                        resp = await client.get(base_url)
-                        resp.raise_for_status()
-                        base_bytes = resp.content
-                        base_hash_full = hashlib.sha256(base_bytes).hexdigest()
-                        base_hash_short = base_hash_full[:16]
-                        image_diff = "different" if generated_hash_full != base_hash_full else "same"
-        except Exception as diff_err:
-            logger.debug(f"Image diff debug skipped: {diff_err}")
+        if base_image_bytes:
+            try:
+                base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
+                base_hash_short = base_hash_full[:16]
+                image_diff = "different" if generated_hash_full != base_hash_full else "same"
+                logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
+            except Exception as diff_err:
+                logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
         
         # 🛡️ ENHANCED HTTP header sanitization - CORE.MD: Fix emoji encoding errors
         # 1. Handle None/non-string values defensively
