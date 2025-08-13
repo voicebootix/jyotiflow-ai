@@ -272,7 +272,7 @@ async def generate_avatar_candidates(
         return StandardResponse(success=True, data={"candidate_urls": image_urls}, message=f"{len(image_urls)} avatar candidates generated successfully.")
     except Exception as e:
         logger.error(f"Failed to generate avatar candidates: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to generate avatar candidates.")
+        raise HTTPException(status_code=500, detail="Failed to generate avatar candidates.") from e
 
 @social_marketing_router.post("/set-master-avatar", response_model=StandardResponse)
 async def set_master_avatar(
@@ -314,7 +314,7 @@ async def set_master_avatar(
         return StandardResponse(success=True, message="Master avatar has been set successfully.", data={"new_avatar_url": public_url})
     except Exception as e:
         logger.error(f"Failed to set master avatar: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to set master avatar.")
+        raise HTTPException(status_code=500, detail="Failed to set master avatar.") from e
 
 @social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
 async def upload_preview_image(
