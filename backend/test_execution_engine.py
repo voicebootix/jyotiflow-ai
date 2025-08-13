@@ -74,7 +74,7 @@ class TestExecutionEngine:
         self.current_session_id = session_id
         
         try:
-            # Get test cases for this suite - use suite_name as test_category
+            # Get test cases for this suite
             # ✅ FOLLOWING .CURSOR RULES: Database-driven mapping, suite_name maps to test_category
             test_cases = await self._get_test_cases(suite_name)
             
@@ -1076,8 +1076,8 @@ class TestExecutionEngine:
                 await conn.close()
 
     
-    async def _get_test_cases(self, test_category: str) -> List[Dict[str, Any]]:
-        """Get test cases for a specific test category from database or generate them"""
+    async def _get_test_cases(self, suite_name: str) -> List[Dict[str, Any]]:
+        """Get test cases for a specific suite from database or generate them"""
         if not self.database_url:
             return []
             
@@ -1095,7 +1095,7 @@ class TestExecutionEngine:
                     FROM test_case_results
                     WHERE test_category = $1
                     ORDER BY test_name, created_at DESC
-                ''', test_category)
+                ''', suite_name)
                 
             finally:
                 # ✅ CONNECTION LEAK FIX: Always close connection, even if fetch fails
@@ -1122,15 +1122,15 @@ class TestExecutionEngine:
             
             # If no test cases found, generate them using TestSuiteGenerator
             if not test_cases:
-                logger.info(f"No test cases found for {test_category}, generating...")
-                test_cases = await self._generate_test_cases(test_category)
+                logger.info(f"No test cases found for {suite_name}, generating...")
+                test_cases = await self._generate_test_cases(suite_name)
             
             return test_cases
             
         except Exception as e:
             logger.warning(f"Could not get test cases from database: {e}")
             # Fallback to generation
-            return await self._generate_test_cases(test_category)
+            return await self._generate_test_cases(suite_name)
     
     async def _get_available_test_suites(self) -> List[Dict[str, Any]]:
         """Get all available test suites"""
