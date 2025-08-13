@@ -4,6 +4,14 @@
 # தமிழ் - Core FastAPI framework and ASGI server
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
+uvicorn
+uvloop
+watchfiles
+web-vitals-gauge
+websockets
+yarl
+psycopg2-binary
+opencv-python-headless
 
 # தமில - Database connectivity
 asyncpg==0.30.0  # Updated PostgreSQL driver (FIXED: Removed duplicate)
