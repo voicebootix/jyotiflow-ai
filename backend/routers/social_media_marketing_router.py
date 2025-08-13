@@ -224,6 +224,108 @@ async def upload_swamiji_image(
         logger.error(f"Swamiji image upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
 
+@social_marketing_router.post("/generate-avatar-candidates", response_model=StandardResponse)
+async def generate_avatar_candidates(
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    theme_service: ThemeService = Depends(get_theme_service)
+):
+    """
+    Generates a set of 10 diverse, high-quality Swamiji avatar images to be used as candidates for LoRA training.
+    """
+    try:
+        candidate_prompts = [
+            "A photorealistic, high-resolution portrait of a wise Indian spiritual master, in a serene ashram, morning light, 4K, sharp focus.",
+            "Close-up portrait of a thoughtful spiritual guru from India, with a gentle smile, in a library of ancient texts, cinematic lighting.",
+            "Photorealistic portrait of a joyful Indian Swamiji, looking directly at the camera, in a vibrant temple courtyard, detailed features.",
+            "A wise spiritual master from India meditating under a banyan tree, serene expression, soft side lighting, ultra-realistic.",
+            "Headshot of an enlightened Indian guru, with deep thoughtful eyes, against a simple, clean studio background, professional portrait.",
+            "A compassionate Indian spiritual teacher, giving a blessing, warm indoor lighting, intricate details in clothing, photorealistic.",
+            "Portrait of an elderly Indian Swamiji, with a long white beard, in a peaceful garden, golden hour sunlight, hyper-detailed.",
+            "Front-facing portrait of a serene Indian spiritual leader, against a backdrop of the Himalayas, clear and crisp details, 8K.",
+            "A powerful portrait of a spiritual guru from India, exuding wisdom, in a traditional setting, dramatic lighting.",
+            "Studio portrait of a smiling Indian Swamiji, looking approachable and kind, against a neutral grey background, high resolution."
+        ]
+
+        import asyncio
+        tasks = []
+        for prompt in candidate_prompts:
+            # We don't need the base image for this initial generation
+            task = theme_service.runware_service.generate_scene_only(prompt=prompt)
+            tasks.append(task)
+        
+        image_bytes_list = await asyncio.gather(*tasks)
+
+        image_urls = []
+        storage_service = get_storage_service()
+        for i, image_bytes in enumerate(image_bytes_list):
+            unique_filename = f"candidate_{datetime.now().strftime('%Y%m%d')}_{i+1}.png"
+            file_path_in_bucket = f"lora_candidates/{unique_filename}"
+            
+            public_url = storage_service.upload_file(
+                bucket_name="avatars",
+                file_path_in_bucket=file_path_in_bucket,
+                file=image_bytes,
+                content_type="image/png"
+            )
+            image_urls.append(public_url)
+
+        return StandardResponse(success=True, data={"candidate_urls": image_urls}, message=f"{len(image_urls)} avatar candidates generated successfully.")
+    except Exception as e:
+        logger.error(f"Failed to generate avatar candidates: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate avatar candidates.") from e
+
+@social_marketing_router.post("/set-master-avatar", response_model=StandardResponse)
+async def set_master_avatar(
+    request: Request,
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    storage_service: SupabaseStorageService = Depends(get_storage_service),
+    conn: asyncpg.Connection = Depends(db.get_db)
+):
+    """
+    Sets the selected candidate image as the official master avatar for all future theme generations.
+    """
+    try:
+        body = await request.json()
+        image_url = body.get("image_url")
+        if not image_url:
+            raise HTTPException(status_code=400, detail="Image URL is required.")
+
+        # Download the selected image with timeout and error handling
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(image_url, timeout=10.0)
+                response.raise_for_status()
+                image_bytes = response.content
+        except httpx.TimeoutException as e:
+            logger.error(f"Timeout while downloading master avatar from {image_url}: {e}", exc_info=True)
+            raise HTTPException(status_code=408, detail="Request to image storage timed out.") from e
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error when downloading master avatar: {e.response.status_code} from {image_url}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"Failed to download image from storage (HTTP {e.response.status_code}).") from e
+        except Exception as e:
+            logger.error(f"An unexpected error occurred during image download: {e}", exc_info=True)
+            raise HTTPException(status_code=500, detail="An unexpected error occurred while downloading the image.") from e
+
+        # Upload it as the new master/base avatar
+        file_name_in_bucket = "public/swamiji_base_avatar.png"
+        public_url = storage_service.upload_file(
+            bucket_name="avatars",
+            file_path_in_bucket=file_name_in_bucket,
+            file=image_bytes,
+            content_type="image/png"
+        )
+        
+        # Update the database
+        await conn.execute(
+            "INSERT INTO platform_settings (key, value) VALUES ('swamiji_avatar_url', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
+            json.dumps(public_url)
+        )
+
+        return StandardResponse(success=True, message="Master avatar has been set successfully.", data={"new_avatar_url": public_url})
+    except Exception as e:
+        logger.error(f"Failed to set master avatar: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to set master avatar.") from e
+
 @social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
 async def upload_preview_image(
     image: UploadFile = File(...),

@@ -9,6 +9,7 @@ import enhanced_api from '../../services/enhanced-api';
 import PlatformConfiguration from './PlatformConfiguration';
 import SwamjiAvatarPreview from './SwamjiAvatarPreview';
 import MarketingAgentChat from './MarketingAgentChat';
+import MasterAvatarManager from './MasterAvatarManager';
 
 const SocialMediaMarketing = () => {
   const [activeTab, setActiveTab] = useState('overview');
@@ -195,7 +196,10 @@ const SocialMediaMarketing = () => {
       )}
 
       {activeTab === 'avatar' && (
-        <SwamjiAvatarPreview />
+        <div className="space-y-6">
+          <MasterAvatarManager />
+          <SwamjiAvatarPreview />
+        </div>
       )}
     </div>
   );
