@@ -21,8 +21,7 @@ from typing import Optional, Tuple, List
 from PIL import Image, ImageDraw, ImageOps, ImageFilter, ImageEnhance
 import io
 import numpy as np
-import cv2
-from scipy import ndimage
+import face_recognition
 
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 from services.controlnet_service import ControlNetService, get_controlnet_service
@@ -226,14 +225,8 @@ class ThemeService:
         self.storage_service = storage_service
         self.db_conn = db_conn
         
-        # Load the Haar Cascade for face detection once during initialization
-        cascade_path = os.path.join(os.path.dirname(__file__), '..', 'assets', 'haarcascade_frontalface_default.xml')
-        if not os.path.exists(cascade_path):
-            logger.error(f"❌ Haar Cascade file not found at {cascade_path}")
-            self.face_cascade = None
-        else:
-            self.face_cascade = cv2.CascadeClassifier(cascade_path)
-            logger.info("✅ Face detection model (Haar Cascade) loaded successfully.")
+        # No need to load any cascade files for face_recognition library
+        logger.info("✅ ThemeService initialized with Pillow & face_recognition for image processing.")
 
         # 🎯 RUNWARE CONFIGURATION
         try:
@@ -263,54 +256,46 @@ class ThemeService:
 
     async def _crop_to_face(self, image_bytes: bytes) -> bytes:
         """
-        Detects and crops the face from an image using OpenCV Haar Cascade.
-        Adds padding to ensure the cropped area is natural.
-
-        Args:
-            image_bytes: The input image as bytes.
-
-        Returns:
-            Bytes of the cropped face image. Returns original bytes if no face is found.
+        Detects a face using face_recognition and crops it with Pillow.
+        This is a pure Python implementation, avoiding OpenCV.
         """
-        if self.face_cascade is None:
-            logger.warning("⚠️ Face detection model not loaded, returning original image.")
-            return image_bytes
-
         try:
-            # Convert image bytes to an OpenCV image
-            np_arr = np.frombuffer(image_bytes, np.uint8)
-            img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-            gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            image = face_recognition.load_image_file(io.BytesIO(image_bytes))
+            face_locations = face_recognition.face_locations(image)
 
-            # Detect faces
-            faces = self.face_cascade.detectMultiScale(gray, 1.1, 4)
-
-            if len(faces) == 0:
-                logger.warning("⚠️ No face detected, returning original image for reference.")
+            if not face_locations:
+                logger.warning("⚠️ No face detected using face_recognition, returning original image.")
                 return image_bytes
 
-            # Use the largest detected face
-            x, y, w, h = sorted(faces, key=lambda f: f[2] * f[3], reverse=True)[0]
+            # Get the first face found
+            top, right, bottom, left = face_locations[0]
 
             # Add padding to the crop
-            padding_w = int(w * 0.4)  # 40% horizontal padding
-            padding_h = int(h * 0.4)  # 40% vertical padding
-            x1 = max(0, x - padding_w)
-            y1 = max(0, y - padding_h)
-            x2 = min(img.shape[1], x + w + padding_w)
-            y2 = min(img.shape[0], y + h + padding_h)
+            padding_w = int((right - left) * 0.4)
+            padding_h = int((bottom - top) * 0.4)
 
-            cropped_face = img[y1:y2, x1:x2]
+            # Open image with Pillow to crop
+            pil_image = Image.open(io.BytesIO(image_bytes))
+            width, height = pil_image.size
+
+            # Ensure coordinates are within image bounds
+            left = max(0, left - padding_w)
+            top = max(0, top - padding_h)
+            right = min(width, right + padding_w)
+            bottom = min(height, bottom + padding_h)
+            
+            cropped_face_pil = pil_image.crop((left, top, right, bottom))
 
             # Convert cropped image back to bytes
-            _, buffer = cv2.imencode('.png', cropped_face)
-            cropped_bytes = buffer.tobytes()
+            with io.BytesIO() as output:
+                cropped_face_pil.save(output, format="PNG")
+                cropped_bytes = output.getvalue()
 
-            logger.info(f"✅ Face detected and cropped successfully. Original size: {len(image_bytes)/1024:.1f}KB, Cropped size: {len(cropped_bytes)/1024:.1f}KB")
+            logger.info(f"✅ Face detected and cropped with face_recognition/Pillow. Cropped size: {len(cropped_bytes)/1024:.1f}KB")
             return cropped_bytes
 
         except Exception as e:
-            logger.error(f"❌ Error during face cropping: {e}", exc_info=True)
+            logger.error(f"❌ Error during face cropping with face_recognition: {e}", exc_info=True)
             return image_bytes # Fallback to original image on error
     
     def _sanitize_prompt_input(self, text: str, max_length: int = 250) -> str:
