@@ -1174,7 +1174,7 @@ class TestExecutionEngine:
             logger.info("Initializing test suites using TestSuiteGenerator...")
             generator = TestSuiteGenerator()
             
-            # Generate all test  suites
+            # Generate all test suites
             test_suites = await generator.generate_all_test_suites()
             
             # Store test suites in database
@@ -1314,12 +1314,25 @@ class TestExecutionEngine:
             
             try:
                 # Get health check configurations from database
-                results = await conn.fetch('''
-                    SELECT test_name, test_function, display_name, description, priority, timeout_seconds
-                    FROM health_check_configurations
-                    WHERE enabled = true
-                    ORDER BY order_index, test_name
-                ''')
+                try:
+                    # Try to query with display_name column (new schema)
+                    results = await conn.fetch('''
+                        SELECT test_name, test_function, display_name, description, priority, timeout_seconds
+                        FROM health_check_configurations
+                        WHERE enabled = true
+                        ORDER BY order_index, test_name
+                    ''')
+                except asyncpg.UndefinedColumnError:
+                    # Fallback for older databases without display_name column
+                    logger.info("display_name column not found, falling back to existing columns")
+                    results = await conn.fetch('''
+                        SELECT test_name, test_function, description, priority, timeout_seconds
+                        FROM health_check_configurations
+                        WHERE enabled = true
+                        ORDER BY order_index, test_name
+                    ''')
+                    # Set display_name = test_name for backward compatibility
+                    results = [dict(row, display_name=row['test_name']) for row in results]
                 
                 health_checks = []
                 for row in results:
