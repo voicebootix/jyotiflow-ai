@@ -16,13 +16,14 @@ const MasterAvatarManager = () => {
     setCandidates([]);
     try {
       const response = await enhanced_api.generateAvatarCandidates();
-      if (response.data.success) {
-        setCandidates(response.data.data.candidate_urls || []);
+      // 🛡️ Robust response handling
+      if (response?.success && Array.isArray(response?.data?.candidate_urls)) {
+        setCandidates(response.data.candidate_urls);
       } else {
-        setError('Failed to generate candidates. Please check the logs.');
+        setError(response?.message || 'Failed to generate candidates. Response was invalid.');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'An unexpected error occurred.');
+      setError('A critical client-side error occurred.');
       console.error("Error generating candidates:", err);
     }
     setIsLoading(false);
@@ -34,14 +35,16 @@ const MasterAvatarManager = () => {
     setSuccess(null);
     try {
       const response = await enhanced_api.setMasterAvatar({ image_url: imageUrl });
-      if (response.data.success) {
-        setSuccess(`Successfully set new master avatar! New URL: ${response.data.data.new_avatar_url}`);
+      // 🛡️ Robust response handling
+      if (response?.success) {
+        const newUrl = response?.data?.new_avatar_url || 'N/A';
+        setSuccess(`Successfully set new master avatar! New URL: ${newUrl}`);
         // Optionally, you can refresh the main avatar preview here if needed
       } else {
-        setError('Failed to set master avatar. Please try again.');
+        setError(response?.message || 'Failed to set master avatar. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'An unexpected error occurred while setting the master avatar.');
+      setError('A critical client-side error occurred while setting the master avatar.');
       console.error("Error setting master avatar:", err);
     }
     setIsLoading(false);
