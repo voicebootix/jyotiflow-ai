@@ -19,7 +19,6 @@ import json
 import base64
 from typing import Optional, Tuple, List
 import io
-import numpy as np
 from PIL import Image
 
 from services.supabase_storage_service import SupabaseStorageService, get_storage_service
