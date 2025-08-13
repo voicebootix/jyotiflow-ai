@@ -234,16 +234,16 @@ async def generate_avatar_candidates(
     """
     try:
         candidate_prompts = [
-            "A photorealistic, high-resolution portrait of a wise Indian spiritual master, in a serene ashram, morning light, 4K, sharp focus.",
-            "Close-up portrait of a thoughtful spiritual guru from India, with a gentle smile, in a library of ancient texts, cinematic lighting.",
-            "Photorealistic portrait of a joyful Indian Swamiji, looking directly at the camera, in a vibrant temple courtyard, detailed features.",
-            "A wise spiritual master from India meditating under a banyan tree, serene expression, soft side lighting, ultra-realistic.",
-            "Headshot of an enlightened Indian guru, with deep thoughtful eyes, against a simple, clean studio background, professional portrait.",
-            "A compassionate Indian spiritual teacher, giving a blessing, warm indoor lighting, intricate details in clothing, photorealistic.",
-            "Portrait of an elderly Indian Swamiji, with a long white beard, in a peaceful garden, golden hour sunlight, hyper-detailed.",
-            "Front-facing portrait of a serene Indian spiritual leader, against a backdrop of the Himalayas, clear and crisp details, 8K.",
-            "A powerful portrait of a spiritual guru from India, exuding wisdom, in a traditional setting, dramatic lighting.",
-            "Studio portrait of a smiling Indian Swamiji, looking approachable and kind, against a neutral grey background, high resolution."
+            "A photorealistic, high-resolution portrait of a youthful Indian spiritual master in his 30s, exuding vibrant energy, in a serene ashram, morning light, 4K, sharp focus.",
+            "Close-up portrait of a dynamic spiritual guru from India in his late 20s, with a bright, engaging smile, in a modern library of spiritual texts, cinematic lighting.",
+            "Photorealistic portrait of a joyful, energetic young Indian Swamiji, looking directly at the camera, in a vibrant temple courtyard, detailed features, youthful glow.",
+            "A youthful spiritual master from India meditating under a banyan tree, focused expression, soft side lighting, ultra-realistic, healthy skin.",
+            "Headshot of an enlightened young Indian guru in his early 30s, with clear, bright eyes, against a simple, clean studio background, professional portrait.",
+            "A compassionate young Indian spiritual teacher, giving a blessing with energetic hands, warm indoor lighting, modern yet traditional clothing, photorealistic.",
+            "Portrait of a youthful Indian Swamiji with a well-groomed short black beard, in a peaceful garden, golden hour sunlight, hyper-detailed, looking approachable.",
+            "Front-facing portrait of a serene but powerful young Indian spiritual leader, against a backdrop of the Himalayas, clear and crisp details, 8K, looking strong and healthy.",
+            "A powerful portrait of a young spiritual guru from India in his 30s, exuding confidence and wisdom, in a traditional setting, dramatic lighting.",
+            "Studio portrait of a smiling young Indian Swamiji, looking approachable and kind, against a neutral grey background, high resolution, exuding positivity."
         ]
 
         import asyncio
