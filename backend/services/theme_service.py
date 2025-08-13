@@ -189,7 +189,7 @@ class RunWareService:
         self,
         face_image_bytes: bytes,
         prompt: str,
-        negative_prompt: str = "",
+        negative_prompt: str = "ugly, deformed, noisy, blurry, low contrast, text, signature, watermark, extra limbs, extra fingers, cartoon, anime, painting",
         width: int = 1024,
         height: int = 1024,
         steps: int = 40,
