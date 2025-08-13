@@ -446,6 +446,16 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
                 cfg_scale=18.0, # CORE FIX: Increased strictness to force prompt adherence for color.
             )
 
+            # --- DIAGNOSTIC CODE START ---
+            try:
+                temp_filename = f"step1_scene_{uuid.uuid4()}.png"
+                temp_path = f"temp_scenes/{temp_filename}"
+                scene_url = self.storage_service.upload_file("avatars", temp_path, scene_bytes, "image/png")
+                logger.info(f"🔍 DIAGNOSTIC: Step 1 scene saved to temporary URL: {scene_url}")
+            except Exception as e:
+                logger.error(f"❌ DIAGNOSTIC: Failed to upload Step 1 scene for inspection: {e}")
+            # --- DIAGNOSTIC CODE END ---
+
             # FINAL FIX V2: The grayscale experiment was a failure. It forced the AI to generate
             # B&W images. Removing it completely to allow color generation.
             # The color bleed issue will be controlled by a lower `strength` parameter in Step 2.
