@@ -16,13 +16,14 @@ const MasterAvatarManager = () => {
     setCandidates([]);
     try {
       const response = await enhanced_api.generateAvatarCandidates();
-      if (response.data.success) {
-        setCandidates(response.data.data.candidate_urls || []);
+      if (response.success) {
+        setCandidates(response.data.candidate_urls || []);
       } else {
-        setError('Failed to generate candidates. Please check the logs.');
+        setError(response.message || 'Failed to generate candidates. Please check the logs.');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'An unexpected error occurred.');
+      // This catch block might not be hit if enhanced_api handles all errors, but it's good practice to keep it.
+      setError('An unexpected client-side error occurred.');
       console.error("Error generating candidates:", err);
     }
     setIsLoading(false);
@@ -34,14 +35,14 @@ const MasterAvatarManager = () => {
     setSuccess(null);
     try {
       const response = await enhanced_api.setMasterAvatar({ image_url: imageUrl });
-      if (response.data.success) {
-        setSuccess(`Successfully set new master avatar! New URL: ${response.data.data.new_avatar_url}`);
+      if (response.success) {
+        setSuccess(`Successfully set new master avatar! New URL: ${response.data.new_avatar_url}`);
         // Optionally, you can refresh the main avatar preview here if needed
       } else {
-        setError('Failed to set master avatar. Please try again.');
+        setError(response.message || 'Failed to set master avatar. Please try again.');
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'An unexpected error occurred while setting the master avatar.');
+      setError('An unexpected client-side error occurred while setting the master avatar.');
       console.error("Error setting master avatar:", err);
     }
     setIsLoading(false);
