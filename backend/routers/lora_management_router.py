@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Annotated, Literal
 
-from auth.auth_helpers import verify_admin_access_strict
+from auth.auth_helpers import AuthenticationHelper
 from schemas.response import StandardResponse
 
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ class CreateModelRequest(BaseModel):
 @lora_router.post("/create-model", response_model=StandardResponse)
 async def create_replicate_model(
     request: CreateModelRequest,
-    _admin_user: Annotated[dict, Depends(verify_admin_access_strict)]
+    _admin_user: Annotated[dict, Depends(AuthenticationHelper.verify_admin_access_strict)]
 ):
     """
     Creates a new model placeholder on Replicate to be used as a training destination.
