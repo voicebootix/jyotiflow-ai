@@ -308,6 +308,10 @@ class EnhancedAPI {
     return this.post('/api/admin/lora/create-model', data);
   }
 
+  async prepareTrainingUpload() {
+    return this.post('/api/admin/lora/prepare-training-upload', {});
+  }
+
   // Agent Chat
   async sendAgentMessage(message) {
     return this.post('/api/admin/social-marketing/agent-chat', { message });
