@@ -162,8 +162,8 @@ const LoraTrainingCenter = () => {
           <p className="text-sm text-gray-600 mt-2">
             View your training progress on Replicate:
           </p>
-          <a href={`https://replicate.com/trainings/${trainingJob.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
-            {`https://replicate.com/trainings/${trainingJob.id}`}
+          <a href={`https://replicate.com/p/${trainingJob.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all">
+            {`https://replicate.com/p/${trainingJob.id}`}
           </a>
           <pre className="text-xs bg-gray-900 text-white p-3 rounded-md mt-2 overflow-x-auto">
             {JSON.stringify(trainingJob, null, 2)}
