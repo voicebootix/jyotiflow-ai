@@ -37,7 +37,7 @@ const LoraTrainingCenter = () => {
     setError(null);
     setSuccess(null);
     try {
-      const response = await enhanced_api.createLoraModel();
+      const response = await enhanced_api.createLoraModel({ owner: 'voicebootix' });
       if (response?.success) {
         setModelData(response.data);
         setSuccess(response.message);
