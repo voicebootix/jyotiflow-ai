@@ -505,7 +505,7 @@ app.include_router(admin_integrations.router)
 app.include_router(social_marketing_router)
 print("✅ Social media marketing router registered")
 app.include_router(lora_router, prefix="/api/admin/lora", tags=["Lora Management"])
-print("✅ LoRA management router registered.")
+print("✅ LoRA management router (V2) registered.")
 
 
 # Enhanced spiritual guidance router

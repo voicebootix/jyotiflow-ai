@@ -46,3 +46,6 @@ venv/
 # Temporary files
 *.tmp
 *.temp
+
+# Explicitly ignore frontend node_modules
+frontend/node_modules/

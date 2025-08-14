@@ -200,7 +200,7 @@ const SocialMediaMarketing = () => {
       {activeTab === 'avatar' && (
         <div className="space-y-6">
           <MasterAvatarManager />
-          <SwamjiAvatarPreview />
+        <SwamjiAvatarPreview />
         </div>
       )}
       
