@@ -68,6 +68,9 @@ async def create_replicate_model(
             logger.info(f"Successfully created Replicate model: {created_model_data.get('url')}")
             return StandardResponse(success=True, message=f"Successfully created Replicate model '{request.owner}/{request.model_name}'.", data=created_model_data)
 
+    except httpx.RequestError as e:
+        logger.error(f"Upstream network error while contacting replicate service: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Upstream network error while contacting replicate service.") from e
     except httpx.HTTPStatusError as e:
         logger.error(f"Failed to create Replicate model. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Upstream service returned status {e.response.status_code}. See logs for details.") from e
@@ -112,7 +115,10 @@ async def prepare_training_upload(
             serving_url = upload_data.get("serving_url")
 
             if not upload_url or not serving_url:
-                logger.error(f"Incomplete upload data from Replicate: {upload_data}")
+                missing_keys = []
+                if not upload_url: missing_keys.append("upload_url")
+                if not serving_url: missing_keys.append("serving_url")
+                logger.error(f"Incomplete upload data from Replicate. Missing keys: {', '.join(missing_keys)}")
                 return StandardResponse(
                     success=False,
                     message="Incomplete upload data received from Replicate. Cannot proceed.",
@@ -131,6 +137,9 @@ async def prepare_training_upload(
     except httpx.TimeoutException as e:
         logger.error(f"Upstream service timed out while preparing upload: {e}", exc_info=True)
         raise HTTPException(status_code=504, detail="Upstream service timed out while preparing upload.") from e
+    except httpx.RequestError as e:
+        logger.error(f"Upstream network error while preparing upload: {e}", exc_info=True)
+        raise HTTPException(status_code=502, detail="Upstream network error while preparing upload.") from e
     except httpx.HTTPStatusError as e:
         logger.error(f"Failed to get upload URL from Replicate. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to get upload URL. Upstream service returned status {e.response.status_code}.") from e
