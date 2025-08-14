@@ -46,3 +46,10 @@ venv/
 # Temporary files
 *.tmp
 *.temp
+
+# Explicitly ignore frontend node_modules
+frontend/node_modules/
+
+# Ignore specific junk files at the root
+/sue was caused by the temporary diagnostic code that called on line 58. This method was failing on the Render platform, causing the SystemError before cv2.CascadeClassifier could even be instantiated.
+/terjyotiflow-ai && python -c

@@ -184,7 +184,7 @@ class RunWareService:
         except Exception as e:
             logger.error(f"❌ Unexpected error during face refinement: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred during face refinement.")
-
+    
     async def generate_variation_from_face(
         self,
         face_image_bytes: bytes,
@@ -287,7 +287,7 @@ class ThemeService:
         self.db_conn = db_conn
         
         logger.info("✅ ThemeService initialized with Pillow for image processing.")
-
+        
         # 🎯 RUNWARE CONFIGURATION
         try:
             from core_foundation_enhanced import EnhancedSettings
@@ -527,7 +527,7 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             logger.error(f"❌ RunWare generation failed: {e}", exc_info=True)
             # Re-raise the exception to be handled by the calling method
             raise
-    
+
     async def _get_base_image_data(self) -> tuple[bytes, str]:
         """
         Fetches the uploaded Swamiji image URL from the DB, downloads the image,
