@@ -1380,46 +1380,91 @@ async def execute_test(request: dict):
             data={}
         )
 
-@router.post("/clear-cached-tests")
-async def clear_cached_test_suites():
-    """Clear cached test suites to force regeneration with latest code (owner management endpoint)"""
-    try:
-        from test_execution_engine import TestExecutionEngine
-        
-        engine = TestExecutionEngine()
-        success = await engine.clear_cached_test_suites()
-        
-        if success:
-            return StandardResponse(
-                status="success",
-                message="Cached test suites cleared successfully. Next test run will use latest database-driven code.",
-                data={"cache_cleared": True, "regeneration_required": True}
-            )
-        else:
-            return StandardResponse(
-                status="error",
-                message="Failed to clear cached test suites",
-                data={"cache_cleared": False}
-            )
-            
-    except Exception as e:
-        logger.error(f"Failed to clear cached test suites: {e}")
-        return StandardResponse(
-            status="error",
-            message=f"Error clearing cached test suites: {str(e)}",
-            data={"cache_cleared": False}
-        )
-
 @router.get("/test-suites")
 async def get_available_test_suites():
-    """Get all available test suites from test_case_results table (public endpoint, database-driven)"""
+    """Get all available test suites - database-driven discovery from TestSuiteGenerator"""
     try:
+        # Method 1: Get available test suites from TestSuiteGenerator (primary source)
+        try:
+            comprehensive_tests = await monitoring_dashboard.get_comprehensive_test_definitions()
+            if comprehensive_tests:
+                logger.info(f"Using TestSuiteGenerator - found {len(comprehensive_tests)} test suites")
+                
+                # Convert to the format expected by the frontend
+                categorized_suites = {}
+                
+                for test_suite in comprehensive_tests:
+                    test_category = test_suite.get("test_category", "unknown")
+                    suite_name = test_suite.get("suite_display_name", test_category.replace("_", " ").title())
+                    priority = test_suite.get("priority", "medium")
+                    
+                    # Determine frontend category grouping based on test_category patterns (database-driven)
+                    if any(keyword in test_category.lower() for keyword in ['database', 'api', 'security', 'integration', 'performance', 'auto_healing']):
+                        frontend_category = 'Core Platform'
+                    elif any(keyword in test_category.lower() for keyword in ['payment', 'spiritual', 'avatar']):
+                        frontend_category = 'Revenue Critical'
+                    elif any(keyword in test_category.lower() for keyword in ['live', 'social', 'media']):
+                        frontend_category = 'Communication'
+                    elif any(keyword in test_category.lower() for keyword in ['user', 'community', 'notification']):
+                        frontend_category = 'User Experience'
+                    elif any(keyword in test_category.lower() for keyword in ['admin', 'monitoring', 'business']):
+                        frontend_category = 'Business Management'
+                    else:
+                        frontend_category = 'Other Services'
+                    
+                    # Determine icon based on test_category patterns
+                    icon_mapping = {
+                        'database': '🗄️', 'api': '🔌', 'security': '🔒', 'integration': '🔗',
+                        'performance': '⚡', 'auto_healing': '🔄', 'payment': '💳', 'spiritual': '🕉️',
+                        'avatar': '🎭', 'live_media': '📹', 'social_media': '📱', 'user_mgmt': '👤',
+                        'community': '🤝', 'notifications': '🔔', 'admin': '⚙️', 'monitoring': '📊'
+                    }
+                    
+                    icon = '🔧'  # default
+                    for keyword, emoji in icon_mapping.items():
+                        if keyword in test_category.lower():
+                            icon = emoji
+                            break
+                    
+                    # Create frontend category if it doesn't exist
+                    if frontend_category not in categorized_suites:
+                        categorized_suites[frontend_category] = {
+                            "category": frontend_category,
+                            "services": []
+                        }
+                    
+                    # Add test suite to appropriate category
+                    categorized_suites[frontend_category]["services"].append({
+                        "title": suite_name,
+                        "testType": test_category,
+                        "icon": icon,
+                        "priority": priority,
+                        "description": test_suite.get("description", suite_name),
+                        "name": test_category,
+                        "timeout_seconds": 300
+                    })
+                
+                # Convert to list format expected by frontend
+                suite_config = list(categorized_suites.values())
+                total_test_suites = len(comprehensive_tests)
+                
+                return StandardResponse(
+                    status="success",
+                    message=f"Retrieved {total_test_suites} test suites from TestSuiteGenerator (database-driven)",
+                    data={
+                        "test_suites": suite_config,
+                        "total_suites": total_test_suites,
+                        "source": "test_suite_generator"
+                    }
+                )
+        except Exception as e:
+            logger.warning(f"TestSuiteGenerator discovery failed: {e}, falling back to database")
+        
+        # Method 2: Fallback to test_case_results table (secondary source)
         conn = await db_manager.get_connection()
         try:
-            # Try to get test suite configurations - wrap in try-catch to handle missing table
             try:
-                # Get exactly 16 test categories from test_case_results table (database-driven)
-                # Limit to 16 most recent/active test categories to match expected count
+                # Get test categories from test_case_results table as fallback
                 test_categories = await conn.fetch("""
                     WITH ranked_categories AS (
                         SELECT 

@@ -3098,6 +3098,30 @@ async def test_admin_api_endpoints_database_driven():
                 LIMIT 50
             ''')
             
+            # PERFORMANCE VERIFICATION: Check if the new partial index is being used
+            # This will log the query plan to verify index usage (only in debug mode)
+            if os.getenv('DEBUG_QUERY_PERFORMANCE', '').lower() == 'true':
+                try:
+                    explain_result = await conn.fetch('''
+                        EXPLAIN (ANALYZE, BUFFERS) 
+                        SELECT 
+                            endpoint,
+                            COUNT(*) as call_count,
+                            AVG(response_time) as avg_response_time
+                        FROM monitoring_api_calls 
+                        WHERE endpoint LIKE '/api/admin/%'
+                        AND timestamp > NOW() - INTERVAL '30 days'
+                        GROUP BY endpoint
+                        LIMIT 10
+                    ''')
+                    print("🔍 Query Plan Analysis:")
+                    for row in explain_result:
+                        plan_line = row[0] if row else ""
+                        if "Index" in plan_line or "Scan" in plan_line:
+                            print(f"   {plan_line}")
+                except Exception as e:
+                    print(f"⚠️ Could not analyze query plan: {e}")
+            
             admin_endpoints = []
             bottleneck_analysis = {
                 "slow_endpoints": [],

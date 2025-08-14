@@ -140,14 +140,18 @@ async def create_monitoring_tables():
             ON integration_validations(session_id);
         """)
         
+        # Optimized partial index for admin endpoint queries with covering columns
         await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_monitoring_api_calls_timestamp
-            ON monitoring_api_calls(timestamp DESC);
+            CREATE INDEX IF NOT EXISTS idx_monitoring_api_calls_admin_partial
+            ON monitoring_api_calls (endpoint, timestamp DESC)
+            INCLUDE (response_time, status_code)
+            WHERE endpoint LIKE '/api/admin/%';
         """)
         
+        # General composite index for other endpoint queries
         await conn.execute("""
-            CREATE INDEX IF NOT EXISTS idx_monitoring_api_calls_endpoint
-            ON monitoring_api_calls(endpoint);
+            CREATE INDEX IF NOT EXISTS idx_monitoring_api_calls_endpoint_timestamp
+            ON monitoring_api_calls(timestamp DESC, endpoint);
         """)
         
         await conn.execute("""
