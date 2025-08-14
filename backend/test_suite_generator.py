@@ -3227,7 +3227,7 @@ async def test_admin_api_endpoints_database_driven():
                 }
             
         finally:
-            await conn.close()
+            pass  # Connection will be closed after telemetry inserts complete
         
         # Execute tests against monitored admin endpoints for current accessibility
         endpoint_results = {}
@@ -3272,7 +3272,7 @@ async def test_admin_api_endpoints_database_driven():
                     except Exception:
                         pass  # Don't fail test if monitoring insert fails
                     
-                    endpoint_results[business_function] = {
+                    endpoint_results[endpoint_path] = {
                         "endpoint_accessible": response.status_code in expected_codes,
                         "status_code": response.status_code,
                         "expected_codes": expected_codes,
@@ -3299,7 +3299,7 @@ async def test_admin_api_endpoints_database_driven():
                         pass  # Don't fail test if monitoring insert fails
                     
                     logger.warning(f"⏱️ Timeout occurred for endpoint {endpoint_path}: {timeout_error} (timeout_seconds={timeout_seconds})")
-                    endpoint_results[business_function] = {
+                    endpoint_results[endpoint_path] = {
                         "endpoint_accessible": False,
                         "error": f"Timeout: {str(timeout_error)}",
                         "error_type": "timeout",
@@ -3327,7 +3327,7 @@ async def test_admin_api_endpoints_database_driven():
                         pass  # Don't fail test if monitoring insert fails
                     
                     logger.warning(f"❌ Error accessing endpoint {endpoint_path}: {endpoint_error} (error_type={error_type})")
-                    endpoint_results[business_function] = {
+                    endpoint_results[endpoint_path] = {
                         "endpoint_accessible": False,
                         "error": str(endpoint_error),
                         "error_type": error_type,
@@ -3345,7 +3345,7 @@ async def test_admin_api_endpoints_database_driven():
         
         # Calculate results using database-configured threshold
         accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
-        total_endpoints = len(admin_endpoints)
+        total_endpoints = len(endpoint_results)
         success_rate = (accessible_endpoints / total_endpoints) * 100 if total_endpoints > 0 else 0
         
         # Calculate business metrics from monitoring data
@@ -3363,6 +3363,12 @@ async def test_admin_api_endpoints_database_driven():
             business_recommendations.append(f"📊 {len(bottleneck_analysis['inconsistent_endpoints'])} admin endpoints have inconsistent response times - optimize for stability")
         if avg_response_time > 500:
             business_recommendations.append("🔧 Overall admin performance is slow - consider system optimization")
+        
+        # DATABASE DRIVEN: Safely close connection after all telemetry inserts are complete
+        try:
+            await conn.close()
+        except Exception:
+            pass  # Swallow close errors to avoid disrupting test results
         
         return {
             "status": "passed" if success_rate >= success_threshold else "failed",
