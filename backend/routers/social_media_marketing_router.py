@@ -509,10 +509,10 @@ async def generate_image_preview(
         if base_image_bytes:
             try:
                 base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
-                base_hash_short = base_hash_full[:16]
-                image_diff = "different" if generated_hash_full != base_hash_full else "same"
+                        base_hash_short = base_hash_full[:16]
+                        image_diff = "different" if generated_hash_full != base_hash_full else "same"
                 logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
-            except Exception as diff_err:
+        except Exception as diff_err:
                 logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
         
         # 🛡️ ENHANCED HTTP header sanitization - CORE.MD: Fix emoji encoding errors
