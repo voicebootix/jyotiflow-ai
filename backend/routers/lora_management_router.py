@@ -70,7 +70,7 @@ async def create_replicate_model(
 
     except httpx.HTTPStatusError as e:
         logger.error(f"Failed to create Replicate model. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Failed to communicate with Replicate API: {e.response.text}") from e
+        raise HTTPException(status_code=502, detail=f"Upstream service returned status {e.response.status_code}. See logs for details.") from e
     except Exception as e:
         logger.error(f"An unexpected error occurred while creating Replicate model: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred.") from e
@@ -107,19 +107,30 @@ async def prepare_training_upload(
             
             upload_data = response.json()
             logger.info("Successfully received upload URLs from Replicate.")
+
+            upload_url = upload_data.get("upload_url")
+            serving_url = upload_data.get("serving_url")
+
+            if not upload_url or not serving_url:
+                logger.error(f"Incomplete upload data from Replicate: {upload_data}")
+                return StandardResponse(
+                    success=False,
+                    message="Incomplete upload data received from Replicate. Cannot proceed.",
+                    data=None
+                )
             
             return StandardResponse(
                 success=True, 
                 message="Upload URL prepared successfully.", 
                 data={
-                    "upload_url": upload_data.get("upload_url"),
-                    "serving_url": upload_data.get("serving_url"),
+                    "upload_url": upload_url,
+                    "serving_url": serving_url,
                 }
             )
 
     except httpx.HTTPStatusError as e:
         logger.error(f"Failed to get upload URL from Replicate. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Failed to communicate with Replicate API for upload URL: {e.response.text}") from e
+        raise HTTPException(status_code=502, detail=f"Failed to get upload URL. Upstream service returned status {e.response.status_code}.") from e
     except Exception as e:
         logger.error(f"An unexpected error occurred while preparing upload: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred while preparing upload.") from e
