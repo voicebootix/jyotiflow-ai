@@ -17,7 +17,8 @@ const LoraTrainingCenter = () => {
 
   const onDrop = useCallback(acceptedFiles => {
     const file = acceptedFiles[0];
-    if (file && file.name === 'swamiji_training_data.zip' && file.type === 'application/zip') {
+    // Loosened validation to only check for filename, as mime type can be inconsistent.
+    if (file && file.name === 'swamiji_training_data.zip') {
       setZipFile(file);
       setError(null);
     } else {
