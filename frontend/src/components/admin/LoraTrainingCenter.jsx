@@ -4,7 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Upload, Rocket, CheckCircle, XCircle, Loader2, BrainCircuit } from 'lucide-react';
-import { enhanced_api } from '@/services/enhanced-api';
+import enhanced_api from '@/services/enhanced-api'; // Corrected: removed curly braces for default import
 import { useDropzone } from 'react-dropzone';
 
 const LoraTrainingCenter = () => {
