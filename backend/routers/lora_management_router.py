@@ -6,20 +6,14 @@ Handles all interactions with the Replicate API for LoRA model training.
 import logging
 import os
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
-import uuid
-import json
 
-from auth.auth_helpers import AuthenticationHelper
+from auth.auth_helpers import verify_admin_access_strict
 from schemas.response import StandardResponse
-from services.supabase_storage_service import SupabaseStorageService, get_storage_service
 
 logger = logging.getLogger(__name__)
-lora_router = APIRouter(
-    prefix="/api/admin/lora",
-    tags=["LoRA Model Management", "Admin"]
-)
+lora_router = APIRouter()
 
 REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
 REPLICATE_BASE_URL = "https://api.replicate.com/v1"
@@ -32,7 +26,7 @@ class CreateModelRequest(BaseModel):
 @lora_router.post("/create-model", response_model=StandardResponse)
 async def create_replicate_model(
     request: CreateModelRequest,
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
+    admin_user: dict = Depends(verify_admin_access_strict)
 ):
     """
     Creates a new model placeholder on Replicate to be used as a training destination.
