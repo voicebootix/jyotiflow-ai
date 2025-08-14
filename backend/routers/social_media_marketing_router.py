@@ -502,6 +502,14 @@ async def generate_image_preview(
         generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
         generated_hash_short = generated_hash_full[:16]
 
+        # Forcing a change to fix git tracking
+        try:
+            # Hash of the base image for comparison
+            base_image_bytes = await get_storage_service().download_public_file_bytes("jyotiflow-bucket", "swamiji_base_avatar.png")
+        except Exception as e:
+            logger.warning(f"Could not download base image for diff check: {e}")
+            base_image_bytes = None # Ensure it's None if download fails
+
         # EFFICIENCY FIX: No need to download the base image again.
         # Compute its hash from the bytes returned by the service.
         image_diff = "unknown"
