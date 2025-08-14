@@ -6,6 +6,7 @@ Handles all interactions with the Replicate API for LoRA model training.
 import logging
 import os
 import httpx
+import uuid # Add uuid for unique filenames
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from typing import Annotated, Literal
@@ -73,3 +74,52 @@ async def create_replicate_model(
     except Exception as e:
         logger.error(f"An unexpected error occurred while creating Replicate model: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred.") from e
+
+@lora_router.post("/prepare-training-upload", response_model=StandardResponse)
+async def prepare_training_upload(
+    _admin_user: Annotated[dict, Depends(AuthenticationHelper.verify_admin_access_strict)]
+):
+    """
+    Requests a signed URL from Replicate to upload the training ZIP file.
+    This is the first step in the upload process.
+    """
+    if not REPLICATE_API_TOKEN:
+        raise HTTPException(status_code=500, detail="REPLICATE_API_TOKEN is not configured.")
+
+    headers = {
+        "Authorization": f"Token {REPLICATE_API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    
+    file_name = f"training-data-{uuid.uuid4()}.zip"
+    payload = {
+        "file_name": file_name,
+        "content_type": "application/zip",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            upload_request_url = f"{REPLICATE_BASE_URL}/uploads"
+            logger.info(f"Requesting upload URL from Replicate for file: {file_name}")
+            
+            response = await client.post(upload_request_url, headers=headers, json=payload)
+            response.raise_for_status()
+            
+            upload_data = response.json()
+            logger.info("Successfully received upload URLs from Replicate.")
+            
+            return StandardResponse(
+                success=True, 
+                message="Upload URL prepared successfully.", 
+                data={
+                    "upload_url": upload_data.get("upload_url"),
+                    "serving_url": upload_data.get("serving_url"),
+                }
+            )
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Failed to get upload URL from Replicate. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Failed to communicate with Replicate API for upload URL: {e.response.text}") from e
+    except Exception as e:
+        logger.error(f"An unexpected error occurred while preparing upload: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while preparing upload.") from e
