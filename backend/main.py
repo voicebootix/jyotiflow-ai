@@ -89,6 +89,7 @@ from routers import auth, user, spiritual, sessions, followup, donations, credit
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
 from routers import admin_overview, admin_integrations
 from routers import content, ai, community, session_analytics
+from routers.lora_management_router import lora_router # LoRA Model Management
 import db
 
 # Import the migration runner
@@ -503,6 +504,9 @@ app.include_router(admin_integrations.router)
 # CORE.MD: Group all marketing-related routers together for clarity.
 app.include_router(social_marketing_router)
 print("✅ Social media marketing router registered")
+app.include_router(lora_router) # LoRA Model Management
+print("✅ LoRA management router registered.")
+
 
 # Enhanced spiritual guidance router
 if ENHANCED_ROUTER_AVAILABLE:

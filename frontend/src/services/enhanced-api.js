@@ -303,6 +303,11 @@ class EnhancedAPI {
     return this.post('/api/admin/social-marketing/generate-training-variations', data);
   }
 
+  // Lora Training API Methods
+  async createLoraModel() {
+    return this.post('/api/admin/lora/create-model', {});
+  }
+
   // Agent Chat
   async sendAgentMessage(message) {
     return this.post('/api/admin/social-marketing/agent-chat', { message });
