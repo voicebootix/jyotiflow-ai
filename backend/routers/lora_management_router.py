@@ -48,10 +48,10 @@ async def create_replicate_model(
     }
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=30.0) as client:
             model_url = f"{REPLICATE_BASE_URL}/models"
             logger.info(f"Attempting to create Replicate model: {request.owner}/{request.model_name}")
-            response = await client.post(model_url, headers=headers, json=payload, timeout=30.0)
+            response = await client.post(model_url, headers=headers, json=payload)
             
             # Replicate returns 409 Conflict if model already exists, which is a success case for us.
             if response.status_code == 409:
