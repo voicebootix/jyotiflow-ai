@@ -304,8 +304,8 @@ class EnhancedAPI {
   }
 
   // Lora Training API Methods
-  async createLoraModel() {
-    return this.post('/api/admin/lora/create-model', {});
+  async createLoraModel(data) {
+    return this.post('/api/admin/lora/create-model', data);
   }
 
   // Agent Chat
