@@ -43,35 +43,44 @@ const LoraTrainingCenter = () => {
       return;
     }
 
-    const trimmedUrl = trainingDataUrl.trim();
+    setLoading(true);
+    setError(null);
+    setSuccess(null); // Clear previous success messages
+    setTrainingJob(null);
+ 
+    const trimmedUrl = trainingDataUrl.trim(); // Trim whitespace
     if (!trimmedUrl) {
-      setError("Please provide a public URL for the training data ZIP file.");
+      setError('Please provide a URL.');
+      setLoading(false);
       return;
     }
-
+ 
     try {
+      // URL validation now happens within the try block
       const url = new URL(trimmedUrl);
-      if (url.protocol !== 'https:' || !url.pathname.toLowerCase().endsWith('.zip')) {
-        setError("Invalid URL. Please provide a public HTTPS URL that points directly to a .zip file.");
+      if (url.protocol !== 'https:') {
+        setError('Invalid URL. Please provide a public HTTPS URL.');
+        setLoading(false);
         return;
       }
-    } catch (e) {
-      setError("Invalid URL format. Please enter a full and valid URL (e.g., https://...).");
+    } catch (error) {
+      setError('Invalid URL format. Please enter a full, valid URL.');
+      setLoading(false);
       return;
     }
-    
+ 
+    const payload = {
+      model_owner: modelData.owner,
+      model_name: modelData.name,
+      training_data_url: trimmedUrl, // Now trimmedUrl is accessible here
+    };
+ 
     setIsLoading(true);
     setLoadingMessage("Starting the training job on Replicate...");
     setError(null);
     setSuccess(null);
 
     try {
-      const payload = {
-        model_owner: modelData.owner,
-        model_name: modelData.name,
-        training_data_url: trimmedUrl
-      };
-
       const response = await enhanced_api.startTrainingJob(payload);
       
       if (response?.success) {
