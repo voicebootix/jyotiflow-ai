@@ -8,7 +8,7 @@ import os
 import httpx
 import uuid # Add uuid for unique filenames
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, HttpUrl
 from typing import Annotated, Literal
 
 from auth.auth_helpers import AuthenticationHelper
@@ -25,6 +25,12 @@ class CreateModelRequest(BaseModel):
     model_name: str = Field("swamiji-lora-model", description="The name for the new model.")
     visibility: Literal["public", "private"] = Field("private", description="Visibility of the model ('public' or 'private').")
     hardware: str = Field("gpu-t4", description="Hardware SKU for the model. Changed from gpu-a40-large.")
+
+class StartTrainingRequest(BaseModel):
+    model_owner: str = Field(..., description="The Replicate username or organization that owns the model.")
+    model_name: str = Field(..., description="The name of the model to be trained.")
+    training_data_url: HttpUrl = Field(..., description="A public URL to a ZIP file containing the training data.")
+    instance_prompt: str = Field("a photo of an ohmjyotiswamiji person", description="The prompt to identify the training subject.")
 
 @lora_router.post("/create-model", response_model=StandardResponse)
 async def create_replicate_model(
@@ -78,13 +84,13 @@ async def create_replicate_model(
         logger.error(f"An unexpected error occurred while creating Replicate model: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="An unexpected error occurred.") from e
 
-@lora_router.post("/prepare-training-upload", response_model=StandardResponse)
-async def prepare_training_upload(
+@lora_router.post("/start-training", response_model=StandardResponse)
+async def start_training_job(
+    request: StartTrainingRequest,
     _admin_user: Annotated[dict, Depends(AuthenticationHelper.verify_admin_access_strict)]
 ):
     """
-    Requests a signed URL from Replicate to upload the training ZIP file.
-    This is the first step in the upload process.
+    Starts a new LoRA training job on Replicate using a public URL to the training data.
     """
     if not REPLICATE_API_TOKEN:
         raise HTTPException(status_code=500, detail="REPLICATE_API_TOKEN is not configured.")
@@ -94,62 +100,36 @@ async def prepare_training_upload(
         "Content-Type": "application/json",
     }
     
-    file_name = f"training-data-{uuid.uuid4()}.zip"
-    payload = {
-        "filename": file_name, # Corrected from file_name
-        "content_type": "application/zip",
+    # This is a common structure for LoRA training on Replicate
+    # We are calling the main "trainings" endpoint
+    training_payload = {
+        "destination": f"{request.model_owner}/{request.model_name}",
+        "input": {
+            "instance_prompt": request.instance_prompt,
+            "instance_data": str(request.training_data_url)
+        }
     }
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            upload_request_url = f"{REPLICATE_BASE_URL}/uploads"
-            logger.info(f"Requesting upload URL from Replicate for file: {file_name}")
+            trainings_url = f"{REPLICATE_BASE_URL}/trainings"
+            logger.info(f"Starting training for model: {training_payload['destination']}")
             
-            response = await client.post(upload_request_url, headers=headers, json=payload)
+            response = await client.post(trainings_url, headers=headers, json=training_payload)
             response.raise_for_status()
             
-            upload_data = response.json()
-            logger.info("Successfully received upload URLs from Replicate.")
-
-            upload_url = upload_data.get("upload_url")
-            serving_url = upload_data.get("serving_url") or upload_data.get("file_url") # Fallback to file_url
-            fields = upload_data.get("fields")
-
-            if not upload_url or not serving_url:
-                missing_keys = []
-                if not upload_url:
-                    missing_keys.append("upload_url")
-                if not serving_url:
-                    missing_keys.append("serving_url/file_url")
-                logger.error(f"Incomplete upload data from Replicate. Missing required keys: {', '.join(missing_keys)}")
-                return StandardResponse(
-                    success=False,
-                    message="Incomplete upload data received from Replicate. Cannot proceed.",
-                    data=None
-                )
+            training_data = response.json()
+            logger.info(f"Successfully started training job. Job ID: {training_data.get('id')}")
             
-            response_data = {
-                "upload_url": upload_url,
-                "serving_url": serving_url,
-            }
-            if fields:
-                response_data["fields"] = fields
-
             return StandardResponse(
                 success=True, 
-                message="Upload URL prepared successfully.", 
-                data=response_data
+                message="Training job started successfully.", 
+                data=training_data
             )
 
-    except httpx.TimeoutException as e:
-        logger.error(f"Upstream service timed out while preparing upload: {e}", exc_info=True)
-        raise HTTPException(status_code=504, detail="Upstream service timed out while preparing upload.") from e
-    except httpx.RequestError as e:
-        logger.error(f"Upstream network error while preparing upload: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail="Upstream network error while preparing upload.") from e
     except httpx.HTTPStatusError as e:
-        logger.error(f"Failed to get upload URL from Replicate. Status: {e.response.status_code}", exc_info=True)
-        raise HTTPException(status_code=502, detail=f"Failed to get upload URL. Upstream service returned status {e.response.status_code}.") from e
+        logger.error(f"Failed to start training job. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
+        raise HTTPException(status_code=502, detail=f"Failed to start training on Replicate. Upstream service returned status {e.response.status_code}.") from e
     except Exception as e:
-        logger.error(f"An unexpected error occurred while preparing upload: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while preparing upload.") from e
+        logger.error(f"An unexpected error occurred while starting training: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="An unexpected error occurred while starting training.") from e

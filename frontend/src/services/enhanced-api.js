@@ -308,6 +308,10 @@ class EnhancedAPI {
     return this.post('/api/admin/lora/create-model', data);
   }
 
+  async startTrainingJob(data) {
+    return this.post('/api/admin/lora/start-training', data);
+  }
+
   async prepareTrainingUpload() {
     return this.post('/api/admin/lora/prepare-training-upload', {});
   }
