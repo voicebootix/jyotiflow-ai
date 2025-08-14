@@ -3078,47 +3078,109 @@ async def test_admin_api_endpoints_database_driven():
             timeout_seconds = test_config.get('timeout_seconds', 30)
             expected_codes = test_config.get('expected_codes', [200, 401, 403, 307])
             
-            # DATABASE DRIVEN: Get admin endpoints from platform_settings table
-            endpoints_row = await conn.fetchrow('''
-                SELECT value FROM platform_settings 
-                WHERE key = 'admin_endpoints_config'
+            # DATABASE DRIVEN: Get admin endpoints from monitoring_api_calls table for bottleneck detection
+            admin_endpoints_data = await conn.fetch('''
+                SELECT 
+                    endpoint,
+                    COUNT(*) as call_count,
+                    AVG(response_time) as avg_response_time,
+                    STDDEV(response_time) as response_time_stddev,
+                    AVG(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1.0 ELSE 0.0 END) * 100 as success_rate,
+                    MAX(timestamp) as last_called,
+                    MIN(timestamp) as first_called,
+                    COUNT(DISTINCT DATE(timestamp)) as active_days
+                FROM monitoring_api_calls 
+                WHERE endpoint LIKE '/api/admin/%'
+                AND timestamp > NOW() - INTERVAL '30 days'
+                GROUP BY endpoint
+                HAVING COUNT(*) >= 1
+                ORDER BY call_count DESC
+                LIMIT 50
             ''')
             
-            if endpoints_row and endpoints_row['value']:
-                # Parse stored endpoints from database
-                endpoints_config = json.loads(endpoints_row['value']) if isinstance(endpoints_row['value'], str) else endpoints_row['value']
-                admin_endpoints = endpoints_config.get('endpoints', [])
-            else:
-                # Initialize database with actual admin endpoints from your business system
-                admin_endpoints = [
-                    {"path": "/api/admin/analytics/overview", "name": "Admin Analytics", "business_function": "Analytics Dashboard"},
-                    {"path": "/api/admin/products", "name": "Admin Products", "business_function": "Product Management"},
-                    {"path": "/api/admin/products/service-types", "name": "Service Types", "business_function": "Service Management"},
-                    {"path": "/api/admin/products/credit-packages", "name": "Credit Packages", "business_function": "Credit Management"},
-                    {"path": "/api/admin/products/donations", "name": "Donations", "business_function": "Donation Management"},
-                    {"path": "/api/admin/products/pricing-config", "name": "Pricing Config", "business_function": "Pricing Management"},
-                    {"path": "/api/admin/social-marketing/overview", "name": "Social Marketing", "business_function": "Marketing Dashboard"},
-                    {"path": "/api/admin/users", "name": "User Management", "business_function": "User Administration"}
-                ]
-                
-                # Store endpoints in database for future use
-                endpoints_config = {
-                    "endpoints": admin_endpoints,
-                    "last_updated": "business_operations_init",
-                    "source": "admin_business_functions",
-                    "owner_managed": True
+            admin_endpoints = []
+            bottleneck_analysis = {
+                "slow_endpoints": [],
+                "failing_endpoints": [], 
+                "high_traffic_endpoints": [],
+                "inconsistent_endpoints": []
+            }
+            
+            if admin_endpoints_data:
+                for row in admin_endpoints_data:
+                    endpoint_path = row['endpoint']
+                    call_count = row['call_count']
+                    avg_response_time = float(row['avg_response_time']) if row['avg_response_time'] else 0
+                    response_time_stddev = float(row['response_time_stddev']) if row['response_time_stddev'] else 0
+                    success_rate = float(row['success_rate']) if row['success_rate'] else 0
+                    
+                    # Extract business function from endpoint path
+                    path_parts = endpoint_path.split('/')
+                    if len(path_parts) >= 4:  # /api/admin/something
+                        business_function = f"Admin {path_parts[3].replace('-', ' ').title()}"
+                    else:
+                        business_function = "Admin Service"
+                    
+                    endpoint_info = {
+                        "path": endpoint_path,
+                        "name": path_parts[-1] if path_parts else "admin",
+                        "business_function": business_function,
+                        "call_count": call_count,
+                        "avg_response_time": avg_response_time,
+                        "response_time_stddev": response_time_stddev,
+                        "success_rate": success_rate,
+                        "last_called": row['last_called'].isoformat() if row['last_called'] else None,
+                        "first_called": row['first_called'].isoformat() if row['first_called'] else None,
+                        "active_days": row['active_days']
+                    }
+                    
+                    admin_endpoints.append(endpoint_info)
+                    
+                    # BOTTLENECK DETECTION: Analyze performance issues
+                    if avg_response_time > 1000:  # > 1 second
+                        bottleneck_analysis["slow_endpoints"].append({
+                            "endpoint": endpoint_path,
+                            "avg_response_time": avg_response_time,
+                            "business_function": business_function
+                        })
+                    
+                    if success_rate < 90:  # < 90% success rate
+                        bottleneck_analysis["failing_endpoints"].append({
+                            "endpoint": endpoint_path,
+                            "success_rate": success_rate,
+                            "business_function": business_function
+                        })
+                    
+                    if call_count > 100:  # High traffic
+                        bottleneck_analysis["high_traffic_endpoints"].append({
+                            "endpoint": endpoint_path,
+                            "call_count": call_count,
+                            "business_function": business_function
+                        })
+                    
+                    if response_time_stddev > 500:  # Inconsistent response times
+                        bottleneck_analysis["inconsistent_endpoints"].append({
+                            "endpoint": endpoint_path,
+                            "response_time_stddev": response_time_stddev,
+                            "business_function": business_function
+                        })
+            
+            # If no admin endpoints found in monitoring data, fail gracefully
+            if not admin_endpoints:
+                return {
+                    "status": "failed",
+                    "error": "No admin endpoints found in monitoring_api_calls table",
+                    "message": "Admin endpoints must be accessed to generate monitoring data for bottleneck analysis",
+                    "suggestion": "Use admin dashboard to populate monitoring data, then re-run this business monitoring test",
+                    "database_driven": True,
+                    "data_source": "monitoring_api_calls",
+                    "monitoring_period": "30_days"
                 }
-                
-                await conn.execute('''
-                    INSERT INTO platform_settings (key, value) 
-                    VALUES ('admin_endpoints_config', $1)
-                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-                ''', json.dumps(endpoints_config))
             
         finally:
             await conn.close()
         
-        # Execute tests against database-stored admin endpoints
+        # Execute tests against monitored admin endpoints for current accessibility
         endpoint_results = {}
         
         async with httpx.AsyncClient(timeout=timeout_seconds) as client:
@@ -3137,7 +3199,14 @@ async def test_admin_api_endpoints_database_driven():
                         "expected_codes": expected_codes,
                         "endpoint_path": endpoint_path,
                         "endpoint_name": endpoint_name,
-                        "method": "GET"
+                        "method": "GET",
+                        # Include monitoring data for business analysis
+                        "historical_call_count": endpoint.get('call_count', 0),
+                        "historical_avg_response_time": endpoint.get('avg_response_time', 0),
+                        "historical_success_rate": endpoint.get('success_rate', 0),
+                        "response_time_consistency": endpoint.get('response_time_stddev', 0),
+                        "last_accessed": endpoint.get('last_called'),
+                        "usage_days": endpoint.get('active_days', 0)
                     }
                     
                 except Exception as endpoint_error:
@@ -3146,7 +3215,14 @@ async def test_admin_api_endpoints_database_driven():
                         "error": str(endpoint_error),
                         "endpoint_path": endpoint_path,
                         "endpoint_name": endpoint_name,
-                        "method": "GET"
+                        "method": "GET",
+                        # Include monitoring data even on failure
+                        "historical_call_count": endpoint.get('call_count', 0),
+                        "historical_avg_response_time": endpoint.get('avg_response_time', 0),
+                        "historical_success_rate": endpoint.get('success_rate', 0),
+                        "response_time_consistency": endpoint.get('response_time_stddev', 0),
+                        "last_accessed": endpoint.get('last_called'),
+                        "usage_days": endpoint.get('active_days', 0)
                     }
         
         # Calculate results using database-configured threshold
@@ -3154,17 +3230,44 @@ async def test_admin_api_endpoints_database_driven():
         total_endpoints = len(admin_endpoints)
         success_rate = (accessible_endpoints / total_endpoints) * 100 if total_endpoints > 0 else 0
         
+        # Calculate business metrics from monitoring data
+        total_calls = sum(ep.get('call_count', 0) for ep in admin_endpoints)
+        avg_response_time = sum(ep.get('avg_response_time', 0) for ep in admin_endpoints) / len(admin_endpoints) if admin_endpoints else 0
+        avg_success_rate = sum(ep.get('success_rate', 0) for ep in admin_endpoints) / len(admin_endpoints) if admin_endpoints else 0
+        
+        # Generate business recommendations
+        business_recommendations = []
+        if len(bottleneck_analysis["slow_endpoints"]) > 0:
+            business_recommendations.append(f"⚠️ {len(bottleneck_analysis['slow_endpoints'])} admin endpoints are slow (>1s) - investigate performance")
+        if len(bottleneck_analysis["failing_endpoints"]) > 0:
+            business_recommendations.append(f"🚨 {len(bottleneck_analysis['failing_endpoints'])} admin endpoints have low success rates (<90%) - check for errors")
+        if len(bottleneck_analysis["inconsistent_endpoints"]) > 0:
+            business_recommendations.append(f"📊 {len(bottleneck_analysis['inconsistent_endpoints'])} admin endpoints have inconsistent response times - optimize for stability")
+        if avg_response_time > 500:
+            business_recommendations.append("🔧 Overall admin performance is slow - consider system optimization")
+        
         return {
             "status": "passed" if success_rate >= success_threshold else "failed",
-            "message": f"Admin services API endpoints tested (database-driven: {total_endpoints} endpoints)",
+            "message": f"Admin Services Critical - Business monitoring complete ({total_endpoints} endpoints analyzed)",
             "success_rate": success_rate,
             "success_threshold": success_threshold,
             "accessible_endpoints": accessible_endpoints,
             "total_endpoints": total_endpoints,
             "endpoint_results": endpoint_results,
             "database_driven": True,
-            "configuration_source": "platform_settings_database",
-            "api_base_url": api_base_url
+            "data_source": "monitoring_api_calls",
+            "api_base_url": api_base_url,
+            # Business Intelligence Data
+            "business_metrics": {
+                "total_admin_calls_30_days": total_calls,
+                "avg_response_time_ms": round(avg_response_time, 2),
+                "avg_historical_success_rate": round(avg_success_rate, 2),
+                "monitoring_period": "30_days"
+            },
+            # Bottleneck Detection Results
+            "bottleneck_analysis": bottleneck_analysis,
+            "business_recommendations": business_recommendations,
+            "bottlenecks_detected": len(bottleneck_analysis["slow_endpoints"]) + len(bottleneck_analysis["failing_endpoints"]) > 0
         }
         
     except Exception as e:
