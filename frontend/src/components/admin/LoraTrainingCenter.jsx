@@ -43,20 +43,22 @@ const LoraTrainingCenter = () => {
       return;
     }
 
-    const trimmedUrl = trainingDataUrl.trim();
-    if (!trimmedUrl) {
-      setError("Please provide a public URL for the training data ZIP file.");
-      return;
-    }
-
+    setLoading(true);
+    setError(null);
+    setSuccess(null); // Clear previous success messages
+    setTrainingJob(null);
     try {
+      const trimmedUrl = trainingDataUrl.trim(); // Trim whitespace
+      if (!trimmedUrl) {
+        setError('Please provide a URL.');
+        setLoading(false);
+        return;
+      }
       // Basic URL validation: must be a valid HTTPS URL.
-      // The more complex .zip check is removed as it fails with dynamic URLs like Google Drive's.
-      // The backend (Replicate) will perform the final validation.
-      const url = new URL(trainingDataUrl);
+      const url = new URL(trimmedUrl);
       if (url.protocol !== 'https:') {
         setError('Invalid URL. Please provide a public HTTPS URL.');
-        setIsLoading(false);
+        setLoading(false);
         return;
       }
     } catch (e) {
