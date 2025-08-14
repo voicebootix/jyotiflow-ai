@@ -1380,6 +1380,90 @@ async def execute_test(request: dict):
             data={}
         )
 
+# Configurable maximum number of test suites to prevent frontend grid instability
+MAX_SUITES = int(os.getenv('MAX_TEST_SUITES', '16'))
+
+def infer_frontend_category_and_icon(test_category: str) -> tuple[str, str]:
+    """
+    Centralized helper function to determine frontend category and icon from test_category.
+    
+    Args:
+        test_category: The test category string from database
+        
+    Returns:
+        tuple: (frontend_category, icon)
+    """
+    category_lower = test_category.lower()
+    
+    # Expanded keyword lists for better matching
+    core_platform_keywords = [
+        'database', 'db', 'api', 'security', 'integration', 'performance', 
+        'auto_healing', 'auto-heal', 'auto_heal'
+    ]
+    
+    revenue_critical_keywords = [
+        'payment', 'payments', 'spiritual', 'avatar'
+    ]
+    
+    communication_keywords = [
+        'live', 'live_audio', 'live_video', 'live_media', 'live_audio_video_business_critical',
+        'audio', 'video', 'social', 'media', 'social_media'
+    ]
+    
+    user_experience_keywords = [
+        'user', 'user_management', 'user_mgmt', 'community', 'notification', 'notifications'
+    ]
+    
+    business_management_keywords = [
+        'admin', 'monitoring', 'business'
+    ]
+    
+    # Determine frontend category based on expanded keyword matching
+    if any(keyword in category_lower for keyword in core_platform_keywords):
+        frontend_category = 'Core Platform'
+    elif any(keyword in category_lower for keyword in revenue_critical_keywords):
+        frontend_category = 'Revenue Critical'
+    elif any(keyword in category_lower for keyword in communication_keywords):
+        frontend_category = 'Communication'
+    elif any(keyword in category_lower for keyword in user_experience_keywords):
+        frontend_category = 'User Experience'
+    elif any(keyword in category_lower for keyword in business_management_keywords):
+        frontend_category = 'Business Management'
+    else:
+        frontend_category = 'Other Services'
+    
+    # Expanded icon mapping with all variants
+    icon_mapping = {
+        'database': '🗄️', 'db': '🗄️',
+        'api': '🔌',
+        'security': '🔒',
+        'integration': '🔗',
+        'performance': '⚡',
+        'auto_healing': '🔄', 'auto-heal': '🔄', 'auto_heal': '🔄',
+        'payment': '💳', 'payments': '💳',
+        'spiritual': '🕉️',
+        'avatar': '🎭',
+        'live': '📹', 'live_audio': '📹', 'live_video': '📹', 'live_media': '📹',
+        'live_audio_video_business_critical': '📹',
+        'audio': '🔊', 'video': '📹',
+        'social_media': '📱', 'social': '📱', 'media': '📱',
+        'user_management': '👤', 'user_mgmt': '👤', 'user': '👤',
+        'community': '🤝',
+        'notifications': '🔔', 'notification': '🔔',
+        'admin': '⚙️',
+        'monitoring': '📊',
+        'business': '💼'
+    }
+    
+    # Find matching icon (first match wins)
+    icon = '🔧'  # default
+    for keyword, emoji in icon_mapping.items():
+        if keyword in category_lower:
+            icon = emoji
+            break
+    
+    return frontend_category, icon
+
 @router.get("/test-suites")
 async def get_available_test_suites():
     """Get all available test suites - database-driven discovery from TestSuiteGenerator"""
@@ -1398,33 +1482,8 @@ async def get_available_test_suites():
                     suite_name = test_suite.get("suite_display_name", test_category.replace("_", " ").title())
                     priority = test_suite.get("priority", "medium")
                     
-                    # Determine frontend category grouping based on test_category patterns (database-driven)
-                    if any(keyword in test_category.lower() for keyword in ['database', 'api', 'security', 'integration', 'performance', 'auto_healing']):
-                        frontend_category = 'Core Platform'
-                    elif any(keyword in test_category.lower() for keyword in ['payment', 'spiritual', 'avatar']):
-                        frontend_category = 'Revenue Critical'
-                    elif any(keyword in test_category.lower() for keyword in ['live', 'social', 'media']):
-                        frontend_category = 'Communication'
-                    elif any(keyword in test_category.lower() for keyword in ['user', 'community', 'notification']):
-                        frontend_category = 'User Experience'
-                    elif any(keyword in test_category.lower() for keyword in ['admin', 'monitoring', 'business']):
-                        frontend_category = 'Business Management'
-                    else:
-                        frontend_category = 'Other Services'
-                    
-                    # Determine icon based on test_category patterns
-                    icon_mapping = {
-                        'database': '🗄️', 'api': '🔌', 'security': '🔒', 'integration': '🔗',
-                        'performance': '⚡', 'auto_healing': '🔄', 'payment': '💳', 'spiritual': '🕉️',
-                        'avatar': '🎭', 'live_media': '📹', 'social_media': '📱', 'user_mgmt': '👤',
-                        'community': '🤝', 'notifications': '🔔', 'admin': '⚙️', 'monitoring': '📊'
-                    }
-                    
-                    icon = '🔧'  # default
-                    for keyword, emoji in icon_mapping.items():
-                        if keyword in test_category.lower():
-                            icon = emoji
-                            break
+                    # Use centralized helper function for consistent categorization and icon assignment
+                    frontend_category, icon = infer_frontend_category_and_icon(test_category)
                     
                     # Create frontend category if it doesn't exist
                     if frontend_category not in categorized_suites:
@@ -1446,6 +1505,20 @@ async def get_available_test_suites():
                 
                 # Convert to list format expected by frontend
                 suite_config = list(categorized_suites.values())
+                
+                # Apply configurable suite cap to prevent frontend grid instability
+                total_services = sum(len(category["services"]) for category in suite_config)
+                if total_services > MAX_SUITES:
+                    # Truncate services while preserving category structure
+                    services_added = 0
+                    for category in suite_config:
+                        if services_added >= MAX_SUITES:
+                            category["services"] = []
+                        else:
+                            remaining_slots = MAX_SUITES - services_added
+                            category["services"] = category["services"][:remaining_slots]
+                            services_added += len(category["services"])
+                
                 total_test_suites = len(comprehensive_tests)
                 
                 return StandardResponse(
@@ -1508,25 +1581,7 @@ async def get_available_test_suites():
                     data={"test_suites": [], "total_suites": 0}
                 )
             
-            # Define icon mapping once outside the loop for performance
-            icon_mapping = {
-                'database': '🗄️',
-                'api': '🔌', 
-                'security': '🔒',
-                'integration': '🔗',
-                'performance': '⚡',
-                'auto_healing': '🔄',
-                'payment': '💳',
-                'spiritual': '🕉️',
-                'avatar': '🎭',
-                'live_media': '📹',
-                'social_media': '📱',
-                'user_mgmt': '👤',
-                'community': '🤝',
-                'notifications': '🔔',
-                'admin': '⚙️',
-                'monitoring': '📊'
-            }
+            # Icon mapping is now centralized in helper function
             
             # Group test categories by frontend category for consumption (100% database-driven)
             categorized_suites = {}
@@ -1544,19 +1599,8 @@ async def get_available_test_suites():
                 # This ensures compatibility with any code that expects display_name from database
                 name_fallback = test_category  # Use test_category as 'name' fallback
                 
-                # Determine frontend category grouping based on test_category patterns (database-driven)
-                if any(keyword in test_category.lower() for keyword in ['database', 'api', 'security', 'integration', 'performance', 'auto_healing']):
-                    frontend_category = 'Core Platform'
-                elif any(keyword in test_category.lower() for keyword in ['payment', 'spiritual', 'avatar']):
-                    frontend_category = 'Revenue Critical'
-                elif any(keyword in test_category.lower() for keyword in ['live', 'social', 'media']):
-                    frontend_category = 'Communication'
-                elif any(keyword in test_category.lower() for keyword in ['user', 'community', 'notification']):
-                    frontend_category = 'User Experience'
-                elif any(keyword in test_category.lower() for keyword in ['admin', 'monitoring', 'business']):
-                    frontend_category = 'Business Management'
-                else:
-                    frontend_category = 'Other Services'
+                # Use centralized helper function for consistent categorization and icon assignment
+                frontend_category, icon = infer_frontend_category_and_icon(test_category)
                 
                 # Determine priority based on test results and category patterns (database-driven)
                 if failed_tests > 0:
@@ -1568,12 +1612,7 @@ async def get_available_test_suites():
                 else:
                     priority_level = 'medium'
                 
-                # Determine icon based on test_category patterns (database-driven)
-                icon = '🔧'  # default
-                for keyword, emoji in icon_mapping.items():
-                    if keyword in test_category.lower():
-                        icon = emoji
-                        break
+                # Icon is now determined by the helper function above
                 
                 # Create frontend category if it doesn't exist
                 if frontend_category not in categorized_suites:
@@ -1596,6 +1635,20 @@ async def get_available_test_suites():
             
             # Convert to list format expected by frontend (100% database-driven)
             suite_config = list(categorized_suites.values())
+            
+            # Apply configurable suite cap to prevent frontend grid instability
+            total_services = sum(len(category["services"]) for category in suite_config)
+            if total_services > MAX_SUITES:
+                # Truncate services while preserving category structure
+                services_added = 0
+                for category in suite_config:
+                    if services_added >= MAX_SUITES:
+                        category["services"] = []
+                    else:
+                        remaining_slots = MAX_SUITES - services_added
+                        category["services"] = category["services"][:remaining_slots]
+                        services_added += len(category["services"])
+            
             total_test_categories = len(test_categories)
             
             logger.info(f"Retrieved {total_test_categories} test categories from test_case_results table (100% database-driven)")

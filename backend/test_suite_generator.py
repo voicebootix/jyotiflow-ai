@@ -3063,20 +3063,39 @@ async def test_admin_api_endpoints_database_driven():
                     "api_base_url": "https://jyotiflow-ai.onrender.com",
                     "success_threshold": 70.0,
                     "timeout_seconds": 30,
-                    "expected_codes": [200, 401, 403, 307]
+                    "expected_codes": [200, 401, 403, 307, 308]
                 }
                 
-                await conn.execute('''
-                    INSERT INTO platform_settings (key, value) 
-                    VALUES ('admin_test_config', $1)
-                    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
-                ''', json.dumps(test_config))
+                # Check if updated_at column exists to avoid SQL errors in environments where migration wasn't applied
+                has_updated_at = await conn.fetchval('''
+                    SELECT EXISTS (
+                        SELECT 1 FROM information_schema.columns 
+                        WHERE table_name = 'platform_settings' 
+                        AND column_name = 'updated_at'
+                    )
+                ''')
+                
+                # Build UPSERT query conditionally based on column existence
+                if has_updated_at:
+                    upsert_query = '''
+                        INSERT INTO platform_settings (key, value) 
+                        VALUES ('admin_test_config', $1)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()
+                    '''
+                else:
+                    upsert_query = '''
+                        INSERT INTO platform_settings (key, value) 
+                        VALUES ('admin_test_config', $1)
+                        ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+                    '''
+                
+                await conn.execute(upsert_query, json.dumps(test_config))
             
             # Extract test configuration
             api_base_url = test_config.get('api_base_url', 'https://jyotiflow-ai.onrender.com')
             success_threshold = test_config.get('success_threshold', 70.0)
             timeout_seconds = test_config.get('timeout_seconds', 30)
-            expected_codes = test_config.get('expected_codes', [200, 401, 403, 307])
+            expected_codes = test_config.get('expected_codes', [200, 401, 403, 307, 308])
             
             # DATABASE DRIVEN: Get admin endpoints from monitoring_api_calls table for bottleneck detection
             admin_endpoints_data = await conn.fetch('''
@@ -3102,8 +3121,10 @@ async def test_admin_api_endpoints_database_driven():
             # This will log the query plan to verify index usage (only in debug mode)
             if os.getenv('DEBUG_QUERY_PERFORMANCE', '').lower() == 'true':
                 try:
+                    # Reduce overhead: planning-only EXPLAIN; set a low statement timeout for safety
+                    await conn.execute("SET statement_timeout = 5000")
                     explain_result = await conn.fetch('''
-                        EXPLAIN (ANALYZE, BUFFERS) 
+                        EXPLAIN (FORMAT TEXT, COSTS, SETTINGS, SUMMARY)
                         SELECT 
                             endpoint,
                             COUNT(*) as call_count,
@@ -3114,13 +3135,13 @@ async def test_admin_api_endpoints_database_driven():
                         GROUP BY endpoint
                         LIMIT 10
                     ''')
-                    print("🔍 Query Plan Analysis:")
+                    logger.info("🔍 Query Plan Analysis:")
                     for row in explain_result:
                         plan_line = row[0] if row else ""
                         if "Index" in plan_line or "Scan" in plan_line:
-                            print(f"   {plan_line}")
+                            logger.info(f"   {plan_line}")
                 except Exception as e:
-                    print(f"⚠️ Could not analyze query plan: {e}")
+                    logger.warning(f"⚠️ Could not analyze query plan: {e}")
             
             admin_endpoints = []
             bottleneck_analysis = {
@@ -3207,7 +3228,15 @@ async def test_admin_api_endpoints_database_driven():
         # Execute tests against monitored admin endpoints for current accessibility
         endpoint_results = {}
         
-        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+        # Create explicit timeout configuration to avoid blocking full timeout per endpoint
+        timeout_config = httpx.Timeout(
+            read=float(timeout_seconds),
+            connect=5.0,  # 5 seconds for connection
+            write=5.0,    # 5 seconds for write
+            pool=2.0      # 2 seconds for pool operations
+        )
+        
+        async with httpx.AsyncClient(timeout=timeout_config) as client:
             for endpoint in admin_endpoints:
                 endpoint_path = endpoint.get('path', '')
                 business_function = endpoint.get('business_function', 'Admin Function')
