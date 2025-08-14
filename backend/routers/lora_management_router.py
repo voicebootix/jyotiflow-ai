@@ -23,7 +23,7 @@ class CreateModelRequest(BaseModel):
     owner: str = Field(..., description="The Replicate username or organization name that owns the model.")
     model_name: str = Field("swamiji-lora-model", description="The name for the new model.")
     visibility: Literal["public", "private"] = Field("private", description="Visibility of the model ('public' or 'private').")
-    hardware: str = Field("gpu-a40-large", description="Hardware SKU for the model.")
+    hardware: str = Field("gpu-t4", description="Hardware SKU for the model. Changed from gpu-a40-large.")
 
 @lora_router.post("/create-model", response_model=StandardResponse)
 async def create_replicate_model(
