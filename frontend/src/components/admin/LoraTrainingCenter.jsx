@@ -42,8 +42,21 @@ const LoraTrainingCenter = () => {
       setError("Model must be created first (Step 1).");
       return;
     }
-    if (!trainingDataUrl) {
+
+    const trimmedUrl = trainingDataUrl.trim();
+    if (!trimmedUrl) {
       setError("Please provide a public URL for the training data ZIP file.");
+      return;
+    }
+
+    try {
+      const url = new URL(trimmedUrl);
+      if (url.protocol !== 'https:' || !url.pathname.toLowerCase().endsWith('.zip')) {
+        setError("Invalid URL. Please provide a public HTTPS URL that points directly to a .zip file.");
+        return;
+      }
+    } catch (e) {
+      setError("Invalid URL format. Please enter a full and valid URL (e.g., https://...).");
       return;
     }
     
@@ -56,7 +69,7 @@ const LoraTrainingCenter = () => {
       const payload = {
         model_owner: modelData.owner,
         model_name: modelData.name,
-        training_data_url: trainingDataUrl
+        training_data_url: trimmedUrl
       };
 
       const response = await enhanced_api.startTrainingJob(payload);
