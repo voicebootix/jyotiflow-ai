@@ -93,7 +93,7 @@ async def prepare_training_upload(
     
     file_name = f"training-data-{uuid.uuid4()}.zip"
     payload = {
-        "file_name": file_name,
+        "filename": file_name, # Corrected from file_name
         "content_type": "application/zip",
     }
 
@@ -128,6 +128,9 @@ async def prepare_training_upload(
                 }
             )
 
+    except httpx.TimeoutException as e:
+        logger.error(f"Upstream service timed out while preparing upload: {e}", exc_info=True)
+        raise HTTPException(status_code=504, detail="Upstream service timed out while preparing upload.") from e
     except httpx.HTTPStatusError as e:
         logger.error(f"Failed to get upload URL from Replicate. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to get upload URL. Upstream service returned status {e.response.status_code}.") from e
