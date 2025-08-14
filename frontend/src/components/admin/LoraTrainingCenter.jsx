@@ -16,12 +16,14 @@ const LoraTrainingCenter = () => {
   const [trainingJob, setTrainingJob] = useState(null);
 
   const onDrop = useCallback(acceptedFiles => {
+    setError(null); // Clear previous errors on a new drop attempt
     const file = acceptedFiles[0];
+    
     // Loosened validation to only check for filename, as mime type can be inconsistent.
     if (file && file.name === 'swamiji_training_data.zip') {
       setZipFile(file);
-      setError(null);
     } else {
+      setZipFile(null); // Clear any previously valid file if the new one is invalid
       setError('Invalid file. Please upload a ZIP file named "swamiji_training_data.zip".');
     }
   }, []);
