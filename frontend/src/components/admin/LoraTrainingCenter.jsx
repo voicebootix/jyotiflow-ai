@@ -32,23 +32,38 @@ const LoraTrainingCenter = () => {
     };
   }, []);
 
-  const onDrop = useCallback(acceptedFiles => {
-    setError(null); // Clear previous errors on a new drop attempt
-    const file = acceptedFiles[0];
-    
-    // Loosened validation to only check for filename, as mime type can be inconsistent.
-    if (file && file.name === 'swamiji_training_data.zip') {
-      setZipFile(file);
-    } else {
-      setZipFile(null); // Clear any previously valid file if the new one is invalid
-      setError('Invalid file. Please upload a ZIP file named "swamiji_training_data.zip".');
+  const onDrop = useCallback((acceptedFiles, fileRejections) => {
+    setError(null);
+
+    // Handle rejected files first for specific feedback
+    if (fileRejections.length > 0) {
+        const rejection = fileRejections[0];
+        const errorMessage = rejection.errors.map(e => e.message).join(', ');
+        setError(`File rejected: ${errorMessage}. Please upload a valid ZIP file named 'swamiji_training_data.zip'.`);
+        setZipFile(null);
+        return;
+    }
+
+    // Handle accepted files
+    if (acceptedFiles.length > 0) {
+        const file = acceptedFiles[0];
+        if (file && file.name === 'swamiji_training_data.zip') {
+            setZipFile(file);
+        } else {
+            setZipFile(null);
+            setError(`Invalid filename. The file must be named "swamiji_training_data.zip". You provided: "${file.name}"`);
+        }
     }
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: {'application/zip': ['.zip']},
-    multiple: false
+    multiple: false,
+    disabled: !modelData || isLoading,
+    accept: {
+      'application/zip': ['.zip'],
+      'application/x-zip-compressed': ['.zip'],
+    }
   });
 
   const handleCreateModel = async () => {
