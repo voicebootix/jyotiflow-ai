@@ -14,6 +14,7 @@ import uuid
 import json
 from datetime import datetime, timedelta
 import asyncio
+import base64 # Added for base64 encoding of image bytes
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Request
 from pydantic import BaseModel, Field
@@ -498,30 +499,25 @@ async def generate_image_preview(
             theme_day=request.theme_day
         )
         
-        # Compute hash of generated image
+        # Compute hash of the generated image
         generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
         generated_hash_short = generated_hash_full[:16]
-
-        # Forcing a change to fix git tracking
+        image_diff = "unknown"  # Default value
+ 
+        # Try to get base image hash for comparison
         try:
-            # Hash of the base image for comparison
-            base_image_bytes = await get_storage_service().download_public_file_bytes("jyotiflow-bucket", "swamiji_base_avatar.png")
-        except Exception as e:
-            logger.warning(f"Could not download base image for diff check: {e}")
-            base_image_bytes = None # Ensure it's None if download fails
-
-        # EFFICIENCY FIX: No need to download the base image again.
-        # Compute its hash from the bytes returned by the service.
-        image_diff = "unknown"
-        base_hash_short = ""
-        if base_image_bytes:
-            try:
+            # Use the correct bucket "avatars" and the full path as requested
+            base_image_bytes = await get_storage_service().download_public_file_bytes("avatars", "public/swamiji_base_avatar.png")
+            if base_image_bytes:
                 base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
-                        base_hash_short = base_hash_full[:16]
-                        image_diff = "different" if generated_hash_full != base_hash_full else "same"
+                base_hash_short = base_hash_full[:16]
+                image_diff = "different" if generated_hash_full != base_hash_full else "same"
                 logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
         except Exception as diff_err:
-                logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
+            logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
+ 
+        # Return a response with the generated image bytes
+        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
         
         # 🛡️ ENHANCED HTTP header sanitization - CORE.MD: Fix emoji encoding errors
         # 1. Handle None/non-string values defensively
@@ -552,7 +548,7 @@ async def generate_image_preview(
             "Pragma": "no-cache",
             "Expires": "0",
         }
-        return Response(content=image_bytes, media_type="image/png", headers=headers)
+        return Response(content=encoded_image, media_type="image/png", headers=headers)
     except ValueError as e:
         # CORE.MD & REFRESH.MD: Handle validation errors with HTTP 400 (Bad Request)
         logger.warning(f"⚠️  VALIDATION ERROR in image preview generation: {e}")
