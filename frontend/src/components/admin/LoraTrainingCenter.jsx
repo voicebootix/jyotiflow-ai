@@ -50,9 +50,13 @@ const LoraTrainingCenter = () => {
     }
 
     try {
-      const url = new URL(trimmedUrl);
-      if (url.protocol !== 'https:' || !url.pathname.toLowerCase().endsWith('.zip')) {
-        setError("Invalid URL. Please provide a public HTTPS URL that points directly to a .zip file.");
+      // Basic URL validation: must be a valid HTTPS URL.
+      // The more complex .zip check is removed as it fails with dynamic URLs like Google Drive's.
+      // The backend (Replicate) will perform the final validation.
+      const url = new URL(trainingDataUrl);
+      if (url.protocol !== 'https:') {
+        setError('Invalid URL. Please provide a public HTTPS URL.');
+        setIsLoading(false);
         return;
       }
     } catch (e) {
