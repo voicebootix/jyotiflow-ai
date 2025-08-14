@@ -116,8 +116,10 @@ async def prepare_training_upload(
 
             if not upload_url or not serving_url:
                 missing_keys = []
-                if not upload_url: missing_keys.append("upload_url")
-                if not serving_url: missing_keys.append("serving_url")
+                if not upload_url:
+                    missing_keys.append("upload_url")
+                if not serving_url:
+                    missing_keys.append("serving_url")
                 logger.error(f"Incomplete upload data from Replicate. Missing keys: {', '.join(missing_keys)}")
                 return StandardResponse(
                     success=False,
@@ -141,7 +143,7 @@ async def prepare_training_upload(
         logger.error(f"Upstream network error while preparing upload: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail="Upstream network error while preparing upload.") from e
     except httpx.HTTPStatusError as e:
-        logger.error(f"Failed to get upload URL from Replicate. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
+        logger.error(f"Failed to get upload URL from Replicate. Status: {e.response.status_code}", exc_info=True)
         raise HTTPException(status_code=502, detail=f"Failed to get upload URL. Upstream service returned status {e.response.status_code}.") from e
     except Exception as e:
         logger.error(f"An unexpected error occurred while preparing upload: {e}", exc_info=True)
