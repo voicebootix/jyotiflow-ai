@@ -112,28 +112,33 @@ async def prepare_training_upload(
             logger.info("Successfully received upload URLs from Replicate.")
 
             upload_url = upload_data.get("upload_url")
-            serving_url = upload_data.get("serving_url")
+            serving_url = upload_data.get("serving_url") or upload_data.get("file_url") # Fallback to file_url
+            fields = upload_data.get("fields")
 
             if not upload_url or not serving_url:
                 missing_keys = []
                 if not upload_url:
                     missing_keys.append("upload_url")
                 if not serving_url:
-                    missing_keys.append("serving_url")
-                logger.error(f"Incomplete upload data from Replicate. Missing keys: {', '.join(missing_keys)}")
+                    missing_keys.append("serving_url/file_url")
+                logger.error(f"Incomplete upload data from Replicate. Missing required keys: {', '.join(missing_keys)}")
                 return StandardResponse(
                     success=False,
                     message="Incomplete upload data received from Replicate. Cannot proceed.",
                     data=None
                 )
             
+            response_data = {
+                "upload_url": upload_url,
+                "serving_url": serving_url,
+            }
+            if fields:
+                response_data["fields"] = fields
+
             return StandardResponse(
                 success=True, 
                 message="Upload URL prepared successfully.", 
-                data={
-                    "upload_url": upload_url,
-                    "serving_url": serving_url,
-                }
+                data=response_data
             )
 
     except httpx.TimeoutException as e:
