@@ -3472,6 +3472,7 @@ async def test_community_api_endpoints():
         
         endpoint_results = {}
         
+        
         async with httpx.AsyncClient() as client:
             for endpoint in endpoints_to_test:
                 try:
