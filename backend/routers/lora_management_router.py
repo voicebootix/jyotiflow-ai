@@ -99,32 +99,42 @@ async def start_training_job(
         "Authorization": f"Token {REPLICATE_API_TOKEN}",
         "Content-Type": "application/json",
     }
-    
-    # This is a common structure for LoRA training on Replicate
-    # We are calling the main "trainings" endpoint
-    training_payload = {
-        "destination": f"{request.model_owner}/{request.model_name}",
+
+    # The new, correct workflow: run a prediction on a trainer model
+    # The specific version of the trainer model is crucial.
+    LORA_TRAINER_VERSION = "d5ada07403314b8b3941df67140f093ec845f94a7374b33c5e9336829705a766"
+
+    prediction_payload = {
+        "version": LORA_TRAINER_VERSION,
         "input": {
             "instance_prompt": request.instance_prompt,
-            "instance_data": str(request.training_data_url)
-        }
+            "instance_data": str(request.training_data_url),
+            # Destination model details
+            "model_name": request.model_name,
+            "push_to_hub": "replicate",
+            "hf_username": request.model_owner
+        },
+        # It's good practice to have a webhook to get notified upon completion
+        # "webhook_completed": "YOUR_WEBHOOK_URL_HERE"
     }
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            trainings_url = f"{REPLICATE_BASE_URL}/trainings"
-            logger.info(f"Starting training for model: {training_payload['destination']}")
-            
-            response = await client.post(trainings_url, headers=headers, json=training_payload)
+            predictions_url = f"{REPLICATE_BASE_URL}/predictions"
+            logger.info(f"Starting LoRA training prediction for model: {request.model_owner}/{request.model_name}")
+
+            response = await client.post(predictions_url, headers=headers, json=prediction_payload)
             response.raise_for_status()
             
-            training_data = response.json()
-            logger.info(f"Successfully started training job. Job ID: {training_data.get('id')}")
+            prediction_data = response.json()
+            # The response for a prediction is different from a training job
+            # It immediately contains an ID which can be used to check status
+            logger.info(f"Successfully started LoRA training prediction. Prediction ID: {prediction_data.get('id')}")
             
             return StandardResponse(
                 success=True, 
                 message="Training job started successfully.", 
-                data=training_data
+                data=prediction_data
             )
 
     except httpx.HTTPStatusError as e:
