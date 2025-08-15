@@ -3039,10 +3039,7 @@ import httpx
 import asyncpg
 import json
 import os
-import logging
 import time
-
-logger = logging.getLogger(__name__)
 
 async def test_admin_api_endpoints_database_driven():
     try:
@@ -3333,7 +3330,7 @@ async def test_admin_api_endpoints_database_driven():
                     except Exception:
                         pass  # Don't fail test if monitoring insert fails
                     
-                    logger.warning(f"⏱️ Timeout occurred for endpoint {endpoint_path}: {timeout_error} (timeout_seconds={timeout_seconds})")
+                    print(f"⏱️ Timeout occurred for endpoint {endpoint_path}: {timeout_error} (timeout_seconds={timeout_seconds})")
                     endpoint_results[business_function] = {
                         "endpoint_accessible": False,
                         "error": f"Timeout: {str(timeout_error)}",
@@ -3363,7 +3360,7 @@ async def test_admin_api_endpoints_database_driven():
                     except Exception:
                         pass  # Don't fail test if monitoring insert fails
                     
-                    logger.warning(f"❌ Error accessing endpoint {endpoint_path}: {endpoint_error} (error_type={error_type})")
+                    print(f"❌ Error accessing endpoint {endpoint_path}: {endpoint_error} (error_type={error_type})")
                     endpoint_results[business_function] = {
                         "endpoint_accessible": False,
                         "error": str(endpoint_error),
