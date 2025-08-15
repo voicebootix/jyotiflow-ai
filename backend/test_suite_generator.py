@@ -3039,6 +3039,9 @@ import httpx
 import asyncpg
 import json
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def test_admin_api_endpoints_database_driven():
     try:
@@ -3237,6 +3240,12 @@ async def test_admin_api_endpoints_database_driven():
             
             # If no admin endpoints found in monitoring data, fail gracefully
             if not admin_endpoints:
+                # Close connection before early return to prevent connection leak
+                try:
+                    await conn.close()
+                except Exception:
+                    pass  # Swallow close errors to avoid disrupting error response
+                
                 return {
                     "status": "failed",
                     "error": "No admin endpoints found in monitoring_api_calls table",
