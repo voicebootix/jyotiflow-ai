@@ -68,4 +68,17 @@ CONTENT_PROMPTS = {
     ContentType.SATSANG_PROMO: "Create an exciting and welcoming promotional message for an upcoming online Satsang with Swamiji. Mention the topic, date, and the spiritual benefits of attending.",
     ContentType.FESTIVAL_GREETING: "Generate a warm and spiritual greeting for an upcoming major Indian festival (e.g., Diwali, Holi, Navaratri). The message should explain the spiritual significance of the festival.",
     ContentType.USER_TESTIMONIAL: "Adapt a user's positive experience with JyotiFlow.ai into a heartfelt and authentic testimonial. Focus on the transformation and positive impact.",
+}
+
+# --- Daily Thematic Prompts for Swamiji's Avatar ---
+# Provides a theme for each day of the week for image generation.
+# Monday=0, Sunday=6
+THEMES = {
+    0: "representing new beginnings and clarity, with serene white and silver tones, perhaps near a calm water body.",
+    1: "embodying courage and energy, with dynamic red and orange hues, maybe in a vibrant temple setting.",
+    2: "symbolizing intellect and communication, with lively green colors, in a lush, natural environment like a forest or garden.",
+    3: "reflecting expansion and wisdom, with rich yellow and gold tones, possibly in a library of ancient scriptures.",
+    4: "conveying love and abundance, with bright, luxurious colors, surrounded by offerings of flowers and fruits.",
+    5: "representing introspection and discipline, with deep blue and black colors, in a meditative, peaceful, and quiet space.",
+    6: "for spiritual connection and radiance, with brilliant golden and sun-like colors, in a scene depicting a sunrise or sunset."
 } 
