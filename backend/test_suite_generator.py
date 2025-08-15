@@ -3314,7 +3314,8 @@ async def test_admin_overview_endpoint():
             endpoint_config = await conn.fetchrow('''
                 SELECT endpoint, method, business_function, test_data 
                 FROM admin_endpoints_config 
-                WHERE id = (SELECT MIN(id) FROM admin_endpoints_config) + 1
+                ORDER BY id ASC 
+                LIMIT 1 OFFSET 1
             ''')
             if not endpoint_config:
                 return {"status": "failed", "error": "Admin overview endpoint not found in database"}
@@ -3332,12 +3333,38 @@ async def test_admin_overview_endpoint():
             test_config_row = await conn.fetchrow('''
                 SELECT value FROM platform_settings WHERE key = 'admin_test_config'
             ''')
-            test_config = json.loads(test_config_row['value']) if test_config_row and test_config_row['value'] else {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            # Parse test config, handling JSONB that's already a dict
+            default_config = {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            if test_config_row and test_config_row['value']:
+                try:
+                    if isinstance(test_config_row['value'], (str, bytes)):
+                        test_config = json.loads(test_config_row['value'])
+                    else:
+                        # Already a dict from JSONB
+                        test_config = test_config_row['value']
+                except (json.JSONDecodeError, TypeError):
+                    test_config = default_config
+            else:
+                test_config = default_config
             # Execute HTTP request
             url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
+            # Normalize test data and method
+            test_data = endpoint_config.get('test_data') or {}
+            method = endpoint_config['method'].upper()
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 start_time = time.time()
-                response = await client.post(url, json=endpoint_config.get('test_data', {})) if endpoint_config['method'].upper() == 'POST' else await client.get(url)
+                # Handle different HTTP methods
+                if method == 'GET':
+                    response = await client.get(url)
+                elif method in ['POST', 'PUT', 'PATCH']:
+                    response = await client.request(method, url, json=test_data)
+                elif method == 'DELETE':
+                    response = await client.delete(url)
+                else:
+                    # Fallback for any other methods
+                    response = await client.request(method, url)
+                
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = 'passed' if status_code in test_config['expected_codes'] else 'failed'
@@ -3345,11 +3372,11 @@ async def test_admin_overview_endpoint():
                 await conn.execute('''
                     INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                     VALUES ($1, $2, $3, $4, NOW())
-                ''', endpoint_config['endpoint'], endpoint_config['method'], status_code, response_time_ms)
+                ''', endpoint_config['endpoint'], method, status_code, response_time_ms)
                 await conn.execute('''
                     INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
                     VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ''', session_id, 'test_admin_overview_endpoint', 'admin_services_critical', test_status, json.dumps(endpoint_config.get('test_data', {})), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
+                ''', session_id, 'test_admin_overview_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
                 await conn.execute('''
                     UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
                 ''', session_id)
@@ -3407,7 +3434,8 @@ async def test_admin_revenue_insights_endpoint():
             endpoint_config = await conn.fetchrow('''
                 SELECT endpoint, method, business_function, test_data 
                 FROM admin_endpoints_config 
-                WHERE id = (SELECT MIN(id) FROM admin_endpoints_config) + 2
+                ORDER BY id ASC 
+                LIMIT 1 OFFSET 2
             ''')
             if not endpoint_config:
                 return {"status": "failed", "error": "Admin revenue insights endpoint not found in database"}
@@ -3425,12 +3453,38 @@ async def test_admin_revenue_insights_endpoint():
             test_config_row = await conn.fetchrow('''
                 SELECT value FROM platform_settings WHERE key = 'admin_test_config'
             ''')
-            test_config = json.loads(test_config_row['value']) if test_config_row and test_config_row['value'] else {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            # Parse test config, handling JSONB that's already a dict
+            default_config = {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            if test_config_row and test_config_row['value']:
+                try:
+                    if isinstance(test_config_row['value'], (str, bytes)):
+                        test_config = json.loads(test_config_row['value'])
+                    else:
+                        # Already a dict from JSONB
+                        test_config = test_config_row['value']
+                except (json.JSONDecodeError, TypeError):
+                    test_config = default_config
+            else:
+                test_config = default_config
             # Execute HTTP request
             url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
+            # Normalize test data and method
+            test_data = endpoint_config.get('test_data') or {}
+            method = endpoint_config['method'].upper()
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 start_time = time.time()
-                response = await client.post(url, json=endpoint_config.get('test_data', {})) if endpoint_config['method'].upper() == 'POST' else await client.get(url)
+                # Handle different HTTP methods
+                if method == 'GET':
+                    response = await client.get(url, params=test_data)
+                elif method in ['POST', 'PUT', 'PATCH']:
+                    response = await client.request(method, url, json=test_data)
+                elif method == 'DELETE':
+                    response = await client.delete(url)
+                else:
+                    # Fallback for any other methods
+                    response = await client.request(method, url)
+                
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = 'passed' if status_code in test_config['expected_codes'] else 'failed'
@@ -3438,11 +3492,11 @@ async def test_admin_revenue_insights_endpoint():
                 await conn.execute('''
                     INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                     VALUES ($1, $2, $3, $4, NOW())
-                ''', endpoint_config['endpoint'], endpoint_config['method'], status_code, response_time_ms)
+                ''', endpoint_config['endpoint'], method, status_code, response_time_ms)
                 await conn.execute('''
                     INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
                     VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ''', session_id, 'test_admin_revenue_insights_endpoint', 'admin_services_critical', test_status, json.dumps(endpoint_config.get('test_data', {})), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
+                ''', session_id, 'test_admin_revenue_insights_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
                 await conn.execute('''
                     UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
                 ''', session_id)
@@ -3500,7 +3554,8 @@ async def test_admin_analytics_endpoint():
             endpoint_config = await conn.fetchrow('''
                 SELECT endpoint, method, business_function, test_data 
                 FROM admin_endpoints_config 
-                WHERE id = (SELECT MIN(id) FROM admin_endpoints_config) + 3
+                ORDER BY id ASC 
+                LIMIT 1 OFFSET 3
             ''')
             if not endpoint_config:
                 return {"status": "failed", "error": "Admin analytics endpoint not found in database"}
@@ -3518,12 +3573,38 @@ async def test_admin_analytics_endpoint():
             test_config_row = await conn.fetchrow('''
                 SELECT value FROM platform_settings WHERE key = 'admin_test_config'
             ''')
-            test_config = json.loads(test_config_row['value']) if test_config_row and test_config_row['value'] else {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            # Parse test config, handling JSONB that's already a dict
+            default_config = {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            if test_config_row and test_config_row['value']:
+                try:
+                    if isinstance(test_config_row['value'], (str, bytes)):
+                        test_config = json.loads(test_config_row['value'])
+                    else:
+                        # Already a dict from JSONB
+                        test_config = test_config_row['value']
+                except (json.JSONDecodeError, TypeError):
+                    test_config = default_config
+            else:
+                test_config = default_config
             # Execute HTTP request
             url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
+            # Normalize test data and method
+            test_data = endpoint_config.get('test_data') or {}
+            method = endpoint_config['method'].upper()
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 start_time = time.time()
-                response = await client.post(url, json=endpoint_config.get('test_data', {})) if endpoint_config['method'].upper() == 'POST' else await client.get(url)
+                # Handle different HTTP methods
+                if method == 'GET':
+                    response = await client.get(url)
+                elif method in ['POST', 'PUT', 'PATCH']:
+                    response = await client.request(method, url, json=test_data)
+                elif method == 'DELETE':
+                    response = await client.delete(url)
+                else:
+                    # Fallback for any other methods
+                    response = await client.request(method, url)
+                
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = 'passed' if status_code in test_config['expected_codes'] else 'failed'
@@ -3531,11 +3612,11 @@ async def test_admin_analytics_endpoint():
                 await conn.execute('''
                     INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                     VALUES ($1, $2, $3, $4, NOW())
-                ''', endpoint_config['endpoint'], endpoint_config['method'], status_code, response_time_ms)
+                ''', endpoint_config['endpoint'], method, status_code, response_time_ms)
                 await conn.execute('''
                     INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
                     VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ''', session_id, 'test_admin_analytics_endpoint', 'admin_services_critical', test_status, json.dumps(endpoint_config.get('test_data', {})), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
+                ''', session_id, 'test_admin_analytics_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
                 await conn.execute('''
                     UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
                 ''', session_id)
