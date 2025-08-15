@@ -19,11 +19,9 @@ class ThemeService:
 
     def __init__(
         self,
-        db_pool,
         storage_service: SupabaseStorageService,
         replicate_service: ReplicateService,
     ):
-        self.db_pool = db_pool
         self.storage_service = storage_service
         self.replicate_service = replicate_service
 
@@ -89,10 +87,9 @@ class ThemeService:
         )
 
 
-def get_theme_service(db_pool) -> ThemeService:
+def get_theme_service() -> ThemeService:
     """Dependency injector for ThemeService."""
     return ThemeService(
-        db_pool=db_pool,
         storage_service=get_storage_service(),
         replicate_service=get_replicate_service(),
     )

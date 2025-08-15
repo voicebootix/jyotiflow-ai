@@ -40,14 +40,7 @@ except ImportError:
     def get_avatar_engine():
         raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available.")
 
-try:
-    from services.theme_service import ThemeService, get_theme_service
-    THEME_SERVICE_AVAILABLE = True
-except ImportError:
-    THEME_SERVICE_AVAILABLE = False
-    class ThemeService: pass
-    def get_theme_service():
-        raise HTTPException(status_code=501, detail="Theme service is not available.")
+from backend.services.theme_service import ThemeService, get_theme_service
 
 try:
     from services.supabase_storage_service import SupabaseStorageService, get_storage_service
