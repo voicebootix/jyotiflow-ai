@@ -3236,23 +3236,29 @@ async def test_admin_api_endpoints_database_driven():
                             "business_function": business_function
                         })
             
-            # If no admin endpoints found in monitoring data, fail gracefully
+            # CRITICAL FIX: Always test the 4 specific endpoints regardless of monitoring data
+            # If no monitoring data exists, we'll still make HTTP requests and create new data
             if not admin_endpoints:
-                # Close connection before early return to prevent connection leak
-                try:
-                    await conn.close()
-                except Exception:
-                    pass  # Swallow close errors to avoid disrupting error response
-                
-                return {
-                    "status": "failed",
-                    "error": "No admin endpoints found in monitoring_api_calls table",
-                    "message": "Admin endpoints must be accessed to generate monitoring data for bottleneck analysis",
-                    "suggestion": "Use admin dashboard to populate monitoring data, then re-run this business monitoring test",
-                    "database_driven": True,
-                    "data_source": "monitoring_api_calls",
-                    "monitoring_period": "30_days"
-                }
+                print("🎯 DEBUG: No historical monitoring data found, but proceeding with live tests")
+                # Create endpoint structures from our specific configuration for testing
+                admin_endpoints = []
+                for endpoint_config in specific_admin_endpoints:
+                    endpoint_info = {
+                        "path": endpoint_config["endpoint"],
+                        "method": endpoint_config["method"],
+                        "name": endpoint_config["endpoint"].split('/')[-1] if endpoint_config["endpoint"] else "admin",
+                        "business_function": endpoint_config["business_function"],
+                        "test_data": endpoint_config["test_data"],
+                        "call_count": 0,  # No historical data
+                        "avg_response_time": 0,
+                        "response_time_stddev": 0,
+                        "success_rate": 0,
+                        "last_called": None,
+                        "first_called": None,
+                        "active_days": 0
+                    }
+                    admin_endpoints.append(endpoint_info)
+                print(f"🎯 DEBUG: Created {len(admin_endpoints)} endpoint structures for live testing")
             
         finally:
             pass  # Connection will be closed after telemetry inserts complete
@@ -3269,6 +3275,7 @@ async def test_admin_api_endpoints_database_driven():
         )
         
         async with httpx.AsyncClient(timeout=timeout_config) as client:
+            print(f"🚀 DEBUG: Starting HTTP requests to {len(admin_endpoints)} admin endpoints")
             for endpoint in admin_endpoints:
                 endpoint_path = endpoint.get('path', '')
                 http_method = endpoint.get('method', 'GET')  # DATABASE DRIVEN: Get method from config
@@ -3279,9 +3286,11 @@ async def test_admin_api_endpoints_database_driven():
                 try:
                     url = f"{api_base_url}{endpoint_path}"
                     start_time = time.time()
+                    print(f"🌐 DEBUG: Making {http_method} request to {url} (Business Function: {business_function})")
                     
                     # DATABASE DRIVEN: Use the configured HTTP method and test data
                     if http_method.upper() == 'POST':
+                        print(f"📤 DEBUG: POST data: {test_data}")
                         response = await client.post(url, json=test_data)
                     elif http_method.upper() == 'PUT':
                         response = await client.put(url, json=test_data)
@@ -3289,6 +3298,8 @@ async def test_admin_api_endpoints_database_driven():
                         response = await client.delete(url)
                     else:  # Default to GET
                         response = await client.get(url)
+                    
+                    print(f"✅ DEBUG: Response {response.status_code} from {endpoint_path}")
                     
                     response_time_ms = int((time.time() - start_time) * 1000)
                     
@@ -3298,7 +3309,9 @@ async def test_admin_api_endpoints_database_driven():
                             INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                             VALUES ($1, $2, $3, $4, NOW())
                         ''', endpoint_path, http_method, response.status_code, response_time_ms)
-                    except Exception:
+                        print(f"💾 DEBUG: Stored successful response in monitoring_api_calls table")
+                    except Exception as db_error:
+                        print(f"❌ DEBUG: Failed to store response in database: {db_error}")
                         pass  # Don't fail test if monitoring insert fails
                     
                     endpoint_results[business_function] = {
@@ -3321,14 +3334,16 @@ async def test_admin_api_endpoints_database_driven():
                     }
                     
                 except (httpx.TimeoutException, httpx.ReadTimeout, httpx.WriteTimeout, httpx.ConnectTimeout) as timeout_error:
+                    print(f"⏱️ DEBUG: Timeout occurred for endpoint {endpoint_path}: {timeout_error} (timeout_seconds={timeout_seconds})")
                     # DATABASE DRIVEN: Store timeout error in monitoring_api_calls table
                     try:
                         await conn.execute('''
                             INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, error, timestamp)
                             VALUES ($1, $2, $3, $4, $5, NOW())
                         ''', endpoint_path, http_method, 0, int(timeout_seconds * 1000), f"Timeout: {str(timeout_error)}")
-                    except Exception:
-                        pass  # Don't fail test if monitoring insert fails
+                        print(f"💾 DEBUG: Stored timeout error in monitoring_api_calls table")
+                    except Exception as db_error:
+                        print(f"❌ DEBUG: Failed to store timeout in database: {db_error}")
                     
                     print(f"⏱️ Timeout occurred for endpoint {endpoint_path}: {timeout_error} (timeout_seconds={timeout_seconds})")
                     endpoint_results[business_function] = {
@@ -3350,6 +3365,7 @@ async def test_admin_api_endpoints_database_driven():
                         "usage_days": endpoint.get('active_days', 0)
                     }
                 except Exception as endpoint_error:
+                    print(f"❌ DEBUG: Error accessing endpoint {endpoint_path}: {endpoint_error}")
                     # DATABASE DRIVEN: Store generic error in monitoring_api_calls table
                     error_type = endpoint_error.__class__.__name__
                     try:
@@ -3357,8 +3373,9 @@ async def test_admin_api_endpoints_database_driven():
                             INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, error, timestamp)
                             VALUES ($1, $2, $3, $4, $5, NOW())
                         ''', endpoint_path, http_method, 0, 0, f"{error_type}: {str(endpoint_error)}")
-                    except Exception:
-                        pass  # Don't fail test if monitoring insert fails
+                        print(f"💾 DEBUG: Stored error in monitoring_api_calls table")
+                    except Exception as db_error:
+                        print(f"❌ DEBUG: Failed to store error in database: {db_error}")
                     
                     print(f"❌ Error accessing endpoint {endpoint_path}: {endpoint_error} (error_type={error_type})")
                     endpoint_results[business_function] = {
@@ -3383,6 +3400,9 @@ async def test_admin_api_endpoints_database_driven():
         accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
         total_endpoints = len(endpoint_results)
         success_rate = (accessible_endpoints / total_endpoints) * 100 if total_endpoints > 0 else 0
+        
+        print(f"🎯 DEBUG: Test Summary - {accessible_endpoints}/{total_endpoints} endpoints accessible ({success_rate:.1f}% success rate)")
+        print(f"🎯 DEBUG: Endpoint results keys: {list(endpoint_results.keys())}")
         
         # Calculate business metrics from monitoring data
         total_calls = sum(ep.get('call_count', 0) for ep in admin_endpoints)
