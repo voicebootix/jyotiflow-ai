@@ -504,9 +504,6 @@ app.include_router(admin_integrations.router)
 # CORE.MD: Group all marketing-related routers together for clarity.
 app.include_router(social_marketing_router)
 print("✅ Social media marketing router registered")
-app.include_router(lora_router, prefix="/api/admin/lora", tags=["Lora Management"])
-print("✅ LoRA management router (V2) registered.")
-
 
 # Enhanced spiritual guidance router
 if ENHANCED_ROUTER_AVAILABLE:
