@@ -117,15 +117,16 @@ async def start_training_job(
         "input": {
             "instance_prompt": request.instance_prompt,
             "instance_data": str(request.training_data_url),
-            # Destination model details
-            "model_name": request.model_name,
-            "push_to_hub": "replicate",
-            "hf_username": request.model_owner
+            # Corrected keys based on the standard lora-trainer schema
+            "output_model_name": request.model_name,
+            "output_model_owner": request.model_owner,
         },
     }
 
     if WEBHOOK_URL:
-        prediction_payload["webhook_completed"] = WEBHOOK_URL
+        # Use the modern webhook format
+        prediction_payload["webhook"] = WEBHOOK_URL
+        prediction_payload["webhook_events_filter"] = ["completed"]
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
