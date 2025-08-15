@@ -8,6 +8,15 @@ from ..services.supabase_storage_service import SupabaseStorageService, get_stor
 logger = get_logger(__name__)
 
 class ThemeService:
+    ASPECT_RATIOS = {
+        "instagram_feed": "4:5",
+        "instagram_story": "9:16",
+        "tiktok": "9:16",
+        "facebook_post": "1:1",
+        "x_post": "16:9",
+        "pinterest_pin": "2:3",
+    }
+
     def __init__(
         self,
         db_pool,
@@ -19,11 +28,12 @@ class ThemeService:
         self.replicate_service = replicate_service
 
     async def _generate_with_runwayml_reference(
-        self, prompt: str, reference_image_url: str
+        self, prompt: str, reference_image_url: str, target_platform: Optional[str] = None
     ) -> Optional[bytes]:
         """
         Generates an image using the RunwayML Gen-4 Turbo model on Replicate,
         which uses a reference image for character consistency.
+        The aspect ratio is chosen based on the target_platform.
         """
         if not self.replicate_service:
             logger.error("ReplicateService is not initialized.")
@@ -36,6 +46,9 @@ class ThemeService:
                 f"a high-resolution, photorealistic portrait of @swamiji, {prompt}"
             )
 
+            aspect_ratio = self.ASPECT_RATIOS.get(target_platform, "9:16")
+            logger.info(f"Using aspect ratio '{aspect_ratio}' for platform '{target_platform or 'default'}'.")
+
             # Note: We are not specifying a version, so the service will fetch the latest.
             output_url = await self.replicate_service.run_prediction(
                 model_name="runwayml/gen4-image-turbo",
@@ -43,7 +56,7 @@ class ThemeService:
                     "prompt": tagged_prompt,
                     "reference_images": [reference_image_url],
                     "reference_tags": ["swamiji"],
-                    "aspect_ratio": "9:16",  # Portrait for social media
+                    "aspect_ratio": aspect_ratio,
                     "resolution": "1080p",
                 },
             )
@@ -61,7 +74,7 @@ class ThemeService:
             return None
 
     async def generate_themed_image_bytes(
-        self, theme_prompt: str, reference_avatar_url: str
+        self, theme_prompt: str, reference_avatar_url: str, target_platform: Optional[str] = None
     ) -> Optional[bytes]:
         """
         Generates the final themed image using the RunwayML reference model.
@@ -70,7 +83,9 @@ class ThemeService:
             f"Generating themed image for prompt: '{theme_prompt}' using reference URL."
         )
         return await self._generate_with_runwayml_reference(
-            prompt=theme_prompt, reference_image_url=reference_avatar_url
+            prompt=theme_prompt, 
+            reference_image_url=reference_avatar_url,
+            target_platform=target_platform
         )
 
 

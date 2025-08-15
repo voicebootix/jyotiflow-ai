@@ -459,6 +459,7 @@ async def upload_preview_image(
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
     theme_day: Optional[int] = Field(None, ge=0, le=6, description="Override daily theme with specific day (0=Monday, ..., 6=Sunday). If None, uses current day.")
+    target_platform: Optional[str] = Field(None, description="Target platform for aspect ratio (e.g., 'instagram_story', 'facebook_post').")
 
 async def get_admin_or_test_bypass(request: Request):
     """
@@ -521,7 +522,8 @@ async def generate_image_preview(
         # 3. Call the new, simplified theme service
         image_bytes = await theme_service.generate_themed_image_bytes(
             theme_prompt=theme_prompt, 
-            reference_avatar_url=reference_avatar_url
+            reference_avatar_url=reference_avatar_url,
+            target_platform=request.target_platform
         )
         
         if not image_bytes:
@@ -597,7 +599,7 @@ async def generate_video_from_preview(
 async def generate_daily_content(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
-    conn = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
     try:
         daily_plan = await social_engine.generate_daily_content_plan()
