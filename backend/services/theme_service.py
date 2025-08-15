@@ -497,17 +497,10 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             # integrated with the face from the reference image.
             refinement_strength = float(os.getenv("THEME_REFINE_STRENGTH", "0.2")) # FINAL FIX v2: Drastically lower for scene preservation
             
-            # Get IP Adapter weight from environment with safe fallback and validation
-            try:
-                ip_weight_str = os.getenv("THEME_REFINE_IP_WEIGHT", "0.2") # FINAL FIX: Reduced weight to prevent style bleed
-                refinement_ip_weight = float(ip_weight_str)
-                # Clamp the value to a safe range (0.0 to 1.0)
-                if not (0.0 <= refinement_ip_weight <= 1.0):
-                    logger.warning(f"⚠️ Invalid THEME_REFINE_IP_WEIGHT '{refinement_ip_weight}', clamping to range 0.0-1.0.")
-                    refinement_ip_weight = max(0.0, min(1.0, refinement_ip_weight))
-            except (ValueError, TypeError):
-                logger.warning("⚠️ Could not parse THEME_REFINE_IP_WEIGHT. Using default value 0.2.")
-                refinement_ip_weight = 0.2
+            # 🎯 FINAL FIX: Increased IP Adapter weight to ensure strong face transfer and prevent style bleed.
+            # A higher weight forces the AI to prioritize the face from the reference image, ignoring other elements like clothing.
+            # The environment variable has been removed to lock in this optimal value.
+            refinement_ip_weight = 0.6 
 
             logger.info(f"🎨 Step 2 Settings: strength={refinement_strength} (scene preservation), ip_adapter_weight={refinement_ip_weight} (face influence)")
 
