@@ -3098,53 +3098,102 @@ async def test_admin_api_endpoints_database_driven():
             timeout_seconds = test_config.get('timeout_seconds', 30)
             expected_codes = test_config.get('expected_codes', [200, 401, 403, 307, 308])
             
-            # DATABASE DRIVEN: Get admin endpoints from monitoring_api_calls table for bottleneck detection
-            admin_endpoints_data = await conn.fetch('''
-                SELECT 
-                    endpoint,
-                    method,
-                    COUNT(*) as call_count,
-                    AVG(response_time) as avg_response_time,
-                    STDDEV(response_time) as response_time_stddev,
-                    AVG(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1.0 ELSE 0.0 END) * 100 as success_rate,
-                    MAX(timestamp) as last_called,
-                    MIN(timestamp) as first_called,
-                    COUNT(DISTINCT DATE(timestamp)) as active_days,
-                    MODE() WITHIN GROUP (ORDER BY status_code) as most_common_status
-                FROM monitoring_api_calls 
-                WHERE endpoint LIKE '/api/admin/%'
-                AND timestamp > NOW() - INTERVAL '30 days'
-                GROUP BY endpoint, method
-                HAVING COUNT(*) >= 1
-                ORDER BY call_count DESC
-                LIMIT 50
-            ''')
+            # DYNAMIC: Get admin endpoints from live OpenAPI specification
+            print("🔍 DEBUG: Discovering admin endpoints from OpenAPI spec")
             
-            # PERFORMANCE VERIFICATION: Check if the new partial index is being used
-            # This will log the query plan to verify index usage (only in debug mode)
-            if os.getenv('DEBUG_QUERY_PERFORMANCE', '').lower() == 'true':
+            # Create HTTP client for OpenAPI discovery
+            timeout_config = httpx.Timeout(
+                read=30.0,
+                connect=5.0,
+                write=5.0,
+                pool=2.0
+            )
+            
+            admin_endpoints_data = []
+            
+            async with httpx.AsyncClient(timeout=timeout_config) as discovery_client:
                 try:
-                    # Reduce overhead: planning-only EXPLAIN; set a low statement timeout for safety
-                    await conn.execute("SET statement_timeout = 5000")
-                    explain_result = await conn.fetch('''
-                        EXPLAIN (FORMAT TEXT, COSTS, SETTINGS, SUMMARY)
-                        SELECT 
-                            endpoint,
-                            COUNT(*) as call_count,
-                            AVG(response_time) as avg_response_time
-                        FROM monitoring_api_calls 
-                        WHERE endpoint LIKE '/api/admin/%'
-                        AND timestamp > NOW() - INTERVAL '30 days'
-                        GROUP BY endpoint
-                        LIMIT 10
-                    ''')
-                    logger.info("🔍 Query Plan Analysis:")
-                    for row in explain_result:
-                        plan_line = row[0] if row else ""
-                        if "Index" in plan_line or "Scan" in plan_line:
-                            logger.info(f"   {plan_line}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Could not analyze query plan: {e}")
+                    # Get OpenAPI specification from live API
+                    openapi_response = await discovery_client.get(f"{api_base_url}/openapi.json")
+                    if openapi_response.status_code != 200:
+                        raise Exception(f"OpenAPI endpoint returned {openapi_response.status_code}")
+                    
+                    openapi_spec = openapi_response.json()
+                    print(f"🔍 DEBUG: Retrieved OpenAPI spec with {len(openapi_spec.get('paths', {}))} total paths")
+                    
+                    # Discover admin-related endpoints using OpenAPI metadata (truly dynamic)
+                    for path, path_info in openapi_spec.get("paths", {}).items():
+                        for method, method_info in path_info.items():
+                            if method in ["get", "post", "put", "delete", "patch"]:
+                                # Use OpenAPI tags and metadata to identify admin endpoints
+                                tags = method_info.get("tags", [])
+                                summary = method_info.get("summary", "")
+                                description = method_info.get("description", "")
+                                
+                                # Dynamic detection: Check if endpoint is admin-related based on metadata
+                                is_admin_endpoint = False
+                                business_function = "Unknown Service"
+                                
+                                # Check tags for admin-related keywords
+                                for tag in tags:
+                                    tag_lower = tag.lower()
+                                    if any(admin_keyword in tag_lower for admin_keyword in 
+                                          ["admin", "auth", "analytics", "management", "dashboard"]):
+                                        is_admin_endpoint = True
+                                        business_function = tag
+                                        break
+                                
+                                # If no admin tags found, check summary and description
+                                if not is_admin_endpoint:
+                                    combined_text = f"{summary} {description}".lower()
+                                    if any(admin_keyword in combined_text for admin_keyword in 
+                                          ["admin", "authentication", "analytics", "management", "dashboard"]):
+                                        is_admin_endpoint = True
+                                        business_function = summary or description or "Admin Service"
+                                
+                                # Add endpoint if identified as admin-related
+                                if is_admin_endpoint:
+                                    # Get historical data from monitoring if available
+                                    historical_data = await conn.fetchrow('''
+                                        SELECT 
+                                            COUNT(*) as call_count,
+                                            AVG(response_time) as avg_response_time,
+                                            STDDEV(response_time) as response_time_stddev,
+                                            AVG(CASE WHEN status_code BETWEEN 200 AND 299 THEN 1.0 ELSE 0.0 END) * 100 as success_rate,
+                                            MAX(timestamp) as last_called,
+                                            MIN(timestamp) as first_called,
+                                            COUNT(DISTINCT DATE(timestamp)) as active_days,
+                                            MODE() WITHIN GROUP (ORDER BY status_code) as most_common_status
+                                        FROM monitoring_api_calls 
+                                        WHERE endpoint = $1 AND method = $2
+                                    ''', path, method.upper())
+                                    
+                                    # Use historical data if available, otherwise use defaults
+                                    if historical_data and historical_data['call_count'] > 0:
+                                        endpoint_data = dict(historical_data)
+                                        endpoint_data['endpoint'] = path
+                                        endpoint_data['method'] = method.upper()
+                                    else:
+                                        endpoint_data = {
+                                            'endpoint': path,
+                                            'method': method.upper(),
+                                            'call_count': 0,
+                                            'avg_response_time': None,
+                                            'response_time_stddev': None,
+                                            'success_rate': None,
+                                            'last_called': None,
+                                            'first_called': None,
+                                            'active_days': 0,
+                                            'most_common_status': None
+                                        }
+                                    
+                                    admin_endpoints_data.append(endpoint_data)
+                                    print(f"🔍 DEBUG: Discovered admin endpoint: {method.upper()} {path} (Business Function: {business_function})")
+                
+                except Exception as discovery_error:
+                    print(f"❌ DEBUG: OpenAPI discovery failed: {discovery_error}")
+                    # Fallback: Return empty list to trigger appropriate error handling
+                    admin_endpoints_data = []
             
             admin_endpoints = []
             bottleneck_analysis = {
