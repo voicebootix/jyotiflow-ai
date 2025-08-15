@@ -95,36 +95,56 @@ async def start_training_job(
     if not REPLICATE_API_TOKEN:
         raise HTTPException(status_code=500, detail="REPLICATE_API_TOKEN is not configured.")
 
+    # --- Configuration from Environment Variables ---
+    LORA_TRAINER_VERSION = os.environ.get("LORA_TRAINER_VERSION")
+    if not LORA_TRAINER_VERSION:
+        logger.error("LORA_TRAINER_VERSION environment variable not set.")
+        raise HTTPException(status_code=500, detail="LoRA trainer version is not configured on the server.")
+
+    WEBHOOK_URL = os.environ.get("REPLICATE_WEBHOOK_URL")
+    # In a real production environment, you might want to validate if the current env is 'production'
+    # For simplicity here, we add it if it exists.
+    if not WEBHOOK_URL:
+        logger.warning("REPLICATE_WEBHOOK_URL is not set. Training completion will not be reported via webhook.")
+
     headers = {
         "Authorization": f"Token {REPLICATE_API_TOKEN}",
         "Content-Type": "application/json",
     }
-    
-    # This is a common structure for LoRA training on Replicate
-    # We are calling the main "trainings" endpoint
-    training_payload = {
-        "destination": f"{request.model_owner}/{request.model_name}",
+
+    prediction_payload = {
+        "version": LORA_TRAINER_VERSION,
         "input": {
             "instance_prompt": request.instance_prompt,
-            "instance_data": str(request.training_data_url)
-        }
+            "instance_data": str(request.training_data_url),
+            # Corrected keys based on the standard lora-trainer schema
+            "output_model_name": request.model_name,
+            "output_model_owner": request.model_owner,
+        },
     }
+
+    if WEBHOOK_URL:
+        # Use the modern webhook format
+        prediction_payload["webhook"] = WEBHOOK_URL
+        prediction_payload["webhook_events_filter"] = ["completed"]
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
-            trainings_url = f"{REPLICATE_BASE_URL}/trainings"
-            logger.info(f"Starting training for model: {training_payload['destination']}")
-            
-            response = await client.post(trainings_url, headers=headers, json=training_payload)
+            predictions_url = f"{REPLICATE_BASE_URL}/predictions"
+            logger.info(f"Starting LoRA training prediction for model: {request.model_owner}/{request.model_name}")
+
+            response = await client.post(predictions_url, headers=headers, json=prediction_payload)
             response.raise_for_status()
             
-            training_data = response.json()
-            logger.info(f"Successfully started training job. Job ID: {training_data.get('id')}")
+            prediction_data = response.json()
+            # The response for a prediction is different from a training job
+            # It immediately contains an ID which can be used to check status
+            logger.info(f"Successfully started LoRA training prediction. Prediction ID: {prediction_data.get('id')}")
             
             return StandardResponse(
                 success=True, 
                 message="Training job started successfully.", 
-                data=training_data
+                data=prediction_data
             )
 
     except httpx.HTTPStatusError as e:
