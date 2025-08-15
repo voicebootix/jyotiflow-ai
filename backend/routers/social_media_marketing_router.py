@@ -12,7 +12,7 @@ import hashlib
 import httpx
 import uuid
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import asyncio
 import base64 # Added for base64 encoding of image bytes
 
@@ -20,10 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Respons
 from pydantic import BaseModel, Field
 import asyncpg
 
-from auth.auth_helpers import AuthenticationHelper
-import db
-from schemas.response import StandardResponse
-from schemas.social_media import (
+from ..auth.auth_helpers import AuthenticationHelper
+from .. import db
+from ..schemas.response import StandardResponse
+from ..schemas.social_media import (
     Campaign, ContentCalendarItem, GenerateAllAvatarPreviewsRequest, MarketingAsset,
     MarketingAssetCreate, MarketingOverview, PlatformConfig, PlatformConfigUpdate,
     TestConnectionRequest, PostExecutionRequest, PostExecutionResult, CampaignStatus,
@@ -32,7 +32,7 @@ from schemas.social_media import (
 )
 
 try:
-    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
     AVATAR_ENGINE_AVAILABLE = True
 except ImportError:
     AVATAR_ENGINE_AVAILABLE = False
@@ -40,17 +40,10 @@ except ImportError:
     def get_avatar_engine():
         raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available.")
 
-try:
-    from services.theme_service import ThemeService, get_theme_service
-    THEME_SERVICE_AVAILABLE = True
-except ImportError:
-    THEME_SERVICE_AVAILABLE = False
-    class ThemeService: pass
-    def get_theme_service():
-        raise HTTPException(status_code=501, detail="Theme service is not available.")
+from ..services.theme_service import ThemeService, get_theme_service
 
 try:
-    from services.supabase_storage_service import SupabaseStorageService, get_storage_service
+    from ..services.supabase_storage_service import SupabaseStorageService, get_storage_service
     STORAGE_SERVICE_AVAILABLE = True
 except ImportError:
     STORAGE_SERVICE_AVAILABLE = False
@@ -59,31 +52,38 @@ except ImportError:
         raise HTTPException(status_code=501, detail="Storage service is not available.")
         
 try:
-    from services.youtube_service import youtube_service
+    from ..services.youtube_service import youtube_service
     YOUTUBE_SERVICE_AVAILABLE = True
 except ImportError:
     YOUTUBE_SERVICE_AVAILABLE = False
 
 try:
-    from services.facebook_service import facebook_service
+    from ..services.facebook_service import facebook_service
     FACEBOOK_SERVICE_AVAILABLE = True
 except ImportError:
     FACEBOOK_SERVICE_AVAILABLE = False
 
 try:
-    from services.instagram_service import instagram_service
+    from ..services.instagram_service import instagram_service
     INSTAGRAM_SERVICE_AVAILABLE = True
 except ImportError:
     INSTAGRAM_SERVICE_AVAILABLE = False
 
 try:
-    from services.tiktok_service import tiktok_service
+    from ..services.tiktok_service import tiktok_service
     TIKTOK_SERVICE_AVAILABLE = True
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
 
 try:
-    from social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
+    from ..config.social_media_config import THEMES
+    THEMES_AVAILABLE = True
+except ImportError:
+    THEMES_AVAILABLE = False
+
+
+try:
+    from ..social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
     AUTOMATION_ENGINE_AVAILABLE = True
 except ImportError as e:
     AUTOMATION_ENGINE_AVAILABLE = False
@@ -226,192 +226,6 @@ async def upload_swamiji_image(
         logger.error(f"Swamiji image upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
 
-@social_marketing_router.post("/generate-avatar-candidates", response_model=StandardResponse)
-async def generate_avatar_candidates(
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    theme_service: ThemeService = Depends(get_theme_service)
-):
-    """
-    Generates a set of 10 diverse, high-quality Swamiji avatar images to be used as candidates for LoRA training.
-    """
-    try:
-        candidate_prompts = [
-            "A photorealistic, high-resolution portrait of a youthful Indian spiritual master in his 30s, exuding vibrant energy, in a serene ashram, morning light, 4K, sharp focus.",
-            "Close-up portrait of a dynamic spiritual guru from India in his late 20s, with a bright, engaging smile, in a modern library of spiritual texts, cinematic lighting.",
-            "Photorealistic portrait of a joyful, energetic young Indian Swamiji, looking directly at the camera, in a vibrant temple courtyard, detailed features, youthful glow.",
-            "A youthful spiritual master from India meditating under a banyan tree, focused expression, soft side lighting, ultra-realistic, healthy skin.",
-            "Headshot of an enlightened young Indian guru in his early 30s, with clear, bright eyes, against a simple, clean studio background, professional portrait.",
-            "A compassionate young Indian spiritual teacher, giving a blessing with energetic hands, warm indoor lighting, modern yet traditional clothing, photorealistic.",
-            "Portrait of a youthful Indian Swamiji with a well-groomed short black beard, in a peaceful garden, golden hour sunlight, hyper-detailed, looking approachable.",
-            "Front-facing portrait of a serene but powerful young Indian spiritual leader, against a backdrop of the Himalayas, clear and crisp details, 8K, looking strong and healthy.",
-            "A powerful portrait of a young spiritual guru from India in his 30s, exuding confidence and wisdom, in a traditional setting, dramatic lighting.",
-            "Studio portrait of a smiling young Indian Swamiji, looking approachable and kind, against a neutral grey background, high resolution, exuding positivity."
-        ]
-
-        tasks = []
-        for prompt in candidate_prompts:
-            # We don't need the base image for this initial generation
-            task = theme_service.runware_service.generate_scene_only(prompt=prompt)
-            tasks.append(task)
-        
-        image_bytes_list = await asyncio.gather(*tasks)
-
-        image_urls = []
-        storage_service = get_storage_service()
-        for i, image_bytes in enumerate(image_bytes_list):
-            unique_filename = f"candidate_{datetime.now().strftime('%Y%m%d')}_{i+1}.png"
-            file_path_in_bucket = f"lora_candidates/{unique_filename}"
-            
-            public_url = storage_service.upload_file(
-                bucket_name="avatars",
-                file_path_in_bucket=file_path_in_bucket,
-                file=image_bytes,
-                content_type="image/png"
-            )
-            image_urls.append(public_url)
-
-        return StandardResponse(success=True, data={"candidate_urls": image_urls}, message=f"{len(image_urls)} avatar candidates generated successfully.")
-    except Exception as e:
-        logger.error(f"Failed to generate avatar candidates: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to generate avatar candidates.") from e
-
-@social_marketing_router.post("/set-master-avatar", response_model=StandardResponse)
-async def set_master_avatar(
-    request: Request,
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    storage_service: SupabaseStorageService = Depends(get_storage_service),
-    conn: asyncpg.Connection = Depends(db.get_db)
-):
-    """
-    Sets the selected candidate image as the official master avatar for all future theme generations.
-    """
-    try:
-        body = await request.json()
-        image_url = body.get("image_url")
-        if not image_url:
-            raise HTTPException(status_code=400, detail="Image URL is required.")
-
-        # Download the selected image with timeout and error handling
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(image_url, timeout=10.0)
-                response.raise_for_status()
-                image_bytes = response.content
-        except httpx.TimeoutException as e:
-            logger.error(f"Timeout while downloading master avatar from {image_url}: {e}", exc_info=True)
-            raise HTTPException(status_code=408, detail="Request to image storage timed out.") from e
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error when downloading master avatar: {e.response.status_code} from {image_url}", exc_info=True)
-            raise HTTPException(status_code=502, detail=f"Failed to download image from storage (HTTP {e.response.status_code}).") from e
-        except Exception as e:
-            logger.error(f"An unexpected error occurred during image download: {e}", exc_info=True)
-            raise HTTPException(status_code=500, detail="An unexpected error occurred while downloading the image.") from e
-
-        # Upload it as the new master/base avatar
-        file_name_in_bucket = "public/swamiji_base_avatar.png"
-        public_url = storage_service.upload_file(
-            bucket_name="avatars",
-            file_path_in_bucket=file_name_in_bucket,
-            file=image_bytes,
-            content_type="image/png"
-        )
-        
-        # Update the database
-        await conn.execute(
-            "INSERT INTO platform_settings (key, value) VALUES ('swamiji_avatar_url', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()",
-            json.dumps(public_url)
-        )
-
-        return StandardResponse(success=True, message="Master avatar has been set successfully.", data={"new_avatar_url": public_url})
-    except Exception as e:
-        logger.error(f"Failed to set master avatar: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to set master avatar.") from e
-
-class TrainingVariationsRequest(BaseModel):
-    image_url: str = Field(..., description="The URL of the master avatar image to generate variations from.")
-
-@social_marketing_router.post("/generate-training-variations", response_model=StandardResponse)
-async def generate_training_variations(
-    request: TrainingVariationsRequest,
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    theme_service: ThemeService = Depends(get_theme_service),
-    storage_service: SupabaseStorageService = Depends(get_storage_service)
-):
-    """
-    Generates 20 variations of a single master avatar image for LoRA training.
-    """
-    try:
-        # 1. Download the master image
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(request.image_url)
-            response.raise_for_status()
-            master_image_bytes = response.content
-
-        # 2. Define 20 diverse prompts for training data
-        variation_prompts = [
-            # Environment Variations
-            "A youthful spiritual master in his 30s, inside a peaceful ashram library, surrounded by ancient texts.",
-            "A youthful spiritual master in his 30s, meditating in a serene cave, with soft light from an oil lamp.",
-            "A youthful spiritual master in his 30s, standing on a Himalayan mountain peak, with a clear blue sky.",
-            "A youthful spiritual master in his 30s, walking through a vibrant, colorful Indian market.",
-            "A youthful spiritual master in his 30s, sitting by a flowing river at sunrise.",
-            # Expression & Pose Variations
-            "A close-up portrait of a youthful spiritual master in his 30s, with a joyful, laughing expression.",
-            "A close-up portrait of a youthful spiritual master in his 30s, with a deep, thoughtful, and serious expression.",
-            "A youthful spiritual master in his 30s, with hands in a prayer (Anjali Mudra) position.",
-            "A youthful spiritual master in his 30s, looking upwards towards the sky with a hopeful expression.",
-            "A youthful spiritual master in his 30s, teaching a small group of disciples, with an engaging expression.",
-            # Clothing & Style Variations
-            "A youthful spiritual master in his 30s, wearing simple white cotton robes.",
-            "A youthful spiritual master in his 30s, wearing a saffron-colored shawl over one shoulder.",
-            "A youthful spiritual master in his 30s, with hair tied back neatly.",
-            "A youthful spiritual master in his 30s, wearing traditional wooden prayer beads (rudraksha).",
-            "A full-body shot of a youthful spiritual master in his 30s, in traditional dhoti and kurta.",
-            # Lighting Variations
-            "A portrait of a youthful spiritual master in his 30s, with dramatic side lighting, creating strong shadows.",
-            "A portrait of a youthful spiritual master in his 30s, backlit by a golden sunset.",
-            "A portrait of a youthful spiritual master in his 30s, in the soft, diffused light of an overcast day.",
-            "A portrait of a youthful spiritual master in his 30s, with a single light source from above (Rembrandt lighting).",
-            "A portrait of a youthful spiritual master in his 30s, in the bright, direct sunlight of midday.",
-        ]
-        
-        # 3. Generate variations in parallel
-        tasks = []
-        for prompt in variation_prompts:
-            task = theme_service.runware_service.generate_variation_from_face(
-                face_image_bytes=master_image_bytes,
-                prompt=f"photorealistic, high-resolution, {prompt}"
-            )
-            tasks.append(task)
-        
-        image_bytes_list = await asyncio.gather(*tasks)
-
-        # 4. Upload variations and collect URLs
-        image_urls = []
-        for i, image_bytes in enumerate(image_bytes_list):
-            if image_bytes:
-                # Add a short UUID to prevent filename collisions
-                unique_suffix = uuid.uuid4().hex[:8]
-                unique_filename = f"variation_{datetime.now().strftime('%Y%m%d')}_{i+1}_{unique_suffix}.png"
-                file_path_in_bucket = f"lora_training_variations/{unique_filename}"
-                public_url = storage_service.upload_file(
-                    bucket_name="avatars",
-                    file_path_in_bucket=file_path_in_bucket,
-                    file=image_bytes,
-                    content_type="image/png"
-                )
-                image_urls.append(public_url)
-
-        return StandardResponse(success=True, data={"variation_urls": image_urls}, message=f"Successfully generated {len(image_urls)} training variations.")
-
-    except httpx.HTTPError as e:
-        logger.error(f"Failed to download the master image for variation generation: {e}", exc_info=True)
-        raise HTTPException(status_code=502, detail="Could not download the master image to generate variations.") from e
-    except Exception as e:
-        logger.error(f"Failed to generate training variations: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="An unexpected error occurred while generating training variations.") from e
-
-
 @social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
 async def upload_preview_image(
     image: UploadFile = File(...),
@@ -451,8 +265,8 @@ async def upload_preview_image(
 
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
-    theme_day: Optional[int] = Field(None, description="Override daily theme with specific day (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.")
-    strength_param: float = Field(0.4, ge=0.0, le=1.0, description="Transformation strength (0.0-1.0). Default 0.4 (safe). Higher values enable aggressive testing controlled by feature flags.")
+    theme_day: Optional[int] = Field(None, ge=0, le=6, description="Override daily theme with specific day (0=Monday, ..., 6=Sunday). If None, uses current day.")
+    target_platform: Optional[str] = Field(None, description="Target platform for aspect ratio (e.g., 'instagram_story', 'facebook_post').")
 
 async def get_admin_or_test_bypass(request: Request):
     """
@@ -491,22 +305,44 @@ async def generate_image_preview(
     request: ImagePreviewRequest, 
     admin_user: dict = Depends(get_admin_or_test_bypass),  # Secure + testable
     theme_service: ThemeService = Depends(get_theme_service),
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
+    if not THEMES_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Daily themes configuration is not available.")
+
     try:
-        # The service now returns the generated image, the prompt, and the base image bytes
-        image_bytes, final_prompt, base_image_bytes = await theme_service.generate_themed_image_bytes(
-            custom_prompt=request.custom_prompt, 
-            theme_day=request.theme_day
+        # 1. Determine the theme prompt
+        theme_prompt = ""
+        if request.custom_prompt:
+            theme_prompt = request.custom_prompt
+        else:
+            day_of_week = request.theme_day if request.theme_day is not None else date.today().weekday()
+            theme_prompt = THEMES.get(day_of_week, "A serene and wise spiritual master.")
+
+        # 2. Get the reference avatar URL from database
+        record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
+        if not record or not record['value']:
+            raise HTTPException(status_code=404, detail="Master Swamiji avatar URL not found in settings. Please set a master avatar first.")
+        
+        reference_avatar_url = json.loads(record['value'])
+
+        # 3. Call the new, simplified theme service
+        image_bytes = await theme_service.generate_themed_image_bytes(
+            theme_prompt=theme_prompt, 
+            reference_avatar_url=reference_avatar_url,
+            target_platform=request.target_platform
         )
         
-        # Compute hash of the generated image
+        if not image_bytes:
+            raise HTTPException(status_code=500, detail="Failed to generate image from the theme service.")
+
+        # 4. Compute hash and prepare response (adapted from existing logic)
         generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
         generated_hash_short = generated_hash_full[:16]
-        image_diff = "unknown"  # Default value
- 
-        # Try to get base image hash for comparison
+        image_diff = "unknown"
+        base_hash_short = None
+
         try:
-            # Use the correct bucket "avatars" and the full path as requested
             base_image_bytes = await get_storage_service().download_public_file_bytes("avatars", "public/swamiji_base_avatar.png")
             if base_image_bytes:
                 base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
@@ -515,34 +351,20 @@ async def generate_image_preview(
                 logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
         except Exception as diff_err:
             logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
- 
-        # Return a response with the generated image bytes
+
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
         
-        # 🛡️ ENHANCED HTTP header sanitization - CORE.MD: Fix emoji encoding errors
-        # 1. Handle None/non-string values defensively
-        if final_prompt is None or not isinstance(final_prompt, str):
+        import re
+        clean_prompt = re.sub(r'[^\x20-\x7E]', ' ', theme_prompt)
+        clean_prompt = ' '.join(clean_prompt.split()).strip()[:500]
+        if not clean_prompt:
             clean_prompt = "Generated image preview"
-        else:
-            # 2. Remove ALL HTTP-invalid characters including emojis and Unicode
-            # This prevents latin-1 encoding errors: 'latin-1 codec can't encode character'
-            import re
-            # Remove control characters (0x00–0x1F and 0x7F)
-            clean_prompt = re.sub(r'[\x00-\x1F\x7F]', ' ', final_prompt)
-            # Remove emoji and non-ASCII Unicode characters that cause encoding errors
-            clean_prompt = re.sub(r'[^\x20-\x7E]', ' ', clean_prompt)  # Keep only printable ASCII
-            # 3. Normalize whitespace and trim to valid length
-            clean_prompt = ' '.join(clean_prompt.split()).strip()[:500]
-            # 4. Fallback if cleaning resulted in empty string
-            if not clean_prompt:
-                clean_prompt = "Generated image preview"
         
         headers = {
             "X-Generated-Prompt": clean_prompt,
             "X-Image-Diff": image_diff,
             "X-Generated-Hash": generated_hash_short,
             **({"X-Base-Hash": base_hash_short} if base_hash_short else {}),
-            # Expose custom headers to browser
             "Access-Control-Expose-Headers": "X-Generated-Prompt, X-Image-Diff, X-Generated-Hash, X-Base-Hash",
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
@@ -550,7 +372,6 @@ async def generate_image_preview(
         }
         return Response(content=encoded_image, media_type="image/png", headers=headers)
     except ValueError as e:
-        # CORE.MD & REFRESH.MD: Handle validation errors with HTTP 400 (Bad Request)
         logger.warning(f"⚠️  VALIDATION ERROR in image preview generation: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
@@ -585,7 +406,7 @@ async def generate_video_from_preview(
 async def generate_daily_content(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
-    conn = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
     try:
         daily_plan = await social_engine.generate_daily_content_plan()

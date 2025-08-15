@@ -1,3 +1,13 @@
+"""
+🚀 JYOTIFLOW.AI MAIN APPLICATION
+"""
+import sys
+import os
+import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -89,7 +99,7 @@ from routers import auth, user, spiritual, sessions, followup, donations, credit
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
 from routers import admin_overview, admin_integrations
 from routers import content, ai, community, session_analytics
-from routers.lora_management_router import lora_router # LoRA Model Management
+from routers.social_media_marketing_router import social_marketing_router
 import db
 
 # Import the migration runner
@@ -100,7 +110,7 @@ from simple_unified_startup import initialize_unified_jyotiflow, cleanup_unified
 
 # Import enhanced spiritual guidance router
 try:
-    from enhanced_spiritual_guidance_router import router as enhanced_spiritual_router
+    from routers.enhanced_spiritual_guidance_router import router as enhanced_spiritual_router
     ENHANCED_ROUTER_AVAILABLE = True
 except ImportError:
     ENHANCED_ROUTER_AVAILABLE = False
@@ -120,8 +130,6 @@ try:
 except ImportError:
     AVATAR_GENERATION_AVAILABLE = False
     print("⚠️ Avatar generation router not available")
-
-from routers.social_media_marketing_router import social_marketing_router
 
 try:
     from routers.livechat import router as livechat_router
@@ -556,7 +564,7 @@ print("🚀 All routers registered successfully!")
 
 # --- Static File Serving ---
 # CORE.MD & REFRESH.MD: Proactively create the static directory to prevent startup errors
-static_dir = Path("backend/static_uploads")
+static_dir = Path(__file__).resolve().parent / "static_uploads"
 static_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 print(f"✅ Static files directory '{static_dir}' is ready and mounted.")
