@@ -20,10 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Respons
 from pydantic import BaseModel, Field
 import asyncpg
 
-from ..auth.auth_helpers import AuthenticationHelper
-from .. import db
-from ..schemas.response import StandardResponse
-from ..schemas.social_media import (
+from auth.auth_helpers import AuthenticationHelper
+from db import db
+from schemas.response import StandardResponse
+from schemas.social_media import (
     Campaign, ContentCalendarItem, GenerateAllAvatarPreviewsRequest, MarketingAsset,
     MarketingAssetCreate, MarketingOverview, PlatformConfig, PlatformConfigUpdate,
     TestConnectionRequest, PostExecutionRequest, PostExecutionResult, CampaignStatus,
@@ -40,7 +40,7 @@ except ImportError:
     def get_avatar_engine():
         raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available.")
 
-from ..services.theme_service import ThemeService, get_theme_service
+from services.theme_service import ThemeService, get_theme_service
 
 try:
     from ..services.supabase_storage_service import SupabaseStorageService, get_storage_service
