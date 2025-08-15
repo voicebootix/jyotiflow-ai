@@ -3064,10 +3064,75 @@ async def test_admin_endpoint_generic(endpoint_index: int, test_name: str, test_
             if len(endpoints) != 4:
                 return {"status": "failed", "error": f"Expected 4 admin endpoints, found {len(endpoints)}"}
 
+            # DEFENSIVE VALIDATION: Validate endpoint structure
+            required_keys = ['endpoint', 'method', 'business_function']
+            optional_keys = ['test_data']
+            
+            for idx, endpoint_row in enumerate(endpoints):
+                missing_keys = []
+                
+                # Check required keys
+                for key in required_keys:
+                    if key not in endpoint_row or endpoint_row.get(key) is None:
+                        missing_keys.append(key)
+                
+                # Check if test_data exists, if not set default
+                if 'test_data' not in endpoint_row:
+                    endpoint_row = dict(endpoint_row)  # Convert Record to dict for modification
+                    endpoint_row['test_data'] = {}
+                    endpoints[idx] = endpoint_row
+                
+                if missing_keys:
+                    return {
+                        "status": "failed", 
+                        "error": f"Malformed endpoint configuration at index {idx}",
+                        "details": {
+                            "missing_keys": missing_keys,
+                            "endpoint_index": idx,
+                            "available_keys": list(endpoint_row.keys()) if endpoint_row else [],
+                            "validation_type": "structure_validation"
+                        }
+                    }
+                
+                # Additional validation for key values
+                if not endpoint_row.get('endpoint') or not isinstance(endpoint_row.get('endpoint'), str):
+                    return {
+                        "status": "failed",
+                        "error": f"Invalid endpoint value at index {idx}",
+                        "details": {
+                            "endpoint_index": idx,
+                            "endpoint_value": endpoint_row.get('endpoint'),
+                            "validation_type": "value_validation"
+                        }
+                    }
+                
+                if not endpoint_row.get('method') or endpoint_row.get('method').upper() not in ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']:
+                    return {
+                        "status": "failed",
+                        "error": f"Invalid HTTP method at index {idx}",
+                        "details": {
+                            "endpoint_index": idx,
+                            "method_value": endpoint_row.get('method'),
+                            "allowed_methods": ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+                            "validation_type": "method_validation"
+                        }
+                    }
+                
+                if not endpoint_row.get('business_function') or not isinstance(endpoint_row.get('business_function'), str):
+                    return {
+                        "status": "failed",
+                        "error": f"Invalid business_function value at index {idx}",
+                        "details": {
+                            "endpoint_index": idx,
+                            "business_function_value": endpoint_row.get('business_function'),
+                            "validation_type": "business_function_validation"
+                        }
+                    }
+
             if endpoint_index >= len(endpoints):
                 return {"status": "failed", "error": f"Endpoint index {endpoint_index} out of range"}
 
-            # Select specified endpoint for this test
+            # Select specified endpoint for this test (now validated)
             endpoint_config = endpoints[endpoint_index]
             
             # Generate session_id for this test
@@ -3140,11 +3205,42 @@ async def test_admin_endpoint_generic(endpoint_index: int, test_name: str, test_
                         SELECT status, output_data FROM test_case_results WHERE session_id = $1
                     ''', session_id)
                     
-                    return {
-                        "status": result['status'],
+                    # DEFENSIVE JSON PARSING: Handle invalid JSON gracefully
+                    details = None
+                    json_parse_error = None
+                    
+                    if result and result.get('output_data'):
+                        try:
+                            details = json.loads(result['output_data'])
+                        except (json.JSONDecodeError, ValueError, TypeError) as json_error:
+                            # Log the parsing error with context
+                            print(f"JSON parse error in session {session_id} for business_function '{business_function}': {json_error}")
+                            print(f"Raw output_data: {result.get('output_data')}")
+                            
+                            json_parse_error = {
+                                "parse_error": str(json_error),
+                                "raw_data": str(result.get('output_data'))[:200] + "..." if len(str(result.get('output_data', ''))) > 200 else str(result.get('output_data')),
+                                "session_id": session_id,
+                                "business_function": business_function
+                            }
+                            
+                            # Set safe fallback value
+                            details = {"error": "JSON parse failed", "raw_output_available": True}
+                    else:
+                        details = {"error": "No output data available"}
+                    
+                    response_dict = {
+                        "status": result['status'] if result else "failed",
                         "business_function": business_function,
-                        "details": json.loads(result['output_data'])
+                        "details": details
                     }
+                    
+                    # Include parse error information if it occurred
+                    if json_parse_error:
+                        response_dict["json_parse_error"] = json_parse_error
+                        response_dict["status"] = "failed"  # Override status due to parse error
+                    
+                    return response_dict
                     
             except Exception as http_error:
                 # Update session status to failed on HTTP/test error
