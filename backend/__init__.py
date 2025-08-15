@@ -9,7 +9,6 @@ __author__ = "JyotiFlow.ai Team"
 # Core modules
 from . import deps
 from . import db
-from . import main
 
 # Configuration
 from . import config
@@ -31,7 +30,6 @@ from . import startup_database_validator
 __all__ = [
     "deps",
     "db", 
-    "main",
     "config",
     "auth",
     "models",
