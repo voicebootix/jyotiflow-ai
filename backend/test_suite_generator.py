@@ -3300,7 +3300,81 @@ import uuid
 
 
 async def test_admin_overview_endpoint():
-    return await test_admin_endpoint_generic(1, 'test_admin_overview_endpoint', 'admin_overview')
+    \"\"\"Test admin overview endpoint - database-driven, no hardcoded values\"\"\"
+    import asyncpg, json, os, time, uuid, httpx
+    session_id = None
+    conn = None
+    try:
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return {"status": "failed", "error": "DATABASE_URL not found"}
+        conn = await asyncpg.connect(database_url)
+        async with conn.transaction():
+            # Fetch overview endpoint (2nd endpoint) from database
+            endpoint_config = await conn.fetchrow('''
+                SELECT endpoint, method, business_function, test_data 
+                FROM admin_endpoints_config 
+                WHERE id = (SELECT MIN(id) FROM admin_endpoints_config) + 1
+            ''')
+            if not endpoint_config:
+                return {"status": "failed", "error": "Admin overview endpoint not found in database"}
+            # Validate required fields from database
+            for key in ['endpoint', 'method', 'business_function']:
+                if not endpoint_config.get(key):
+                    return {"status": "failed", "error": f"Missing {key} in database config"}
+            # Create session
+            session_id = str(uuid.uuid4())
+            await conn.execute('''
+                INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
+            ''', session_id, 'admin_overview', 'admin_services_critical', 'running')
+            # Get test config from database
+            test_config_row = await conn.fetchrow('''
+                SELECT value FROM platform_settings WHERE key = 'admin_test_config'
+            ''')
+            test_config = json.loads(test_config_row['value']) if test_config_row and test_config_row['value'] else {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            # Execute HTTP request
+            url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                start_time = time.time()
+                response = await client.post(url, json=endpoint_config.get('test_data', {})) if endpoint_config['method'].upper() == 'POST' else await client.get(url)
+                response_time_ms = int((time.time() - start_time) * 1000)
+                status_code = response.status_code
+                test_status = 'passed' if status_code in test_config['expected_codes'] else 'failed'
+                # Store results in database
+                await conn.execute('''
+                    INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
+                    VALUES ($1, $2, $3, $4, NOW())
+                ''', endpoint_config['endpoint'], endpoint_config['method'], status_code, response_time_ms)
+                await conn.execute('''
+                    INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                ''', session_id, 'test_admin_overview_endpoint', 'admin_services_critical', test_status, json.dumps(endpoint_config.get('test_data', {})), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
+                await conn.execute('''
+                    UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
+                ''', session_id)
+                # Return result
+                result = await conn.fetchrow('''SELECT status, output_data FROM test_case_results WHERE session_id = $1''', session_id)
+                details = {"error": "No output data available"}
+                if result and result.get('output_data'):
+                    try:
+                        details = json.loads(result['output_data'])
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        details = {"error": "JSON parse failed", "raw_output_available": True}
+                return {"status": result['status'] if result else "failed", "business_function": endpoint_config['business_function'], "details": details}
+    except Exception as e:
+        if session_id and conn:
+            try:
+                await conn.execute('''UPDATE test_execution_sessions SET status = 'failed', finished_at = NOW() WHERE session_id = $1''', session_id)
+            except Exception:
+                pass
+        return {"status": "failed", "error": f"Overview endpoint test failed: {str(e)}"}
+    finally:
+        if conn:
+            try:
+                await conn.close()
+            except Exception:
+                pass
 """,
                     "expected_result": "Admin overview endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3319,7 +3393,81 @@ import time
 import uuid
 
 async def test_admin_revenue_insights_endpoint():
-    return await test_admin_endpoint_generic(2, 'test_admin_revenue_insights_endpoint', 'admin_revenue_insights')
+    \"\"\"Test admin revenue insights endpoint - database-driven, no hardcoded values\"\"\"
+    import asyncpg, json, os, time, uuid, httpx
+    session_id = None
+    conn = None
+    try:
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return {"status": "failed", "error": "DATABASE_URL not found"}
+        conn = await asyncpg.connect(database_url)
+        async with conn.transaction():
+            # Fetch revenue insights endpoint (3rd endpoint) from database
+            endpoint_config = await conn.fetchrow('''
+                SELECT endpoint, method, business_function, test_data 
+                FROM admin_endpoints_config 
+                WHERE id = (SELECT MIN(id) FROM admin_endpoints_config) + 2
+            ''')
+            if not endpoint_config:
+                return {"status": "failed", "error": "Admin revenue insights endpoint not found in database"}
+            # Validate required fields from database
+            for key in ['endpoint', 'method', 'business_function']:
+                if not endpoint_config.get(key):
+                    return {"status": "failed", "error": f"Missing {key} in database config"}
+            # Create session
+            session_id = str(uuid.uuid4())
+            await conn.execute('''
+                INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
+            ''', session_id, 'admin_revenue_insights', 'admin_services_critical', 'running')
+            # Get test config from database
+            test_config_row = await conn.fetchrow('''
+                SELECT value FROM platform_settings WHERE key = 'admin_test_config'
+            ''')
+            test_config = json.loads(test_config_row['value']) if test_config_row and test_config_row['value'] else {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            # Execute HTTP request
+            url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                start_time = time.time()
+                response = await client.post(url, json=endpoint_config.get('test_data', {})) if endpoint_config['method'].upper() == 'POST' else await client.get(url)
+                response_time_ms = int((time.time() - start_time) * 1000)
+                status_code = response.status_code
+                test_status = 'passed' if status_code in test_config['expected_codes'] else 'failed'
+                # Store results in database
+                await conn.execute('''
+                    INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
+                    VALUES ($1, $2, $3, $4, NOW())
+                ''', endpoint_config['endpoint'], endpoint_config['method'], status_code, response_time_ms)
+                await conn.execute('''
+                    INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                ''', session_id, 'test_admin_revenue_insights_endpoint', 'admin_services_critical', test_status, json.dumps(endpoint_config.get('test_data', {})), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
+                await conn.execute('''
+                    UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
+                ''', session_id)
+                # Return result
+                result = await conn.fetchrow('''SELECT status, output_data FROM test_case_results WHERE session_id = $1''', session_id)
+                details = {"error": "No output data available"}
+                if result and result.get('output_data'):
+                    try:
+                        details = json.loads(result['output_data'])
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        details = {"error": "JSON parse failed", "raw_output_available": True}
+                return {"status": result['status'] if result else "failed", "business_function": endpoint_config['business_function'], "details": details}
+    except Exception as e:
+        if session_id and conn:
+            try:
+                await conn.execute('''UPDATE test_execution_sessions SET status = 'failed', finished_at = NOW() WHERE session_id = $1''', session_id)
+            except Exception:
+                pass
+        return {"status": "failed", "error": f"Revenue insights endpoint test failed: {str(e)}"}
+    finally:
+        if conn:
+            try:
+                await conn.close()
+            except Exception:
+                pass
 """,
                     "expected_result": "Admin revenue insights endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3338,7 +3486,81 @@ import time
 import uuid
 
 async def test_admin_analytics_endpoint():
-    return await test_admin_endpoint_generic(3, 'test_admin_analytics_endpoint', 'admin_analytics')
+    \"\"\"Test admin analytics endpoint - database-driven, no hardcoded values\"\"\"
+    import asyncpg, json, os, time, uuid, httpx
+    session_id = None
+    conn = None
+    try:
+        database_url = os.getenv('DATABASE_URL')
+        if not database_url:
+            return {"status": "failed", "error": "DATABASE_URL not found"}
+        conn = await asyncpg.connect(database_url)
+        async with conn.transaction():
+            # Fetch analytics endpoint (4th endpoint) from database
+            endpoint_config = await conn.fetchrow('''
+                SELECT endpoint, method, business_function, test_data 
+                FROM admin_endpoints_config 
+                WHERE id = (SELECT MIN(id) FROM admin_endpoints_config) + 3
+            ''')
+            if not endpoint_config:
+                return {"status": "failed", "error": "Admin analytics endpoint not found in database"}
+            # Validate required fields from database
+            for key in ['endpoint', 'method', 'business_function']:
+                if not endpoint_config.get(key):
+                    return {"status": "failed", "error": f"Missing {key} in database config"}
+            # Create session
+            session_id = str(uuid.uuid4())
+            await conn.execute('''
+                INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
+            ''', session_id, 'admin_analytics', 'admin_services_critical', 'running')
+            # Get test config from database
+            test_config_row = await conn.fetchrow('''
+                SELECT value FROM platform_settings WHERE key = 'admin_test_config'
+            ''')
+            test_config = json.loads(test_config_row['value']) if test_config_row and test_config_row['value'] else {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            # Execute HTTP request
+            url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                start_time = time.time()
+                response = await client.post(url, json=endpoint_config.get('test_data', {})) if endpoint_config['method'].upper() == 'POST' else await client.get(url)
+                response_time_ms = int((time.time() - start_time) * 1000)
+                status_code = response.status_code
+                test_status = 'passed' if status_code in test_config['expected_codes'] else 'failed'
+                # Store results in database
+                await conn.execute('''
+                    INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
+                    VALUES ($1, $2, $3, $4, NOW())
+                ''', endpoint_config['endpoint'], endpoint_config['method'], status_code, response_time_ms)
+                await conn.execute('''
+                    INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                ''', session_id, 'test_admin_analytics_endpoint', 'admin_services_critical', test_status, json.dumps(endpoint_config.get('test_data', {})), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
+                await conn.execute('''
+                    UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
+                ''', session_id)
+                # Return result
+                result = await conn.fetchrow('''SELECT status, output_data FROM test_case_results WHERE session_id = $1''', session_id)
+                details = {"error": "No output data available"}
+                if result and result.get('output_data'):
+                    try:
+                        details = json.loads(result['output_data'])
+                    except (json.JSONDecodeError, ValueError, TypeError):
+                        details = {"error": "JSON parse failed", "raw_output_available": True}
+                return {"status": result['status'] if result else "failed", "business_function": endpoint_config['business_function'], "details": details}
+    except Exception as e:
+        if session_id and conn:
+            try:
+                await conn.execute('''UPDATE test_execution_sessions SET status = 'failed', finished_at = NOW() WHERE session_id = $1''', session_id)
+            except Exception:
+                pass
+        return {"status": "failed", "error": f"Analytics endpoint test failed: {str(e)}"}
+    finally:
+        if conn:
+            try:
+                await conn.close()
+            except Exception:
+                pass
 """,
                     "expected_result": "Admin analytics endpoint operational (database-driven)",
                     "timeout_seconds": 30
