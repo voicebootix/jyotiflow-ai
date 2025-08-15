@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 # Add the project root directory to the Python path
 # This ensures that 'from backend.services...' imports work correctly
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+# sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 
 from fastapi import FastAPI, Request, status

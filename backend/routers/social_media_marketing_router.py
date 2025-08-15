@@ -20,10 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Respons
 from pydantic import BaseModel, Field
 import asyncpg
 
-from backend.auth.auth_helpers import AuthenticationHelper
-from backend import db
-from backend.schemas.response import StandardResponse
-from backend.schemas.social_media import (
+from auth.auth_helpers import AuthenticationHelper
+import db
+from schemas.response import StandardResponse
+from schemas.social_media import (
     Campaign, ContentCalendarItem, GenerateAllAvatarPreviewsRequest, MarketingAsset,
     MarketingAssetCreate, MarketingOverview, PlatformConfig, PlatformConfigUpdate,
     TestConnectionRequest, PostExecutionRequest, PostExecutionResult, CampaignStatus,
@@ -32,7 +32,7 @@ from backend.schemas.social_media import (
 )
 
 try:
-    from backend.spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
     AVATAR_ENGINE_AVAILABLE = True
 except ImportError:
     AVATAR_ENGINE_AVAILABLE = False
@@ -40,10 +40,10 @@ except ImportError:
     def get_avatar_engine():
         raise HTTPException(status_code=501, detail="Avatar Generation Engine is not available.")
 
-from backend.services.theme_service import ThemeService, get_theme_service
+from services.theme_service import ThemeService, get_theme_service
 
 try:
-    from backend.services.supabase_storage_service import SupabaseStorageService, get_storage_service
+    from services.supabase_storage_service import SupabaseStorageService, get_storage_service
     STORAGE_SERVICE_AVAILABLE = True
 except ImportError:
     STORAGE_SERVICE_AVAILABLE = False
@@ -52,38 +52,38 @@ except ImportError:
         raise HTTPException(status_code=501, detail="Storage service is not available.")
         
 try:
-    from backend.services.youtube_service import youtube_service
+    from services.youtube_service import youtube_service
     YOUTUBE_SERVICE_AVAILABLE = True
 except ImportError:
     YOUTUBE_SERVICE_AVAILABLE = False
 
 try:
-    from backend.services.facebook_service import facebook_service
+    from services.facebook_service import facebook_service
     FACEBOOK_SERVICE_AVAILABLE = True
 except ImportError:
     FACEBOOK_SERVICE_AVAILABLE = False
 
 try:
-    from backend.services.instagram_service import instagram_service
+    from services.instagram_service import instagram_service
     INSTAGRAM_SERVICE_AVAILABLE = True
 except ImportError:
     INSTAGRAM_SERVICE_AVAILABLE = False
 
 try:
-    from backend.services.tiktok_service import tiktok_service
+    from services.tiktok_service import tiktok_service
     TIKTOK_SERVICE_AVAILABLE = True
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
 
 try:
-    from backend.config.social_media_config import THEMES
+    from config.social_media_config import THEMES
     THEMES_AVAILABLE = True
 except ImportError:
     THEMES_AVAILABLE = False
 
 
 try:
-    from backend.social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
+    from social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
     AUTOMATION_ENGINE_AVAILABLE = True
 except ImportError as e:
     AUTOMATION_ENGINE_AVAILABLE = False
