@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Comprehensive Test Suite Generator for JyotiFlow AI Platform
-Generates automated tests for critical spiritual services functionality
+Generates automated tests for critical spiritual services functionality 🙏
 """
 
 import os
@@ -3471,7 +3471,7 @@ async def test_community_api_endpoints():
         ]
         
         endpoint_results = {}
-        
+
         
         async with httpx.AsyncClient() as client:
             for endpoint in endpoints_to_test:
