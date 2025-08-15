@@ -3291,6 +3291,13 @@ async def test_admin_authentication_endpoint():
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
+import httpx
+import asyncpg
+import json
+import os
+import time
+import uuid
+
 async def test_admin_overview_endpoint():
     return await test_admin_endpoint_generic(1, 'test_admin_overview_endpoint', 'admin_overview')
 """,
@@ -3303,6 +3310,13 @@ async def test_admin_overview_endpoint():
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
+import httpx
+import asyncpg
+import json
+import os
+import time
+import uuid
+
 async def test_admin_revenue_insights_endpoint():
     return await test_admin_endpoint_generic(2, 'test_admin_revenue_insights_endpoint', 'admin_revenue_insights')
 """,
@@ -3315,6 +3329,13 @@ async def test_admin_revenue_insights_endpoint():
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
+import httpx
+import asyncpg
+import json
+import os
+import time
+import uuid
+
 async def test_admin_analytics_endpoint():
     return await test_admin_endpoint_generic(3, 'test_admin_analytics_endpoint', 'admin_analytics')
 """,
