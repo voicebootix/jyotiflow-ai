@@ -3072,7 +3072,10 @@ async def test_admin_authentication_endpoint():
         
         # Validate required fields from database
         for key in ['endpoint', 'method', 'business_function']:
-            if not endpoint_config.get(key):
+            try:
+                if key not in endpoint_config or endpoint_config[key] is None or endpoint_config[key] == '':
+                    return {"status": "failed", "error": f"Missing {key} in database config"}
+            except (KeyError, LookupError):
                 return {"status": "failed", "error": f"Missing {key} in database config"}
         
         # Create session (autocommit - outside transaction to persist immediately)
@@ -3097,9 +3100,15 @@ async def test_admin_authentication_endpoint():
             test_config = default_config
         
         # Execute HTTP request (outside transaction)
-        url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
-        # Normalize test data and method
-        test_data = endpoint_config.get('test_data') or {}
+        # Safe URL joining to avoid double/missing slashes
+        import urllib.parse
+        url = urllib.parse.urljoin(test_config['api_base_url'], endpoint_config['endpoint'])
+        
+        # Normalize test data and method - handle asyncpg.Record properly
+        if 'test_data' in endpoint_config and endpoint_config['test_data'] is not None:
+            test_data = dict(endpoint_config['test_data']) if endpoint_config['test_data'] else {}
+        else:
+            test_data = {}
         method = endpoint_config['method'].upper()
         
         try:
@@ -3107,7 +3116,7 @@ async def test_admin_authentication_endpoint():
                 start_time = time.time()
                 # Handle different HTTP methods
                 if method == 'GET':
-                    response = await client.get(url)
+                    response = await client.get(url, params=test_data)
                 elif method in ['POST', 'PUT', 'PATCH']:
                     response = await client.request(method, url, json=test_data)
                 elif method == 'DELETE':
@@ -3137,13 +3146,13 @@ async def test_admin_authentication_endpoint():
                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
             ''', session_id, 'test_admin_authentication_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
             await conn.execute('''
-                UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
-            ''', session_id)
+                UPDATE test_execution_sessions SET status = $1, finished_at = NOW() WHERE session_id = $2
+            ''', test_status, session_id)
             # Return result
             result = await conn.fetchrow('''SELECT status, output_data FROM test_case_results WHERE session_id = $1''', session_id)
         
         details = {"error": "No output data available"}
-        if result and result.get('output_data'):
+        if result and 'output_data' in result and result['output_data']:
             try:
                 details = json.loads(result['output_data'])
             except (json.JSONDecodeError, ValueError, TypeError):
@@ -3244,7 +3253,7 @@ async def test_admin_overview_endpoint():
                 start_time = time.time()
                 # Handle different HTTP methods
                 if method == 'GET':
-                    response = await client.get(url)
+                    response = await client.get(url, params=test_data)
                 elif method in ['POST', 'PUT', 'PATCH']:
                     response = await client.request(method, url, json=test_data)
                 elif method == 'DELETE':
@@ -3274,13 +3283,13 @@ async def test_admin_overview_endpoint():
                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
             ''', session_id, 'test_admin_overview_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
             await conn.execute('''
-                UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
-            ''', session_id)
+                UPDATE test_execution_sessions SET status = $1, finished_at = NOW() WHERE session_id = $2
+            ''', test_status, session_id)
             # Return result
             result = await conn.fetchrow('''SELECT status, output_data FROM test_case_results WHERE session_id = $1''', session_id)
         
         details = {"error": "No output data available"}
-        if result and result.get('output_data'):
+        if result and 'output_data' in result and result['output_data']:
             try:
                 details = json.loads(result['output_data'])
             except (json.JSONDecodeError, ValueError, TypeError):
@@ -3410,13 +3419,13 @@ async def test_admin_revenue_insights_endpoint():
                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
             ''', session_id, 'test_admin_revenue_insights_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
             await conn.execute('''
-                UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
-            ''', session_id)
+                UPDATE test_execution_sessions SET status = $1, finished_at = NOW() WHERE session_id = $2
+            ''', test_status, session_id)
             # Return result
             result = await conn.fetchrow('''SELECT status, output_data FROM test_case_results WHERE session_id = $1''', session_id)
         
         details = {"error": "No output data available"}
-        if result and result.get('output_data'):
+        if result and 'output_data' in result and result['output_data']:
             try:
                 details = json.loads(result['output_data'])
             except (json.JSONDecodeError, ValueError, TypeError):
@@ -3516,7 +3525,7 @@ async def test_admin_analytics_endpoint():
                 start_time = time.time()
                 # Handle different HTTP methods
                 if method == 'GET':
-                    response = await client.get(url)
+                    response = await client.get(url, params=test_data)
                 elif method in ['POST', 'PUT', 'PATCH']:
                     response = await client.request(method, url, json=test_data)
                 elif method == 'DELETE':
@@ -3546,13 +3555,13 @@ async def test_admin_analytics_endpoint():
                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
             ''', session_id, 'test_admin_analytics_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
             await conn.execute('''
-                UPDATE test_execution_sessions SET status = 'completed', finished_at = NOW() WHERE session_id = $1
-            ''', session_id)
+                UPDATE test_execution_sessions SET status = $1, finished_at = NOW() WHERE session_id = $2
+            ''', test_status, session_id)
             # Return result
             result = await conn.fetchrow('''SELECT status, output_data FROM test_case_results WHERE session_id = $1''', session_id)
         
         details = {"error": "No output data available"}
-        if result and result.get('output_data'):
+        if result and 'output_data' in result and result['output_data']:
             try:
                 details = json.loads(result['output_data'])
             except (json.JSONDecodeError, ValueError, TypeError):
