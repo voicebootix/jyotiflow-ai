@@ -3411,7 +3411,8 @@ async def test_admin_endpoint_generic(endpoint_index: int, test_name: str, test_
                 test_config = {
                     "api_base_url": "https://jyotiflow-ai.onrender.com", 
                     "expected_codes": [200, 401, 403]
-                }
+                } 
+                
 
             url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
             method = endpoint_config['method']
