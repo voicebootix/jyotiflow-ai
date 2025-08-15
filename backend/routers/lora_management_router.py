@@ -95,14 +95,22 @@ async def start_training_job(
     if not REPLICATE_API_TOKEN:
         raise HTTPException(status_code=500, detail="REPLICATE_API_TOKEN is not configured.")
 
+    # --- Configuration from Environment Variables ---
+    LORA_TRAINER_VERSION = os.environ.get("LORA_TRAINER_VERSION")
+    if not LORA_TRAINER_VERSION:
+        logger.error("LORA_TRAINER_VERSION environment variable not set.")
+        raise HTTPException(status_code=500, detail="LoRA trainer version is not configured on the server.")
+
+    WEBHOOK_URL = os.environ.get("REPLICATE_WEBHOOK_URL")
+    # In a real production environment, you might want to validate if the current env is 'production'
+    # For simplicity here, we add it if it exists.
+    if not WEBHOOK_URL:
+        logger.warning("REPLICATE_WEBHOOK_URL is not set. Training completion will not be reported via webhook.")
+
     headers = {
         "Authorization": f"Token {REPLICATE_API_TOKEN}",
         "Content-Type": "application/json",
     }
-
-    # The new, correct workflow: run a prediction on a trainer model
-    # The specific version of the trainer model is crucial.
-    LORA_TRAINER_VERSION = "d5ada07403314b8b3941df67140f093ec845f94a7374b33c5e9336829705a766"
 
     prediction_payload = {
         "version": LORA_TRAINER_VERSION,
@@ -114,9 +122,10 @@ async def start_training_job(
             "push_to_hub": "replicate",
             "hf_username": request.model_owner
         },
-        # It's good practice to have a webhook to get notified upon completion
-        # "webhook_completed": "YOUR_WEBHOOK_URL_HERE"
     }
+
+    if WEBHOOK_URL:
+        prediction_payload["webhook_completed"] = WEBHOOK_URL
 
     try:
         async with httpx.AsyncClient(timeout=60.0) as client:
