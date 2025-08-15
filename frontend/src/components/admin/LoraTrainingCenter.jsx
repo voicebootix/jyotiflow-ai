@@ -43,7 +43,7 @@ const LoraTrainingCenter = () => {
       return;
     }
 
-    setLoading(true);
+    setIsLoading(true);
     setError(null);
     setSuccess(null); // Clear previous success messages
     setTrainingJob(null);
@@ -51,7 +51,7 @@ const LoraTrainingCenter = () => {
     const trimmedUrl = trainingDataUrl.trim(); // Trim whitespace
     if (!trimmedUrl) {
       setError('Please provide a URL.');
-      setLoading(false);
+      setIsLoading(false);
       return;
     }
  
@@ -60,12 +60,12 @@ const LoraTrainingCenter = () => {
       const url = new URL(trimmedUrl);
       if (url.protocol !== 'https:') {
         setError('Invalid URL. Please provide a public HTTPS URL.');
-        setLoading(false);
+        setIsLoading(false);
         return;
       }
     } catch (error) {
       setError('Invalid URL format. Please enter a full, valid URL.');
-      setLoading(false);
+      setIsLoading(false);
       return;
     }
  
