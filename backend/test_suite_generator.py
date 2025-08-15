@@ -3020,7 +3020,8 @@ async def test_user_management_api_endpoints():
                     "timeout_seconds": 25
                 }
             ]
-        }
+        } 
+        
 
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
         """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - DATABASE DRIVEN"""
