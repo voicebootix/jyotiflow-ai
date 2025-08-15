@@ -99,7 +99,7 @@ from routers import auth, user, spiritual, sessions, followup, donations, credit
 from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
 from routers import admin_overview, admin_integrations
 from routers import content, ai, community, session_analytics
-from routers import social_media_marketing_router
+from routers.social_media_marketing_router import social_marketing_router
 import db
 
 # Import the migration runner
