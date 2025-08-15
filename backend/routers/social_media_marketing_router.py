@@ -12,7 +12,7 @@ import hashlib
 import httpx
 import uuid
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 import asyncio
 import base64 # Added for base64 encoding of image bytes
 
@@ -81,6 +81,13 @@ try:
     TIKTOK_SERVICE_AVAILABLE = True
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
+
+try:
+    from config.social_media_config import THEMES
+    THEMES_AVAILABLE = True
+except ImportError:
+    THEMES_AVAILABLE = False
+
 
 try:
     from social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
@@ -451,8 +458,8 @@ async def upload_preview_image(
 
 class ImagePreviewRequest(BaseModel):
     custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
-    theme_day: Optional[int] = Field(None, description="Override daily theme with specific day (0=Monday, 1=Tuesday, ..., 6=Sunday). If None, uses current day.")
-    strength_param: float = Field(0.4, ge=0.0, le=1.0, description="Transformation strength (0.0-1.0). Default 0.4 (safe). Higher values enable aggressive testing controlled by feature flags.")
+    theme_day: Optional[int] = Field(None, ge=0, le=6, description="Override daily theme with specific day (0=Monday, ..., 6=Sunday). If None, uses current day.")
+    target_platform: Optional[str] = Field(None, description="Target platform for aspect ratio (e.g., 'instagram_story', 'facebook_post').")
 
 async def get_admin_or_test_bypass(request: Request):
     """
@@ -491,22 +498,44 @@ async def generate_image_preview(
     request: ImagePreviewRequest, 
     admin_user: dict = Depends(get_admin_or_test_bypass),  # Secure + testable
     theme_service: ThemeService = Depends(get_theme_service),
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
+    if not THEMES_AVAILABLE:
+        raise HTTPException(status_code=501, detail="Daily themes configuration is not available.")
+
     try:
-        # The service now returns the generated image, the prompt, and the base image bytes
-        image_bytes, final_prompt, base_image_bytes = await theme_service.generate_themed_image_bytes(
-            custom_prompt=request.custom_prompt, 
-            theme_day=request.theme_day
+        # 1. Determine the theme prompt
+        theme_prompt = ""
+        if request.custom_prompt:
+            theme_prompt = request.custom_prompt
+        else:
+            day_of_week = request.theme_day if request.theme_day is not None else date.today().weekday()
+            theme_prompt = THEMES.get(day_of_week, "A serene and wise spiritual master.")
+
+        # 2. Get the reference avatar URL from database
+        record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
+        if not record or not record['value']:
+            raise HTTPException(status_code=404, detail="Master Swamiji avatar URL not found in settings. Please set a master avatar first.")
+        
+        reference_avatar_url = json.loads(record['value'])
+
+        # 3. Call the new, simplified theme service
+        image_bytes = await theme_service.generate_themed_image_bytes(
+            theme_prompt=theme_prompt, 
+            reference_avatar_url=reference_avatar_url,
+            target_platform=request.target_platform
         )
         
-        # Compute hash of the generated image
+        if not image_bytes:
+            raise HTTPException(status_code=500, detail="Failed to generate image from the theme service.")
+
+        # 4. Compute hash and prepare response (adapted from existing logic)
         generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
         generated_hash_short = generated_hash_full[:16]
-        image_diff = "unknown"  # Default value
- 
-        # Try to get base image hash for comparison
+        image_diff = "unknown"
+        base_hash_short = None
+
         try:
-            # Use the correct bucket "avatars" and the full path as requested
             base_image_bytes = await get_storage_service().download_public_file_bytes("avatars", "public/swamiji_base_avatar.png")
             if base_image_bytes:
                 base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
@@ -515,34 +544,20 @@ async def generate_image_preview(
                 logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
         except Exception as diff_err:
             logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
- 
-        # Return a response with the generated image bytes
+
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
         
-        # 🛡️ ENHANCED HTTP header sanitization - CORE.MD: Fix emoji encoding errors
-        # 1. Handle None/non-string values defensively
-        if final_prompt is None or not isinstance(final_prompt, str):
+        import re
+        clean_prompt = re.sub(r'[^\x20-\x7E]', ' ', theme_prompt)
+        clean_prompt = ' '.join(clean_prompt.split()).strip()[:500]
+        if not clean_prompt:
             clean_prompt = "Generated image preview"
-        else:
-            # 2. Remove ALL HTTP-invalid characters including emojis and Unicode
-            # This prevents latin-1 encoding errors: 'latin-1 codec can't encode character'
-            import re
-            # Remove control characters (0x00–0x1F and 0x7F)
-            clean_prompt = re.sub(r'[\x00-\x1F\x7F]', ' ', final_prompt)
-            # Remove emoji and non-ASCII Unicode characters that cause encoding errors
-            clean_prompt = re.sub(r'[^\x20-\x7E]', ' ', clean_prompt)  # Keep only printable ASCII
-            # 3. Normalize whitespace and trim to valid length
-            clean_prompt = ' '.join(clean_prompt.split()).strip()[:500]
-            # 4. Fallback if cleaning resulted in empty string
-            if not clean_prompt:
-                clean_prompt = "Generated image preview"
         
         headers = {
             "X-Generated-Prompt": clean_prompt,
             "X-Image-Diff": image_diff,
             "X-Generated-Hash": generated_hash_short,
             **({"X-Base-Hash": base_hash_short} if base_hash_short else {}),
-            # Expose custom headers to browser
             "Access-Control-Expose-Headers": "X-Generated-Prompt, X-Image-Diff, X-Generated-Hash, X-Base-Hash",
             "Cache-Control": "no-cache, no-store, must-revalidate",
             "Pragma": "no-cache",
@@ -550,7 +565,6 @@ async def generate_image_preview(
         }
         return Response(content=encoded_image, media_type="image/png", headers=headers)
     except ValueError as e:
-        # CORE.MD & REFRESH.MD: Handle validation errors with HTTP 400 (Bad Request)
         logger.warning(f"⚠️  VALIDATION ERROR in image preview generation: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
@@ -585,7 +599,7 @@ async def generate_video_from_preview(
 async def generate_daily_content(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
-    conn = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(db.get_db)
 ):
     try:
         daily_plan = await social_engine.generate_daily_content_plan()
