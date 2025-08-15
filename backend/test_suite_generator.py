@@ -3042,42 +3042,65 @@ import os
 import time
 import uuid
 
-async def test_admin_authentication_endpoint():
+async def test_admin_endpoint_generic(endpoint_index: int, test_name: str, test_type: str):
+    \"\"\"Generic admin endpoint test function to reduce code duplication and ensure proper session management\"\"\"
+    session_id = None
+    conn = None
+    
     try:
         database_url = os.getenv('DATABASE_URL')
         if not database_url:
             return {"status": "failed", "error": "DATABASE_URL not found"}
 
-        async with asyncpg.connect(database_url) as conn:
-            async with conn.transaction():
-                # Fetch all admin endpoints (expect exactly 4)
-                endpoints = await conn.fetch('''
-                    SELECT endpoint, method, business_function, test_data 
-                    FROM admin_endpoints_config 
-                    ORDER BY id LIMIT 4
-                ''')
-                if len(endpoints) != 4:
-                    return {"status": "failed", "error": f"Expected 4 admin endpoints, found {len(endpoints)}"}
+        conn = await asyncpg.connect(database_url)
+        
+        async with conn.transaction():
+            # Fetch all admin endpoints (expect exactly 4)
+            endpoints = await conn.fetch('''
+                SELECT endpoint, method, business_function, test_data 
+                FROM admin_endpoints_config 
+                ORDER BY id LIMIT 4
+            ''')
+            if len(endpoints) != 4:
+                return {"status": "failed", "error": f"Expected 4 admin endpoints, found {len(endpoints)}"}
 
-                # Select first endpoint for this test
-                endpoint_config = endpoints[0]
-                
-                # Generate session_id for this test
-                session_id = str(uuid.uuid4())
-                await conn.execute('''
-                    INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                ''', session_id, 'admin_authentication', 'admin_services_critical', 'running')
-                
-                # Test configuration (base URL could also be in DB if needed)
-                test_config = {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
+            if endpoint_index >= len(endpoints):
+                return {"status": "failed", "error": f"Endpoint index {endpoint_index} out of range"}
 
-                url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
-                method = endpoint_config['method']
-                test_data = endpoint_config['test_data']
-                business_function = endpoint_config['business_function']
-                
-                async with httpx.AsyncClient() as client:
+            # Select specified endpoint for this test
+            endpoint_config = endpoints[endpoint_index]
+            
+            # Generate session_id for this test
+            session_id = str(uuid.uuid4())
+            await conn.execute('''
+                INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
+                VALUES ($1, $2, $3, $4, NOW())
+            ''', session_id, test_type, 'admin_services_critical', 'running')
+            
+            # Get test configuration from database
+            test_config_row = await conn.fetchrow('''
+                SELECT value FROM platform_settings 
+                WHERE key = 'admin_test_config'
+            ''')
+            
+            if test_config_row and test_config_row['value']:
+                test_config = json.loads(test_config_row['value']) if isinstance(test_config_row['value'], str) else test_config_row['value']
+            else:
+                # Default configuration - could be stored in database
+                test_config = {
+                    "api_base_url": "https://jyotiflow-ai.onrender.com", 
+                    "expected_codes": [200, 401, 403]
+                }
+
+            url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
+            method = endpoint_config['method']
+            test_data = endpoint_config['test_data']
+            business_function = endpoint_config['business_function']
+            
+            test_success = False
+            
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
                     start_time = time.time()
                     if method == 'POST':
                         response = await client.post(url, json=test_data)
@@ -3095,12 +3118,22 @@ async def test_admin_authentication_endpoint():
                     ''', endpoint_config['endpoint'], method, status_code, response_time_ms)
                     
                     # Store in test_case_results
+                    test_status = 'passed' if accessible else 'failed'
                     await conn.execute('''
                         INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
                         VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                    ''', session_id, 'test_admin_authentication_endpoint', 'admin_services_critical', 
-                        'passed' if accessible else 'failed', json.dumps(test_data), 
+                    ''', session_id, test_name, 'admin_services_critical', 
+                        test_status, json.dumps(test_data), 
                         json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
+                    
+                    # Update session status to completed on success
+                    await conn.execute('''
+                        UPDATE test_execution_sessions 
+                        SET status = 'completed', finished_at = NOW() 
+                        WHERE session_id = $1
+                    ''', session_id)
+                    
+                    test_success = True
                     
                     # Retrieve result for frontend
                     result = await conn.fetchrow('''
@@ -3113,8 +3146,44 @@ async def test_admin_authentication_endpoint():
                         "details": json.loads(result['output_data'])
                     }
                     
+            except Exception as http_error:
+                # Update session status to failed on HTTP/test error
+                if session_id and conn:
+                    try:
+                        await conn.execute('''
+                            UPDATE test_execution_sessions 
+                            SET status = 'failed', finished_at = NOW() 
+                            WHERE session_id = $1
+                        ''', session_id)
+                    except Exception:
+                        pass  # Don't fail on session update error
+                
+                raise http_error  # Re-raise the original error
+                
     except Exception as e:
+        # Ensure session status is updated to failed on any error
+        if session_id and conn:
+            try:
+                await conn.execute('''
+                    UPDATE test_execution_sessions 
+                    SET status = 'failed', finished_at = NOW() 
+                    WHERE session_id = $1
+                ''', session_id)
+            except Exception:
+                pass  # Don't fail on session update error
+        
         return {"status": "failed", "error": f"Test failed: {str(e)}"}
+        
+    finally:
+        # Always close the connection
+        if conn:
+            try:
+                await conn.close()
+            except Exception:
+                pass
+
+async def test_admin_authentication_endpoint():
+    return await test_admin_endpoint_generic(0, 'test_admin_authentication_endpoint', 'admin_authentication')
 """,
                     "expected_result": "Admin authentication endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3125,79 +3194,8 @@ async def test_admin_authentication_endpoint():
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
-import httpx
-import asyncpg
-import json
-import os
-import time
-import uuid
-
 async def test_admin_overview_endpoint():
-    try:
-        database_url = os.getenv('DATABASE_URL')
-        if not database_url:
-            return {"status": "failed", "error": "DATABASE_URL not found"}
-
-        async with asyncpg.connect(database_url) as conn:
-            async with conn.transaction():
-                endpoints = await conn.fetch('''
-                    SELECT endpoint, method, business_function, test_data 
-                    FROM admin_endpoints_config 
-                    ORDER BY id LIMIT 4
-                ''')
-                if len(endpoints) != 4:
-                    return {"status": "failed", "error": f"Expected 4 admin endpoints, found {len(endpoints)}"}
-
-                endpoint_config = endpoints[1]
-                
-                session_id = str(uuid.uuid4())
-                await conn.execute('''
-                    INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                ''', session_id, 'admin_overview', 'admin_services_critical', 'running')
-                
-                test_config = {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
-
-                url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
-                method = endpoint_config['method']
-                test_data = endpoint_config['test_data']
-                business_function = endpoint_config['business_function']
-                
-                async with httpx.AsyncClient() as client:
-                    start_time = time.time()
-                    if method == 'POST':
-                        response = await client.post(url, json=test_data)
-                    else:
-                        response = await client.get(url)
-                    response_time_ms = int((time.time() - start_time) * 1000)
-                    
-                    status_code = response.status_code
-                    accessible = status_code in test_config['expected_codes']
-                    
-                    await conn.execute('''
-                        INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
-                        VALUES ($1, $2, $3, $4, NOW())
-                    ''', endpoint_config['endpoint'], method, status_code, response_time_ms)
-                    
-                    await conn.execute('''
-                        INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                    ''', session_id, 'test_admin_overview_endpoint', 'admin_services_critical', 
-                        'passed' if accessible else 'failed', json.dumps(test_data), 
-                        json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
-                    
-                    result = await conn.fetchrow('''
-                        SELECT status, output_data FROM test_case_results WHERE session_id = $1
-                    ''', session_id)
-                    
-                    return {
-                        "status": result['status'],
-                        "business_function": business_function,
-                        "details": json.loads(result['output_data'])
-                    }
-                    
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
+    return await test_admin_endpoint_generic(1, 'test_admin_overview_endpoint', 'admin_overview')
 """,
                     "expected_result": "Admin overview endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3208,79 +3206,8 @@ async def test_admin_overview_endpoint():
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
-import httpx
-import asyncpg
-import json
-import os
-import time
-import uuid
-
 async def test_admin_revenue_insights_endpoint():
-    try:
-        database_url = os.getenv('DATABASE_URL')
-        if not database_url:
-            return {"status": "failed", "error": "DATABASE_URL not found"}
-
-        async with asyncpg.connect(database_url) as conn:
-            async with conn.transaction():
-                endpoints = await conn.fetch('''
-                    SELECT endpoint, method, business_function, test_data 
-                    FROM admin_endpoints_config 
-                    ORDER BY id LIMIT 4
-                ''')
-                if len(endpoints) != 4:
-                    return {"status": "failed", "error": f"Expected 4 admin endpoints, found {len(endpoints)}"}
-
-                endpoint_config = endpoints[2]
-                
-                session_id = str(uuid.uuid4())
-                await conn.execute('''
-                    INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                ''', session_id, 'admin_revenue_insights', 'admin_services_critical', 'running')
-                
-                test_config = {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
-
-                url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
-                method = endpoint_config['method']
-                test_data = endpoint_config['test_data']
-                business_function = endpoint_config['business_function']
-                
-                async with httpx.AsyncClient() as client:
-                    start_time = time.time()
-                    if method == 'POST':
-                        response = await client.post(url, json=test_data)
-                    else:
-                        response = await client.get(url)
-                    response_time_ms = int((time.time() - start_time) * 1000)
-                    
-                    status_code = response.status_code
-                    accessible = status_code in test_config['expected_codes']
-                    
-                    await conn.execute('''
-                        INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
-                        VALUES ($1, $2, $3, $4, NOW())
-                    ''', endpoint_config['endpoint'], method, status_code, response_time_ms)
-                    
-                    await conn.execute('''
-                        INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                    ''', session_id, 'test_admin_revenue_insights_endpoint', 'admin_services_critical', 
-                        'passed' if accessible else 'failed', json.dumps(test_data), 
-                        json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
-                    
-                    result = await conn.fetchrow('''
-                        SELECT status, output_data FROM test_case_results WHERE session_id = $1
-                    ''', session_id)
-                    
-                    return {
-                        "status": result['status'],
-                        "business_function": business_function,
-                        "details": json.loads(result['output_data'])
-                    }
-                    
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
+    return await test_admin_endpoint_generic(2, 'test_admin_revenue_insights_endpoint', 'admin_revenue_insights')
 """,
                     "expected_result": "Admin revenue insights endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3291,79 +3218,8 @@ async def test_admin_revenue_insights_endpoint():
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
-import httpx
-import asyncpg
-import json
-import os
-import time
-import uuid
-
 async def test_admin_analytics_endpoint():
-    try:
-        database_url = os.getenv('DATABASE_URL')
-        if not database_url:
-            return {"status": "failed", "error": "DATABASE_URL not found"}
-
-        async with asyncpg.connect(database_url) as conn:
-            async with conn.transaction():
-                endpoints = await conn.fetch('''
-                    SELECT endpoint, method, business_function, test_data 
-                    FROM admin_endpoints_config 
-                    ORDER BY id LIMIT 4
-                ''')
-                if len(endpoints) != 4:
-                    return {"status": "failed", "error": f"Expected 4 admin endpoints, found {len(endpoints)}"}
-
-                endpoint_config = endpoints[3]
-                
-                session_id = str(uuid.uuid4())
-                await conn.execute('''
-                    INSERT INTO test_execution_sessions (session_id, test_type, test_category, status, created_at)
-                    VALUES ($1, $2, $3, $4, NOW())
-                ''', session_id, 'admin_analytics', 'admin_services_critical', 'running')
-                
-                test_config = {"api_base_url": "https://jyotiflow-ai.onrender.com", "expected_codes": [200, 401, 403]}
-
-                url = f"{test_config['api_base_url']}{endpoint_config['endpoint']}"
-                method = endpoint_config['method']
-                test_data = endpoint_config['test_data']
-                business_function = endpoint_config['business_function']
-                
-                async with httpx.AsyncClient() as client:
-                    start_time = time.time()
-                    if method == 'POST':
-                        response = await client.post(url, json=test_data)
-                    else:
-                        response = await client.get(url)
-                    response_time_ms = int((time.time() - start_time) * 1000)
-                    
-                    status_code = response.status_code
-                    accessible = status_code in test_config['expected_codes']
-                    
-                    await conn.execute('''
-                        INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
-                        VALUES ($1, $2, $3, $4, NOW())
-                    ''', endpoint_config['endpoint'], method, status_code, response_time_ms)
-                    
-                    await conn.execute('''
-                        INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                    ''', session_id, 'test_admin_analytics_endpoint', 'admin_services_critical', 
-                        'passed' if accessible else 'failed', json.dumps(test_data), 
-                        json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
-                    
-                    result = await conn.fetchrow('''
-                        SELECT status, output_data FROM test_case_results WHERE session_id = $1
-                    ''', session_id)
-                    
-                    return {
-                        "status": result['status'],
-                        "business_function": business_function,
-                        "details": json.loads(result['output_data'])
-                    }
-                    
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
+    return await test_admin_endpoint_generic(3, 'test_admin_analytics_endpoint', 'admin_analytics')
 """,
                     "expected_result": "Admin analytics endpoint operational (database-driven)",
                     "timeout_seconds": 30
