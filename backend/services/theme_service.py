@@ -1,9 +1,9 @@
 import os
 from typing import Optional
 
-from backend.config.logging_config import get_logger
-from backend.services.replicate_service import ReplicateService, get_replicate_service
-from backend.services.supabase_storage_service import SupabaseStorageService, get_storage_service
+from ..config.logging_config import get_logger
+from ..services.replicate_service import ReplicateService, get_replicate_service
+from ..services.supabase_storage_service import SupabaseStorageService, get_storage_service
 
 logger = get_logger(__name__)
 
