@@ -21,7 +21,7 @@ from pydantic import BaseModel, Field
 import asyncpg
 
 from auth.auth_helpers import AuthenticationHelper
-from db import db
+from db import get_db
 from schemas.response import StandardResponse
 from schemas.social_media import (
     Campaign, ContentCalendarItem, GenerateAllAvatarPreviewsRequest, MarketingAsset,
@@ -150,7 +150,7 @@ async def get_campaigns(
 @social_marketing_router.get("/platform-config", response_model=StandardResponse)
 async def get_platform_config(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(get_db)
 ):
     try:
         rows = await conn.fetch("SELECT key, value FROM platform_settings WHERE key LIKE '%\\_config' ESCAPE '\\'")
@@ -171,7 +171,7 @@ async def get_platform_config(
 @social_marketing_router.patch("/platform-config", response_model=StandardResponse)
 async def save_platform_config(
     config_update: PlatformConfigUpdate, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(get_db)
 ):
     try:
         update_data = config_update.dict(exclude_unset=True)
@@ -189,7 +189,7 @@ async def save_platform_config(
 
 @social_marketing_router.get("/swamiji-avatar-config", response_model=StandardResponse)
 async def get_swamiji_avatar_config(
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict), conn: asyncpg.Connection = Depends(db.get_db),
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict), conn: asyncpg.Connection = Depends(get_db),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
 ):
     available_voices = await avatar_engine.get_available_voices()
@@ -208,7 +208,7 @@ async def get_swamiji_avatar_config(
 @social_marketing_router.post("/upload-swamiji-image", response_model=StandardResponse)
 async def upload_swamiji_image(
     image: UploadFile = File(...), admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    storage_service: SupabaseStorageService = Depends(get_storage_service), conn: asyncpg.Connection = Depends(db.get_db)
+    storage_service: SupabaseStorageService = Depends(get_storage_service), conn: asyncpg.Connection = Depends(get_db)
 ):
     if image.content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(status_code=400, detail="Invalid file type.")
@@ -305,7 +305,7 @@ async def generate_image_preview(
     request: ImagePreviewRequest, 
     admin_user: dict = Depends(get_admin_or_test_bypass),  # Secure + testable
     theme_service: ThemeService = Depends(get_theme_service),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(get_db)
 ):
     if not THEMES_AVAILABLE:
         raise HTTPException(status_code=501, detail="Daily themes configuration is not available.")
@@ -406,7 +406,7 @@ async def generate_video_from_preview(
 async def generate_daily_content(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
-    conn: asyncpg.Connection = Depends(db.get_db)
+    conn: asyncpg.Connection = Depends(get_db)
 ):
     try:
         daily_plan = await social_engine.generate_daily_content_plan()
