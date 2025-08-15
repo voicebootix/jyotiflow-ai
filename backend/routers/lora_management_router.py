@@ -95,11 +95,12 @@ async def start_training_job(
     if not REPLICATE_API_TOKEN:
         raise HTTPException(status_code=500, detail="REPLICATE_API_TOKEN is not configured.")
 
-    # --- Configuration from Environment Variables ---
-    LORA_TRAINER_VERSION = os.environ.get("LORA_TRAINER_VERSION")
-    if not LORA_TRAINER_VERSION:
-        logger.error("LORA_TRAINER_VERSION environment variable not set.")
-        raise HTTPException(status_code=500, detail="LoRA trainer version is not configured on the server.")
+    # --- Configuration for the new Stability AI Trainer ---
+    # This version ID is for the 'stability-ai/sdxl-lora-trainer' model
+    STABILITY_AI_LORA_TRAINER_VERSION = os.environ.get("STABILITY_AI_LORA_TRAINER_VERSION")
+    if not STABILITY_AI_LORA_TRAINER_VERSION:
+        logger.error("STABILITY_AI_LORA_TRAINER_VERSION environment variable not set.")
+        raise HTTPException(status_code=500, detail="Stability AI LoRA trainer version is not configured on the server.")
 
     WEBHOOK_URL = os.environ.get("REPLICATE_WEBHOOK_URL")
     # In a real production environment, you might want to validate if the current env is 'production'
@@ -113,7 +114,7 @@ async def start_training_job(
     }
 
     prediction_payload = {
-        "version": LORA_TRAINER_VERSION,
+        "version": STABILITY_AI_LORA_TRAINER_VERSION,
         "input": {
             "instance_prompt": request.instance_prompt,
             "instance_data": str(request.training_data_url),
