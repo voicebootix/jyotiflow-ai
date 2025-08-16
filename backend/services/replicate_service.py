@@ -34,9 +34,7 @@ class ReplicateService:
         self,
         model_name: str,
         model_version: str,
-        prompt: str,
-        image_url: Optional[str] = None,
-        mask_url: Optional[str] = None
+        prompt: str
     ) -> Optional[str]:
         """
         Runs a prediction on a specified LoRA model version on Replicate.
@@ -45,8 +43,6 @@ class ReplicateService:
             model_name: The name of the model (e.g., 'voicebootix/jyoti_swami').
             model_version: The specific version ID of the LoRA model to use.
             prompt: The text prompt to guide the image generation.
-            image_url: An optional URL to an input image for image-to-image tasks.
-            mask_url: An optional URL to a mask for inpainting tasks.
 
         Returns:
             The URL of the generated image, or None if the prediction fails.
@@ -58,10 +54,6 @@ class ReplicateService:
         try:
             model_string = f"{model_name}:{model_version}"
             input_data = {"prompt": prompt}
-            if image_url:
-                input_data["image"] = image_url
-            if mask_url:
-                input_data["mask"] = mask_url
             
             logger.info(f"Running Replicate prediction for model: {model_string}")
             

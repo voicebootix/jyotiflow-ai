@@ -60,7 +60,6 @@ aiofiles==23.2.1
 
 # তমিল - Optional: Image processing (for future features)
 Pillow==11.3.0
-opencv-python-headless==4.7.0.72 # For face detection in theme service
 
 # তমিল - Optional: PDF generation (for reports)
 reportlab==4.0.7
