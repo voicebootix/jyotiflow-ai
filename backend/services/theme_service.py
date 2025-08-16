@@ -1,5 +1,6 @@
 import os
 import logging
+import asyncio
 from typing import Optional
 
 import httpx
@@ -39,7 +40,8 @@ class ThemeService:
         try:
             # Run prediction using Replicate service with only the LoRA model and prompt.
             # The reference_avatar_url is no longer passed to Replicate.
-            generated_image_url = self.replicate_service.run_lora_prediction(
+            generated_image_url = await asyncio.to_thread(
+                self.replicate_service.run_lora_prediction,
                 model_name=LORA_MODEL_NAME,
                 model_version=LORA_MODEL_VERSION,
                 prompt=theme_prompt

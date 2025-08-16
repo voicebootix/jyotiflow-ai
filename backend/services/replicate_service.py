@@ -60,13 +60,37 @@ class ReplicateService:
             # The replicate.run() function handles the prediction synchronously
             output = self.client.run(model_string, input=input_data)
             
-            # The output is typically a list of URLs
-            if output and isinstance(output, list) and len(output) > 0:
-                generated_image_url = output[0]
-                logger.info(f"✅ Successfully generated image from Replicate: {generated_image_url}")
-                return generated_image_url
+            logger.info(f"Received output from Replicate: {output}")
+
+            # The output can be a list, a string, or a dictionary.
+            if isinstance(output, list):
+                if output:
+                    generated_image_url = str(output[0])
+                    logger.info(f"✅ Successfully extracted image URL from list: {generated_image_url}")
+                    return generated_image_url
+                else:
+                    logger.warning("Replicate output was an empty list.")
+                    return None
+            elif isinstance(output, str):
+                logger.info(f"✅ Successfully received image URL string: {output}")
+                return output
+            elif isinstance(output, dict):
+                # Common keys where the result might be found
+                for key in ["image", "output", "result", "url"]:
+                    if key in output and output[key]:
+                        # Handle cases where the value is a list or a direct string
+                        value = output[key]
+                        if isinstance(value, list) and value:
+                            url = str(value[0])
+                            logger.info(f"✅ Successfully extracted image URL from dict key '{key}': {url}")
+                            return url
+                        elif isinstance(value, str):
+                            logger.info(f"✅ Successfully extracted image URL from dict key '{key}': {value}")
+                            return value
+                logger.error(f"Replicate prediction returned a dictionary with no recognized image URL key: {output}")
+                return None
             else:
-                logger.error(f"Replicate prediction returned an unexpected output: {output}")
+                logger.error(f"Replicate prediction returned an unexpected output type: {type(output)} - {output}")
                 return None
 
         except Exception as e:
