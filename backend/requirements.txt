@@ -128,3 +128,11 @@ supabase==2.5.0
 
 # CORE.MD: OpenCV removed due to C++ compatibility issues on Render platform
 # Using PIL-based image processing instead for better platform compatibility
+
+uvicorn
+pydantic
+pydantic-settings
+email-validator
+replicate
+opencv-python-headless
+numpy

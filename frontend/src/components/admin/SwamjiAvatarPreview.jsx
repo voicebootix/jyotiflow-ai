@@ -203,6 +203,7 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -281,103 +282,78 @@ const SwamjiAvatarPreview = () => {
             </div>
           </div>
 
-          {/* Preview Generation */}
+          {/* LoRA Avatar Generation */}
           <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold mb-4 flex items-center">
               <Wand2 className="mr-2" size={20} />
-              Generate Avatar Previews
+              Generate LoRA Avatar
             </h3>
             
             <div className="space-y-4">
-              {/* Current Daily Theme Button */}
+              <div>
+                <label htmlFor="lora-prompt" className="block text-sm font-medium text-gray-700 mb-1">
+                  Prompt
+                </label>
+                <textarea
+                  id="lora-prompt"
+                  value={promptText}
+                  onChange={(e) => setPromptText(e.target.value)}
+                  rows={4}
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                  placeholder="e.g., A spiritual master compassionate, in a daily guidance setting, photorealistic..."
+                />
+              </div>
+              
+              <div>
+                <label htmlFor="lora-negative-prompt" className="block text-sm font-medium text-gray-700 mb-1">
+                  Negative Prompt
+                </label>
+                <textarea
+                  id="lora-negative-prompt"
+                  value={negativePromptText}
+                  onChange={(e) => setNegativePromptText(e.target.value)}
+                  rows={2}
+                  className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                />
+              </div>
+
               <button
-                onClick={() => generateImagePreview()}
+                onClick={generateLoraAvatar}
                 disabled={!uploadedImage || isGenerating}
                 className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2 text-base"
               >
                 <Star size={18} />
-                <span>Generate Today's Daily Theme</span>
+                <span>Generate Avatar with LoRA</span>
               </button>
-
-              {/* 7 Theme Preview Buttons */}
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-3">🎨 Test All 7 Daily Themes:</h4>
-                <div className="grid grid-cols-1 gap-2">
-                  {[
-                    { day: 0, name: 'Monday', theme: 'Meditative', icon: '🤍', color: 'bg-gray-100 hover:bg-gray-200 text-gray-800' },
-                    { day: 1, name: 'Tuesday', theme: 'Teaching', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
-                    { day: 2, name: 'Wednesday', theme: 'Wisdom', icon: '🤎', color: 'bg-amber-100 hover:bg-amber-200 text-amber-800' },
-                    { day: 3, name: 'Thursday', theme: 'Thankful', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
-                    { day: 4, name: 'Friday', theme: 'Festive', icon: '🟡', color: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' },
-                    { day: 5, name: 'Saturday', theme: 'Silent', icon: '🤎', color: 'bg-stone-100 hover:bg-stone-200 text-stone-800' },
-                    { day: 6, name: 'Sunday', theme: 'Serene', icon: '🤍', color: 'bg-blue-50 hover:bg-blue-100 text-blue-800' }
-                  ].map((themeButton) => (
-                    <button
-                      key={themeButton.day}
-                      onClick={() => generateImagePreview(null, themeButton.day)}
-                      disabled={!uploadedImage || isGenerating}
-                      className={`w-full px-3 py-2 rounded-lg disabled:opacity-50 flex items-center justify-between text-sm font-medium ${themeButton.color}`}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <span>{themeButton.icon}</span>
-                        <span>{themeButton.name}</span>
-                      </div>
-                      <span className="text-xs">{themeButton.theme}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Click any day to preview how Swamiji will appear with that theme's clothing and background
-                </p>
-              </div>
 
               {isGenerating && (
                 <div className="text-center py-4">
                   <div className="animate-spin mx-auto h-8 w-8 border-4 border-purple-500 border-t-transparent rounded-full"></div>
-                  <p className="mt-2 text-gray-600">Generating Swamiji avatar preview...</p>
+                  <p className="mt-2 text-gray-600">Generating LoRA avatar...</p>
                 </div>
               )}
-
-              <div className="p-4 bg-yellow-50 rounded-lg">
-                <p className="text-sm text-yellow-800">
-                  💰 Cost: ~$1-2 per preview generation. Generate samples to see how Swamiji will appear before approving.
-                </p>
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Right Panel - Interactive Preview and Generation */}
+        {/* Right Panel - Interactive Preview */}
         <div className="space-y-6">
-          {/* Interactive Image Preview */}
           {previewImage && (
             <div className="bg-white rounded-lg shadow p-6">
               <h3 className="text-lg font-semibold mb-4 flex items-center">
                 <Eye className="mr-2" size={20} />
-                Image Preview
+                LoRA Image Preview
               </h3>
               <div className="space-y-4">
                 <div className="bg-gray-100 rounded-lg p-4 text-center">
                   <img 
                     src={previewImage} 
-                    alt="Generated Preview" 
-                    className="mx-auto max-w-full h-64 rounded-lg object-contain"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="prompt-text" className="block text-sm font-medium text-gray-700 mb-1">
-                    Generated Prompt
-                  </label>
-                  <textarea
-                    id="prompt-text"
-                    value={promptText}
-                    onChange={(e) => setPromptText(e.target.value)}
-                    rows={4}
-                    className="w-full border border-gray-300 rounded-lg p-2 text-sm"
+                    alt="Generated LoRA Preview" 
+                    className="mx-auto max-w-full h-auto rounded-lg object-contain"
                   />
                 </div>
                 <button
-                  onClick={() => generateImagePreview(promptText || null)} // 🔧 FIXED: Only pass promptText if it has content
+                  onClick={generateLoraAvatar}
                   disabled={isGenerating}
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
                 >
@@ -387,91 +363,8 @@ const SwamjiAvatarPreview = () => {
               </div>
             </div>
           )}
-
-          {/* Video Generation & Final Preview */}
-          {previewImage && (
-            <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-              <h3 className="text-lg font-semibold text-green-900 mb-4 flex items-center">
-                <Play className="mr-2" size={20} />
-                Step 2: Generate Video
-              </h3>
-              <div className="space-y-4">
-                <p className="text-green-800">
-                  If you are happy with the image preview, generate the final video.
-                </p>
-                <button
-                  onClick={generateVideoFromPreview}
-                  disabled={isGeneratingVideo}
-                  className="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center space-x-2"
-                >
-                  <CheckCircle size={18} />
-                  <span>Confirm & Generate Video</span>
-                </button>
-                {isGeneratingVideo && (
-                  <div className="text-center py-4">
-                    <div className="animate-spin mx-auto h-8 w-8 border-4 border-green-500 border-t-transparent rounded-full"></div>
-                    <p className="mt-2 text-gray-600">Generating video...</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          
-          {finalVideo && (
-            <div className="bg-white rounded-lg shadow p-6">
-               <h3 className="text-lg font-semibold mb-4 text-purple-800">Final Video Preview</h3>
-                <video 
-                    src={finalVideo.video_url}
-                    controls
-                    className="mx-auto max-w-full h-64 rounded-lg"
-                    poster={previewImage}
-                  >
-                    Your browser does not support video playback.
-                </video>
-                 <div className="mt-4 flex justify-end space-x-3">
-                    <button
-                        onClick={downloadVideo}
-                        className="flex items-center px-3 py-2 text-purple-600 hover:bg-purple-50 rounded-lg"
-                      >
-                        <Download size={16} className="mr-2" />
-                        Download
-                    </button>
-                    <button
-                        onClick={approveConfiguration}
-                        className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center space-x-2"
-                      >
-                        <Save size={16} />
-                        <span>Approve Final Avatar</span>
-                    </button>
-                </div>
-            </div>
-          )}
         </div>
       </div>
-
-      {/* Status Summary */}
-      {approvedConfig && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-green-900 mb-4">✅ Avatar Configuration Active</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="text-center p-4 bg-green-50 rounded-lg">
-              <div className="text-2xl mb-2">🎭</div>
-              <div className="font-medium">Avatar Ready</div>
-              <div className="text-sm text-gray-600">Swamiji appearance configured</div>
-            </div>
-            <div className="text-center p-4 bg-blue-50 rounded-lg">
-              <div className="text-2xl mb-2">🚀</div>
-              <div className="font-medium">Auto-Generation Active</div>
-              <div className="text-sm text-gray-600">Content will use approved avatar</div>
-            </div>
-            <div className="text-center p-4 bg-purple-50 rounded-lg">
-              <div className="text-2xl mb-2">🎯</div>
-              <div className="font-medium">Consistent Branding</div>
-              <div className="text-sm text-gray-600">Same appearance across all platforms</div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

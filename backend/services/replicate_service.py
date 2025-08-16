@@ -1,102 +1,94 @@
+"""
+🤖 REPLICATE SERVICE
+
+This service provides a centralized interface for interacting with the Replicate API,
+specifically for running predictions with custom LoRA models.
+"""
+
 import os
-import httpx
-from typing import Optional, Dict, Any, List
-import asyncio
+import logging
+import replicate
+from typing import Optional
 
-from ..config.logging_config import get_logger
-
-logger = get_logger(__name__)
-
-REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN")
-REPLICATE_BASE_URL = "https://api.replicate.com/v1"
+logger = logging.getLogger(__name__)
 
 class ReplicateService:
-    def __init__(self, api_token: str = REPLICATE_API_TOKEN):
-        if not api_token:
-            raise ValueError("REPLICATE_API_TOKEN is not set.")
-        self.api_token = api_token
-        self.headers = {
-            "Authorization": f"Token {self.api_token}",
-            "Content-Type": "application/json",
-        }
+    """A service class to manage interactions with the Replicate API."""
 
-    async def run_prediction(self, model_name: str, input_data: Dict[str, Any], version: Optional[str] = None) -> Optional[str]:
-        """
-        Starts a prediction on Replicate and returns the URL to check for results.
-        Note: This is an asynchronous operation on Replicate's side.
-        For simplicity in this service, we will poll for the result.
-        """
-        # Find the latest version of the model if not specified
-        if not version:
-            try:
-                async with httpx.AsyncClient(timeout=30.0) as client:
-                    model_url = f"{REPLICATE_BASE_URL}/models/{model_name}"
-                    response = await client.get(model_url, headers=self.headers)
-                    response.raise_for_status()
-                    model_details = response.json()
-                    version = model_details.get("latest_version", {}).get("id")
-                    if not version:
-                        logger.error(f"Could not automatically determine the latest version for model {model_name}.")
-                        return None
-            except Exception as e:
-                logger.error(f"Failed to fetch model version for {model_name}: {e}", exc_info=True)
-                return None
+    def __init__(self):
+        self.client = None
+        self.is_configured = False
+        self._initialize_client()
 
-        prediction_payload = {
-            "version": version,
-            "input": input_data,
-        }
+    def _initialize_client(self):
+        """Initializes the Replicate client if the API token is available."""
+        api_token = os.getenv("REPLICATE_API_TOKEN")
+        if api_token:
+            self.client = replicate.Client(api_token=api_token)
+            self.is_configured = True
+            logger.info("✅ Replicate client initialized successfully.")
+        else:
+            logger.warning("REPLICATE_API_TOKEN is not configured. Replicate service is disabled.")
+
+    def run_lora_prediction(
+        self,
+        model_name: str,
+        model_version: str,
+        prompt: str,
+        image_url: Optional[str] = None,
+        mask_url: Optional[str] = None
+    ) -> Optional[str]:
+        """
+        Runs a prediction on a specified LoRA model version on Replicate.
+
+        Args:
+            model_name: The name of the model (e.g., 'voicebootix/jyoti_swami').
+            model_version: The specific version ID of the LoRA model to use.
+            prompt: The text prompt to guide the image generation.
+            image_url: An optional URL to an input image for image-to-image tasks.
+            mask_url: An optional URL to a mask for inpainting tasks.
+
+        Returns:
+            The URL of the generated image, or None if the prediction fails.
+        """
+        if not self.is_configured:
+            logger.error("Cannot run LoRA prediction, Replicate service is not configured.")
+            return None
 
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                predictions_url = f"{REPLICATE_BASE_URL}/predictions"
-                logger.info(f"Starting prediction for model version: {version}")
-                
-                response = await client.post(predictions_url, headers=self.headers, json=prediction_payload)
-                response.raise_for_status()
-                
-                prediction_data = response.json()
-                status_check_url = prediction_data.get("urls", {}).get("get")
-
-                # Polling for the result
-                for _ in range(60): # Poll for up to 5 minutes (60 * 5s)
-                    await asyncio.sleep(5)
-                    status_response = await client.get(status_check_url, headers=self.headers)
-                    status_data = status_response.json()
-                    
-                    if status_data["status"] == "succeeded":
-                        output = status_data.get("output")
-                        # The output can be a list or a single item
-                        if isinstance(output, list) and output:
-                            return output[0]
-                        return output
-                    elif status_data["status"] in ["failed", "canceled"]:
-                        logger.error(f"Prediction failed or was canceled: {status_data.get('error')}")
-                        return None
-                
-                logger.warning("Prediction timed out after 5 minutes.")
+            model_string = f"{model_name}:{model_version}"
+            input_data = {"prompt": prompt}
+            if image_url:
+                input_data["image"] = image_url
+            if mask_url:
+                input_data["mask"] = mask_url
+            
+            logger.info(f"Running Replicate prediction for model: {model_string}")
+            
+            # The replicate.run() function handles the prediction synchronously
+            output = self.client.run(model_string, input=input_data)
+            
+            # The output is typically a list of URLs
+            if output and isinstance(output, list) and len(output) > 0:
+                generated_image_url = output[0]
+                logger.info(f"✅ Successfully generated image from Replicate: {generated_image_url}")
+                return generated_image_url
+            else:
+                logger.error(f"Replicate prediction returned an unexpected output: {output}")
                 return None
 
-        except httpx.HTTPStatusError as e:
-            logger.error(f"Failed to start prediction. Status: {e.response.status_code}, Response: {e.response.text}", exc_info=True)
-            return None
         except Exception as e:
-            logger.error(f"An unexpected error occurred during prediction: {e}", exc_info=True)
+            logger.error(f"Failed to run Replicate LoRA prediction: {e}", exc_info=True)
             return None
 
-    async def download_image(self, url: str) -> Optional[bytes]:
-        """Downloads an image from a given URL."""
-        if not url:
-            return None
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.get(url)
-                response.raise_for_status()
-                return response.content
-        except Exception as e:
-            logger.error(f"Failed to download image from {url}: {e}", exc_info=True)
-            return None
+# --- FastAPI Dependency Injection ---
+_replicate_service_instance = None
 
-# Dependency injector
 def get_replicate_service() -> ReplicateService:
-    return ReplicateService()
+    """
+    FastAPI dependency that provides a singleton instance of the ReplicateService.
+    """
+    global _replicate_service_instance
+    if _replicate_service_instance is None:
+        _replicate_service_instance = ReplicateService()
+    return _replicate_service_instance

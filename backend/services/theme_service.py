@@ -6,27 +6,26 @@ It uses RunWare's IP-Adapter FaceID technology for 80-90% face preservation succ
 maintaining perfect face consistency while generating diverse backgrounds and clothing themes.
 """
 
-import logging
-from datetime import datetime
 import os
-import uuid
-import httpx
-import asyncio
-import random
-from fastapi import HTTPException, Depends
-import asyncpg
-import json
-import base64
-from typing import Optional, Tuple, List
-import io
-from PIL import Image
+import logging
+from io import BytesIO
+from typing import Optional, Tuple
 
-from services.supabase_storage_service import SupabaseStorageService, get_storage_service
-from services.controlnet_service import ControlNetService, get_controlnet_service
-import db
-from enum import Enum
+import httpx
+from PIL import Image, ImageDraw
+import cv2
+import numpy as np
+from fastapi import Depends, HTTPException
+
+from services.supabase_storage_service import get_storage_service, SupabaseStorageService
+# NEW: Import the ReplicateService
+from services.replicate_service import get_replicate_service, ReplicateService
 
 logger = logging.getLogger(__name__)
+
+# Environment variables for configuration
+LORA_MODEL_NAME = os.getenv("LORA_MODEL_NAME")
+LORA_MODEL_VERSION = os.getenv("LORA_MODEL_VERSION")
 
 
 # 🚀 RUNWARE API SERVICE CLASS
@@ -281,10 +280,11 @@ class ThemeService:
     def __init__(
         self,
         storage_service: SupabaseStorageService,
-        db_conn: asyncpg.Connection,
+        replicate_service: ReplicateService
     ):
         self.storage_service = storage_service
-        self.db_conn = db_conn
+        self.replicate_service = replicate_service
+        self.http_client = httpx.AsyncClient(timeout=120.0)
         
         logger.info("✅ ThemeService initialized with Pillow for image processing.")
         
@@ -321,7 +321,7 @@ class ThemeService:
         Assumes the face is in the center, as per photo guidelines.
         """
         try:
-            pil_image = Image.open(io.BytesIO(image_bytes))
+            pil_image = Image.open(BytesIO(image_bytes))
             width, height = pil_image.size
 
             # Define crop dimensions (e.g., 50% of width and height, centered)
@@ -336,7 +336,7 @@ class ThemeService:
             cropped_image = pil_image.crop((left, top, right, bottom))
 
             # Convert cropped image back to bytes
-            with io.BytesIO() as output:
+            with BytesIO() as output:
                 cropped_image.save(output, format="PNG")
                 cropped_bytes = output.getvalue()
 
@@ -564,118 +564,117 @@ low quality, blurry, deformed, ugly, bad anatomy, cartoon, anime, painting, illu
             logger.error(f"An unexpected error occurred in _get_base_image_data: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="An unexpected error occurred while retrieving the image.") from e
 
+    async def _get_base_image_bytes(self, reference_avatar_url: str) -> Optional[bytes]:
+        try:
+            response = await self.http_client.get(reference_avatar_url)
+            response.raise_for_status()
+            return response.content
+        except httpx.RequestError as e:
+            logger.error(f"Failed to download base image from URL {reference_avatar_url}: {e}")
+            return None
 
+    async def _create_head_mask(self, image_bytes: bytes) -> Optional[bytes]:
+        try:
+            image_np = np.frombuffer(image_bytes, np.uint8)
+            image_bgr = cv2.imdecode(image_np, cv2.IMREAD_COLOR)
+            if image_bgr is None:
+                raise ValueError("Failed to decode image.")
+            
+            gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+            
+            cascade_path = "assets/haarcascade_frontalface_default.xml"
+            if not os.path.exists(cascade_path):
+                logger.error(f"Haar cascade file not found at {cascade_path}")
+                raise FileNotFoundError("Haar cascade file not found.")
 
+            face_cascade = cv2.CascadeClassifier(cascade_path)
+            faces = face_cascade.detectMultiScale(gray, 1.1, 4)
 
+            if len(faces) == 0:
+                logger.warning("No faces detected, creating a fallback centered mask.")
+                h, w = gray.shape
+                mask = np.full((h, w), 255, dtype=np.uint8)
+                center_x, center_y = w // 2, h // 2
+                rect_w, rect_h = int(w * 0.4), int(h * 0.6)
+                start_x, start_y = center_x - rect_w // 2, center_y - rect_h // 2
+                end_x, end_y = start_x + rect_w, start_y + rect_h
+                mask[start_y:end_y, start_x:end_x] = 0
+            else:
+                x, y, w, h = faces[0]
+                mask = np.full(gray.shape, 255, dtype=np.uint8)
+                cv2.rectangle(mask, (x, y), (x + w, y + h), (0, 0, 0), -1)
+
+            is_success, buffer = cv2.imencode(".png", mask)
+            if not is_success:
+                raise ValueError("Failed to encode mask image.")
+            
+            return buffer.tobytes()
+
+        except Exception as e:
+            logger.error(f"Failed to create head mask: {e}", exc_info=True)
+            return None
 
     async def generate_themed_image_bytes(
-        self, 
-        custom_prompt: Optional[str] = None, 
-        theme_day: Optional[int] = None
-    ) -> Tuple[bytes, str, bytes]:
-        """
-        🎯 RUNWARE-ONLY FACE PRESERVATION GENERATION
+        self,
+        theme_prompt: str,
+        reference_avatar_url: str,
+        target_platform: Optional[str] = None
+    ) -> Optional[bytes]:
         
-        Uses RunWare's advanced IP-Adapter FaceID in a two-step process for premium results:
-        - 80-90% face consistency success rate
-        - Superior body/background variation while preserving identity
-        
-        Args:
-            custom_prompt: Optional custom prompt to override theme-based generation
-            theme_day: Optional day override (0-6). If None, uses current day.
-            
-        Returns:
-            Tuple[bytes, str, bytes]: Generated image bytes, final prompt used, and the base image bytes.
-        
-        Configuration:
-            RUNWARE_API_KEY: Required environment variable for RunWare API access
-        """
+        if not self.replicate_service.is_configured:
+            raise HTTPException(status_code=501, detail="Replicate service is not configured on the server.")
+        if not LORA_MODEL_NAME or not LORA_MODEL_VERSION:
+            raise HTTPException(status_code=501, detail="LORA_MODEL_NAME or LORA_MODEL_VERSION is not set on the server.")
+
+        base_image_bytes = await self._get_base_image_bytes(reference_avatar_url)
+        if not base_image_bytes:
+            raise HTTPException(status_code=500, detail="Could not download the base Swamiji image.")
+
+        head_mask_bytes = await self._create_head_mask(base_image_bytes)
+        if not head_mask_bytes:
+            raise HTTPException(status_code=500, detail="Could not create the head mask for the image.")
+
         try:
-            # 🔍 COMMON PREPARATION: Get base image and determine theme
-            base_image_bytes, base_image_url = await self._get_base_image_data()
-            logger.info(f"Base image loaded: {len(base_image_bytes)/1024:.1f}KB from {base_image_url}")
-            
-            # 🎨 DETERMINE THEME DESCRIPTION
-            if custom_prompt:
-                theme_description = custom_prompt
-                logger.info(f"Using custom prompt: {custom_prompt}")
-            else:
-                # CORE.MD & REFRESH.MD: Explicit validation instead of silent fallback
-                if theme_day is not None:
-                    # Validate theme_day is within valid range 0-6 (Monday=0, Sunday=6)
-                    if not isinstance(theme_day, int) or not (0 <= theme_day <= 6):
-                        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                        valid_range = ', '.join([f"{i}={day_names[i]}" for i in range(7)])
-                        error_msg = (
-                            f"Invalid theme_day={theme_day}. Must be an integer between 0-6 "
-                            f"({valid_range}). Received: {theme_day} (type: {type(theme_day).__name__})"
-                        )
-                        logger.error(f"❌ THEME_DAY VALIDATION ERROR: {error_msg}")
-                        raise ValueError(error_msg)
-                    
-                    day_of_week = theme_day
-                    logger.info(f"🎯 THEME OVERRIDE: Using theme_day={theme_day} instead of current day")
-                else:
-                    # Only use current day when theme_day is None (not provided)
-                    day_of_week = datetime.now().weekday()
-                    logger.info(f"📅 Using current day: {day_of_week}")
-                
-                theme = THEMES.get(day_of_week, THEMES.get(0, {"description": "in a serene setting"}))
-                theme_description = theme['description']
-                day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-                logger.info(f"🎨 Using theme for {day_names[day_of_week]}: {theme.get('name', 'Unknown')} - {theme_description[:100]}...")
-
-            # Always use the modern, two-step generation process
-            logger.info("🚀 Using new two-step generation logic via RunWare.")
-            final_image_bytes, scene_prompt = await self._generate_with_runware(
-                base_image_bytes=base_image_bytes,
-                theme_description=theme_description,
-                custom_prompt=custom_prompt,
-                theme_day=theme_day
-            )
-            
-            return final_image_bytes, scene_prompt, base_image_bytes
-
-        except Exception as e:
-            logger.error(f"Failed to generate themed image bytes: {e}", exc_info=True)
-            if isinstance(e, HTTPException):
-                raise e
-            raise HTTPException(status_code=500, detail="Failed to generate themed image bytes.") from e
-
-    async def generate_and_upload_themed_image(self, custom_prompt: Optional[str] = None) -> dict:
-        """
-        Generates a themed image, uploads it, and returns the public URL and the prompt used.
-        """
-        try:
-            # REFRESH.MD: FIX - Get both the image and the actual prompt used.
-            generated_image_bytes, final_prompt = await self.generate_themed_image_bytes(
-                custom_prompt=custom_prompt
-            )
-
-            unique_filename = f"swamiji_masked_theme_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4()}.png"
-            file_path_in_bucket = f"daily_themes/{unique_filename}"
-
-            public_url = self.storage_service.upload_file(
-                bucket_name="avatars",
-                file_path_in_bucket=file_path_in_bucket,
-                file=generated_image_bytes,
+            # Upload mask to get a public URL
+            mask_url = self.storage_service.upload_file(
+                bucket_name="masks",
+                file_path_in_bucket=f"mask_{os.urandom(8).hex()}.png",
+                file=head_mask_bytes,
                 content_type="image/png"
             )
+            if not mask_url:
+                raise HTTPException(status_code=500, detail="Failed to upload head mask to storage.")
+
+            # Run prediction using Replicate service
+            generated_image_url = self.replicate_service.run_lora_prediction(
+                model_name=LORA_MODEL_NAME,
+                model_version=LORA_MODEL_VERSION,
+                prompt=theme_prompt,
+                image_url=reference_avatar_url,
+                mask_url=mask_url
+            )
+
+            if not generated_image_url:
+                raise HTTPException(status_code=500, detail="Image generation with Replicate failed.")
+
+            # Download the generated image
+            response = await self.http_client.get(generated_image_url)
+            response.raise_for_status()
             
-            logger.info(f"✅ Successfully uploaded masked themed image to {public_url}")
-            # REFRESH.MD: FIX - Return the actual prompt instead of a placeholder.
-            return {"image_url": public_url, "prompt_used": final_prompt}
+            return response.content
 
         except Exception as e:
-            logger.error(f"Failed to create and upload the daily themed avatar image: {e}", exc_info=True)
+            logger.error(f"Error during themed image generation with Replicate: {e}", exc_info=True)
             if isinstance(e, HTTPException):
-                raise e
-            raise HTTPException(status_code=500, detail="Failed to create and upload themed image.") from e
+                raise
+            raise HTTPException(status_code=500, detail="An unexpected error occurred during image generation.")
 
-# --- FastAPI Dependency Injection ---
+
 def get_theme_service(
     storage_service: SupabaseStorageService = Depends(get_storage_service),
-    db_conn: asyncpg.Connection = Depends(db.get_db),
-) -> "ThemeService":
-    """Creates an instance of the ThemeService."""
-    return ThemeService(storage_service, db_conn)
+    replicate_service: ReplicateService = Depends(get_replicate_service),
+) -> ThemeService:
+    return ThemeService(
+        storage_service=storage_service,
+        replicate_service=replicate_service
+    )

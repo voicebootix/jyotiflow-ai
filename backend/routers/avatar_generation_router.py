@@ -11,7 +11,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query
+from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks, Query, Response
 from pydantic import BaseModel, Field
 
 from deps import get_current_user, get_admin_user
@@ -19,6 +19,16 @@ from core_foundation_enhanced import StandardResponse
 from spiritual_avatar_generation_engine import avatar_engine
 from enhanced_business_logic import SpiritualAvatarEngine
 from universal_pricing_engine import UniversalPricingEngine
+from fastapi.responses import StreamingResponse, Response
+import io
+import httpx
+import asyncpg
+
+from ..services.enhanced_business_logic import SpiritualAvatarEngine
+from ..services.theme_service import ThemeService, get_theme_service
+from ..services.universal_pricing_engine import UniversalPricingEngine
+from ..auth.auth_helpers import get_current_user
+from ..config.database_config import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +72,43 @@ class AvatarStatusResponse(BaseModel):
     completed_at: Optional[str] = None
     error: Optional[str] = None
 
-# Initialize router
+class LoraAvatarRequest(BaseModel):
+    """Request model for LoRA avatar preview generation"""
+    prompt: str = Field(..., description="Prompt for the LoRA avatar generation")
+    negative_prompt: Optional[str] = Field(None, description="Negative prompt for the LoRA avatar generation")
+
+# Re-define router
 avatar_router = APIRouter(prefix="/api/avatar", tags=["Avatar Generation"])
 
 # Initialize spiritual avatar engine for guidance generation
 spiritual_engine = SpiritualAvatarEngine()
 pricing_engine = UniversalPricingEngine()
+
+class ImagePreviewRequest(BaseModel):
+    custom_prompt: Optional[str] = None
+    theme_day: Optional[int] = Field(None, ge=0, le=6)
+
+@avatar_router.post("/image-preview", response_class=Response)
+async def generate_image_preview(
+    request: ImagePreviewRequest,
+    theme_service: ThemeService = Depends(get_theme_service)
+):
+    try:
+        # The service now handles fetching the base image internally
+        generated_image_bytes, prompt_used, _ = await theme_service.generate_themed_image_bytes(
+            custom_prompt=request.custom_prompt,
+            theme_day=request.theme_day
+        )
+        return Response(content=generated_image_bytes, media_type="image/png", headers={"X-Generated-Prompt": prompt_used})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException as e:
+        # Re-raise HTTP exceptions from the service
+        raise e
+    except Exception as e:
+        logger.error(f"Failed to generate image preview: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate image preview.")
+
 
 @avatar_router.post("/generate", response_model=AvatarGenerationResponse)
 async def generate_avatar_video(

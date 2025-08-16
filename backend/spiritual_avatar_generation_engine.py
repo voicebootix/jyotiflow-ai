@@ -14,10 +14,13 @@ import logging
 import asyncio
 import json # Added for json.loads
 import uuid # REFRESH.MD: Added to generate unique filenames for audio
-from typing import List, Dict # Added for List and Dict type hints
+from typing import List, Dict, Optional # Added for List and Dict type hints
 
 from fastapi import HTTPException, Depends
 import asyncpg
+
+# Import the new LoRA Avatar Service
+from .lora_avatar_service import LoraAvatarService, get_lora_avatar_service
 
 # REFRESH.MD: Removed unused 'db' import for code cleanup.
 
@@ -57,14 +60,35 @@ class SpiritualAvatarGenerationEngine:
     TTS and TTV services.
     """
 
-    def __init__(self, storage_service: "SupabaseStorageService"):
-        api_keys_provided = all([os.getenv("ELEVENLABS_API_KEY"), os.getenv("D_ID_API_KEY")])
-        if not api_keys_provided:
-            logger.warning("API keys for avatar generation are not configured. The engine will not work.")
-            # The router will handle the user-facing HTTPException.
-            # This class will just log the issue.
-        self.is_configured = api_keys_provided
+    def __init__(self, storage_service: "SupabaseStorageService", lora_avatar_service: "LoraAvatarService"):
+        self.did_configured = all([os.getenv("ELEVENLABS_API_KEY"), os.getenv("D_ID_API_KEY")])
+        self.lora_configured = lora_avatar_service.is_configured
+        
+        if not self.did_configured:
+            logger.warning("D-ID/ElevenLabs API keys are not configured. Standard avatar generation will not work.")
+        if not self.lora_configured:
+            logger.warning("LoRA Avatar Service is not configured. LoRA-based avatar generation will not work.")
+
+        self.is_configured = self.did_configured or self.lora_configured
         self.storage_service = storage_service
+        self.lora_avatar_service = lora_avatar_service
+
+    async def _generate_lora_avatar_image(self, prompt: str, negative_prompt: str) -> bytes:
+        """Generates an avatar image using the LoRA service."""
+        # For now, we use a static base image. This could be made dynamic later.
+        base_image_path = os.path.join(os.path.dirname(__file__), '..', 'assets', 'swamiji_base_image.png')
+        try:
+            with open(base_image_path, "rb") as f:
+                image_bytes = f.read()
+        except FileNotFoundError:
+            logger.error(f"Base image for LoRA not found at {base_image_path}")
+            raise HTTPException(status_code=500, detail="Base image for LoRA avatar not found.")
+
+        return await self.lora_avatar_service.generate_avatar_image(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            input_image_bytes=image_bytes
+        )
 
     async def _generate_audio(self, text: str, voice_id: str) -> str:
         """
@@ -275,19 +299,98 @@ class SpiritualAvatarGenerationEngine:
         return {"success": True, "preview": preview_data}
 
 
+    async def generate_complete_avatar_video(
+        self,
+        session_id: str,
+        user_email: str,
+        guidance_text: str,
+        service_type: str,
+        avatar_style: str,
+        voice_tone: str,
+        video_duration: int,
+        source_image_url: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Orchestrates the full avatar generation process, choosing the correct engine.
+        """
+        if not self.is_configured:
+            raise HTTPException(status_code=501, detail="Avatar Generation Engine is not configured.")
+
+        start_time = time.time()
+
+        # Decide which generation path to take
+        if avatar_style == "lora_spiritual":
+            if not self.lora_configured:
+                raise HTTPException(status_code=501, detail="LoRA avatar generation is not configured on the server.")
+            
+            # This path is currently image-only. Video generation would be a separate step.
+            # For now, we return the image URL in place of a video URL.
+            logger.info(f"Starting LoRA-based avatar generation for session {session_id}")
+            prompt = f"A spiritual master {voice_tone}, in a {service_type} setting. {guidance_text[:100]}"
+            negative_prompt = "cartoon, unrealistic, blurry, low quality"
+            
+            image_bytes = await self._generate_lora_avatar_image(prompt, negative_prompt)
+            
+            # Upload the generated image to storage
+            file_name_in_bucket = f"public/generated_lora_avatars/{session_id}.png"
+            image_url = self.storage_service.upload_file(
+                bucket_name="avatars",
+                file_path_in_bucket=file_name_in_bucket,
+                file=image_bytes,
+                content_type="image/png"
+            )
+            
+            processing_time = time.time() - start_time
+            logger.info(f"✅ LoRA avatar generation for {session_id} complete in {processing_time:.2f}s. Image at: {image_url}")
+
+            return {
+                "success": True,
+                "video_url": image_url, # Returning image URL as video_url for now
+                "processing_time": processing_time
+            }
+        else:
+            # Default to D-ID video generation
+            if not self.did_configured:
+                raise HTTPException(status_code=501, detail="Standard avatar generation is not configured on the server.")
+            if not source_image_url:
+                raise HTTPException(status_code=400, detail="A source image URL is required for standard avatar generation.")
+
+            logger.info(f"Starting D-ID based avatar generation for session {session_id}")
+            audio_url = await self._generate_audio(guidance_text, voice_id=DEFAULT_VOICE_ID)
+            talk_id = await self._create_video_talk(source_image_url, audio_url)
+            talk_result = await self._get_talk_result(talk_id)
+            
+            video_url = talk_result.get("result_url")
+            if not video_url:
+                raise HTTPException(status_code=500, detail="Failed to get final video URL.")
+
+            processing_time = time.time() - start_time
+            logger.info(f"✅ D-ID avatar generation for {session_id} complete in {processing_time:.2f}s.")
+
+            return {
+                "success": True,
+                "video_url": video_url,
+                "processing_time": processing_time
+            }
+
+
 # --- FastAPI Dependency Injection ---
 
 # REFRESH.MD: Refactored to remove the flawed singleton pattern.
 # A new instance is created per request, which is FastAPI's recommended approach
 # for handling dependencies, avoiding state-related issues and static analysis warnings.
 def get_avatar_engine(
-    storage_service: SupabaseStorageService = Depends(get_storage_service)
+    storage_service: SupabaseStorageService = Depends(get_storage_service),
+    lora_avatar_service: LoraAvatarService = Depends(get_lora_avatar_service)
 ) -> "SpiritualAvatarGenerationEngine":
     """
     FastAPI dependency that provides a request-scoped instance of the avatar engine.
     This ensures each request gets a fresh instance with its own dependencies.
     """
-    engine = SpiritualAvatarGenerationEngine(storage_service=storage_service)
+    engine = SpiritualAvatarGenerationEngine(
+        storage_service=storage_service,
+        lora_avatar_service=lora_avatar_service
+    )
     
     if not engine.is_configured:
          raise HTTPException(
