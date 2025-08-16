@@ -15,6 +15,18 @@ logger = logging.getLogger(__name__)
 LORA_MODEL_NAME = os.getenv("LORA_MODEL_NAME")
 LORA_MODEL_VERSION = os.getenv("LORA_MODEL_VERSION")
 
+# Add logging to check if the variables are loaded
+if not LORA_MODEL_NAME:
+    logger.warning("LORA_MODEL_NAME environment variable is not set.")
+else:
+    logger.info(f"LORA_MODEL_NAME loaded: {LORA_MODEL_NAME}")
+
+if not LORA_MODEL_VERSION:
+    logger.warning("LORA_MODEL_VERSION environment variable is not set.")
+else:
+    logger.info(f"LORA_MODEL_VERSION loaded: {LORA_MODEL_VERSION}")
+
+
 class ThemeService:
     def __init__(
         self,
