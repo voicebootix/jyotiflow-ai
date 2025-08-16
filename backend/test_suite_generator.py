@@ -3054,23 +3054,28 @@ async def test_admin_authentication_endpoint():
         
         # Get admin credentials from database - no hardcoded values
         database_url = os.getenv('DATABASE_URL')
+        admin_email_config = os.getenv('ADMIN_EMAIL', 'admin@jyotiflow.ai')
+        admin_test_password = os.getenv('ADMIN_TEST_PASSWORD')
+        
+        # Require ADMIN_TEST_PASSWORD to be set
+        if not admin_test_password:
+            return {"status": "failed", "error": "Admin test password not set in environment", "business_function": business_function}
+        
         admin_email, admin_password = None, None
         if database_url:
             try:
                 import asyncpg
                 conn = await asyncpg.connect(database_url)
-                admin_user = await conn.fetchrow("""
-                    SELECT email, role, credits 
-                    FROM users 
-                    WHERE email = 'admin@jyotiflow.ai' 
-                    AND role = 'admin' 
-                    AND credits > 0
-                """)
+                # Use parameterized query to avoid hardcoded values and nested quote issues
+                admin_user = await conn.fetchrow(
+                    'SELECT email, role, credits FROM users WHERE email = $1 AND role = $2 AND credits > $3',
+                    admin_email_config, 'admin', 0
+                )
                 await conn.close()
                 
                 if admin_user:
                     admin_email = admin_user['email']
-                    admin_password = os.getenv('ADMIN_TEST_PASSWORD', 'Jyoti@2024!')
+                    admin_password = admin_test_password
             except Exception as db_error:
                 print(f"⚠️ Database credential lookup failed: {db_error}")
         
