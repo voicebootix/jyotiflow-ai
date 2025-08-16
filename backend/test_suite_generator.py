@@ -3047,79 +3047,13 @@ async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import httpx, time, os
     try:
-        # Database-driven credential retrieval (following .cursor rules)
+        # Direct endpoint configuration (not from database)
         endpoint = "/api/auth/login"
         method = "POST"
         business_function = "Admin Authentication"
-        
-        # Get admin credentials from database - no hardcoded values
-        database_url = os.getenv('DATABASE_URL')
-        admin_email_config = os.getenv('ADMIN_EMAIL', 'admin@jyotiflow.ai')
-        admin_test_password = os.getenv('ADMIN_TEST_PASSWORD')
-        
-        # Secure admin password retrieval - no hardcoded secrets
-        if not admin_test_password:
-            # Try vault/secrets API first (future extensibility)
-            vault_password = os.getenv('VAULT_ADMIN_PASSWORD')
-            if vault_password:
-                admin_test_password = vault_password
-            elif database_url:
-                # Database configuration fallback with proper connection management
-                conn = None
-                try:
-                    import asyncpg
-                    conn = await asyncpg.connect(database_url)
-                    password_config = await conn.fetchval(
-                        "SELECT config_value FROM test_configurations WHERE config_key = 'admin_test_password' AND enabled = true"
-                    )
-                    if password_config:
-                        admin_test_password = password_config
-                except Exception as db_error:
-                    print(f"⚠️ Database password config lookup failed: {db_error}")
-                finally:
-                    if conn:
-                        await conn.close()
-            
-            # If no trusted source available, use invalid placeholder for test safety
-            if not admin_test_password:
-                import uuid
-                admin_test_password = f'invalid-{uuid.uuid4()}'
-                print(f"⚠️ No admin password from trusted sources, using invalid placeholder for test safety")
-        
-        admin_email, admin_password = None, None
-        if database_url:
-            # Database admin user lookup with proper connection management
-            conn = None
-            try:
-                import asyncpg
-                conn = await asyncpg.connect(database_url)
-                # Use parameterized query to avoid hardcoded values and nested quote issues
-                admin_user = await conn.fetchrow(
-                    'SELECT email, role, credits FROM users WHERE email = $1 AND role = $2 AND credits > $3',
-                    admin_email_config, 'admin', 0
-                )
-                
-                if admin_user:
-                    admin_email = admin_user['email']
-                    admin_password = admin_test_password
-            except Exception as db_error:
-                print(f"⚠️ Database credential lookup failed: {db_error}")
-            finally:
-                if conn:
-                    await conn.close()
-        
-        if not admin_email or not admin_password:
-            print(f"⚠️ Admin credentials not found in database, using fallback")
-            # Use fallback credentials to ensure authentication test doesn't fail
-            admin_email = admin_email_config  # From environment or default
-            admin_password = admin_test_password  # Already set above with fallback
-        
-        test_data = {"email": admin_email, "password": admin_password} 
+        test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"} 
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
-        
-        print(f"🔐 Admin authentication test starting with email: {admin_email}")
-        print(f"🌐 API base URL: {api_base_url}")
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
