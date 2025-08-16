@@ -3024,7 +3024,7 @@ async def test_user_management_api_endpoints():
         
 
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
-        """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - DATABASE DRIVEN"""
+        """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - Environment-configurable base URL with direct endpoint configuration"""
         return {
             "test_suite_name": "Admin Services",
             "test_category": "admin_services_critical",
@@ -3032,7 +3032,7 @@ async def test_user_management_api_endpoints():
             "test_cases": [
                 {
                     "test_name": "test_admin_authentication_endpoint",
-                    "description": "Test admin authentication endpoint using database configuration",
+                    "description": "Test admin authentication endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3044,7 +3044,7 @@ import time
 import uuid
 
 async def test_admin_authentication_endpoint():
-    \"\"\"Test admin authentication endpoint - database-driven, no hardcoded values\"\"\"
+    \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     session_id = None
     conn = None
@@ -3059,7 +3059,7 @@ async def test_admin_authentication_endpoint():
         method = "POST"
         business_function = "Admin Authentication"
         test_data = {"email": "admin@test.com", "password": "test123"}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
@@ -3136,7 +3136,7 @@ async def test_admin_authentication_endpoint():
                 },
                 {
                     "test_name": "test_admin_overview_endpoint",
-                    "description": "Test admin overview endpoint using database configuration",
+                    "description": "Test admin overview endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3149,7 +3149,7 @@ import uuid
 
 
 async def test_admin_overview_endpoint():
-    \"\"\"Test admin overview endpoint - makes HTTP request and stores results only\"\"\"
+    \"\"\"Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     conn = None
     try:
@@ -3163,7 +3163,7 @@ async def test_admin_overview_endpoint():
         method = "GET"
         business_function = "Admin Optimization"
         test_data = {"timeframe": "7d", "metrics": ["users", "sessions", "revenue"]}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
@@ -3240,7 +3240,7 @@ async def test_admin_overview_endpoint():
                 },
                 {
                     "test_name": "test_admin_revenue_insights_endpoint",
-                    "description": "Test admin revenue insights endpoint using database configuration",
+                    "description": "Test admin revenue insights endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3252,7 +3252,7 @@ import time
 import uuid
 
 async def test_admin_revenue_insights_endpoint():
-    \"\"\"Test admin revenue insights endpoint - makes HTTP request and stores results only\"\"\"
+    \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     conn = None
     try:
@@ -3266,7 +3266,7 @@ async def test_admin_revenue_insights_endpoint():
         method = "GET"
         business_function = "Admin Monetization"
         test_data = {"period": "30d", "breakdown": ["daily", "source"]}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
@@ -3343,7 +3343,7 @@ async def test_admin_revenue_insights_endpoint():
                 },
                 {
                     "test_name": "test_admin_analytics_endpoint",
-                    "description": "Test admin analytics endpoint using database configuration",
+                    "description": "Test admin analytics endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3355,7 +3355,7 @@ import time
 import uuid
 
 async def test_admin_analytics_endpoint():
-    \"\"\"Test admin analytics endpoint - makes HTTP request and stores results only\"\"\"
+    \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     conn = None
     try:
@@ -3369,7 +3369,7 @@ async def test_admin_analytics_endpoint():
         method = "GET"
         business_function = "Admin Stats"
         test_data = {"view": "dashboard", "filters": ["active_users", "revenue"]}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
