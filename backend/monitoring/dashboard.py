@@ -457,8 +457,8 @@ class MonitoringDashboard:
                 """)
                 
                 if table_exists:
-                issues = await conn.fetch("""
-                    SELECT 
+                    issues = await conn.fetch("""
+                        SELECT 
                             id,
                             alert_type as type,
                             severity,
@@ -471,9 +471,9 @@ class MonitoringDashboard:
                         AND acknowledged = false
                         AND created_at > NOW() - INTERVAL '24 hours'
                         ORDER BY created_at DESC
-                    LIMIT 10
-                """)
-                return [dict(i) for i in issues]
+                        LIMIT 10
+                    """)
+                    return [dict(i) for i in issues]
                 else:
                     # Return empty list if table doesn't exist yet
                     return []
@@ -501,13 +501,13 @@ class MonitoringDashboard:
                 
                 if table_exists:
                     # Get platform settings
-                platforms = await conn.fetch("""
-                    SELECT 
-                        key,
+                    platforms = await conn.fetch("""
+                        SELECT 
+                            key,
                             value,
                             created_at,
                             updated_at
-                    FROM platform_settings
+                        FROM platform_settings
                         WHERE key LIKE '%social%' OR key LIKE '%facebook%' OR key LIKE '%instagram%'
                         ORDER BY updated_at DESC
                     """)
@@ -523,18 +523,18 @@ class MonitoringDashboard:
                     recent_activity = []
                     if validation_log_exists:
                         recent_activity = await conn.fetch("""
-                    SELECT 
-                        platform,
+                            SELECT 
+                                platform,
                                 validation_type,
-                        status,
-                        COUNT(*) as count
+                                status,
+                                COUNT(*) as count
                             FROM social_media_validation_log
-                    WHERE created_at > NOW() - INTERVAL '24 hours'
+                            WHERE created_at > NOW() - INTERVAL '24 hours'
                             GROUP BY platform, validation_type, status
-                """)
-                
-                return {
-                    "platform_status": [dict(p) for p in platforms],
+                        """)
+                    
+                    return {
+                        "platform_status": [dict(p) for p in platforms],
                         "recent_activity": [dict(r) for r in recent_activity],
                         "errors": []  # Will be populated when we have social media posting data
                     }
@@ -713,19 +713,19 @@ class MonitoringDashboard:
                         alerts.append(dict(alert))
                 else:
                     # Generate basic alerts from session data
-                error_rate = await conn.fetchrow("""
-                    SELECT 
-                        CASE 
-                            WHEN COUNT(*) = 0 THEN 0
+                    error_rate = await conn.fetchrow("""
+                        SELECT 
+                            CASE 
+                                WHEN COUNT(*) = 0 THEN 0
                                 ELSE COUNT(CASE WHEN status != 'completed' THEN 1 END)::float / COUNT(*) * 100
-                        END as error_rate
+                            END as error_rate
                         FROM sessions
                         WHERE created_at > NOW() - INTERVAL '1 hour'
-                """)
-                
-                if error_rate and error_rate["error_rate"] > 20:
-                    alerts.append({
-                        "type": "warning",
+                    """)
+                    
+                    if error_rate and error_rate["error_rate"] > 20:
+                        alerts.append({
+                            "type": "warning",
                             "severity": "high" if error_rate["error_rate"] > 50 else "medium",
                             "message": f"High session failure rate: {error_rate['error_rate']:.1f}%",
                             "timestamp": datetime.now(timezone.utc).isoformat(),
