@@ -3047,42 +3047,11 @@ async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import httpx, time, os
     try:
-        # Database-driven credential retrieval (following .cursor rules)
+        # Direct endpoint configuration (not from database)
         endpoint = "/api/auth/login"
         method = "POST"
         business_function = "Admin Authentication"
-        
-        # Get admin credentials from database - no hardcoded values
-        database_url = os.getenv('DATABASE_URL')
-        admin_email_config = os.getenv('ADMIN_EMAIL', 'admin@jyotiflow.ai')
-        admin_test_password = os.getenv('ADMIN_TEST_PASSWORD')
-        
-        # Require ADMIN_TEST_PASSWORD to be set
-        if not admin_test_password:
-            return {"status": "failed", "error": "Admin test password not set in environment", "business_function": business_function}
-        
-        admin_email, admin_password = None, None
-        if database_url:
-            try:
-                import asyncpg
-                conn = await asyncpg.connect(database_url)
-                # Use parameterized query to avoid hardcoded values and nested quote issues
-                admin_user = await conn.fetchrow(
-                    'SELECT email, role, credits FROM users WHERE email = $1 AND role = $2 AND credits > $3',
-                    admin_email_config, 'admin', 0
-                )
-                await conn.close()
-                
-                if admin_user:
-                    admin_email = admin_user['email']
-                    admin_password = admin_test_password
-            except Exception as db_error:
-                print(f"⚠️ Database credential lookup failed: {db_error}")
-        
-        if not admin_email or not admin_password:
-            return {"status": "failed", "error": "Admin credentials not found in database", "business_function": business_function}
-        
-        test_data = {"email": admin_email, "password": admin_password} 
+        test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"} 
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
