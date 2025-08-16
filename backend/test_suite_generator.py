@@ -11,8 +11,6 @@ import asyncio
 import asyncpg
 import secrets
 import string
-import re
-import importlib.util
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Union
 import logging 
@@ -21,63 +19,6 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-
-def discover_admin_endpoints():
-    """Dynamically discover admin endpoints from router files"""
-    admin_endpoints = []
-    
-    try:
-        router_dir = os.path.join(os.path.dirname(__file__), 'routers')
-        
-        # Check auth.py for login endpoint
-        auth_file = os.path.join(router_dir, 'auth.py')
-        if os.path.exists(auth_file):
-            with open(auth_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                # Look for router prefix and login endpoint
-                prefix_match = re.search(r'router = APIRouter\(prefix="([^"]+)"', content)
-                login_match = re.search(r'@router\.post\("(/login)"\)', content)
-                if prefix_match and login_match:
-                    prefix = prefix_match.group(1)
-                    endpoint = login_match.group(1)
-                    admin_endpoints.append({
-                        'path': f"{prefix}{endpoint}",
-                        'method': 'POST',
-                        'function': 'Admin Authentication',
-                        'file': 'auth.py'
-                    })
-        
-        # Check admin_analytics.py for analytics endpoints
-        analytics_file = os.path.join(router_dir, 'admin_analytics.py')
-        if os.path.exists(analytics_file):
-            with open(analytics_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-                # Look for router prefix
-                prefix_match = re.search(r'router = APIRouter\(prefix="([^"]+)"', content)
-                if prefix_match:
-                    prefix = prefix_match.group(1)
-                    
-                    # Find all GET endpoints
-                    endpoint_matches = re.findall(r'@router\.get\("(/[^"]+)"\)', content)
-                    for endpoint in endpoint_matches:
-                        if endpoint in ['/analytics', '/revenue-insights', '/overview']:
-                            function_map = {
-                                '/analytics': 'Admin Stats',
-                                '/revenue-insights': 'Admin Monetization', 
-                                '/overview': 'Admin Optimization'
-                            }
-                            admin_endpoints.append({
-                                'path': f"{prefix}{endpoint}",
-                                'method': 'GET',
-                                'function': function_map[endpoint],
-                                'file': 'admin_analytics.py'
-                            })
-        
-    except Exception as e:
-        logger.error(f"Error discovering admin endpoints: {e}")
-    
-    return admin_endpoints
 
 # Custom Exception Classes
 class DatabaseConnectionError(Exception):
@@ -3079,19 +3020,19 @@ async def test_user_management_api_endpoints():
                     "timeout_seconds": 25
                 }
             ]
-        }
+        } 
         
 
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
-        """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - DATABASE DRIVEN"""
+        """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - Environment-configurable base URL with direct endpoint configuration"""
         return {
             "test_suite_name": "Admin Services",
-            "test_category": "admin_services_critical", 
+            "test_category": "admin_services_critical",
             "description": "Critical tests for admin dashboard, analytics, settings, and management functions - Database Driven",
             "test_cases": [
                 {
                     "test_name": "test_admin_authentication_endpoint",
-                    "description": "Test admin authentication endpoint using database configuration",
+                    "description": "Test admin authentication endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3103,7 +3044,7 @@ import time
 import uuid
 
 async def test_admin_authentication_endpoint():
-    \"\"\"Test admin authentication endpoint - database-driven, no hardcoded values\"\"\"
+    \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     session_id = None
     conn = None
@@ -3113,32 +3054,12 @@ async def test_admin_authentication_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
-        try:
-            # Try normal package import first
-            from test_suite_generator import discover_admin_endpoints
-            discovered_endpoints = discover_admin_endpoints()
-        except ImportError:
-            try:
-                # Fallback to importlib module loading
-                import importlib
-                module = importlib.import_module('test_suite_generator')
-                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
-                discovered_endpoints = discover_admin_endpoints()
-            except (ImportError, AttributeError) as e:
-                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
-        
-        # Find authentication endpoint
-        auth_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Authentication'), None)
-        
-        if not auth_endpoint:
-            return {"status": "failed", "error": "Authentication endpoint not found in router files"}
-        
-        endpoint = auth_endpoint['path']
-        method = auth_endpoint['method']
-        business_function = auth_endpoint['function']
+        # Direct endpoint configuration (not from database)
+        endpoint = "/api/auth/login"
+        method = "POST"
+        business_function = "Admin Authentication"
         test_data = {"email": "admin@test.com", "password": "test123"}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
@@ -3193,7 +3114,7 @@ async def test_admin_authentication_endpoint():
         # Return test results
         return {
             "status": test_status,
-                        "business_function": business_function,
+            "business_function": business_function,
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
@@ -3215,7 +3136,7 @@ async def test_admin_authentication_endpoint():
                 },
                 {
                     "test_name": "test_admin_overview_endpoint",
-                    "description": "Test admin overview endpoint using database configuration",
+                    "description": "Test admin overview endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3228,7 +3149,7 @@ import uuid
 
 
 async def test_admin_overview_endpoint():
-    \"\"\"Test admin overview endpoint - makes HTTP request and stores results only\"\"\"
+    \"\"\"Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     conn = None
     try:
@@ -3237,32 +3158,12 @@ async def test_admin_overview_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
-        try:
-            # Try normal package import first
-            from test_suite_generator import discover_admin_endpoints
-            discovered_endpoints = discover_admin_endpoints()
-        except ImportError:
-            try:
-                # Fallback to importlib module loading
-                import importlib
-                module = importlib.import_module('test_suite_generator')
-                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
-                discovered_endpoints = discover_admin_endpoints()
-            except (ImportError, AttributeError) as e:
-                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
-        
-        # Find overview endpoint
-        overview_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Optimization'), None)
-        
-        if not overview_endpoint:
-            return {"status": "failed", "error": "Overview endpoint not found in router files"}
-        
-        endpoint = overview_endpoint['path']
-        method = overview_endpoint['method']
-        business_function = overview_endpoint['function']
-        test_data = {}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        # Direct endpoint configuration (not from database)
+        endpoint = "/api/admin/analytics/overview"
+        method = "GET"
+        business_function = "Admin Optimization"
+        test_data = {"timeframe": "7d", "metrics": ["users", "sessions", "revenue"]}
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
@@ -3315,7 +3216,7 @@ async def test_admin_overview_endpoint():
             print(f"⚠️ Database storage failed: {str(db_error)}")
         
         # Return test results
-                return {
+        return {
             "status": test_status,
             "business_function": business_function,
             "details": {
@@ -3327,7 +3228,7 @@ async def test_admin_overview_endpoint():
         }
     except Exception as e:
         return {"status": "failed", "error": f"Test failed: {str(e)}"}
-        finally:
+    finally:
         if conn:
             try:
                 await conn.close()
@@ -3339,7 +3240,7 @@ async def test_admin_overview_endpoint():
                 },
                 {
                     "test_name": "test_admin_revenue_insights_endpoint",
-                    "description": "Test admin revenue insights endpoint using database configuration",
+                    "description": "Test admin revenue insights endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3351,7 +3252,7 @@ import time
 import uuid
 
 async def test_admin_revenue_insights_endpoint():
-    \"\"\"Test admin revenue insights endpoint - makes HTTP request and stores results only\"\"\"
+    \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     conn = None
     try:
@@ -3360,32 +3261,12 @@ async def test_admin_revenue_insights_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
-        try:
-            # Try normal package import first
-            from test_suite_generator import discover_admin_endpoints
-            discovered_endpoints = discover_admin_endpoints()
-        except ImportError:
-            try:
-                # Fallback to importlib module loading
-                import importlib
-                module = importlib.import_module('test_suite_generator')
-                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
-                discovered_endpoints = discover_admin_endpoints()
-            except (ImportError, AttributeError) as e:
-                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
-        
-        # Find revenue insights endpoint
-        revenue_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Monetization'), None)
-        
-        if not revenue_endpoint:
-            return {"status": "failed", "error": "Revenue insights endpoint not found in router files"}
-        
-        endpoint = revenue_endpoint['path']
-        method = revenue_endpoint['method']
-        business_function = revenue_endpoint['function']
-        test_data = {}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        # Direct endpoint configuration (not from database)
+        endpoint = "/api/admin/analytics/revenue-insights"
+        method = "GET"
+        business_function = "Admin Monetization"
+        test_data = {"period": "30d", "breakdown": ["daily", "source"]}
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
@@ -3393,7 +3274,7 @@ async def test_admin_revenue_insights_endpoint():
         
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
-                    start_time = time.time()
+                start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
                 if method == 'GET':
@@ -3401,11 +3282,11 @@ async def test_admin_revenue_insights_endpoint():
                 elif method in ['POST', 'PUT', 'PATCH']:
                     response = await client.request(method, url, json=test_data)
                 elif method == 'DELETE':
-                        response = await client.delete(url)
+                    response = await client.delete(url)
                 else:
                     response = await client.request(method, url)
-                    
-                    response_time_ms = int((time.time() - start_time) * 1000)
+                
+                response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = 'passed' if status_code in expected_codes else 'failed'
                 
@@ -3421,13 +3302,13 @@ async def test_admin_revenue_insights_endpoint():
                 session_id = str(uuid.uuid4())
                 
                 # Store monitoring data
-                        await conn.execute('''
-                            INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
-                            VALUES ($1, $2, $3, $4, NOW())
+                await conn.execute('''
+                    INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
+                    VALUES ($1, $2, $3, $4, NOW())
                 ''', endpoint, method, status_code, response_time_ms)
                 
                 # Store test results
-                        await conn.execute('''
+                await conn.execute('''
                     INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
                     VALUES ($1, $2, $3, $4, $5, $6, NOW())
                 ''', session_id, 'test_admin_revenue_insights_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
@@ -3462,7 +3343,7 @@ async def test_admin_revenue_insights_endpoint():
                 },
                 {
                     "test_name": "test_admin_analytics_endpoint",
-                    "description": "Test admin analytics endpoint using database configuration",
+                    "description": "Test admin analytics endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
@@ -3474,7 +3355,7 @@ import time
 import uuid
 
 async def test_admin_analytics_endpoint():
-    \"\"\"Test admin analytics endpoint - makes HTTP request and stores results only\"\"\"
+    \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import asyncpg, json, os, time, uuid, httpx
     conn = None
     try:
@@ -3483,32 +3364,12 @@ async def test_admin_analytics_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
-        try:
-            # Try normal package import first
-            from test_suite_generator import discover_admin_endpoints
-            discovered_endpoints = discover_admin_endpoints()
-        except ImportError:
-            try:
-                # Fallback to importlib module loading
-                import importlib
-                module = importlib.import_module('test_suite_generator')
-                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
-                discovered_endpoints = discover_admin_endpoints()
-            except (ImportError, AttributeError) as e:
-                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
-
-        # Find analytics endpoint
-        analytics_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Stats'), None)
-        
-        if not analytics_endpoint:
-            return {"status": "failed", "error": "Analytics endpoint not found in router files"}
-        
-        endpoint = analytics_endpoint['path']
-        method = analytics_endpoint['method']
-        business_function = analytics_endpoint['function']
-        test_data = {}
-        api_base_url = "https://jyotiflow-ai.onrender.com"
+        # Direct endpoint configuration (not from database)
+        endpoint = "/api/admin/analytics/analytics"
+        method = "GET"
+        business_function = "Admin Stats"
+        test_data = {"view": "dashboard", "filters": ["active_users", "revenue"]}
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
         # Execute HTTP request to actual endpoint
