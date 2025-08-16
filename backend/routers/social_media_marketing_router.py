@@ -35,7 +35,9 @@ from schemas.social_media import (
 try:
     from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
     AVATAR_ENGINE_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    # Log the detailed import error to help debug platform-specific issues
+    logging.error(f"Failed to import SpiritualAvatarGenerationEngine: {e}", exc_info=True)
     AVATAR_ENGINE_AVAILABLE = False
     class SpiritualAvatarGenerationEngine: pass
     def get_avatar_engine():
@@ -46,7 +48,9 @@ from services.theme_service import ThemeService, get_theme_service
 try:
     from ..services.supabase_storage_service import SupabaseStorageService, get_storage_service
     STORAGE_SERVICE_AVAILABLE = True
-except ImportError:
+except ImportError as e:
+    # Log the detailed import error for the same reason
+    logging.error(f"Failed to import SupabaseStorageService: {e}", exc_info=True)
     STORAGE_SERVICE_AVAILABLE = False
     class SupabaseStorageService: pass
     def get_storage_service():
