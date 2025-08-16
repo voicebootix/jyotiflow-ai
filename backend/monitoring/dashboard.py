@@ -352,7 +352,7 @@ class MonitoringDashboard:
                 # Query actual sessions table that exists in our schema
                 sessions = await conn.fetch("""
                     SELECT 
-                        s.session_id,
+                        s.id AS session_id,
                         s.user_id,
                         s.user_email,
                         s.service_type,
@@ -658,14 +658,14 @@ class MonitoringDashboard:
             finally:
                 await conn.close()
                 
-            except Exception as e:
+        except Exception as e:
             logger.error(f"Failed to calculate integration metrics: {e}")
             # Return fallback data for common integrations
             common_integrations = [
                 'prokerala', 'rag_knowledge', 'openai_guidance', 
                 'elevenlabs_voice', 'did_avatar', 'social_media'
             ]
-                return {
+            return {
                 "success_rates": {integration: 0.0 for integration in common_integrations},
                 "avg_response_times": {integration: 0 for integration in common_integrations}
             }
