@@ -19,6 +19,7 @@ stripe==12.3.0  # Latest version as per PyPI
 
 # 🤖 REAL AI Integration - UPDATED VERSION
 openai==1.93.2  # Updated OpenAI integration
+replicate==0.24.0 # For LoRA model image generation
 aiohttp==3.12.13  # Updated async HTTP client
 
 # তমিল - HTTP client for API integrations
