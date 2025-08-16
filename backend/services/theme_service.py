@@ -2,6 +2,8 @@ import os
 import logging
 import asyncio
 from typing import Optional
+from io import BytesIO
+from PIL import Image
 
 import httpx
 from fastapi import Depends, HTTPException
@@ -65,11 +67,22 @@ class ThemeService:
             if not generated_image_url:
                 raise HTTPException(status_code=500, detail="Image generation with Replicate failed.")
 
-            # Download the generated image
+            # Download the generated image (which might be WEBP)
             response = await self.http_client.get(generated_image_url)
             response.raise_for_status()
             
-            return response.content
+            # Convert WEBP to PNG
+            try:
+                img = Image.open(BytesIO(response.content))
+                png_buffer = BytesIO()
+                img.save(png_buffer, format="PNG")
+                png_bytes = png_buffer.getvalue()
+                logger.info("✅ Successfully converted generated image to PNG format.")
+                return png_bytes
+            except Exception as conversion_error:
+                logger.error(f"Failed to convert image to PNG: {conversion_error}", exc_info=True)
+                # Fallback to returning original bytes if conversion fails
+                return response.content
 
         except Exception as e:
             logger.error(f"Error during themed image generation with Replicate: {e}", exc_info=True)
