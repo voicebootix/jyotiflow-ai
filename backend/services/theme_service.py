@@ -45,9 +45,12 @@ class ThemeService:
     ) -> Optional[bytes]:
         
         if not self.replicate_service.is_configured:
-            raise HTTPException(status_code=501, detail="Replicate service is not configured on the server.")
-        if not LORA_MODEL_NAME or not LORA_MODEL_VERSION:
-            raise HTTPException(status_code=501, detail="LORA_MODEL_NAME or LORA_MODEL_VERSION is not set on the server.")
+            raise HTTPException(status_code=501, detail="Replicate service is not configured on the server. REPLICATE_API_TOKEN is missing.")
+
+        if not LORA_MODEL_NAME:
+            raise HTTPException(status_code=501, detail="LORA_MODEL_NAME environment variable is not set on the server.")
+        if not LORA_MODEL_VERSION:
+            raise HTTPException(status_code=501, detail="LORA_MODEL_VERSION environment variable is not set on the server.")
 
         try:
             # Run prediction using Replicate service with only the LoRA model and prompt.
