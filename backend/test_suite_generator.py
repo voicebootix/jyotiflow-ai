@@ -3038,40 +3038,20 @@ async def test_user_management_api_endpoints():
                     "test_code": """
 import httpx
 import asyncpg
+import json
 import os
 import time
-
-async def record_api_call(conn, endpoint, method, status_code, response_time_ms):
-    \"\"\"Helper function to record API call monitoring data\"\"\"
-    if conn:
-        try:
-            await conn.execute('''
-                INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
-                VALUES ($1, $2, $3, $4, NOW())
-            ''', endpoint, method, status_code, response_time_ms)
-            print("✅ Monitoring data stored")
-        except Exception as db_error:
-            print(f"⚠️ Monitoring storage failed: {str(db_error)}")
+import uuid
 
 async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import asyncpg, os, time, httpx
-    conn = None
+    import httpx, time, os
     try:
-        # Optional database connection - don't fail if missing
-        database_url = os.getenv('DATABASE_URL')
-        if database_url:
-            try:
-                conn = await asyncpg.connect(database_url)
-            except (ImportError, Exception) as db_error:
-                print(f"⚠️ Database connection failed: {str(db_error)}")
-                conn = None
-        
         # Direct endpoint configuration (not from database)
         endpoint = "/api/auth/login"
         method = "POST"
         business_function = "Admin Authentication"
-        test_data = {"email": "admin@test.com", "password": "test123"}
+        test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"} 
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
@@ -3102,28 +3082,21 @@ async def test_admin_authentication_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store monitoring data only (let test execution engine handle test results)
-        await record_api_call(conn, endpoint, method, status_code, response_time_ms)
-        
-        # Return test results
+        # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
+            "execution_time_ms": response_time_ms,
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
                 "url": url,
-                "method": method
+                "method": method,
+                "endpoint": endpoint
             }
         }
     except Exception as e:
         return {"status": "failed", "error": f"Test failed: {str(e)}"}
-    finally:
-        if conn:
-            try:
-                await conn.close()
-            except Exception:
-                pass
 """,
                     "expected_result": "Admin authentication endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3136,24 +3109,16 @@ async def test_admin_authentication_endpoint():
                     "test_code": """
 import httpx
 import asyncpg
+import json
 import os
 import time
+import uuid
 
 
 async def test_admin_overview_endpoint():
     \"\"\"Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import asyncpg, os, time, httpx
-    conn = None
+    import httpx, time, os
     try:
-        # Optional database connection - don't fail if missing
-        database_url = os.getenv('DATABASE_URL')
-        if database_url:
-            try:
-                conn = await asyncpg.connect(database_url)
-            except (ImportError, Exception) as db_error:
-                print(f"⚠️ Database connection failed: {str(db_error)}")
-                conn = None
-        
         # Direct endpoint configuration (not from database)
         endpoint = "/api/admin/analytics/overview"
         method = "GET"
@@ -3189,28 +3154,21 @@ async def test_admin_overview_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store monitoring data only (let test execution engine handle test results)
-        await record_api_call(conn, endpoint, method, status_code, response_time_ms)
-        
-        # Return test results
+        # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
+            "execution_time_ms": response_time_ms,
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
                 "url": url,
-                "method": method
+                "method": method,
+                "endpoint": endpoint
             }
         }
     except Exception as e:
         return {"status": "failed", "error": f"Test failed: {str(e)}"}
-    finally:
-        if conn:
-            try:
-                await conn.close()
-            except Exception:
-                pass
 """,
                     "expected_result": "Admin overview endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3223,23 +3181,15 @@ async def test_admin_overview_endpoint():
                     "test_code": """
 import httpx
 import asyncpg
+import json
 import os
 import time
+import uuid
 
 async def test_admin_revenue_insights_endpoint():
     \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import asyncpg, os, time, httpx
-    conn = None
+    import httpx, time, os
     try:
-        # Optional database connection - don't fail if missing
-        database_url = os.getenv('DATABASE_URL')
-        if database_url:
-            try:
-                conn = await asyncpg.connect(database_url)
-            except (ImportError, Exception) as db_error:
-                print(f"⚠️ Database connection failed: {str(db_error)}")
-                conn = None
-        
         # Direct endpoint configuration (not from database)
         endpoint = "/api/admin/analytics/revenue-insights"
         method = "GET"
@@ -3275,28 +3225,21 @@ async def test_admin_revenue_insights_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store monitoring data only (let test execution engine handle test results)
-        await record_api_call(conn, endpoint, method, status_code, response_time_ms)
-        
-        # Return test results
+        # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
+            "execution_time_ms": response_time_ms,
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
                 "url": url,
-                "method": method
+                "method": method,
+                "endpoint": endpoint
             }
         }
     except Exception as e:
         return {"status": "failed", "error": f"Test failed: {str(e)}"}
-    finally:
-        if conn:
-            try:
-                await conn.close()
-            except Exception:
-                pass
 """,
                     "expected_result": "Admin revenue insights endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3309,23 +3252,15 @@ async def test_admin_revenue_insights_endpoint():
                     "test_code": """
 import httpx
 import asyncpg
+import json
 import os
 import time
+import uuid
 
 async def test_admin_analytics_endpoint():
     \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import asyncpg, os, time, httpx
-    conn = None
+    import httpx, time, os
     try:
-        # Optional database connection - don't fail if missing
-        database_url = os.getenv('DATABASE_URL')
-        if database_url:
-            try:
-                conn = await asyncpg.connect(database_url)
-            except (ImportError, Exception) as db_error:
-                print(f"⚠️ Database connection failed: {str(db_error)}")
-                conn = None
-        
         # Direct endpoint configuration (not from database)
         endpoint = "/api/admin/analytics/analytics"
         method = "GET"
@@ -3361,28 +3296,21 @@ async def test_admin_analytics_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store monitoring data only (let test execution engine handle test results)
-        await record_api_call(conn, endpoint, method, status_code, response_time_ms)
-        
-        # Return test results
+        # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
+            "execution_time_ms": response_time_ms,
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
                 "url": url,
-                "method": method
+                "method": method,
+                "endpoint": endpoint
             }
         }
     except Exception as e:
         return {"status": "failed", "error": f"Test failed: {str(e)}"}
-    finally:
-        if conn:
-            try:
-                await conn.close()
-            except Exception:
-                pass
 """,
                     "expected_result": "Admin analytics endpoint operational (database-driven)",
                     "timeout_seconds": 30
