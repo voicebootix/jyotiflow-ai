@@ -95,6 +95,10 @@ class TestExecutionEngine:
         
         # Create test execution session
         session_id = await self._create_test_session(suite_name, test_category)
+        if session_id is None:
+            # Session creation failed - generate a temporary ID for this run but don't store results
+            session_id = str(uuid.uuid4())
+            logger.warning(f"Session creation failed - using temporary ID {session_id} (results won't be stored)")
         self.current_session_id = session_id
         
         try:
@@ -944,7 +948,7 @@ class TestExecutionEngine:
         # Following .cursor rules: No dynamic SQL construction from user input
         ALLOWED_COLUMNS = (
             'session_id', 'test_type', 'test_category', 'environment',
-            'triggered_by', 'status', 'started_at', 'metadata',
+            'triggered_by', 'status', 'started_at', 'created_at', 'metadata',
             'priority', 'timeout_seconds', 'retry_count'
         )
         # ✅ SECURITY: Fixed table name to prevent injection
@@ -969,6 +973,9 @@ class TestExecutionEngine:
         filtered_params.setdefault('status', 'running')
         filtered_params.setdefault('environment', default_env)
         filtered_params.setdefault('triggered_by', default_triggered_by)
+        # Add created_at timestamp to avoid NOT NULL constraint errors
+        from datetime import datetime, timezone
+        filtered_params.setdefault('created_at', datetime.now(timezone.utc).replace(tzinfo=None))
         # ✅ SQL INJECTION PREVENTION: Use whitelisted columns only
         columns = [col for col in ALLOWED_COLUMNS if col in filtered_params]
         column_names = ', '.join(columns)
@@ -986,7 +993,11 @@ class TestExecutionEngine:
             finally:
                 await conn.close()
         except Exception as e:
-            logger.warning(f"Could not create test session in database: {e}")
+            logger.error(f"Failed to create test session in database: {e}")
+            logger.error(f"Query: {query}")
+            logger.error(f"Values: {values}")
+            # Don't return the session_id if creation failed - return None to indicate failure
+            return None
         return session_id
 
 
@@ -1082,6 +1093,15 @@ class TestExecutionEngine:
         try:
             # Establish connection in outer try block
             conn = await asyncpg.connect(self.database_url)
+            
+            # Check if session exists before inserting test result
+            session_exists = await conn.fetchval(
+                "SELECT 1 FROM test_execution_sessions WHERE session_id = $1", session_id
+            )
+            
+            if not session_exists:
+                logger.warning(f"Session {session_id} does not exist in test_execution_sessions table - skipping result storage")
+                return
             
             # Execute query in inner try block
             try:
