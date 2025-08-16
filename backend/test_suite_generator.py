@@ -3057,25 +3057,39 @@ async def test_admin_authentication_endpoint():
         admin_email_config = os.getenv('ADMIN_EMAIL', 'admin@jyotiflow.ai')
         admin_test_password = os.getenv('ADMIN_TEST_PASSWORD')
         
-        # Get admin password from environment or database fallback
+        # Secure admin password retrieval - no hardcoded secrets
         if not admin_test_password:
-            # Fallback: Get password from database configuration if env var not set
-            try:
-                import asyncpg
-                if database_url:
+            # Try vault/secrets API first (future extensibility)
+            vault_password = os.getenv('VAULT_ADMIN_PASSWORD')
+            if vault_password:
+                admin_test_password = vault_password
+            elif database_url:
+                # Database configuration fallback with proper connection management
+                conn = None
+                try:
+                    import asyncpg
                     conn = await asyncpg.connect(database_url)
                     password_config = await conn.fetchval(
                         "SELECT config_value FROM test_configurations WHERE config_key = 'admin_test_password' AND enabled = true"
                     )
-                    await conn.close()
-                    admin_test_password = password_config or 'Jyoti@2024!'
-                else:
-                    admin_test_password = 'Jyoti@2024!'  # Final fallback
-            except Exception:
-                admin_test_password = 'Jyoti@2024!'  # Final fallback
+                    if password_config:
+                        admin_test_password = password_config
+                except Exception as db_error:
+                    print(f"⚠️ Database password config lookup failed: {db_error}")
+                finally:
+                    if conn:
+                        await conn.close()
+            
+            # If no trusted source available, use invalid placeholder for test safety
+            if not admin_test_password:
+                import uuid
+                admin_test_password = f'invalid-{uuid.uuid4()}'
+                print(f"⚠️ No admin password from trusted sources, using invalid placeholder for test safety")
         
         admin_email, admin_password = None, None
         if database_url:
+            # Database admin user lookup with proper connection management
+            conn = None
             try:
                 import asyncpg
                 conn = await asyncpg.connect(database_url)
@@ -3084,13 +3098,15 @@ async def test_admin_authentication_endpoint():
                     'SELECT email, role, credits FROM users WHERE email = $1 AND role = $2 AND credits > $3',
                     admin_email_config, 'admin', 0
                 )
-                await conn.close()
                 
                 if admin_user:
                     admin_email = admin_user['email']
                     admin_password = admin_test_password
             except Exception as db_error:
                 print(f"⚠️ Database credential lookup failed: {db_error}")
+            finally:
+                if conn:
+                    await conn.close()
         
         if not admin_email or not admin_password:
             print(f"⚠️ Admin credentials not found in database, using fallback")
