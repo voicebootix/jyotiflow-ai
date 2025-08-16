@@ -3101,7 +3101,6 @@ import json
 import os
 import time
 import uuid
-import sys
 
 async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - database-driven, no hardcoded values\"\"\"
@@ -3114,17 +3113,20 @@ async def test_admin_authentication_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Import and use shared function
+        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
         try:
-            # Add parent directory to sys.path to import from test_suite_generator
-            parent_dir = os.path.dirname(os.path.dirname(__file__))
-            if parent_dir not in sys.path:
-                sys.path.insert(0, parent_dir)
-            
+            # Try normal package import first
             from test_suite_generator import discover_admin_endpoints
             discovered_endpoints = discover_admin_endpoints()
-        except (ImportError, NameError) as e:
-            return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
+        except ImportError:
+            try:
+                # Fallback to importlib module loading
+                import importlib
+                module = importlib.import_module('test_suite_generator')
+                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
+                discovered_endpoints = discover_admin_endpoints()
+            except (ImportError, AttributeError) as e:
+                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
         
         # Find authentication endpoint
         auth_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Authentication'), None)
@@ -3235,17 +3237,20 @@ async def test_admin_overview_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Import and use shared function
+        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
         try:
-            # Add parent directory to sys.path to import from test_suite_generator
-            parent_dir = os.path.dirname(os.path.dirname(__file__))
-            if parent_dir not in sys.path:
-                sys.path.insert(0, parent_dir)
-            
+            # Try normal package import first
             from test_suite_generator import discover_admin_endpoints
             discovered_endpoints = discover_admin_endpoints()
-        except (ImportError, NameError) as e:
-            return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
+        except ImportError:
+            try:
+                # Fallback to importlib module loading
+                import importlib
+                module = importlib.import_module('test_suite_generator')
+                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
+                discovered_endpoints = discover_admin_endpoints()
+            except (ImportError, AttributeError) as e:
+                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
         
         # Find overview endpoint
         overview_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Optimization'), None)
@@ -3355,17 +3360,20 @@ async def test_admin_revenue_insights_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Import and use shared function
+        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
         try:
-            # Add parent directory to sys.path to import from test_suite_generator
-            parent_dir = os.path.dirname(os.path.dirname(__file__))
-            if parent_dir not in sys.path:
-                sys.path.insert(0, parent_dir)
-            
+            # Try normal package import first
             from test_suite_generator import discover_admin_endpoints
             discovered_endpoints = discover_admin_endpoints()
-        except (ImportError, NameError) as e:
-            return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
+        except ImportError:
+            try:
+                # Fallback to importlib module loading
+                import importlib
+                module = importlib.import_module('test_suite_generator')
+                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
+                discovered_endpoints = discover_admin_endpoints()
+            except (ImportError, AttributeError) as e:
+                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
         
         # Find revenue insights endpoint
         revenue_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Monetization'), None)
@@ -3446,7 +3454,7 @@ async def test_admin_revenue_insights_endpoint():
         if conn:
             try:
                 await conn.close()
-                    except Exception:
+            except Exception:
                 pass
 """,
                     "expected_result": "Admin revenue insights endpoint operational (database-driven)",
@@ -3475,17 +3483,20 @@ async def test_admin_analytics_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # DYNAMIC ENDPOINT DISCOVERY: Import and use shared function
+        # DYNAMIC ENDPOINT DISCOVERY: Use deterministic absolute import
         try:
-            # Add parent directory to sys.path to import from test_suite_generator
-            parent_dir = os.path.dirname(os.path.dirname(__file__))
-            if parent_dir not in sys.path:
-                sys.path.insert(0, parent_dir)
-            
+            # Try normal package import first
             from test_suite_generator import discover_admin_endpoints
             discovered_endpoints = discover_admin_endpoints()
-        except (ImportError, NameError) as e:
-            return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
+        except ImportError:
+            try:
+                # Fallback to importlib module loading
+                import importlib
+                module = importlib.import_module('test_suite_generator')
+                discover_admin_endpoints = getattr(module, 'discover_admin_endpoints')
+                discovered_endpoints = discover_admin_endpoints()
+            except (ImportError, AttributeError) as e:
+                return {"status": "failed", "error": f"Could not import discover_admin_endpoints: {str(e)}"}
 
         # Find analytics endpoint
         analytics_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Stats'), None)
