@@ -47,10 +47,18 @@ class ThemeService:
             
             gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
             
-            cascade_path = "assets/haarcascade_frontalface_default.xml"
+            # Use an environment variable for the cascade path with a sensible default
+            default_cascade_path = "assets/haarcascade_frontalface_default.xml"
+            cascade_path = os.environ.get("HAAR_CASCADE_PATH", default_cascade_path)
+
             if not os.path.exists(cascade_path):
-                logger.error(f"Haar cascade file not found at {cascade_path}")
-                raise FileNotFoundError("Haar cascade file not found.")
+                error_msg = (
+                    f"Haar cascade file not found. "
+                    f"Set the HAAR_CASCADE_PATH environment variable or ensure the default path is correct. "
+                    f"Resolved path: {os.path.abspath(cascade_path)}"
+                )
+                logger.error(error_msg)
+                raise FileNotFoundError(error_msg)
 
             face_cascade = cv2.CascadeClassifier(cascade_path)
             faces = face_cascade.detectMultiScale(gray, 1.1, 4)
