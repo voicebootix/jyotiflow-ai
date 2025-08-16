@@ -33,7 +33,7 @@ from schemas.social_media import (
 )
 
 try:
-    from ..spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
+    from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
     AVATAR_ENGINE_AVAILABLE = True
 except ImportError as e:
     # Log the detailed import error to help debug platform-specific issues
@@ -46,7 +46,7 @@ except ImportError as e:
 from services.theme_service import ThemeService, get_theme_service
 
 try:
-    from ..services.supabase_storage_service import SupabaseStorageService, get_storage_service
+    from services.supabase_storage_service import SupabaseStorageService, get_storage_service
     STORAGE_SERVICE_AVAILABLE = True
 except ImportError as e:
     # Log the detailed import error for the same reason
@@ -57,38 +57,38 @@ except ImportError as e:
         raise HTTPException(status_code=501, detail="Storage service is not available.")
         
 try:
-    from ..services.youtube_service import youtube_service
+    from services.youtube_service import youtube_service
     YOUTUBE_SERVICE_AVAILABLE = True
 except ImportError:
     YOUTUBE_SERVICE_AVAILABLE = False
 
 try:
-    from ..services.facebook_service import facebook_service
+    from services.facebook_service import facebook_service
     FACEBOOK_SERVICE_AVAILABLE = True
 except ImportError:
     FACEBOOK_SERVICE_AVAILABLE = False
 
 try:
-    from ..services.instagram_service import instagram_service
+    from services.instagram_service import instagram_service
     INSTAGRAM_SERVICE_AVAILABLE = True
 except ImportError:
     INSTAGRAM_SERVICE_AVAILABLE = False
 
 try:
-    from ..services.tiktok_service import tiktok_service
+    from services.tiktok_service import tiktok_service
     TIKTOK_SERVICE_AVAILABLE = True
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
 
 try:
-    from ..config.social_media_config import THEMES
+    from config.social_media_config import THEMES
     THEMES_AVAILABLE = True
 except ImportError:
     THEMES_AVAILABLE = False
 
 
 try:
-    from ..social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
+    from social_media_marketing_automation import SocialMediaMarketingEngine, get_social_media_engine
     AUTOMATION_ENGINE_AVAILABLE = True
 except ImportError as e:
     AUTOMATION_ENGINE_AVAILABLE = False
