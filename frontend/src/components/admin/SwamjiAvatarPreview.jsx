@@ -82,9 +82,13 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
-  const generateImagePreview = async (customPrompt = null, themeDay = null) => {
+  const generateImagePreview = async (prompt) => {
     if (!uploadedImage) {
       addNotification('error', 'Please upload Swamiji\'s photo first');
+      return;
+    }
+    if (!prompt) {
+      addNotification('error', 'A theme prompt is required to generate an image.');
       return;
     }
     try {
@@ -97,8 +101,7 @@ const SwamjiAvatarPreview = () => {
       setFinalVideo(null);
 
       const response = await enhanced_api.generateImagePreview({
-        custom_prompt: customPrompt || null, // 🔧 FIXED: Don't use promptText for daily themes
-        theme_day: themeDay, // Pass the theme day override
+        custom_prompt: prompt,
         timestamp: Date.now() // Cache busting
       });
 
@@ -291,7 +294,7 @@ const SwamjiAvatarPreview = () => {
             <div className="space-y-4">
               {/* Current Daily Theme Button */}
               <button
-                onClick={() => generateImagePreview()}
+                onClick={() => generateImagePreview('Daily theme generated successfully')}
                 disabled={!uploadedImage || isGenerating}
                 className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2 text-base"
               >
@@ -314,7 +317,7 @@ const SwamjiAvatarPreview = () => {
                   ].map((themeButton) => (
                     <button
                       key={themeButton.day}
-                      onClick={() => generateImagePreview(null, themeButton.day)}
+                      onClick={() => generateImagePreview(themeButton.theme)}
                       disabled={!uploadedImage || isGenerating}
                       className={`w-full px-3 py-2 rounded-lg disabled:opacity-50 flex items-center justify-between text-sm font-medium ${themeButton.color}`}
                     >
@@ -377,7 +380,7 @@ const SwamjiAvatarPreview = () => {
                   />
                 </div>
                 <button
-                  onClick={() => generateImagePreview(promptText || null)} // 🔧 FIXED: Only pass promptText if it has content
+                  onClick={() => generateImagePreview(promptText)}
                   disabled={isGenerating}
                   className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center space-x-2"
                 >

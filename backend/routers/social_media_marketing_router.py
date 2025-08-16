@@ -80,11 +80,12 @@ try:
 except ImportError:
     TIKTOK_SERVICE_AVAILABLE = False
 
-try:
-    from config.social_media_config import THEMES
-    THEMES_AVAILABLE = True
-except ImportError:
-    THEMES_AVAILABLE = False
+# This old theme system is now deprecated and handled by the frontend.
+# try:
+#     from config.social_media_config import THEMES
+#     THEMES_AVAILABLE = True
+# except ImportError:
+#     THEMES_AVAILABLE = False
 
 
 try:
@@ -269,8 +270,7 @@ async def upload_preview_image(
 
 
 class ImagePreviewRequest(BaseModel):
-    custom_prompt: Optional[str] = Field(None, description="A custom prompt to override the daily theme.")
-    theme_day: Optional[int] = Field(None, ge=0, le=6, description="Override daily theme with specific day (0=Monday, ..., 6=Sunday). If None, uses current day.")
+    custom_prompt: str = Field(..., description="The theme prompt for image generation.")
     target_platform: Optional[str] = Field(None, description="Target platform for aspect ratio (e.g., 'instagram_story', 'facebook_post').")
 
 async def get_admin_or_test_bypass(request: Request):
@@ -312,17 +312,11 @@ async def generate_image_preview(
     theme_service: ThemeService = Depends(get_theme_service),
     conn: asyncpg.Connection = Depends(get_db)
 ):
-    if not THEMES_AVAILABLE:
-        raise HTTPException(status_code=501, detail="Daily themes configuration is not available.")
-
     try:
-        # 1. Determine the theme prompt
-        theme_prompt = ""
-        if request.custom_prompt:
-            theme_prompt = request.custom_prompt
-        else:
-            day_of_week = request.theme_day if request.theme_day is not None else date.today().weekday()
-            theme_prompt = THEMES.get(day_of_week, "A serene and wise spiritual master.")
+        # 1. Get the theme prompt directly from the request
+        theme_prompt = request.custom_prompt
+        if not theme_prompt:
+            raise HTTPException(status_code=400, detail="A theme prompt is required.")
 
         # 2. Get the reference avatar URL from database
         record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
