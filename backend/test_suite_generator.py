@@ -3051,7 +3051,7 @@ async def test_admin_authentication_endpoint():
         endpoint = "/api/auth/login"
         method = "POST"
         business_function = "Admin Authentication"
-        test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"}
+        test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"} 
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
