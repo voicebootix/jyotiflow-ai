@@ -3089,27 +3089,19 @@ async def test_admin_authentication_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store results in database ONLY after getting response
+        # Store monitoring data only (let test execution engine handle test results)
         try:
             if database_url:
-                session_id = str(uuid.uuid4())
-                
-                # Store monitoring data
+                # Store monitoring data for API call tracking
                 await conn.execute('''
                     INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                     VALUES ($1, $2, $3, $4, NOW())
                 ''', endpoint, method, status_code, response_time_ms)
                 
-                # Store test results
-                await conn.execute('''
-                    INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ''', session_id, 'test_admin_authentication_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
-                
-                print("✅ Results stored in database")
+                print("✅ Monitoring data stored")
                 
         except Exception as db_error:
-            print(f"⚠️ Database storage failed: {str(db_error)}")
+            print(f"⚠️ Monitoring storage failed: {str(db_error)}")
         
         # Return test results
         return {
@@ -3193,27 +3185,19 @@ async def test_admin_overview_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store results in database ONLY after getting response
+        # Store monitoring data only (let test execution engine handle test results)
         try:
             if database_url:
-                session_id = str(uuid.uuid4())
-                
-                # Store monitoring data
+                # Store monitoring data for API call tracking
                 await conn.execute('''
                     INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                     VALUES ($1, $2, $3, $4, NOW())
                 ''', endpoint, method, status_code, response_time_ms)
                 
-                # Store test results
-                await conn.execute('''
-                    INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ''', session_id, 'test_admin_overview_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
-                
-                print("✅ Results stored in database")
+                print("✅ Monitoring data stored")
                 
         except Exception as db_error:
-            print(f"⚠️ Database storage failed: {str(db_error)}")
+            print(f"⚠️ Monitoring storage failed: {str(db_error)}")
         
         # Return test results
         return {
@@ -3296,27 +3280,19 @@ async def test_admin_revenue_insights_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store results in database ONLY after getting response
+        # Store monitoring data only (let test execution engine handle test results)
         try:
             if database_url:
-                session_id = str(uuid.uuid4())
-                
-                # Store monitoring data
+                # Store monitoring data for API call tracking
                 await conn.execute('''
                     INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                     VALUES ($1, $2, $3, $4, NOW())
                 ''', endpoint, method, status_code, response_time_ms)
                 
-                # Store test results
-                await conn.execute('''
-                    INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ''', session_id, 'test_admin_revenue_insights_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
-                
-                print("✅ Results stored in database")
+                print("✅ Monitoring data stored")
                 
         except Exception as db_error:
-            print(f"⚠️ Database storage failed: {str(db_error)}")
+            print(f"⚠️ Monitoring storage failed: {str(db_error)}")
         
         # Return test results
         return {
@@ -3399,27 +3375,19 @@ async def test_admin_analytics_endpoint():
             print(f"❌ HTTP request failed: {str(http_error)}")
             return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
         
-        # Store results in database ONLY after getting response
+        # Store monitoring data only (let test execution engine handle test results)
         try:
             if database_url:
-                session_id = str(uuid.uuid4())
-                
-                # Store monitoring data
+                # Store monitoring data for API call tracking
                 await conn.execute('''
                     INSERT INTO monitoring_api_calls (endpoint, method, status_code, response_time, timestamp)
                     VALUES ($1, $2, $3, $4, NOW())
                 ''', endpoint, method, status_code, response_time_ms)
                 
-                # Store test results
-                await conn.execute('''
-                    INSERT INTO test_case_results (session_id, test_name, test_category, status, test_data, output_data, created_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
-                ''', session_id, 'test_admin_analytics_endpoint', 'admin_services_critical', test_status, json.dumps(test_data), json.dumps({"status_code": status_code, "response_time_ms": response_time_ms}))
-                
-                print("✅ Results stored in database")
+                print("✅ Monitoring data stored")
                 
         except Exception as db_error:
-            print(f"⚠️ Database storage failed: {str(db_error)}")
+            print(f"⚠️ Monitoring storage failed: {str(db_error)}")
         
         # Return test results
         return {
