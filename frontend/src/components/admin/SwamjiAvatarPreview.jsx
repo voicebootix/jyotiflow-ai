@@ -116,16 +116,14 @@ const SwamjiAvatarPreview = () => {
 
         const uploadResponse = await enhanced_api.uploadPreviewImage(formData);
 
-        if (uploadResponse.success && uploadResponse.data) {
-          const imageUrl = uploadResponse.data.image_url || uploadResponse.data.preview_url;
-          if (imageUrl) {
-            setPreviewImage(imageUrl);
-            console.log('🔍 Debug - Received prompt:', response.prompt);
-            setPromptText(response.prompt || 'Daily theme generated successfully'); 
-            addNotification('success', '✅ Image preview generated and secured!');
-          } else {
-            addNotification('error', '❌ Upload succeeded but no image URL was returned.');
-          }
+        if (uploadResponse.success && uploadResponse.data && uploadResponse.data.image_url) {
+            const newImageUrl = uploadResponse.data.image_url;
+            setPreviewImage(newImageUrl);
+            
+            const generatedPrompt = response.headers.get('X-Generated-Prompt') || 'Daily theme generated successfully';
+            setPromptText(generatedPrompt);
+            
+            addNotification('success', '✅ Image preview generated successfully!');
         } else {
           const uploadError = uploadResponse?.message || 'Failed to secure the generated image.';
           addNotification('error', `❌ ${uploadError}`);
