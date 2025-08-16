@@ -3042,6 +3042,62 @@ import json
 import os
 import time
 import uuid
+import re
+
+def discover_admin_endpoints():
+    """Dynamically discover admin endpoints from router files"""
+    router_dir = os.path.join(os.path.dirname(__file__), 'routers')
+    admin_endpoints = []
+    
+    try:
+        # Check auth.py for login endpoint
+        auth_file = os.path.join(router_dir, 'auth.py')
+        if os.path.exists(auth_file):
+            with open(auth_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Look for router prefix and login endpoint
+                prefix_match = re.search(r'router = APIRouter\(prefix="([^"]+)"', content)
+                login_match = re.search(r'@router\.post\("(/login)"\)', content)
+                if prefix_match and login_match:
+                    prefix = prefix_match.group(1)
+                    endpoint = login_match.group(1)
+                    admin_endpoints.append({
+                        'path': f"{prefix}{endpoint}",
+                        'method': 'POST',
+                        'function': 'Admin Authentication',
+                        'file': 'auth.py'
+                    })
+        
+        # Check admin_analytics.py for analytics endpoints
+        analytics_file = os.path.join(router_dir, 'admin_analytics.py')
+        if os.path.exists(analytics_file):
+            with open(analytics_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+                # Look for router prefix
+                prefix_match = re.search(r'router = APIRouter\(prefix="([^"]+)"', content)
+                if prefix_match:
+                    prefix = prefix_match.group(1)
+                    
+                    # Find all GET endpoints
+                    endpoint_matches = re.findall(r'@router\.get\("(/[^"]+)"\)', content)
+                    for endpoint in endpoint_matches:
+                        if endpoint in ['/analytics', '/revenue-insights', '/overview']:
+                            function_map = {
+                                '/analytics': 'Admin Stats',
+                                '/revenue-insights': 'Admin Monetization', 
+                                '/overview': 'Admin Optimization'
+                            }
+                            admin_endpoints.append({
+                                'path': f"{prefix}{endpoint}",
+                                'method': 'GET',
+                                'function': function_map[endpoint],
+                                'file': 'admin_analytics.py'
+                            })
+        
+    except Exception as e:
+        print(f"Error discovering endpoints: {e}")
+    
+    return admin_endpoints
 
 async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - database-driven, no hardcoded values\"\"\"
@@ -3054,11 +3110,19 @@ async def test_admin_authentication_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/admin/auth"
-        method = "POST"
-        business_function = "Admin Authentication"
-        test_data = {"username": "test_admin", "password": "test_password"}
+        # DYNAMIC ENDPOINT DISCOVERY: Use shared function
+        discovered_endpoints = discover_admin_endpoints()
+        
+        # Find authentication endpoint
+        auth_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Authentication'), None)
+        
+        if not auth_endpoint:
+            return {"status": "failed", "error": "Authentication endpoint not found in router files"}
+        
+        endpoint = auth_endpoint['path']
+        method = auth_endpoint['method']
+        business_function = auth_endpoint['function']
+        test_data = {"email": "admin@test.com", "password": "test123"}
         api_base_url = "https://jyotiflow-ai.onrender.com"
         expected_codes = [200, 401, 403, 422]
         
@@ -3158,11 +3222,19 @@ async def test_admin_overview_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/admin/overview"
-        method = "GET"
-        business_function = "Admin Dashboard Overview"
-        test_data = {"timeframe": "7d", "metrics": ["users", "sessions", "revenue"]}
+        # DYNAMIC ENDPOINT DISCOVERY: Use shared function
+        discovered_endpoints = discover_admin_endpoints()
+        
+        # Find overview endpoint
+        overview_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Optimization'), None)
+        
+        if not overview_endpoint:
+            return {"status": "failed", "error": "Overview endpoint not found in router files"}
+        
+        endpoint = overview_endpoint['path']
+        method = overview_endpoint['method']
+        business_function = overview_endpoint['function']
+        test_data = {}
         api_base_url = "https://jyotiflow-ai.onrender.com"
         expected_codes = [200, 401, 403, 422]
         
@@ -3261,11 +3333,19 @@ async def test_admin_revenue_insights_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/admin/revenue-insights"
-        method = "GET"
-        business_function = "Admin Revenue Insights"
-        test_data = {"period": "30d", "breakdown": ["daily", "source"]}
+        # DYNAMIC ENDPOINT DISCOVERY: Use shared function
+        discovered_endpoints = discover_admin_endpoints()
+        
+        # Find revenue insights endpoint
+        revenue_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Monetization'), None)
+        
+        if not revenue_endpoint:
+            return {"status": "failed", "error": "Revenue insights endpoint not found in router files"}
+        
+        endpoint = revenue_endpoint['path']
+        method = revenue_endpoint['method']
+        business_function = revenue_endpoint['function']
+        test_data = {}
         api_base_url = "https://jyotiflow-ai.onrender.com"
         expected_codes = [200, 401, 403, 422]
         
@@ -3364,11 +3444,19 @@ async def test_admin_analytics_endpoint():
             return {"status": "failed", "error": "DATABASE_URL not found"}
         conn = await asyncpg.connect(database_url)
         
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/admin/analytics"
-        method = "GET"
-        business_function = "Admin Analytics Dashboard"
-        test_data = {"view": "dashboard", "filters": ["active_users", "revenue"]}
+        # DYNAMIC ENDPOINT DISCOVERY: Use shared function
+        discovered_endpoints = discover_admin_endpoints()
+        
+        # Find analytics endpoint
+        analytics_endpoint = next((ep for ep in discovered_endpoints if ep['function'] == 'Admin Stats'), None)
+        
+        if not analytics_endpoint:
+            return {"status": "failed", "error": "Analytics endpoint not found in router files"}
+        
+        endpoint = analytics_endpoint['path']
+        method = analytics_endpoint['method']
+        business_function = analytics_endpoint['function']
+        test_data = {}
         api_base_url = "https://jyotiflow-ai.onrender.com"
         expected_codes = [200, 401, 403, 422]
         
