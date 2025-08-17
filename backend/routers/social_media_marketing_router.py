@@ -258,7 +258,7 @@ async def upload_preview_image(
             bucket_name="avatars",
             file_path_in_bucket=file_path_in_bucket,
             file=contents,
-            content_type="image/png"
+            content_type=image.content_type
         )
         
         logger.info(f"✅ Successfully uploaded preview image to {public_url}")

@@ -114,7 +114,7 @@ const SwamjiAvatarPreview = () => {
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
       if (response.success && response.previewUrl) {
         setPreviewImage(response.previewUrl);
-        setPromptText(response.prompt || 'Image generated successfully.');
+        setGeneratedPrompt(response.prompt || 'Image generated successfully.');
         addNotification('success', response.prompt || 'Daily theme image generated successfully');
 
         // Automatically scroll to the preview section for better UX
