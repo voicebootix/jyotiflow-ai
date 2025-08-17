@@ -199,13 +199,13 @@ const SwamjiAvatarPreview = () => {
   };
 
   const themeButtons = [
-    { day: 0, name: 'Sunday', theme: 'Serene', icon: '🤍', color: 'bg-blue-50 hover:bg-blue-100 text-blue-800' },
-    { day: 1, name: 'Monday', theme: 'Meditative', icon: '🤍', color: 'bg-gray-100 hover:bg-gray-200 text-gray-800' },
-    { day: 2, name: 'Tuesday', theme: 'Teaching', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
-    { day: 3, name: 'Wednesday', theme: 'Wisdom', icon: '🤎', color: 'bg-amber-100 hover:bg-amber-200 text-amber-800' },
-    { day: 4, name: 'Thursday', theme: 'Thankful', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
-    { day: 5, name: 'Friday', theme: 'Festive', icon: '🟡', color: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' },
-    { day: 6, name: 'Saturday', theme: 'Silent', icon: '🤎', color: 'bg-stone-100 hover:bg-stone-200 text-stone-800' }
+    { day: 0, name: 'Sunday', theme: 'A holy swamiji, wearing a pure white robe symbolizing peace, standing in front of a cosmic background with stars and glowing aura, divine light surrounding him, heavenly atmosphere, ultra-realistic, DSLR high resolution.', icon: '🤍', color: 'bg-blue-50 hover:bg-blue-100 text-blue-800' },
+    { day: 1, name: 'Monday', theme: 'A divine swamiji, wearing a simple white dhoti and saffron shawl, standing gracefully in front of a serene lotus pond with blooming pink lotuses, soft morning sunlight, spiritual aura, photorealistic portrait, DSLR quality, 8k ultra detail.', icon: '🤍', color: 'bg-gray-100 hover:bg-gray-200 text-gray-800' },
+    { day: 2, name: 'Tuesday', theme: 'A serene swamiji, dressed in a full saffron-orange robe, standing near the entrance of an ancient South Indian temple with intricate carvings, warm afternoon sunlight, divine aura, photorealistic high quality.', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
+    { day: 3, name: 'Wednesday', theme: 'A spiritual swamiji, wearing a yellow dhoti and a simple wooden beaded mala, standing on a peaceful mountain peak with misty clouds around, sunrise golden light, divine calm expression, ultra-detailed realistic portrait.', icon: '🤎', color: 'bg-amber-100 hover:bg-amber-200 text-amber-800' },
+    { day: 4, name: 'Thursday', theme: 'A wise swamiji, dressed in a deep red robe with golden border, standing inside a sacred green forest with tall trees and sun rays filtering through leaves, holy atmosphere, cinematic lighting, high quality photorealistic.', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
+    { day: 5, name: 'Friday', theme: 'A graceful swamiji, wearing a white dhoti with a blue silk shawl draped over shoulders, sitting peacefully near the bank of the sacred Ganga river, evening golden hour light, soft reflections in water, ultra-detailed divine portrait.', icon: '🟡', color: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' },
+    { day: 6, name: 'Saturday', theme: 'A radiant swamiji, wearing a golden silk robe with red borders, standing beside a decorated temple chariot (ther), festive atmosphere, flowers around, bright daylight, cinematic divine aura, photorealistic 8k quality.', icon: '🤎', color: 'bg-stone-100 hover:bg-stone-200 text-stone-800' }
   ];
 
   return (
