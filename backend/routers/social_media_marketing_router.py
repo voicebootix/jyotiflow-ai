@@ -232,33 +232,32 @@ async def upload_swamiji_image(
         logger.error(f"Swamiji image upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
 
+class UploadPreviewRequest(BaseModel):
+    image_base64: str
+    filename: str
+
 @social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
 async def upload_preview_image(
-    image: UploadFile = File(...),
+    request: UploadPreviewRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     storage_service: SupabaseStorageService = Depends(get_storage_service)
 ):
     """
-    Uploads a generated preview image to storage and returns the public URL.
-    This is used by the frontend to get a stable URL for a generated preview.
+    Uploads a Base64 encoded preview image to storage and returns the public URL.
     """
-    if image.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid file type for preview.")
-    
-    contents = await image.read()
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Preview file size exceeds limit.")
-
     try:
-        import uuid
+        image_data = base64.b64decode(request.image_base64)
+        if len(image_data) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Preview file size exceeds limit.")
+
         unique_filename = f"preview_{uuid.uuid4()}.png"
         file_path_in_bucket = f"previews/{unique_filename}"
         
         public_url = storage_service.upload_file(
             bucket_name="avatars",
             file_path_in_bucket=file_path_in_bucket,
-            file=contents,
-            content_type="image/png"
+            file=image_data,
+            content_type="image/png"  # We know it's PNG from our conversion
         )
         
         logger.info(f"✅ Successfully uploaded preview image to {public_url}")
