@@ -16,6 +16,7 @@ import json
 from datetime import datetime, timedelta, date
 import asyncio
 import base64 # Added for base64 encoding of image bytes
+import binascii # Added for base64 decoding errors
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Request
 from pydantic import BaseModel, Field
@@ -232,33 +233,53 @@ async def upload_swamiji_image(
         logger.error(f"Swamiji image upload failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
 
+class UploadPreviewRequest(BaseModel):
+    image_base64: str
+    filename: str
+
 @social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
 async def upload_preview_image(
-    image: UploadFile = File(...),
+    request: UploadPreviewRequest,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
     storage_service: SupabaseStorageService = Depends(get_storage_service)
 ):
     """
-    Uploads a generated preview image to storage and returns the public URL.
-    This is used by the frontend to get a stable URL for a generated preview.
+    Uploads a Base64 encoded preview image to storage and returns the public URL.
+    Handles potential double-encoding and validates payload.
     """
-    if image.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=400, detail="Invalid file type for preview.")
-    
-    contents = await image.read()
-    if len(contents) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail="Preview file size exceeds limit.")
-
     try:
-        import uuid
+        # Pre-flight size check to prevent decoding massive payloads
+        # Estimate decoded size: floor(len(s) * 3 / 4) - padding
+        padding = request.image_base64.count('=')
+        decoded_size_estimate = (len(request.image_base64) * 3 // 4) - padding
+        if decoded_size_estimate > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Estimated payload size exceeds limit.")
+
+        image_data = None
+        try:
+            image_data = base64.b64decode(request.image_base64, validate=True)
+        except (ValueError, binascii.Error):
+            raise HTTPException(status_code=400, detail="Invalid base64 payload.")
+
+        # Detect and handle common double-encoding case (result is still base64 text)
+        try:
+            if image_data.isascii() and all(c in b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in image_data):
+                logger.warning("Potential double-encoding detected. Attempting second decode.")
+                image_data = base64.b64decode(image_data, validate=True)
+        except (ValueError, binascii.Error):
+            raise HTTPException(status_code=400, detail="Invalid double-encoded base64 payload.")
+        
+        if len(image_data) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail="Final payload size exceeds limit.")
+
         unique_filename = f"preview_{uuid.uuid4()}.png"
         file_path_in_bucket = f"previews/{unique_filename}"
         
         public_url = storage_service.upload_file(
             bucket_name="avatars",
             file_path_in_bucket=file_path_in_bucket,
-            file=contents,
-            content_type="image/png"
+            file=image_data,
+            content_type="image/png"  # We know it's PNG from our conversion
         )
         
         logger.info(f"✅ Successfully uploaded preview image to {public_url}")

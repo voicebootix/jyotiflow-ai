@@ -115,37 +115,30 @@ class EnhancedAPI {
         console.log('🔍 API Debug - X-Generated-Prompt:', prompt);
         console.log('🔍 API Debug - X-Image-Diff:', imageDiff, '| gen:', genHash, '| base:', baseHash);
         
-        // Upload preview to server to receive a stable URL for backend processing
         let previewUrl = '';
         try {
-          const form = new FormData();
-          // Try to infer a filename; fall back to generic
-          const fileName = `preview_${Date.now()}.png`;
-          const previewFile = new File([blob], fileName, { type: blob.type || 'image/png' });
-          form.append('image', previewFile);
+          // Convert blob to Base64
+          const reader = new FileReader();
+          const base64String = await new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+          // Remove the data URI prefix
+          const base64Data = base64String.split(',')[1];
 
-          const uploadRes = await fetch(`${this.baseURL}/api/admin/social-marketing/upload-preview-image`, {
-            method: 'POST',
-            headers: {
-              ...this.getAuthHeaders(),
-              // Let browser set multipart boundary
-            },
-            body: form,
-            credentials: 'include',
+          const uploadRes = await this.post('/api/admin/social-marketing/upload-preview-image', {
+            image_base64: base64Data,
+            filename: `preview_${Date.now()}.png`
           });
 
-          if (uploadRes.ok) {
-            const uploadJson = await uploadRes.json().catch(() => null);
-            if (uploadJson && uploadJson.success && uploadJson.data?.image_url) {
-              previewUrl = uploadJson.data.image_url;
-            } else {
-              console.warn('Preview upload response unexpected:', uploadJson);
-            }
+          if (uploadRes.success && uploadRes.data?.image_url) {
+            previewUrl = uploadRes.data.image_url;
           } else {
-            console.warn('Preview upload failed with status:', uploadRes.status);
+            console.warn('Preview upload failed:', uploadRes);
           }
         } catch (e) {
-          console.warn('Preview upload error:', e);
+          console.error('Error during preview upload process:', e);
         }
 
         return { success: true, blob, prompt, imageDiff, genHash, baseHash, previewUrl };
@@ -275,11 +268,8 @@ class EnhancedAPI {
     });
   }
 
-  async uploadPreviewImage(formData) {
-    return this.request('/api/admin/social-marketing/upload-preview-image', {
-      method: 'POST',
-      body: formData,
-    });
+  async uploadPreviewImage(uploadData) {
+    return this.post('/api/admin/social-marketing/upload-preview-image', uploadData);
   }
 
   async generateVideoFromPreview(videoData) {
