@@ -258,7 +258,7 @@ async def upload_preview_image(
             bucket_name="avatars",
             file_path_in_bucket=file_path_in_bucket,
             file=contents,
-            content_type="image/png"
+            content_type=image.content_type
         )
         
         logger.info(f"✅ Successfully uploaded preview image to {public_url}")
@@ -341,15 +341,15 @@ async def generate_image_preview(
         image_diff = "unknown"
         base_hash_short = None
 
-        try:
-            base_image_bytes = await get_storage_service().download_public_file_bytes("avatars", "public/swamiji_base_avatar.png")
-            if base_image_bytes:
-                base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
-                base_hash_short = base_hash_full[:16]
-                image_diff = "different" if generated_hash_full != base_hash_full else "same"
-                logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
-        except Exception as diff_err:
-            logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
+        # try:
+        #     base_image_bytes = await get_storage_service().download_public_file_bytes("avatars", "public/swamiji_base_avatar.png")
+        #     if base_image_bytes:
+        #         base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
+        #         base_hash_short = base_hash_full[:16]
+        #         image_diff = "different" if generated_hash_full != base_hash_full else "same"
+        #         logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
+        # except Exception as diff_err:
+        #     logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
 
         encoded_image = base64.b64encode(image_bytes).decode("utf-8")
         
