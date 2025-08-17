@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Upload, Eye, Download, Settings, Wand2, CheckCircle, 
-  AlertTriangle, Play, Pause, RotateCcw, Save, Star 
+  AlertTriangle, Play, Pause, RotateCcw, Save, Star, Loader2 
 } from 'lucide-react';
 import enhanced_api from '../../services/enhanced-api';
 import { useNotification } from '../../hooks/useNotification';
@@ -82,6 +82,23 @@ const SwamjiAvatarPreview = () => {
     }
   };
 
+  const getDailyTheme = () => {
+    const dayIndex = new Date().getDay(); // Sunday is 0, Monday is 1, etc.
+    const themes = [
+      "Serene", // Sunday
+      "Meditative", // Monday
+      "Teaching", // Tuesday
+      "Wisdom", // Wednesday
+      "Thankful", // Thursday
+      "Festive", // Friday
+      "Silent" // Saturday
+    ];
+    // Adjust index because our array starts with Sunday, but themeButtons array starts with Monday
+    const adjustedDayIndex = (dayIndex === 0) ? 6 : dayIndex - 1;
+    const todayTheme = themeButtons[adjustedDayIndex]?.theme || "A serene and wise spiritual master.";
+    generateImagePreview(todayTheme);
+  };
+
   const generateImagePreview = async (prompt) => {
     if (!uploadedImage) {
       addNotification('error', 'Please upload Swamiji\'s photo first');
@@ -106,33 +123,21 @@ const SwamjiAvatarPreview = () => {
       });
 
       // REFRESH.MD: FIX - Handle the new response format which includes the prompt.
-      if (response.blob) {
-        // MERGE FIX: Combining the best of both branches.
-        // We use the blob-to-file upload logic from our branch for a stable URL,
-        // and incorporate the enhanced debugging logs from the master branch.
-        const imageFile = new File([response.blob], "swamiji_preview.png", { type: 'image/png' });
-        const formData = new FormData();
-        formData.append('image', imageFile);
+      if (response.success && response.previewUrl) {
+        setPreviewImage(response.previewUrl);
+        setPromptText(response.prompt || 'Image generated successfully.');
+        addNotification('success', response.prompt || 'Daily theme image generated successfully');
 
-        const uploadResponse = await enhanced_api.uploadPreviewImage(formData);
-
-        if (uploadResponse.success && uploadResponse.data && uploadResponse.data.image_url) {
-            const newImageUrl = uploadResponse.data.image_url;
-            setPreviewImage(newImageUrl);
-            
-            const generatedPrompt = response.headers.get('X-Generated-Prompt') || 'Daily theme generated successfully';
-            setPromptText(generatedPrompt);
-            
-            addNotification('success', '✅ Image preview generated successfully!');
-        } else {
-          const uploadError = uploadResponse?.message || 'Failed to secure the generated image.';
-          addNotification('error', `❌ ${uploadError}`);
+        // Automatically scroll to the preview section for better UX
+        const previewElement = document.getElementById('image-preview-section');
+        if (previewElement) {
+            previewElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
       } else {
-        const errorMessage = response?.message || 'Failed to generate image preview.';
-        addNotification('error', `❌ ${errorMessage}`);
+        addNotification('error', response.message || 'Failed to generate image preview.');
       }
     } catch (error) {
+      console.error('Failed to generate image:', error);
       addNotification('error', '❌ An unexpected error occurred during image generation.');
     } finally {
       setIsGenerating(false);
@@ -203,6 +208,16 @@ const SwamjiAvatarPreview = () => {
       window.open(finalVideo.video_url, '_blank');
     }
   };
+
+  const themeButtons = [
+    { day: 0, name: 'Sunday', theme: 'Serene', icon: '🤍', color: 'bg-blue-50 hover:bg-blue-100 text-blue-800' },
+    { day: 1, name: 'Monday', theme: 'Meditative', icon: '🤍', color: 'bg-gray-100 hover:bg-gray-200 text-gray-800' },
+    { day: 2, name: 'Tuesday', theme: 'Teaching', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
+    { day: 3, name: 'Wednesday', theme: 'Wisdom', icon: '🤎', color: 'bg-amber-100 hover:bg-amber-200 text-amber-800' },
+    { day: 4, name: 'Thursday', theme: 'Thankful', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
+    { day: 5, name: 'Friday', theme: 'Festive', icon: '🟡', color: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' },
+    { day: 6, name: 'Saturday', theme: 'Silent', icon: '🤎', color: 'bg-stone-100 hover:bg-stone-200 text-stone-800' }
+  ];
 
   return (
     <div className="space-y-6">
@@ -292,11 +307,15 @@ const SwamjiAvatarPreview = () => {
             <div className="space-y-4">
               {/* Current Daily Theme Button */}
               <button
-                onClick={() => generateImagePreview('Daily theme generated successfully')}
+                onClick={getDailyTheme}
                 disabled={!uploadedImage || isGenerating}
                 className="w-full bg-purple-600 text-white px-4 py-3 rounded-lg hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center space-x-2 text-base"
               >
-                <Star size={18} />
+                {isGenerating ? (
+                  <Loader2 className="animate-spin mr-2 h-5 w-5" />
+                ) : (
+                  <Star className="mr-2 h-5 w-5" />
+                )}
                 <span>Generate Today's Daily Theme</span>
               </button>
 
@@ -304,15 +323,7 @@ const SwamjiAvatarPreview = () => {
               <div className="border-t pt-4">
                 <h4 className="text-sm font-medium text-gray-700 mb-3">🎨 Test All 7 Daily Themes:</h4>
                 <div className="grid grid-cols-1 gap-2">
-                  {[
-                    { day: 0, name: 'Monday', theme: 'Meditative', icon: '🤍', color: 'bg-gray-100 hover:bg-gray-200 text-gray-800' },
-                    { day: 1, name: 'Tuesday', theme: 'Teaching', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
-                    { day: 2, name: 'Wednesday', theme: 'Wisdom', icon: '🤎', color: 'bg-amber-100 hover:bg-amber-200 text-amber-800' },
-                    { day: 3, name: 'Thursday', theme: 'Thankful', icon: '🧡', color: 'bg-orange-100 hover:bg-orange-200 text-orange-800' },
-                    { day: 4, name: 'Friday', theme: 'Festive', icon: '🟡', color: 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800' },
-                    { day: 5, name: 'Saturday', theme: 'Silent', icon: '🤎', color: 'bg-stone-100 hover:bg-stone-200 text-stone-800' },
-                    { day: 6, name: 'Sunday', theme: 'Serene', icon: '🤍', color: 'bg-blue-50 hover:bg-blue-100 text-blue-800' }
-                  ].map((themeButton) => (
+                  {themeButtons.map((themeButton) => (
                     <button
                       key={themeButton.day}
                       onClick={() => generateImagePreview(themeButton.theme)}
