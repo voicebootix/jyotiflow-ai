@@ -57,12 +57,13 @@ class SupabaseStorageService:
             raise Exception("Supabase Storage is not configured on the server.")
 
         try:
-            # The 'file_options' dictionary is crucial for setting the MIME type.
-            # 'upsert="true"' means it will overwrite the file if it already exists.
+            # The 'file_options' dictionary is crucial for setting the MIME type 
+            # and ensuring the file is publicly accessible via its URL.
+            # 'upsert=True' will overwrite the file if it already exists.
             self.supabase.storage.from_(bucket_name).upload(
                 path=file_path_in_bucket,
                 file=file,
-                file_options={"content-type": content_type, "upsert": "true"}
+                file_options={"contentType": content_type, "cacheControl": "3600", "upsert": True}
             )
             logger.info(f"Successfully uploaded file to Supabase bucket '{bucket_name}' at path '{file_path_in_bucket}'.")
             

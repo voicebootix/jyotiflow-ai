@@ -326,7 +326,7 @@ async def generate_image_preview(
         reference_avatar_url = json.loads(record['value'])
 
         # 3. Call the new, simplified theme service
-        image_bytes = await theme_service.generate_themed_image_bytes(
+        image_bytes, mime_type = await theme_service.generate_themed_image_bytes(
             theme_prompt=theme_prompt, 
             reference_avatar_url=reference_avatar_url,
             target_platform=request.target_platform
@@ -369,7 +369,7 @@ async def generate_image_preview(
             "Pragma": "no-cache",
             "Expires": "0",
         }
-        return Response(content=encoded_image, media_type="image/png", headers=headers)
+        return Response(content=encoded_image, media_type=mime_type, headers=headers)
     except ValueError as e:
         logger.warning(f"⚠️  VALIDATION ERROR in image preview generation: {e}")
         raise HTTPException(status_code=400, detail=str(e)) from e

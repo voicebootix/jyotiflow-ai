@@ -136,8 +136,8 @@ class EnhancedAPI {
 
           if (uploadRes.ok) {
             const uploadJson = await uploadRes.json().catch(() => null);
-            if (uploadJson && uploadJson.success && uploadJson.data?.preview_url) {
-              previewUrl = uploadJson.data.preview_url;
+            if (uploadJson && uploadJson.success && uploadJson.data?.image_url) {
+              previewUrl = uploadJson.data.image_url;
             } else {
               console.warn('Preview upload response unexpected:', uploadJson);
             }
@@ -278,7 +278,7 @@ class EnhancedAPI {
   async uploadPreviewImage(formData) {
     return this.request('/api/admin/social-marketing/upload-preview-image', {
       method: 'POST',
-      body: formData
+      body: formData,
     });
   }
 

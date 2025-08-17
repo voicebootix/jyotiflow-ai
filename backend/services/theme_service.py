@@ -1,7 +1,7 @@
 import os
 import logging
 import asyncio
-from typing import Optional
+from typing import Optional, Tuple
 from io import BytesIO
 from PIL import Image
 
@@ -44,7 +44,7 @@ class ThemeService:
         theme_prompt: str,
         reference_avatar_url: str,
         target_platform: Optional[str] = None
-    ) -> Optional[bytes]:
+    ) -> Optional[Tuple[bytes, str]]:
         
         if not self.replicate_service.is_configured:
             raise HTTPException(status_code=501, detail="Replicate service is not configured on the server. REPLICATE_API_TOKEN is missing.")
@@ -78,11 +78,13 @@ class ThemeService:
                 img.save(png_buffer, format="PNG")
                 png_bytes = png_buffer.getvalue()
                 logger.info("✅ Successfully converted generated image to PNG format.")
-                return png_bytes
+                return png_bytes, "image/png"
             except Exception as conversion_error:
                 logger.error(f"Failed to convert image to PNG: {conversion_error}", exc_info=True)
-                # Fallback to returning original bytes if conversion fails
-                return response.content
+                # Fallback to returning original bytes and content type if conversion fails
+                original_content_type = response.headers.get("Content-Type", "application/octet-stream")
+                logger.warning(f"Falling back to original image format: {original_content_type}")
+                return response.content, original_content_type
 
         except Exception as e:
             logger.error(f"Error during themed image generation with Replicate: {e}", exc_info=True)
