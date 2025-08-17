@@ -84,18 +84,7 @@ const SwamjiAvatarPreview = () => {
 
   const getDailyTheme = () => {
     const dayIndex = new Date().getDay(); // Sunday is 0, Monday is 1, etc.
-    const themes = [
-      "Serene", // Sunday
-      "Meditative", // Monday
-      "Teaching", // Tuesday
-      "Wisdom", // Wednesday
-      "Thankful", // Thursday
-      "Festive", // Friday
-      "Silent" // Saturday
-    ];
-    // Adjust index because our array starts with Sunday, but themeButtons array starts with Monday
-    const adjustedDayIndex = (dayIndex === 0) ? 6 : dayIndex - 1;
-    const todayTheme = themeButtons[adjustedDayIndex]?.theme || "A serene and wise spiritual master.";
+    const todayTheme = themeButtons[dayIndex]?.theme || "A serene and wise spiritual master.";
     generateImagePreview(todayTheme);
   };
 

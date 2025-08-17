@@ -63,7 +63,7 @@ class SupabaseStorageService:
             self.supabase.storage.from_(bucket_name).upload(
                 path=file_path_in_bucket,
                 file=file,
-                file_options={"content-type": content_type, "cacheControl": "3600", "upsert": True}
+                file_options={"contentType": content_type, "cacheControl": "3600", "upsert": True}
             )
             logger.info(f"Successfully uploaded file to Supabase bucket '{bucket_name}' at path '{file_path_in_bucket}'.")
             
