@@ -124,18 +124,62 @@ async def get_marketing_overview(admin_user: dict = Depends(AuthenticationHelper
 @social_marketing_router.get("/content-calendar", response_model=StandardResponse)
 async def get_content_calendar(
     date: Optional[str] = None, platform: Optional[str] = None,
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+    marketing_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine)
 ):
-    all_calendar_data = [
-        ContentCalendarItem(id=1, date="2024-08-15", platform="Facebook", content="Satsang announcement", status=ContentStatus.POSTED),
-        ContentCalendarItem(id=2, date="2024-08-16", platform="Twitter", content="Daily wisdom quote", status=ContentStatus.SCHEDULED),
-    ]
-    filtered_data = all_calendar_data
-    if platform:
-        filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
-    if date:
-        filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
-    return StandardResponse(success=True, data={"calendar": filtered_data}, message=f"Content calendar retrieved successfully.")
+    try:
+        # Generate daily content plan using the marketing engine
+        daily_plan = await marketing_engine.generate_daily_content_plan()
+        
+        # Convert content plans to calendar items
+        calendar_items = []
+        item_id = 1
+        
+        for platform_name, content_plans in daily_plan.items():
+            for plan in content_plans:
+                # Determine status and date based on scheduled_time
+                scheduled_time = plan.scheduled_time if hasattr(plan, 'scheduled_time') else None
+                if scheduled_time:
+                    status = ContentStatus.SCHEDULED
+                    item_date = scheduled_time.date()
+                else:
+                    status = ContentStatus.DRAFT
+                    item_date = datetime.now().date()
+                
+                calendar_item = ContentCalendarItem(
+                    id=item_id,
+                    date=item_date,
+                    platform=platform_name.title(),
+                    content=f"{plan.title}: {plan.description[:100]}..." if len(plan.description) > 100 else f"{plan.title}: {plan.description}",
+                    status=status,
+                    content_type=plan.content_type if hasattr(plan, 'content_type') else None,
+                    hashtags=plan.hashtags if hasattr(plan, 'hashtags') else None,
+                    scheduled_time=scheduled_time
+                )
+                calendar_items.append(calendar_item)
+                item_id += 1
+        
+        # Apply filters
+        filtered_data = calendar_items
+        if platform:
+            filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+        if date:
+            filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
+        
+        return StandardResponse(
+            success=True, 
+            data={"calendar": filtered_data}, 
+            message=f"Content calendar retrieved successfully with {len(filtered_data)} items."
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating content calendar: {e}", exc_info=True)
+        # Fallback to mock data if generation fails
+        fallback_data = [
+            ContentCalendarItem(id=1, date=datetime.now().date(), platform="Facebook", content="Daily spiritual wisdom", status=ContentStatus.DRAFT),
+            ContentCalendarItem(id=2, date=datetime.now().date(), platform="Instagram", content="Mindfulness quote", status=ContentStatus.DRAFT),
+        ]
+        return StandardResponse(success=True, data={"calendar": fallback_data}, message="Content calendar retrieved with fallback data.")
 
 @social_marketing_router.get("/campaigns", response_model=StandardResponse)
 async def get_campaigns(
