@@ -119,24 +119,28 @@ async def _store_calendar_content_in_db(calendar_items: list) -> None:
         async with db_pool.acquire() as conn:
             for item in calendar_items:
                 try:
-                    # Store in social_content table
+                    # Store in social_content table (matching existing schema)
+                    content_id = f"{item.platform.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{item.id}"
+                    hashtags_str = ",".join(item.hashtags) if item.hashtags else "#jyotiflow,#spirituality"
+                    
                     await conn.execute("""
                         INSERT INTO social_content 
-                        (platform, content_type, content_text, status, scheduled_at, created_at, metadata)
-                        VALUES ($1, $2, $3, $4, $5, NOW(), $6)
-                        ON CONFLICT (platform, content_text) DO UPDATE SET
-                        updated_at = NOW(), status = $4
+                        (content_id, platform, content_type, content_text, hashtags, status, scheduled_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        ON CONFLICT (content_id) DO UPDATE SET
+                        content_text = EXCLUDED.content_text,
+                        hashtags = EXCLUDED.hashtags,
+                        status = EXCLUDED.status,
+                        scheduled_at = EXCLUDED.scheduled_at,
+                        content_type = EXCLUDED.content_type
                     """, 
+                    content_id,
                     item.platform,
-                    item.content_type or "daily_wisdom", 
+                    getattr(item.content_type, "value", item.content_type) if item.content_type else "daily_wisdom", 
                     item.content,
-                    item.status,
-                    item.scheduled_time,
-                    json.dumps({
-                        "hashtags": item.hashtags,
-                        "source": "rag_generated",
-                        "theme_based": True
-                    })
+                    hashtags_str,
+                    getattr(item.status, "value", item.status),
+                    item.scheduled_time
                     )
                 except Exception as e:
                     logger.error(f"Failed to store individual content item: {e}")
