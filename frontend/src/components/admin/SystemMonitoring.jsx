@@ -75,7 +75,9 @@ const SystemMonitoring = () => {
   // Status color mapping
   const statusColors = {
     healthy: "text-green-600 bg-green-100",
+    warning: "text-yellow-600 bg-yellow-100",
     degraded: "text-yellow-600 bg-yellow-100",
+    error: "text-red-600 bg-red-100",
     critical: "text-red-600 bg-red-100",
     not_configured: "text-orange-600 bg-orange-100",
     partial: "text-yellow-600 bg-yellow-100",
@@ -479,11 +481,11 @@ const SystemMonitoring = () => {
                       )}
 
                     {/* Last Used/Updated */}
-                    {data.last_used && (
+                    {(data.last_used || data.last_check) && (
                       <div className="flex items-center justify-between">
                         <span>Last Used:</span>
                         <span className="font-mono text-xs">
-                          {formatTimestamp(data.last_used)}
+                          {formatTimestamp(data.last_used || data.last_check)}
                         </span>
                       </div>
                     )}
