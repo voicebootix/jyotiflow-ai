@@ -105,6 +105,49 @@ except ImportError as e:
 
 logger = logging.getLogger(__name__)
 
+# Helper function to store calendar content in database
+async def _store_calendar_content_in_db(calendar_items: list) -> None:
+    """Store generated calendar content in database for persistence and analytics"""
+    try:
+        from db import get_db_pool
+        db_pool = get_db_pool()
+        
+        if not db_pool:
+            logger.warning("Database pool not available, skipping content storage")
+            return
+        
+        async with db_pool.acquire() as conn:
+            for item in calendar_items:
+                try:
+                    # Store in social_content table
+                    await conn.execute("""
+                        INSERT INTO social_content 
+                        (platform, content_type, content_text, status, scheduled_at, created_at, metadata)
+                        VALUES ($1, $2, $3, $4, $5, NOW(), $6)
+                        ON CONFLICT (platform, content_text) DO UPDATE SET
+                        updated_at = NOW(), status = $4
+                    """, 
+                    item.platform,
+                    item.content_type or "daily_wisdom", 
+                    item.content,
+                    item.status,
+                    item.scheduled_time,
+                    json.dumps({
+                        "hashtags": item.hashtags,
+                        "source": "rag_generated",
+                        "theme_based": True
+                    })
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to store individual content item: {e}")
+                    continue
+                    
+        logger.info(f"Successfully stored {len(calendar_items)} calendar items in database")
+        
+    except Exception as e:
+        logger.error(f"Database storage error: {e}", exc_info=True)
+        raise
+
 # Helper function to resolve FastAPI dependencies manually
 async def _resolve_dependency_via_fastapi(request: Request, call: Callable) -> Any:
     """
@@ -209,10 +252,18 @@ async def get_content_calendar(
         if date:
             filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
         
+        # Store content in database for persistence
+        try:
+            await _store_calendar_content_in_db(filtered_data)
+            storage_message = " Content stored in database."
+        except Exception as e:
+            logger.error(f"Failed to store calendar content: {e}")
+            storage_message = " (Storage failed)"
+        
         return StandardResponse(
             success=True, 
             data={"calendar": filtered_data}, 
-            message=f"Content calendar retrieved with enhanced fallback data ({len(filtered_data)} items)."
+            message=f"Content calendar retrieved with enhanced fallback data ({len(filtered_data)} items).{storage_message}"
         )
     
     try:
@@ -257,10 +308,18 @@ async def get_content_calendar(
         if date:
             filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
         
+        # Store content in database for persistence
+        try:
+            await _store_calendar_content_in_db(filtered_data)
+            storage_message = " Content stored in database."
+        except Exception as e:
+            logger.error(f"Failed to store calendar content: {e}")
+            storage_message = " (Storage failed)"
+        
         return StandardResponse(
             success=True, 
             data={"calendar": filtered_data}, 
-            message=f"Content calendar retrieved successfully with {len(filtered_data)} items."
+            message=f"Content calendar retrieved successfully with {len(filtered_data)} items.{storage_message}"
         )
         
     except Exception as e:
