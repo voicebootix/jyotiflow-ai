@@ -1040,7 +1040,7 @@ async def initialize_monitoring_dashboard():
 
 # API Endpoints
 @router.post("/initialize")
-async def initialize_integration_health():
+async def initialize_integration_health(admin: dict = Depends(get_current_admin_dependency)):
     """Initialize integration health monitoring with sample data (admin-only endpoint)"""
     try:
         # Initialize tables
