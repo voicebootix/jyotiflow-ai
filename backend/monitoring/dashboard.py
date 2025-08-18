@@ -13,6 +13,7 @@ from typing import Dict, List, Any
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from db import db_manager
+from services.integration_health_service import integration_health_service
 import logging
 logger = logging.getLogger(__name__)
 
@@ -115,6 +116,18 @@ class MonitoringDashboard:
     
     def __init__(self):
         self.business_validator = BusinessLogicValidator()
+        self.integration_health_service = integration_health_service
+        
+    async def initialize(self) -> bool:
+        """Initialize monitoring dashboard and ensure all required tables exist"""
+        try:
+            # Ensure integration health tables exist
+            await self.integration_health_service.ensure_tables_exist()
+            logger.info("✅ Monitoring dashboard initialized successfully")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Failed to initialize monitoring dashboard: {e}")
+            return False
         
     async def get_dashboard_data(self) -> Dict:
         """Get comprehensive dashboard data for admin interface - database-driven"""
@@ -213,17 +226,39 @@ class MonitoringDashboard:
             return {"error": str(e)}
     
     async def get_integration_health_details(self, integration_point: str) -> Dict:
-        """Get detailed health information for a specific integration"""
+        """Get detailed health information for a specific integration using IntegrationHealthService"""
         try:
+            # Get comprehensive health summary from IntegrationHealthService
+            health_summary = await self.integration_health_service.get_integration_health_summary()
+            
+            # Extract specific integration details
+            integration_info = health_summary.get('integrations', {}).get(integration_point, {})
+            
+            if not integration_info:
+                return {
+                    "integration_point": integration_point,
+                    "status": "not_found",
+                    "message": f"Integration '{integration_point}' not found in health monitoring",
+                    "performance_history": [],
+                    "recent_errors": [],
+                    "auto_fix_effectiveness": {
+                        "total_issues": 0,
+                        "auto_fixed": 0,
+                        "success_rate": 0
+                    }
+                }
+            
+            # Get detailed performance history from database using IntegrationHealthService's connection
             conn = await db_manager.get_connection()
             try:
                 # Get recent performance metrics
                 performance = await conn.fetch("""
                     SELECT 
                         DATE_TRUNC('hour', validation_time) as hour,
-                        AVG(CAST(actual_value->>'duration_ms' AS INTEGER)) as avg_duration,
+                        AVG(response_time_ms) as avg_response_time,
                         COUNT(*) as total_calls,
-                        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls
+                        SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END) as successful_calls,
+                        ROUND(SUM(CASE WHEN status = 'success' THEN 1 ELSE 0 END)::NUMERIC / COUNT(*) * 100, 1) as success_rate
                     FROM integration_validations
                     WHERE integration_name = $1
                     AND validation_time > NOW() - INTERVAL '24 hours'
@@ -236,7 +271,7 @@ class MonitoringDashboard:
                     SELECT error_message, COUNT(*) as count, MAX(validation_time) as last_occurred
                     FROM integration_validations
                     WHERE integration_name = $1
-                    AND status = 'failed'
+                    AND status != 'success'
                     AND validation_time > NOW() - INTERVAL '24 hours'
                     AND error_message IS NOT NULL
                     GROUP BY error_message
@@ -244,40 +279,49 @@ class MonitoringDashboard:
                     LIMIT 5
                 """, integration_point)
                 
-                # Get auto-fix statistics
-                auto_fix_stats = await conn.fetchrow("""
-                    SELECT 
-                        COUNT(*) as total_issues,
-                        SUM(CASE WHEN auto_fixed = true THEN 1 ELSE 0 END) as auto_fixed_count
-                    FROM integration_validations
-                    WHERE integration_name = $1
-                    AND status = 'failed'
-                    AND validation_time > NOW() - INTERVAL '7 days'
-                """, integration_point)
+                # Calculate auto-fix effectiveness using data from IntegrationHealthService
+                auto_fix_effectiveness = {
+                    "total_issues": integration_info.get('failed_validations', 0),
+                    "auto_fixed": integration_info.get('auto_fixed_count', 0),
+                    "success_rate": 0
+                }
+                
+                if auto_fix_effectiveness["total_issues"] > 0:
+                    auto_fix_effectiveness["success_rate"] = round(
+                        (auto_fix_effectiveness["auto_fixed"] / auto_fix_effectiveness["total_issues"]) * 100, 1
+                    )
                 
                 return {
                     "integration_point": integration_point,
+                    "status": integration_info.get('status', 'unknown'),
+                    "success_rate": integration_info.get('success_rate', 0),
+                    "total_validations": integration_info.get('total_validations', 0),
+                    "successful_validations": integration_info.get('successful_validations', 0),
+                    "failed_validations": integration_info.get('failed_validations', 0),
+                    "avg_response_time_ms": integration_info.get('avg_response_time_ms', 0),
+                    "last_validation": integration_info.get('last_validation'),
                     "performance_history": [dict(p) for p in performance],
                     "recent_errors": [dict(e) for e in recent_errors],
-                    "auto_fix_effectiveness": {
-                        "total_issues": auto_fix_stats["total_issues"] if auto_fix_stats else 0,
-                        "auto_fixed": auto_fix_stats["auto_fixed_count"] if auto_fix_stats else 0,
-                        "success_rate": (
-                            auto_fix_stats["auto_fixed_count"] / auto_fix_stats["total_issues"] * 100
-                            if (auto_fix_stats and 
-                                auto_fix_stats.get("total_issues") is not None and 
-                                auto_fix_stats.get("total_issues") > 0 and
-                                auto_fix_stats.get("auto_fixed_count") is not None)
-                            else 0
-                        )
-                    }
+                    "auto_fix_effectiveness": auto_fix_effectiveness
                 }
+                
             finally:
                 await db_manager.release_connection(conn)
                 
         except Exception as e:
-            logger.error(f"❌ Failed to get integration health details: {e}")
-            return {"error": str(e)}
+            logger.error(f"❌ Failed to get integration health details for {integration_point}: {e}")
+            return {
+                "integration_point": integration_point,
+                "status": "error",
+                "performance_history": [],
+                "recent_errors": [],
+                "auto_fix_effectiveness": {
+                    "total_issues": 0,
+                    "auto_fixed": 0,
+                    "success_rate": 0
+                },
+                "error": str(e)
+            }
     
     async def trigger_validation_test(self, test_type: str) -> Dict:
         """Trigger a validation test for debugging"""
@@ -346,8 +390,8 @@ class MonitoringDashboard:
     async def _get_recent_sessions(self) -> List[Dict]:
         """Get recent session summaries from actual sessions table"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
+            # Use existing db_manager for consistent database access
+            conn = await db_manager.get_connection()
             try:
                 # Query actual sessions table that exists in our schema
                 sessions = await conn.fetch("""
@@ -374,7 +418,7 @@ class MonitoringDashboard:
                 
                 return [dict(s) for s in sessions]
             finally:
-                await conn.close()
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get recent sessions: {e}")
@@ -382,71 +426,75 @@ class MonitoringDashboard:
             return []
     
     async def _get_integration_statistics(self) -> Dict:
-        """Get integration performance statistics
-        
-        Note: Consider creating a database view for even better maintainability:
-        
-        CREATE OR REPLACE VIEW integration_metrics_24h AS
-        SELECT 
-            session_id,
-            integration_name,
-            status,
-            CASE 
-                WHEN actual_value IS NOT NULL AND actual_value->>'duration_ms' IS NOT NULL 
-                THEN (actual_value->>'duration_ms')::INTEGER 
-                ELSE NULL
-            END as duration_ms,
-            validation_time
-        FROM integration_validations
-        WHERE validation_time > NOW() - INTERVAL '24 hours';
-        
-        Then queries would simply be:
-        - SELECT ... FROM integration_metrics_24h
-        - SELECT ... FROM integration_metrics_24h GROUP BY integration_name
-        """
+        """Get integration performance statistics from database-driven IntegrationHealthService"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
-            try:
-                # Get session statistics from actual sessions table
-                stats = await conn.fetchrow("""
-                        SELECT 
-                        COUNT(*) as total_sessions,
-                        AVG(duration_minutes * 60 * 1000) as avg_response_time_ms, -- Convert to milliseconds
-                        COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_sessions,
-                        COUNT(CASE WHEN status = 'active' THEN 1 END) as active_sessions
-                    FROM sessions
-                    WHERE created_at > NOW() - INTERVAL '24 hours'
-                """)
-                
-                # Get per-service type statistics
-                by_service = await conn.fetch("""
-                    SELECT 
-                        service_type as integration_name,
-                        COUNT(*) as total_calls,
-                        COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_calls,
-                        AVG(duration_minutes * 60 * 1000) as avg_duration_ms
-                    FROM sessions
-                    WHERE created_at > NOW() - INTERVAL '24 hours'
-                    GROUP BY service_type
-                """)
-                
-                return {
-                    "overall": dict(stats) if stats else {},
-                    "by_integration": [dict(i) for i in by_service]
+            # Use the dedicated IntegrationHealthService for consistent, database-driven integration data
+            health_summary = await self.integration_health_service.get_integration_health_summary()
+            
+            # Transform the health summary into the expected format for dashboard compatibility
+            integrations_data = {}
+            for integration_name, integration_info in health_summary.get('integrations', {}).items():
+                integrations_data[integration_name] = {
+                    "type": "integration",  # Unified type for simplicity
+                    "status": integration_info.get('status', 'unknown'),
+                    "configured": integration_info.get('status') not in ['unknown', 'not_configured'],
+                    "total_validations": integration_info.get('total_validations', 0),
+                    "successful_validations": integration_info.get('successful_validations', 0),
+                    "failed_validations": integration_info.get('failed_validations', 0),
+                    "success_rate": integration_info.get('success_rate', 0),
+                    "avg_response_time": integration_info.get('avg_response_time_ms', 0),
+                    "last_validation": integration_info.get('last_validation'),
+                    "auto_fixed_count": integration_info.get('auto_fixed_count', 0)
                 }
-            finally:
-                await conn.close()
-                
+            
+            # Calculate overall statistics from health summary
+            system_health = health_summary.get('system_health', {})
+            total_integrations = system_health.get('total_integrations', 0)
+            healthy_integrations = system_health.get('healthy_integrations', 0)
+            
+            # Calculate overall success rate based on healthy integrations
+            overall_success_rate = (healthy_integrations / total_integrations * 100) if total_integrations > 0 else 0
+            
+            # Sum up total validations
+            total_validations = sum(i.get('total_validations', 0) for i in integrations_data.values())
+            successful_validations = sum(i.get('successful_validations', 0) for i in integrations_data.values())
+            
+            return {
+                "total_validations": total_validations,
+                "successful_validations": successful_validations,
+                "overall_success_rate": round(overall_success_rate, 1),
+                "overall_status": health_summary.get('overall_status', 'unknown'),
+                "integrations": integrations_data,
+                "system_health": system_health,
+                "active_alerts": health_summary.get('active_alerts', []),
+                "last_updated": health_summary.get('last_updated')
+            }
+            
         except Exception as e:
-            logger.error(f"Failed to get integration statistics: {e}")
-            return {"overall": {}, "by_integration": []}
+            logger.error(f"❌ Failed to get integration statistics: {e}")
+            return {
+                "total_validations": 0,
+                "successful_validations": 0,
+                "overall_success_rate": 0,
+                "overall_status": "error",
+                "integrations": {},
+                "system_health": {
+                    "healthy_integrations": 0,
+                    "degraded_integrations": 0,
+                    "critical_integrations": 0,
+                    "total_integrations": 0
+                },
+                "active_alerts": [],
+                "error": str(e)
+            }
     
+
+
     async def _get_critical_issues(self) -> List[Dict]:
         """Get current critical issues from monitoring alerts table"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
+            # Use existing db_manager for consistent database access
+            conn = await db_manager.get_connection()
             try:
                 # Check if monitoring_alerts table exists from our migrations
                 table_exists = await conn.fetchval("""
@@ -479,7 +527,7 @@ class MonitoringDashboard:
                     return []
                     
             finally:
-                await conn.close()
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get critical issues: {e}")
@@ -488,8 +536,8 @@ class MonitoringDashboard:
     async def _get_social_media_health(self) -> Dict:
         """Get social media integration health status from platform_settings table"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
+            # Use existing db_manager for consistent database access
+            conn = await db_manager.get_connection()
             try:
                 # Check if platform_settings table exists
                 table_exists = await conn.fetchval("""
@@ -546,7 +594,7 @@ class MonitoringDashboard:
                     }
                     
             finally:
-                await conn.close()
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get social media health: {e}")
@@ -559,8 +607,8 @@ class MonitoringDashboard:
     async def _calculate_overall_metrics(self) -> Dict:
         """Calculate overall system metrics from sessions table"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
+            # Use existing db_manager for consistent database access
+            conn = await db_manager.get_connection()
             try:
                 # Get success rate from sessions
                 success_rate = await conn.fetchrow("""
@@ -596,7 +644,7 @@ class MonitoringDashboard:
                     }
                 }
             finally:
-                await conn.close()
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to calculate overall metrics: {e}")
@@ -607,67 +655,29 @@ class MonitoringDashboard:
             }
     
     async def _calculate_integration_metrics(self) -> Dict:
-        """Calculate per-integration success rates and response times from sessions table"""
+        """Calculate per-integration success rates and response times from database-driven integration statistics"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
-            try:
-                # Get per-service type metrics from sessions table
-                integration_stats = await conn.fetch("""
-                    SELECT 
-                        service_type as integration_name,
-                        COUNT(*) as total_validations,
-                        COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful_validations,
-                        ROUND(
-                            (COUNT(CASE WHEN status = 'completed' THEN 1 END)::numeric / 
-                            NULLIF(COUNT(*), 0) * 100)::numeric, 1
-                        ) as success_rate,
-                        ROUND(AVG(duration_minutes * 60 * 1000)::numeric) as avg_response_time_ms
-                    FROM sessions
-                    WHERE created_at > NOW() - INTERVAL '24 hours'
-                    AND service_type IS NOT NULL
-                    GROUP BY service_type
-                    ORDER BY service_type
-                """)
-                
-                success_rates = {}
-                avg_response_times = {}
-                
-                for row in integration_stats:
-                    integration_name = row['integration_name']
-                    success_rates[integration_name] = float(row['success_rate'] or 0)
-                    avg_response_times[integration_name] = int(row['avg_response_time_ms'] or 0)
-                
-                # Add common integration points that we expect to monitor
-                common_integrations = [
-                    'prokerala', 'rag_knowledge', 'openai_guidance', 
-                    'elevenlabs_voice', 'did_avatar', 'social_media'
-                ]
-                
-                # Only add fallback zeros for common integrations that don't have data
-                for integration in common_integrations:
-                    if integration not in success_rates:
-                        success_rates[integration] = 0.0
-                        avg_response_times[integration] = 0
-                
-                return {
-                    "success_rates": success_rates,
-                    "avg_response_times": avg_response_times
-                }
-                
-            finally:
-                await conn.close()
+            # Use the comprehensive integration statistics method
+            integration_stats = await self._get_integration_statistics()
+            
+            success_rates = {}
+            avg_response_times = {}
+            
+            # Extract metrics from the comprehensive integration data
+            for integration_name, data in integration_stats.get('integrations', {}).items():
+                success_rates[integration_name] = float(data.get('success_rate', 0))
+                avg_response_times[integration_name] = int(data.get('avg_response_time', 0))
+            
+            return {
+                "success_rates": success_rates,
+                "avg_response_times": avg_response_times
+            }
                 
         except Exception as e:
             logger.error(f"Failed to calculate integration metrics: {e}")
-            # Return fallback data for common integrations
-            common_integrations = [
-                'prokerala', 'rag_knowledge', 'openai_guidance', 
-                'elevenlabs_voice', 'did_avatar', 'social_media'
-            ]
             return {
-                "success_rates": {integration: 0.0 for integration in common_integrations},
-                "avg_response_times": {integration: 0 for integration in common_integrations}
+                "success_rates": {},
+                "avg_response_times": {}
             }
 
     async def _get_active_alerts(self) -> List[Dict]:
@@ -675,8 +685,8 @@ class MonitoringDashboard:
         alerts = []
         
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
+            # Use existing db_manager for consistent database access
+            conn = await db_manager.get_connection()
             try:
                 # Check if monitoring_alerts table exists
                 table_exists = await conn.fetchval("""
@@ -733,7 +743,7 @@ class MonitoringDashboard:
                         })
                 
             finally:
-                await conn.close()
+                await db_manager.release_connection(conn)
             
             return alerts
             
@@ -744,8 +754,8 @@ class MonitoringDashboard:
     async def _get_system_health_from_db(self) -> Dict:
         """Get system health status from database metrics"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
+            # Use existing db_manager for consistent database access
+            conn = await db_manager.get_connection()
             try:
                 # Calculate system health based on session success rates
                 health_metrics = await conn.fetchrow("""
@@ -771,39 +781,57 @@ class MonitoringDashboard:
                 else:
                     system_status = "healthy"  # No recent activity
                 
-                # Get integration points from service types
+                # Get integration points using the comprehensive integration statistics
+                integration_stats = await self._get_integration_statistics()
                 integration_points = {}
-                service_types = await conn.fetch("""
-                    SELECT 
-                        service_type,
-                        COUNT(*) as total,
-                        COUNT(CASE WHEN status = 'completed' THEN 1 END) as successful,
-                        AVG(duration_minutes) as avg_duration
-                    FROM sessions
-                    WHERE created_at > NOW() - INTERVAL '1 hour'
-                    AND service_type IS NOT NULL
-                    GROUP BY service_type
-                """)
                 
-                for service in service_types:
-                    service_name = service['service_type']
-                    success_rate = (service['successful'] / service['total']) * 100 if service['total'] > 0 else 0
+                # Convert integration statistics to integration points format
+                for integration_name, data in integration_stats.get('integrations', {}).items():
+                    # Determine status based on integration type and data
+                    if data.get('type') == 'platform':
+                        # For platform integrations, status based on configuration
+                        if data.get('configured', False):
+                            if data.get('success_rate', 0) >= 90:
+                                status = "healthy"
+                            elif data.get('success_rate', 0) >= 70:
+                                status = "degraded"
+                            else:
+                                status = "critical"
+                        else:
+                            status = "not_configured"
+                    elif data.get('type') == 'service':
+                        # For service integrations, status based on usage and success
+                        if data.get('enabled', False):
+                            if data.get('usage_count', 0) > 0:
+                                if data.get('success_rate', 0) >= 90:
+                                    status = "healthy"
+                                elif data.get('success_rate', 0) >= 70:
+                                    status = "degraded"
+                                else:
+                                    status = "critical"
+                            else:
+                                status = "unused"
+                        else:
+                            status = "disabled"
+                    else:
+                        # Fallback status determination
+                        if data.get('success_rate', 0) >= 90:
+                            status = "healthy"
+                        elif data.get('success_rate', 0) >= 70:
+                            status = "degraded"
+                        else:
+                            status = "critical"
                     
-                    integration_points[service_name] = {
-                        "status": "healthy" if success_rate >= 90 else "degraded" if success_rate >= 70 else "critical",
-                        "latency_ms": int((service['avg_duration'] or 0) * 60 * 1000),  # Convert to ms
-                        "last_check": datetime.now(timezone.utc).isoformat()
+                    integration_points[integration_name] = {
+                        "status": status,
+                        "latency_ms": int(data.get('avg_response_time', 0)),
+                        "last_check": datetime.now(timezone.utc).isoformat(),
+                        "type": data.get('type', 'unknown'),
+                        "configured": data.get('configured', False),
+                        "usage_count": data.get('usage_count', 0),
+                        "success_rate": data.get('success_rate', 0),
+                        "total_validations": data.get('total_validations', 0)
                     }
-                
-                # Add common integration points with no_data status if not present
-                common_integrations = ['prokerala', 'rag_knowledge', 'openai_guidance', 'elevenlabs_voice', 'did_avatar', 'social_media']
-                for integration in common_integrations:
-                    if integration not in integration_points:
-                        integration_points[integration] = {
-                            "status": "no_data",
-                            "latency_ms": 0,
-                            "last_check": datetime.now(timezone.utc).isoformat()
-                        }
                 
                 return {
                     "system_status": system_status,
@@ -813,7 +841,7 @@ class MonitoringDashboard:
                 }
                 
             finally:
-                await conn.close()
+                await db_manager.release_connection(conn)
                 
         except Exception as e:
             logger.error(f"Failed to get system health from database: {e}")
@@ -827,8 +855,8 @@ class MonitoringDashboard:
     async def _get_active_sessions_count(self) -> int:
         """Get count of active sessions from database"""
         try:
-            from db import get_db_connection
-            conn = await get_db_connection()
+            # Use existing db_manager for consistent database access
+            conn = await db_manager.get_connection()
             try:
                 count = await conn.fetchval("""
                     SELECT COUNT(*) FROM sessions 
@@ -837,7 +865,7 @@ class MonitoringDashboard:
                 """)
                 return count or 0
             finally:
-                await conn.close()
+                await db_manager.release_connection(conn)
         except Exception as e:
             logger.error(f"Failed to get active sessions count: {e}")
             return 0
@@ -1000,7 +1028,52 @@ class MonitoringDashboard:
 # Create singleton instance
 monitoring_dashboard = MonitoringDashboard()
 
+async def initialize_monitoring_dashboard():
+    """Initialize monitoring dashboard and ensure all required database tables exist"""
+    try:
+        await monitoring_dashboard.initialize()
+        logger.info("✅ Monitoring dashboard initialization complete")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize monitoring dashboard: {e}")
+        return False
+
 # API Endpoints
+@router.post("/initialize")
+async def initialize_integration_health():
+    """Initialize integration health monitoring with sample data (admin-only endpoint)"""
+    try:
+        # Initialize tables
+        tables_initialized = await monitoring_dashboard.integration_health_service.ensure_tables_exist()
+        
+        if not tables_initialized:
+            return StandardResponse(
+                status="error",
+                message="Failed to initialize integration health tables",
+                data={"tables_initialized": False}
+            )
+        
+        # Populate with sample data for demonstration
+        sample_populated = await monitoring_dashboard.integration_health_service.populate_sample_data()
+        
+        return StandardResponse(
+            status="success",
+            message="Integration health monitoring initialized successfully",
+            data={
+                "tables_initialized": tables_initialized,
+                "sample_data_populated": sample_populated,
+                "message": "Integration health is now fully database-driven"
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Failed to initialize integration health: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Failed to initialize integration health: {str(e)}",
+            data={"error": str(e)}
+        )
+
 @router.get("/health")
 async def get_monitoring_health():
     """Public endpoint to get basic monitoring system health (no auth required)"""
