@@ -138,3 +138,16 @@ class JWTHandler:
             "role": JWTHandler.get_user_role_from_token(request),
             "payload": payload
         }
+
+# Standalone wrapper functions for backwards compatibility
+def get_user_email_from_token(request: Request) -> Optional[str]:
+    """Standalone wrapper for JWTHandler.get_user_email_from_token"""
+    return JWTHandler.get_user_email_from_token(request)
+
+def get_user_id_from_token(request: Request) -> str:
+    """Standalone wrapper for JWTHandler.get_user_id_from_token"""
+    return JWTHandler.get_user_id_from_token(request)
+
+def get_user_role_from_token(request: Request) -> str:
+    """Standalone wrapper for JWTHandler.get_user_role_from_token"""
+    return JWTHandler.get_user_role_from_token(request)
