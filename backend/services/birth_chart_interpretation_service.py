@@ -44,22 +44,72 @@ class BirthChartInterpretationService:
                 "summary": "Could not perform interpretation."
             }
             
+        planets = self._extract_planets(prokerala_data)
+        if not planets:
+            logger.warning("No valid planet data found in the input. Skipping interpretation.")
+            return {
+                "summary": "Could not generate an interpretation as no planetary data was found.",
+                "planetary_positions": {},
+                "house_positions": {}
+            }
+
         interpretations = {}
         
         # 1. Interpret Planetary Positions in Signs
-        planetary_positions = prokerala_data.get("planets", [])
-        if planetary_positions:
-            interpretations["planetary_positions"] = await self._interpret_planetary_positions(planetary_positions)
+        interpretations["planetary_positions"] = await self._interpret_planetary_positions(planets)
 
         # 2. Interpret Planetary Positions in Houses (if available)
-        # Assuming house data is part of the planetary_positions structure
-        if planetary_positions:
-             interpretations["house_positions"] = await self._interpret_house_positions(planetary_positions)
+        interpretations["house_positions"] = await self._interpret_house_positions(planets)
 
         # 3. Generate a summary
         interpretations["summary"] = await self._generate_summary(interpretations)
         
         return interpretations
+
+    def _extract_planets(self, prokerala_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Normalizes planet data from various possible shapes in the Prokerala API response.
+        """
+        if not isinstance(prokerala_data, dict):
+            return []
+
+        # Look for planet data under common keys, including nested within 'data'
+        possible_keys = ["planets", "planetary_positions", "planet_positions"]
+        raw_planets = None
+        for key in possible_keys:
+            if key in prokerala_data:
+                raw_planets = prokerala_data[key]
+                break
+        if not raw_planets and "data" in prokerala_data and isinstance(prokerala_data["data"], dict):
+            for key in possible_keys:
+                if key in prokerala_data["data"]:
+                    raw_planets = prokerala_data["data"][key]
+                    break
+        
+        if not raw_planets or not isinstance(raw_planets, list):
+            return []
+
+        normalized_planets = []
+        for planet_data in raw_planets:
+            if not isinstance(planet_data, dict):
+                continue
+            
+            # Normalize common key variations for name, sign, and house
+            name = planet_data.get("name") or planet_data.get("planet_name")
+            sign = planet_data.get("sign") or planet_data.get("sign_name")
+            house = planet_data.get("house") or planet_data.get("house_number")
+
+            if name and sign:
+                normalized_planets.append({
+                    "name": str(name),
+                    "sign": str(sign),
+                    "house": int(house) if house is not None else None
+                })
+        
+        if not normalized_planets:
+            logger.warning(f"Data found for planets, but failed to normalize. Raw data: {raw_planets}")
+
+        return normalized_planets
 
     async def _interpret_planetary_positions(self, planets: List[Dict[str, Any]]) -> Dict[str, str]:
         """

@@ -486,7 +486,8 @@ async def _get_personalized_services(user_id: str, db) -> list:
 
 from services.spiritual_calendar_service import SpiritualCalendarService
 from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
-from auth.jwt_config import JWTHandler
+from auth.jwt_config import get_user_email_from_token
+
 
 @router.get("/daily-wisdom")
 async def get_daily_wisdom(request: Request, db=Depends(get_db)):
@@ -494,7 +495,7 @@ async def get_daily_wisdom(request: Request, db=Depends(get_db)):
     Provides a personalized, RAG-powered "Daily Wisdom" quote for the user.
     """
     try:
-        user_email = JWTHandler.get_user_email_from_token(request)
+        user_email = get_user_email_from_token(request)
     except Exception:
         user_email = None
         

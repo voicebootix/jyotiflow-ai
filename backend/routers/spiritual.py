@@ -288,6 +288,14 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
     # --- GET RAG-POWERED INTERPRETATION ---
     interpretation_service = BirthChartInterpretationService()
     rag_interpretations = await interpretation_service.get_comprehensive_interpretation(chart_data)
+
+    # Add a guard for empty or incomplete interpretations
+    if not rag_interpretations or not rag_interpretations.get("summary"):
+        logger.warning(f"RAG interpretation failed or returned empty for user {user_email}. Full chart data will be returned without interpretation.")
+        # Optionally, you can add a user-facing note in the response
+        if "metadata" not in chart_data:
+            chart_data["metadata"] = {}
+        chart_data["metadata"]["interpretation_status"] = "Interpretation service is currently unavailable or could not process the data. Please try again later."
     
     # Enhanced response with metadata - NO MOCK DATA
     enhanced_response = {

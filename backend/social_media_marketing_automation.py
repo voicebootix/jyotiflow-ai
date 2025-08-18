@@ -8,7 +8,7 @@ import asyncio
 import random
 import logging
 from datetime import datetime, time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Annotated
 
 from pydantic import BaseModel, Field
 from fastapi import Depends
@@ -19,7 +19,7 @@ from core_foundation_enhanced import EnhancedSpiritualEngine, get_spiritual_engi
 from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
 from schemas.social_media import SocialPlatform, ContentType, ContentPlan
 from config.social_media_config import PLATFORM_CONFIGS, CONTENT_PROMPTS
-from services.spiritual_calendar_service import SpiritualCalendarService # IMPORT PUTHU SERVICE
+from services.spiritual_calendar_service import SpiritualCalendarService, get_spiritual_calendar_service
 import db
 
 # Initialize logger
@@ -155,7 +155,10 @@ class SocialMediaMarketingEngine:
 
         # Get the daily spiritual theme first
         daily_theme = await self.calendar_service.get_daily_spiritual_theme()
-        logger.info(f"📅 Today's spiritual theme is: {daily_theme['theme']}")
+        theme_name = daily_theme.get('theme', '<no theme>')
+        if theme_name == '<no theme>':
+            logger.warning("Daily spiritual theme missing 'theme' key. Using default.")
+        logger.info(f"📅 Today's spiritual theme is: {theme_name}")
 
         # Use asyncio.gather for concurrent plan generation
         tasks = [self._generate_platform_content_plan(platform, daily_theme) for platform in platforms_to_generate]
@@ -196,7 +199,7 @@ class SocialMediaMarketingEngine:
 def get_social_media_engine(
     spiritual_engine: EnhancedSpiritualEngine = Depends(get_spiritual_engine),
     avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
-    calendar_service: SpiritualCalendarService = Depends() # PUTHU DEPENDENCY
+    calendar_service: SpiritualCalendarService = Depends(get_spiritual_calendar_service)
 ) -> SocialMediaMarketingEngine:
     """
     Provides a singleton-like instance of the SocialMediaMarketingEngine
