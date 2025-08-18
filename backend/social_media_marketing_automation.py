@@ -8,7 +8,7 @@ import asyncio
 import random
 import logging
 from datetime import datetime, time
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Annotated
 
 from pydantic import BaseModel, Field
 from fastapi import Depends
@@ -19,6 +19,7 @@ from core_foundation_enhanced import EnhancedSpiritualEngine, get_spiritual_engi
 from spiritual_avatar_generation_engine import SpiritualAvatarGenerationEngine, get_avatar_engine
 from schemas.social_media import SocialPlatform, ContentType, ContentPlan
 from config.social_media_config import PLATFORM_CONFIGS, CONTENT_PROMPTS
+from services.spiritual_calendar_service import SpiritualCalendarService, get_spiritual_calendar_service
 import db
 
 # Initialize logger
@@ -32,26 +33,33 @@ class SocialMediaMarketingEngine:
     def __init__(
         self,
         spiritual_engine: EnhancedSpiritualEngine,
-        avatar_engine: SpiritualAvatarGenerationEngine
+        avatar_engine: SpiritualAvatarGenerationEngine,
+        calendar_service: SpiritualCalendarService  # PUTHU SERVICE-A SERKKA POREN
     ):
         self.spiritual_engine = spiritual_engine
         self.avatar_engine = avatar_engine
+        self.calendar_service = calendar_service  # SERTHAAYIRUCHU
         self.platform_configs = PLATFORM_CONFIGS
-        logger.info("🤖 Social Media Marketing Engine initialized.")
+        logger.info("🤖 Social Media Marketing Engine initialized with Spiritual Calendar.")
 
-    async def _generate_ai_content(self, platform: SocialPlatform, content_type: ContentType) -> Dict[str, Any]:
+    async def _generate_ai_content(self, platform: SocialPlatform, content_type: ContentType, daily_theme: Dict[str, Any]) -> Dict[str, Any]:
         """
         Generates AI-powered content for a specific platform and content type
-        using the spiritual engine and RAG system.
+        using the spiritual engine and RAG system, based on the daily spiritual theme.
         """
         try:
-            guidance_prompt = CONTENT_PROMPTS.get(content_type, "Provide general spiritual guidance.")
+            # Use the daily theme to create a specific prompt
+            theme_name = daily_theme.get("theme", "general spiritual guidance")
+            theme_description = daily_theme.get("description", "")
+            
+            guidance_prompt = f"Create a social media post about '{theme_name}'. The theme is about: {theme_description}. Provide wisdom, context, and maybe a short mantra or practice related to it."
             
             # Context for the RAG system
             guidance_context = {
                 "service_type": "daily_social_media_post",
                 "cultural_context": {"language": "en", "tradition": "vedic_philosophy"},
-                "platform": platform.value
+                "platform": platform.value,
+                "daily_theme": theme_name # Pass the theme to RAG
             }
             
             # Generate the core spiritual text using RAG
@@ -105,8 +113,8 @@ class SocialMediaMarketingEngine:
             "base_content": "Embrace the peace within and let your spirit soar."
         }
         
-    async def _generate_platform_content_plan(self, platform: SocialPlatform) -> List[ContentPlan]:
-        """Generates a content plan for a single platform for the day."""
+    async def _generate_platform_content_plan(self, platform: SocialPlatform, daily_theme: Dict[str, Any]) -> List[ContentPlan]:
+        """Generates a content plan for a single platform for the day based on the spiritual theme."""
         config = self.platform_configs.get(platform)
         if not config:
             return []
@@ -118,7 +126,7 @@ class SocialMediaMarketingEngine:
         for _ in range(num_posts):
             content_type = random.choice(config["content_types"])
             
-            ai_content = await self._generate_ai_content(platform, content_type)
+            ai_content = await self._generate_ai_content(platform, content_type, daily_theme)
             
             plan = ContentPlan(
                 platform=platform.value,
@@ -145,8 +153,15 @@ class SocialMediaMarketingEngine:
         daily_plan = {}
         platforms_to_generate = [p for p in SocialPlatform]
 
+        # Get the daily spiritual theme first
+        daily_theme = await self.calendar_service.get_daily_spiritual_theme()
+        theme_name = daily_theme.get('theme', '<no theme>')
+        if theme_name == '<no theme>':
+            logger.warning("Daily spiritual theme missing 'theme' key. Using default.")
+        logger.info(f"📅 Today's spiritual theme is: {theme_name}")
+
         # Use asyncio.gather for concurrent plan generation
-        tasks = [self._generate_platform_content_plan(platform) for platform in platforms_to_generate]
+        tasks = [self._generate_platform_content_plan(platform, daily_theme) for platform in platforms_to_generate]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         
         for platform, result in zip(platforms_to_generate, results):
@@ -183,12 +198,13 @@ class SocialMediaMarketingEngine:
 # The factory now accepts dependencies as arguments, which will be provided by FastAPI.
 def get_social_media_engine(
     spiritual_engine: EnhancedSpiritualEngine = Depends(get_spiritual_engine),
-    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine),
+    calendar_service: SpiritualCalendarService = Depends(get_spiritual_calendar_service)
 ) -> SocialMediaMarketingEngine:
     """
     Provides a singleton-like instance of the SocialMediaMarketingEngine
     by leveraging FastAPI's dependency caching.
     """
     # FastAPI caches the result of this for a single request, effectively making it a singleton per-request.
-    return SocialMediaMarketingEngine(spiritual_engine, avatar_engine)
+    return SocialMediaMarketingEngine(spiritual_engine, avatar_engine, calendar_service)
 
