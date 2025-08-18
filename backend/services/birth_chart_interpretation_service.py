@@ -12,7 +12,7 @@ import logging
 
 # Assuming the RAG engine can be accessed.
 # This might need to be passed in via dependency injection.
-from backend.enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
 
 logger = logging.getLogger(__name__)
 
