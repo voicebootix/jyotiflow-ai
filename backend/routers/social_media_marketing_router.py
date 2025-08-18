@@ -123,11 +123,16 @@ async def _store_calendar_content_in_db(calendar_items: list) -> None:
                     content_id = f"{item.platform.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{item.id}"
                     hashtags_str = ",".join(item.hashtags) if item.hashtags else "#jyotiflow,#spirituality"
                     
+                    # Extract title from content (first part before colon)
+                    title = item.content.split(':')[0].strip() if ':' in item.content else f"{item.platform} Daily Wisdom"
+                    title = title[:255]  # Ensure it fits VARCHAR(255)
+                    
                     await conn.execute("""
                         INSERT INTO social_content 
-                        (content_id, platform, content_type, content_text, hashtags, status, scheduled_at)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        (content_id, platform, content_type, title, content_text, hashtags, status, scheduled_at)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                         ON CONFLICT (content_id) DO UPDATE SET
+                        title = EXCLUDED.title,
                         content_text = EXCLUDED.content_text,
                         hashtags = EXCLUDED.hashtags,
                         status = EXCLUDED.status,
@@ -137,6 +142,7 @@ async def _store_calendar_content_in_db(calendar_items: list) -> None:
                     content_id,
                     item.platform,
                     getattr(item.content_type, "value", item.content_type) if item.content_type else "daily_wisdom", 
+                    title,
                     item.content,
                     hashtags_str,
                     getattr(item.status, "value", item.status),
@@ -307,10 +313,10 @@ async def get_content_calendar(
         
         # Apply filters
         filtered_data = calendar_items
-        if platform:
-            filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
-        if date:
-            filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
+    if platform:
+        filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+    if date:
+        filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
         
         # Store content in database for persistence
         try:
