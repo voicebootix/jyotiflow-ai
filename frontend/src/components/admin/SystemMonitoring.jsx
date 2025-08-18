@@ -71,6 +71,7 @@ const SystemMonitoring = () => {
     avatar_consultation: Video,
     daily_wisdom: Info,
   };
+  
 
   // Status color mapping
   const statusColors = {
