@@ -641,3 +641,434 @@ async def generate_daily_content(
     except Exception as e:
         logger.error(f"Error in daily content generation endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to generate daily content plan: {e}")
+
+
+    file_extension = MIME_TYPE_TO_EXTENSION.get(image.content_type, '.png')
+
+    file_name_in_bucket = f"public/swamiji_base_avatar{file_extension}"
+
+    try:
+
+        public_url = storage_service.upload_file(bucket_name="avatars", file_path_in_bucket=file_name_in_bucket, file=contents, content_type=image.content_type)
+
+        await conn.execute("INSERT INTO platform_settings (key, value) VALUES ('swamiji_avatar_url', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()", json.dumps(public_url))
+
+        return StandardResponse(success=True, message="Image uploaded successfully.", data={"image_url": public_url})
+
+    except Exception as e:
+
+        logger.error(f"Swamiji image upload failed: {e}", exc_info=True)
+
+        raise HTTPException(status_code=500, detail=f"Failed to save uploaded file: {e}")
+
+
+
+class UploadPreviewRequest(BaseModel):
+
+    image_base64: str
+
+    filename: str
+
+
+
+@social_marketing_router.post("/upload-preview-image", response_model=StandardResponse)
+
+async def upload_preview_image(
+
+    request: UploadPreviewRequest,
+
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+
+    storage_service: SupabaseStorageService = Depends(get_storage_service)
+
+):
+
+    """
+
+    Uploads a Base64 encoded preview image to storage and returns the public URL.
+
+    Handles potential double-encoding and validates payload.
+
+    """
+
+    try:
+
+        # Pre-flight size check to prevent decoding massive payloads
+
+        # Estimate decoded size: floor(len(s) * 3 / 4) - padding
+
+        padding = request.image_base64.count('=')
+
+        decoded_size_estimate = (len(request.image_base64) * 3 // 4) - padding
+
+        if decoded_size_estimate > MAX_FILE_SIZE:
+
+            raise HTTPException(status_code=400, detail="Estimated payload size exceeds limit.")
+
+
+
+        image_data = None
+
+        try:
+
+            image_data = base64.b64decode(request.image_base64, validate=True)
+
+        except (ValueError, binascii.Error):
+
+            raise HTTPException(status_code=400, detail="Invalid base64 payload.")
+
+
+
+        # Detect and handle common double-encoding case (result is still base64 text)
+
+        try:
+
+            if image_data.isascii() and all(c in b'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=' for c in image_data):
+
+                logger.warning("Potential double-encoding detected. Attempting second decode.")
+
+                image_data = base64.b64decode(image_data, validate=True)
+
+        except (ValueError, binascii.Error):
+
+            raise HTTPException(status_code=400, detail="Invalid double-encoded base64 payload.")
+
+        
+
+        if len(image_data) > MAX_FILE_SIZE:
+
+            raise HTTPException(status_code=400, detail="Final payload size exceeds limit.")
+
+
+
+        unique_filename = f"preview_{uuid.uuid4()}.png"
+
+        file_path_in_bucket = f"previews/{unique_filename}"
+
+        
+
+        public_url = storage_service.upload_file(
+
+            bucket_name="avatars",
+
+            file_path_in_bucket=file_path_in_bucket,
+
+            file=image_data,
+
+            content_type="image/png"  # We know it's PNG from our conversion
+
+        )
+
+        
+
+        logger.info(f"✅ Successfully uploaded preview image to {public_url}")
+
+        return StandardResponse(success=True, data={"image_url": public_url}, message="Preview image uploaded successfully.")
+
+        
+
+    except Exception as e:
+
+        logger.error(f"Failed to upload preview image: {e}", exc_info=True)
+
+        raise HTTPException(status_code=500, detail="Failed to upload preview image.")
+
+
+
+
+
+class ImagePreviewRequest(BaseModel):
+
+    custom_prompt: str = Field(..., description="The theme prompt for image generation.")
+
+    target_platform: Optional[str] = Field(None, description="Target platform for aspect ratio (e.g., 'instagram_story', 'facebook_post').")
+
+
+
+async def get_admin_or_test_bypass(request: Request):
+
+    """
+
+    🔒 SECURE ADMIN AUTHENTICATION WITH CONTROLLED TESTING BYPASS
+
+    
+
+    Production: Full admin authentication enforced (secure)
+
+    Development/Testing: TESTING_MODE=true enables bypass with validation
+
+    
+
+    ⚠️  DEPLOYMENT WARNING: Remove TESTING_MODE from production environment!
+
+    🔍 Security logging: All bypass usage is logged for audit trails
+
+    """
+
+    testing_mode = os.getenv("TESTING_MODE", "").lower()
+
+    environment = os.getenv("ENVIRONMENT", "production").lower()
+
+    
+
+    # Environment validation - only allow bypass in non-production environments
+
+    if testing_mode == "true":
+
+        # Security check: Prevent bypass in production environment
+
+        if environment in ["production", "prod"]:
+
+            logger.warning(
+
+                "🚨 SECURITY ALERT: TESTING_MODE bypass attempted in production environment. "
+
+                "Falling back to full authentication. Remove TESTING_MODE from production!"
+
+            )
+
+        else:
+
+            # Log bypass usage for security audit trail
+
+            logger.warning(
+
+                f"🔓 AUTH BYPASS ACTIVATED: Using TESTING_MODE in {environment} environment. "
+
+                f"This should NEVER happen in production. Timestamp: {datetime.now()}"
+
+            )
+
+            return {"email": "test@admin.com", "role": "admin", "id": 1, "bypass_used": True}
+
+    
+
+    # Default: Full admin authentication (production-safe)
+
+    return AuthenticationHelper.verify_admin_access_strict(request)
+
+
+
+@social_marketing_router.post("/generate-image-preview")
+
+async def generate_image_preview(
+
+    request: ImagePreviewRequest, 
+
+    admin_user: dict = Depends(get_admin_or_test_bypass),  # Secure + testable
+
+    theme_service: ThemeService = Depends(get_theme_service),
+
+    conn: asyncpg.Connection = Depends(get_db)
+
+):
+
+    try:
+
+        # 1. Get the theme prompt directly from the request
+
+        theme_prompt = request.custom_prompt
+
+        if not theme_prompt:
+
+            raise HTTPException(status_code=400, detail="A theme prompt is required.")
+
+
+
+        # 2. Get the reference avatar URL from database
+
+        record = await conn.fetchrow("SELECT value FROM platform_settings WHERE key = 'swamiji_avatar_url'")
+
+        if not record or not record['value']:
+
+            raise HTTPException(status_code=404, detail="Master Swamiji avatar URL not found in settings. Please set a master avatar first.")
+
+        
+
+        reference_avatar_url = json.loads(record['value'])
+
+
+
+        # 3. Call the new, simplified theme service
+
+        image_bytes, mime_type = await theme_service.generate_themed_image_bytes(
+
+            theme_prompt=theme_prompt, 
+
+            reference_avatar_url=reference_avatar_url,
+
+            target_platform=request.target_platform
+
+        )
+
+        
+
+        if not image_bytes:
+
+            raise HTTPException(status_code=500, detail="Failed to generate image from the theme service.")
+
+
+
+        # 4. Compute hash and prepare response (adapted from existing logic)
+
+        generated_hash_full = hashlib.sha256(image_bytes).hexdigest()
+
+        generated_hash_short = generated_hash_full[:16]
+
+        image_diff = "unknown"
+
+        base_hash_short = None
+
+
+
+        # try:
+
+        #     base_image_bytes = await get_storage_service().download_public_file_bytes("avatars", "public/swamiji_base_avatar.png")
+
+        #     if base_image_bytes:
+
+        #         base_hash_full = hashlib.sha256(base_image_bytes).hexdigest()
+
+        #         base_hash_short = base_hash_full[:16]
+
+        #         image_diff = "different" if generated_hash_full != base_hash_full else "same"
+
+        #         logger.info(f"Image diff check successful. Base hash: {base_hash_short}, Generated hash: {generated_hash_short}")
+
+        # except Exception as diff_err:
+
+        #     logger.warning(f"Could not compute base image hash for diff check: {diff_err}")
+
+
+
+        encoded_image = base64.b64encode(image_bytes).decode("utf-8")
+
+        
+
+        import re
+
+        clean_prompt = re.sub(r'[^\x20-\x7E]', ' ', theme_prompt)
+
+        clean_prompt = ' '.join(clean_prompt.split()).strip()[:500]
+
+        if not clean_prompt:
+
+            clean_prompt = "Generated image preview"
+
+        
+
+        headers = {
+
+            "X-Generated-Prompt": clean_prompt,
+
+            "X-Image-Diff": image_diff,
+
+            "X-Generated-Hash": generated_hash_short,
+
+            **({"X-Base-Hash": base_hash_short} if base_hash_short else {}),
+
+            "Access-Control-Expose-Headers": "X-Generated-Prompt, X-Image-Diff, X-Generated-Hash, X-Base-Hash",
+
+            "Cache-Control": "no-cache, no-store, must-revalidate",
+
+            "Pragma": "no-cache",
+
+            "Expires": "0",
+
+        }
+
+        return Response(content=encoded_image, media_type=mime_type, headers=headers)
+
+    except ValueError as e:
+
+        logger.warning(f"⚠️  VALIDATION ERROR in image preview generation: {e}")
+
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    except Exception as e:
+
+        logger.error(f"Image preview generation failed: {e}", exc_info=True)
+
+        if isinstance(e, HTTPException): raise e
+
+        raise HTTPException(status_code=500, detail=f"Error generating image preview: {e}") from e
+
+
+
+class VideoFromPreviewRequest(BaseModel):
+
+    image_url: str
+
+    sample_text: str
+
+    voice_id: str
+
+
+
+@social_marketing_router.post("/generate-video-from-preview", response_model=StandardResponse)
+
+async def generate_video_from_preview(
+
+    request: VideoFromPreviewRequest, admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+
+    avatar_engine: SpiritualAvatarGenerationEngine = Depends(get_avatar_engine)
+
+):
+
+    try:
+
+        result = await avatar_engine.generate_avatar_preview_lightweight(
+
+            guidance_text=request.sample_text, voice_id=request.voice_id, source_image_url=request.image_url
+
+        )
+
+        if result.get("success"):
+
+            return StandardResponse(success=True, message="Avatar video generated successfully.", data=result)
+
+        else:
+
+            raise HTTPException(status_code=500, detail=result.get("error", "Failed to generate video."))
+
+    except Exception as e:
+
+        logger.error(f"Video generation from preview failed: {e}", exc_info=True)
+
+        if isinstance(e, HTTPException): raise e
+
+        raise HTTPException(status_code=500, detail=f"Error generating video from preview: {e}") from e
+
+
+
+@social_marketing_router.post("/generate-daily-content", response_model=StandardResponse)
+
+async def generate_daily_content(
+
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
+
+    social_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine),
+
+    conn: asyncpg.Connection = Depends(get_db)
+
+):
+
+    try:
+
+        daily_plan = await social_engine.generate_daily_content_plan()
+
+        await social_engine._store_content_plan_in_db(daily_plan, conn)
+
+        summary = {p: f"{len(posts)} posts planned" for p, posts in daily_plan.items()}
+
+        serializable_plan = {p: [post.dict() for post in posts] for p, posts in daily_plan.items()}
+
+        return StandardResponse(success=True, message="Daily content plan generated.", data={"plan_summary": summary, "full_plan": serializable_plan})
+
+    except Exception as e:
+
+        logger.error(f"Error in daily content generation endpoint: {e}", exc_info=True)
+
+        raise HTTPException(status_code=500, detail=f"Failed to generate daily content plan: {e}")
+
+
