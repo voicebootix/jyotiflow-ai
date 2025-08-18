@@ -8,7 +8,7 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 
 import logging
 import os
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, Callable, TypeVar, Any
 import hashlib
 import httpx
 import uuid
@@ -17,8 +17,10 @@ from datetime import datetime, timedelta, date
 import asyncio
 import base64 # Added for base64 encoding of image bytes
 import binascii # Added for base64 decoding errors
+import inspect
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Request
+from fastapi.dependencies.utils import get_dependant, solve_dependencies
 from pydantic import BaseModel, Field
 import asyncpg
 
@@ -102,6 +104,48 @@ except ImportError as e:
 
 
 logger = logging.getLogger(__name__)
+
+# Helper function to resolve FastAPI dependencies manually
+async def _resolve_dependency_via_fastapi(request: Request, call: Callable) -> Any:
+    """
+    Resolves FastAPI dependencies manually for a given callable.
+    Used when we need to call dependency-injected functions outside of FastAPI context.
+    """
+    try:
+        # Get the dependency information
+        dependant = get_dependant(path="", call=call)
+        
+        # Solve the dependencies
+        values, errors, _, _, _ = await solve_dependencies(
+            request=request,
+            dependant=dependant
+        )
+        
+        if errors:
+            error_details = [str(error) for error in errors]
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Dependency resolution failed: {', '.join(error_details)}"
+            )
+        
+        # Call the function with resolved dependencies
+        result = call(**values)
+        
+        # Await if it's a coroutine
+        if inspect.iscoroutine(result):
+            result = await result
+            
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving dependency for {call.__name__}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to resolve dependency: {str(e)}"
+        )
+
 social_marketing_router = APIRouter(
     prefix="/api/admin/social-marketing",
     tags=["Social Media Marketing", "Admin"]
@@ -123,11 +167,58 @@ async def get_marketing_overview(admin_user: dict = Depends(AuthenticationHelper
 
 @social_marketing_router.get("/content-calendar", response_model=StandardResponse)
 async def get_content_calendar(
+    request: Request,
     date: Optional[str] = None, platform: Optional[str] = None,
-    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict),
-    marketing_engine: SocialMediaMarketingEngine = Depends(get_social_media_engine)
+    admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
+    # Check if automation engine is available
+    if not AUTOMATION_ENGINE_AVAILABLE:
+        logger.warning("Social Media Automation Engine not available, using enhanced fallback data")
+        # Enhanced fallback data with spiritual themes
+        try:
+            from services.spiritual_calendar_service import SpiritualCalendarService
+            calendar_service = SpiritualCalendarService()
+            daily_theme = await calendar_service.get_daily_spiritual_theme()
+            theme_name = daily_theme.get('theme', 'Spiritual Guidance')
+            theme_description = daily_theme.get('description', 'Daily spiritual wisdom')
+        except Exception:
+            theme_name = "Spiritual Guidance"
+            theme_description = "Daily spiritual wisdom"
+        
+        # Generate enhanced fallback content
+        platforms = ["Facebook", "Instagram", "Twitter", "YouTube", "TikTok"]
+        calendar_items = []
+        
+        for i, platform_name in enumerate(platforms):
+            calendar_item = ContentCalendarItem(
+                id=i + 1,
+                date=datetime.now().date(),
+                platform=platform_name,
+                content=f"{theme_name}: {theme_description[:80]}...",
+                status=ContentStatus.DRAFT,
+                content_type="daily_wisdom",
+                hashtags=[f"#{theme_name.replace(' ', '').lower()}", "#jyotiflow", "#spirituality"],
+                scheduled_time=None
+            )
+            calendar_items.append(calendar_item)
+        
+        # Apply filters
+        filtered_data = calendar_items
+        if platform:
+            filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+        if date:
+            filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
+        
+        return StandardResponse(
+            success=True, 
+            data={"calendar": filtered_data}, 
+            message=f"Content calendar retrieved with enhanced fallback data ({len(filtered_data)} items)."
+        )
+    
     try:
+        # Get marketing engine instance via dependency resolution
+        marketing_engine = await _resolve_dependency_via_fastapi(request, get_social_media_engine)
+        
         # Generate daily content plan using the marketing engine
         daily_plan = await marketing_engine.generate_daily_content_plan()
         
@@ -174,12 +265,12 @@ async def get_content_calendar(
         
     except Exception as e:
         logger.error(f"Error generating content calendar: {e}", exc_info=True)
-        # Fallback to mock data if generation fails
+        # Final fallback to basic mock data
         fallback_data = [
             ContentCalendarItem(id=1, date=datetime.now().date(), platform="Facebook", content="Daily spiritual wisdom", status=ContentStatus.DRAFT),
             ContentCalendarItem(id=2, date=datetime.now().date(), platform="Instagram", content="Mindfulness quote", status=ContentStatus.DRAFT),
         ]
-        return StandardResponse(success=True, data={"calendar": fallback_data}, message="Content calendar retrieved with fallback data.")
+        return StandardResponse(success=True, data={"calendar": fallback_data}, message="Content calendar retrieved with basic fallback data.")
 
 @social_marketing_router.get("/campaigns", response_model=StandardResponse)
 async def get_campaigns(
