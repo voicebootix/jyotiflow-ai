@@ -40,12 +40,36 @@ const SystemMonitoring = () => {
 
   // Integration icons mapping
   const integrationIcons = {
+    // Core Services
     prokerala: Database,
     rag_knowledge: Brain,
     openai_guidance: Brain,
     elevenlabs_voice: Mic,
     did_avatar: Video,
     social_media: Share2,
+
+    // Platform Integrations
+    facebook: Share2,
+    instagram: Share2,
+    youtube: Video,
+    tiktok: Video,
+    twitter: Share2,
+    linkedin: Share2,
+
+    // API Services
+    openai: Brain,
+    elevenlabs: Mic,
+    did: Video,
+    stripe: Database,
+    sendgrid: Database,
+    twilio: Database,
+
+    // Service Types
+    comprehensive_reading: Brain,
+    birth_chart_analysis: BarChart3,
+    spiritual_guidance: Search,
+    avatar_consultation: Video,
+    daily_wisdom: Info,
   };
 
   // Status color mapping
@@ -53,6 +77,11 @@ const SystemMonitoring = () => {
     healthy: "text-green-600 bg-green-100",
     degraded: "text-yellow-600 bg-yellow-100",
     critical: "text-red-600 bg-red-100",
+    not_configured: "text-orange-600 bg-orange-100",
+    partial: "text-yellow-600 bg-yellow-100",
+    unused: "text-blue-600 bg-blue-100",
+    disabled: "text-gray-600 bg-gray-100",
+    low_usage: "text-yellow-600 bg-yellow-100",
     unknown: "text-gray-600 bg-gray-100",
   };
 
@@ -112,6 +141,12 @@ const SystemMonitoring = () => {
 
       // Handle StandardResponse format - extract data and normalize structure
       if (response && response.success && response.data) {
+        console.log("🔍 Raw system_health:", response.data.system_health);
+        console.log(
+          "🔍 Raw integration_points:",
+          response.data.system_health?.integration_points
+        );
+
         const normalizedData = {
           ...response.data,
           status: response.data.system_health?.system_status || "healthy",
@@ -123,10 +158,21 @@ const SystemMonitoring = () => {
           },
         };
         console.log("✅ Normalized monitoring data:", normalizedData);
+        console.log(
+          "🎯 Final integrations object:",
+          normalizedData.integrations
+        );
+        console.log(
+          "📊 Integration count:",
+          Object.keys(normalizedData.integrations).length
+        );
         setMonitoringData(normalizedData);
       } else {
-        // Fallback for direct response format
+        // Fallback for direct response format - check if direct format has integrations
         console.log("📋 Using direct response format");
+        if (response?.integrations) {
+          console.log("🎯 Direct format integrations:", response.integrations);
+        }
         setMonitoringData(response);
       }
       setLoading(false);
@@ -314,91 +360,156 @@ const SystemMonitoring = () => {
 
         {expandedSections.integrations && (
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-4">
-            {Object.entries(monitoringData?.integrations || {}).map(
-              ([key, data]) => {
-                // Safety check for data structure
-                if (!data || typeof data !== "object") {
-                  console.warn(`Invalid integration data for ${key}:`, data);
-                  return null;
-                }
+            {(() => {
+              console.log("🔧 Rendering integrations section");
+              console.log(
+                "🔧 monitoringData?.integrations:",
+                monitoringData?.integrations
+              );
+              const entries = Object.entries(
+                monitoringData?.integrations || {}
+              );
+              console.log("🔧 Integration entries:", entries);
+              return entries;
+            })().map(([key, data]) => {
+              console.log(`🔧 Processing integration: ${key}`, data);
 
-                const Icon = integrationIcons[key] || Activity;
-                const statusClass =
-                  statusColors[data.status] || statusColors.unknown;
+              // Safety check for data structure
+              if (!data || typeof data !== "object") {
+                console.warn(`❌ Invalid integration data for ${key}:`, data);
+                return null;
+              }
 
-                return (
-                  <div
-                    key={key}
-                    className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <Icon className="text-purple-600" size={20} />
-                        <span className="font-medium capitalize">
-                          {key.replace("_", " ")}
-                        </span>
-                      </div>
-                      <span
-                        className={`px-2 py-1 rounded-full text-xs ${statusClass}`}
-                      >
-                        {data.status || "unknown"}
+              const Icon = integrationIcons[key] || Activity;
+              const statusClass =
+                statusColors[data.status] || statusColors.unknown;
+
+              return (
+                <div
+                  key={key}
+                  className="border rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center space-x-2">
+                      <Icon className="text-purple-600" size={20} />
+                      <span className="font-medium capitalize">
+                        {key.replace("_", " ")}
                       </span>
                     </div>
+                    <span
+                      className={`px-2 py-1 rounded-full text-xs ${statusClass}`}
+                    >
+                      {data.status || "unknown"}
+                    </span>
+                  </div>
 
-                    {/* Integration-specific details */}
-                    <div className="text-sm text-gray-600 space-y-1">
-                      {data.latency_ms && (
+                  {/* Integration-specific details */}
+                  <div className="text-sm text-gray-600 space-y-1">
+                    {/* Integration Type */}
+                    {data.type && (
+                      <div className="flex items-center justify-between">
+                        <span>Type:</span>
+                        <span className="font-medium capitalize">
+                          {data.type}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Configuration Status for Platform Integrations */}
+                    {data.type === "platform" && (
+                      <div className="flex items-center justify-between">
+                        <span>Configured:</span>
+                        <span
+                          className={`font-medium ${
+                            data.configured ? "text-green-600" : "text-red-600"
+                          }`}
+                        >
+                          {data.configured ? "✓" : "✗"}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Usage Count for Service Integrations */}
+                    {data.type === "service" &&
+                      data.usage_count !== undefined && (
                         <div className="flex items-center justify-between">
-                          <span>Latency:</span>
-                          <span className="font-mono">
-                            {formatLatency(data.latency_ms)}
-                          </span>
+                          <span>Usage (30d):</span>
+                          <span className="font-mono">{data.usage_count}</span>
                         </div>
                       )}
 
-                      {key === "rag_knowledge" && data.relevance_avg && (
+                    {/* Success Rate */}
+                    {data.success_rate !== undefined &&
+                      data.success_rate > 0 && (
                         <div className="flex items-center justify-between">
-                          <span>Relevance:</span>
+                          <span>Success Rate:</span>
                           <span
                             className={`font-mono ${
-                              data.relevance_avg < 65
-                                ? "text-red-600"
-                                : "text-green-600"
+                              data.success_rate >= 90
+                                ? "text-green-600"
+                                : data.success_rate >= 70
+                                ? "text-yellow-600"
+                                : "text-red-600"
                             }`}
                           >
-                            {data.relevance_avg.toFixed(1)}%
+                            {data.success_rate}%
                           </span>
                         </div>
                       )}
 
-                      {key === "social_media" && data.platforms && (
-                        <div className="mt-2 space-y-1">
-                          {Object.entries(data.platforms).map(
-                            ([platform, status]) => (
-                              <div
-                                key={platform}
-                                className="flex items-center justify-between text-xs"
-                              >
-                                <span className="capitalize">{platform}:</span>
-                                <span
-                                  className={
-                                    status === "healthy"
-                                      ? "text-green-600"
-                                      : "text-red-600"
-                                  }
-                                >
-                                  {status === "healthy" ? "✓" : "✗"}
-                                </span>
-                              </div>
-                            )
-                          )}
+                    {/* Response Time */}
+                    {data.latency_ms && data.latency_ms > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span>Latency:</span>
+                        <span className="font-mono">
+                          {formatLatency(data.latency_ms)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Total Validations */}
+                    {data.total_validations !== undefined &&
+                      data.total_validations > 0 && (
+                        <div className="flex items-center justify-between">
+                          <span>Validations (24h):</span>
+                          <span className="font-mono">
+                            {data.total_validations}
+                          </span>
                         </div>
                       )}
-                    </div>
+
+                    {/* Last Used/Updated */}
+                    {data.last_used && (
+                      <div className="flex items-center justify-between">
+                        <span>Last Used:</span>
+                        <span className="font-mono text-xs">
+                          {formatTimestamp(data.last_used)}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Status-specific information */}
+                    {data.status === "not_configured" && (
+                      <div className="mt-2 p-2 bg-yellow-50 rounded text-xs text-yellow-700">
+                        ⚠️ Integration not configured. Check platform settings.
+                      </div>
+                    )}
+
+                    {data.status === "unused" && (
+                      <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                        ℹ️ Service enabled but not used recently.
+                      </div>
+                    )}
+
+                    {data.status === "disabled" && (
+                      <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-700">
+                        🔒 Service is disabled.
+                      </div>
+                    )}
                   </div>
-                );
-              }
-            )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
