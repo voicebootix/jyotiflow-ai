@@ -128,14 +128,18 @@ async def _store_calendar_content_in_db(calendar_items: list) -> None:
                         (content_id, platform, content_type, content_text, hashtags, status, scheduled_at)
                         VALUES ($1, $2, $3, $4, $5, $6, $7)
                         ON CONFLICT (content_id) DO UPDATE SET
-                        content_text = $4, hashtags = $5, status = $6
+                        content_text = EXCLUDED.content_text,
+                        hashtags = EXCLUDED.hashtags,
+                        status = EXCLUDED.status,
+                        scheduled_at = EXCLUDED.scheduled_at,
+                        content_type = EXCLUDED.content_type
                     """, 
                     content_id,
                     item.platform,
-                    item.content_type or "daily_wisdom", 
+                    getattr(item.content_type, "value", item.content_type) if item.content_type else "daily_wisdom", 
                     item.content,
                     hashtags_str,
-                    item.status,
+                    getattr(item.status, "value", item.status),
                     item.scheduled_time
                     )
                 except Exception as e:
