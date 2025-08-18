@@ -8,7 +8,7 @@ This file follows CORE.MD and REFRESH.MD principles for quality and maintainabil
 
 import logging
 import os
-from typing import Optional, AsyncGenerator
+from typing import Optional, AsyncGenerator, Callable, TypeVar, Any
 import hashlib
 import httpx
 import uuid
@@ -17,8 +17,10 @@ from datetime import datetime, timedelta, date
 import asyncio
 import base64 # Added for base64 encoding of image bytes
 import binascii # Added for base64 decoding errors
+import inspect
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Response, Request
+from fastapi.dependencies.utils import get_dependant, solve_dependencies
 from pydantic import BaseModel, Field
 import asyncpg
 
@@ -102,6 +104,48 @@ except ImportError as e:
 
 
 logger = logging.getLogger(__name__)
+
+# Helper function to resolve FastAPI dependencies manually
+async def _resolve_dependency_via_fastapi(request: Request, call: Callable) -> Any:
+    """
+    Resolves FastAPI dependencies manually for a given callable.
+    Used when we need to call dependency-injected functions outside of FastAPI context.
+    """
+    try:
+        # Get the dependency information
+        dependant = get_dependant(path="", call=call)
+        
+        # Solve the dependencies
+        values, errors, _, _, _ = await solve_dependencies(
+            request=request,
+            dependant=dependant
+        )
+        
+        if errors:
+            error_details = [str(error) for error in errors]
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Dependency resolution failed: {', '.join(error_details)}"
+            )
+        
+        # Call the function with resolved dependencies
+        result = call(**values)
+        
+        # Await if it's a coroutine
+        if inspect.iscoroutine(result):
+            result = await result
+            
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error resolving dependency for {call.__name__}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Failed to resolve dependency: {str(e)}"
+        )
+
 social_marketing_router = APIRouter(
     prefix="/api/admin/social-marketing",
     tags=["Social Media Marketing", "Admin"]
@@ -123,6 +167,7 @@ async def get_marketing_overview(admin_user: dict = Depends(AuthenticationHelper
 
 @social_marketing_router.get("/content-calendar", response_model=StandardResponse)
 async def get_content_calendar(
+    request: Request,
     date: Optional[str] = None, platform: Optional[str] = None,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
@@ -144,11 +189,11 @@ async def get_content_calendar(
         platforms = ["Facebook", "Instagram", "Twitter", "YouTube", "TikTok"]
         calendar_items = []
         
-        for i, platform in enumerate(platforms):
+        for i, platform_name in enumerate(platforms):
             calendar_item = ContentCalendarItem(
                 id=i + 1,
                 date=datetime.now().date(),
-                platform=platform,
+                platform=platform_name,
                 content=f"{theme_name}: {theme_description[:80]}...",
                 status=ContentStatus.DRAFT,
                 content_type="daily_wisdom",
@@ -171,8 +216,8 @@ async def get_content_calendar(
         )
     
     try:
-        # Get marketing engine instance
-        marketing_engine = get_social_media_engine()
+        # Get marketing engine instance via dependency resolution
+        marketing_engine = await _resolve_dependency_via_fastapi(request, get_social_media_engine)
         
         # Generate daily content plan using the marketing engine
         daily_plan = await marketing_engine.generate_daily_content_plan()
