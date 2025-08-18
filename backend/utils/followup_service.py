@@ -39,6 +39,8 @@ except ImportError:
     def send_push_notification(to: str, content: str):
         pass
 
+from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance # IMPORT PUTHU RAG FUNCTION
+
 logger = logging.getLogger(__name__)
 
 class FollowUpService:
@@ -276,48 +278,78 @@ class FollowUpService:
             await self._mark_followup_failed(followup_id, str(e))
     
     async def _prepare_message_content(self, template: Dict, user: Dict, followup: Dict) -> tuple:
-        """Prepare message content with variable substitution"""
+        """
+        Prepare message content with variable substitution and RAG-powered dynamic insights.
+        """
         try:
-            # Get session details if available
+            rag_guidance = ""
             session_data = {}
+            
+            # 1. Get session details if available
             if followup.get('session_id'):
                 session = await self._get_session_by_id(followup['session_id'])
                 if session:
                     session_data = {
                         'session_date': session['created_at'].strftime('%Y-%m-%d'),
                         'service_type': session.get('service_type', 'Unknown'),
-                        'guidance_summary': session.get('guidance', '')[:100] + '...' if len(session.get('guidance', '')) > 100 else session.get('guidance', '')
+                        'original_question': session.get('question', ''),
+                        'guidance_summary': session.get('result_summary', '')[:150] + '...' if session.get('result_summary') else ''
                     }
-            
-            # Prepare variables for substitution
+
+                    # 2. Query RAG for a fresh, contextual follow-up tip
+                    if session_data['original_question']:
+                        rag_query = f"""
+                        A user previously had a session about: '{session_data['original_question']}'.
+                        The summary of the guidance they received was: '{session_data['guidance_summary']}'.
+                        Please provide a new, very short (1-2 sentences) and compassionate follow-up tip or a piece of wisdom from Swamiji's perspective that builds upon their original question. Do not repeat the previous guidance.
+                        """
+                        try:
+                            rag_response = await get_rag_enhanced_guidance(
+                                user_query=rag_query,
+                                birth_details=None, # Not needed for a follow-up tip
+                                service_type="follow_up_wisdom"
+                            )
+                            rag_guidance = rag_response.get("enhanced_guidance", "")
+                        except Exception as rag_error:
+                            logger.error(f"RAG query for follow-up failed: {rag_error}")
+                            rag_guidance = "" # Fallback to empty string if RAG fails
+
+            # 3. Prepare variables for substitution
             variables = {
-                'user_name': user.get('name', user.get('full_name', 'User')),
+                'user_name': user.get('name', user.get('full_name', 'Divine Soul')),
                 'user_email': user['email'],
+                'rag_wisdom': rag_guidance, # Add the new RAG wisdom
                 **session_data
             }
             
-            # Get content based on user's preferred language
+            # 4. Get content based on user's preferred language
             user_language = user.get('preferred_language', 'en')
             
             if user_language == 'ta' and template.get('tamil_content'):
                 content = template['tamil_content']
-                subject = template.get('tamil_subject', template.get('subject', 'Follow-up'))
+                subject = template.get('tamil_subject', template.get('subject', 'A Message from Swamiji'))
             else:
-                content = template.get('content', 'Thank you for using JyotiFlow!')
-                subject = template.get('subject', 'Follow-up')
+                content = template.get('content', 'Thank you for your session with JyotiFlow!')
+                subject = template.get('subject', 'A Message from Swamiji')
             
-            # Substitute variables
+            # Add a placeholder for RAG wisdom in the template if it doesn't exist
+            if '{{rag_wisdom}}' not in content and rag_guidance:
+                content += "\n\nHere is a little more wisdom for your journey:\n{{rag_wisdom}}"
+
+            # 5. Substitute variables
             for var_name, var_value in variables.items():
                 placeholder = f"{{{{{var_name}}}}}"
-                content = content.replace(placeholder, str(var_value))
-                subject = subject.replace(placeholder, str(var_value))
+                # Ensure var_value is a string before replacing
+                content = content.replace(placeholder, str(var_value or ''))
+                subject = subject.replace(placeholder, str(var_value or ''))
             
             return subject, content
             
         except Exception as e:
-            logger.error(f"Failed to prepare message content: {e}")
-            return template.get('subject', 'Follow-up'), template.get('content', 'Thank you for using JyotiFlow!')
-    
+            logger.error(f"Failed to prepare message content: {e}", exc_info=True)
+            # Fallback to a simple, non-personalized message
+            return "A Message from Swamiji", f"Vanakkam {user.get('name', 'Divine Soul')},\n\nWe hope you are finding peace and clarity on your spiritual path. Remember to apply the wisdom from your recent session in your daily life.\n\nBlessings,\nSwami Jyotirananthan"
+
     async def _send_message(self, channel: str, to: str, subject: str, content: str) -> bool:
         """Send message through specified channel"""
         try:

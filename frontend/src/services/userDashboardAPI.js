@@ -494,6 +494,29 @@ class UserDashboardAPI {
   async refreshDashboard() {
     return await this.getDashboardData();
   }
+  
+  /**
+   * Get personalized daily wisdom quote from the RAG engine
+   */
+  async getDailyWisdom() {
+    try {
+      const response = await spiritualAPI.request('/api/user/daily-wisdom');
+      
+      if (response && response.success) {
+        return response.daily_wisdom;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[UserDashboard] Error fetching daily wisdom:', error);
+      // Return a graceful fallback quote
+      return {
+        quote: "Find peace in the present moment. Your spiritual journey unfolds one breath at a time.",
+        theme: "General Blessings",
+        date: new Date().toISOString().split('T')[0]
+      };
+    }
+  }
 }
 
 export default new UserDashboardAPI();

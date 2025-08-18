@@ -26,6 +26,7 @@ const Profile = () => {
   const [sessionAnalytics, setSessionAnalytics] = useState(null);
   const [spiritualProgress, setSpiritualProgress] = useState(null);
   const [cosmicInsights, setCosmicInsights] = useState(null);
+  const [dailyWisdom, setDailyWisdom] = useState(null); // PUTHU STATE
   const navigate = useNavigate();
 
   // Real-time refresh state
@@ -181,6 +182,10 @@ const Profile = () => {
         const community = await userDashboardAPI.getCommunityParticipation();
         setDashboardData(prev => ({ ...prev, community }));
         
+        // Load Daily Wisdom
+        const wisdom = await userDashboardAPI.getDailyWisdom();
+        setDailyWisdom(wisdom);
+        
       } else {
         // Fallback to individual API calls
         console.log('Dashboard API unavailable, using fallback...');
@@ -240,6 +245,10 @@ const Profile = () => {
         if (packagesResult && packagesResult.success) {
           setCreditPackages(packagesResult.packages || []);
         }
+
+        // Load Daily Wisdom (also in fallback)
+        const wisdom = await userDashboardAPI.getDailyWisdom();
+        setDailyWisdom(wisdom);
       }
       
       setServicesLoading(false);
@@ -619,6 +628,21 @@ const Profile = () => {
                     <div className="text-sm text-gray-200 font-medium">
                       Next milestone: {spiritualProgress.next_milestone || 5} sessions
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Daily Wisdom Widget */}
+              {dailyWisdom && (
+                <div className="sacred-card p-8 bg-gradient-to-r from-yellow-500 to-orange-500">
+                  <div className="text-center text-white">
+                    <div className="text-5xl mb-4">"</div>
+                    <h2 className="text-2xl font-semibold italic mb-2">
+                      {dailyWisdom.quote}
+                    </h2>
+                    <p className="opacity-80 font-medium">
+                      ~ Today's Wisdom on {dailyWisdom.theme} ~
+                    </p>
                   </div>
                 </div>
               )}

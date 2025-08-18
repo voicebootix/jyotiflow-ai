@@ -12,6 +12,7 @@ import json
 import asyncpg
 from db import db_manager
 from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
+from services.birth_chart_interpretation_service import BirthChartInterpretationService # IMPORT PUTHU SERVICE
 try:
     from services.prokerala_service import ProkeralaService
 except ImportError:
@@ -284,11 +285,16 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
     if not chart_data:
         raise HTTPException(status_code=503, detail="No birth chart data received from Prokerala API")
     
+    # --- GET RAG-POWERED INTERPRETATION ---
+    interpretation_service = BirthChartInterpretationService()
+    rag_interpretations = await interpretation_service.get_comprehensive_interpretation(chart_data)
+    
     # Enhanced response with metadata - NO MOCK DATA
     enhanced_response = {
         "success": True,
         "birth_chart": {
             **chart_data,
+            "rag_interpretations": rag_interpretations, # RAG VILAKKANGALAI SERKKA POREN
             "metadata": {
                 "generated_at": datetime.now().isoformat(),
                 "birth_details": {
@@ -302,7 +308,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                 "ayanamsa": "Lahiri",
                 "data_source": "Prokerala API v2/astrology/birth-details + chart endpoints",
                 "chart_visualization_available": bool(chart_data.get("chart_visualization")),
-                "note": "Real astrological data from Prokerala API with enhanced chart visualization support",
+                "note": "Real astrological data from Prokerala API with enhanced chart visualization and RAG-powered interpretations.",
                 "cache_hit": False
             }
         }

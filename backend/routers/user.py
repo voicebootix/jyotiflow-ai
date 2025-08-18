@@ -483,3 +483,55 @@ async def _get_personalized_services(user_id: str, db) -> list:
     except Exception as e:
         logger.error(f"Error getting personalized services: {e}")
         return []
+
+from services.spiritual_calendar_service import SpiritualCalendarService
+from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+from auth.jwt_config import JWTHandler
+
+@router.get("/daily-wisdom")
+async def get_daily_wisdom(request: Request, db=Depends(get_db)):
+    """
+    Provides a personalized, RAG-powered "Daily Wisdom" quote for the user.
+    """
+    try:
+        user_email = JWTHandler.get_user_email_from_token(request)
+    except Exception:
+        user_email = None
+        
+    if not user_email:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    try:
+        # 1. Get user profile to understand their level
+        user_data = await db.fetchrow("SELECT spiritual_level FROM users WHERE email = $1", user_email)
+        spiritual_level = user_data['spiritual_level'] if user_data and user_data['spiritual_level'] else 'beginner'
+
+        # 2. Get today's spiritual theme
+        calendar_service = SpiritualCalendarService()
+        daily_theme = await calendar_service.get_daily_spiritual_theme()
+        theme_name = daily_theme.get("theme", "general well-being")
+
+        # 3. Construct a query for the RAG engine
+        rag_query = f"I am a '{spiritual_level}' on my spiritual journey. Today's spiritual theme is '{theme_name}'. Please provide me with a short, compassionate, and inspiring 'Daily Wisdom' quote (1-2 sentences) from the perspective of a wise Swamiji that is suitable for my level and today's theme."
+
+        # 4. Call the RAG engine
+        rag_response = await get_rag_enhanced_guidance(
+            user_query=rag_query,
+            birth_details=None, # Not needed for this query
+            service_type="daily_wisdom"
+        )
+
+        wisdom_quote = rag_response.get("enhanced_guidance", "Embrace the peace within and let your spirit soar. The universe is always guiding you towards your true path.")
+
+        return {
+            "success": True,
+            "daily_wisdom": {
+                "quote": wisdom_quote,
+                "theme": theme_name,
+                "date": daily_theme.get("date")
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to generate Daily Wisdom for {user_email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not generate your daily wisdom at this time.")
