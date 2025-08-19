@@ -1460,8 +1460,14 @@ class TestExecutionEngine:
                 logger.info(f"Mapping legacy suite name '{suite_name}' to '{mapped_name}' (from database)")
                 return mapped_name
             else:
-                logger.warning(f"No mapping found for suite name '{suite_name}' in database")
-                return suite_name
+                # ✅ FALLBACK MAPPING: Handle critical suites when database mapping is missing  
+                # Following .cursor rules: Database-driven with fallbacks for known suites
+                if suite_name == 'api':
+                    logger.info(f"Using fallback mapping: 'api' -> 'api_endpoints'")
+                    return 'api_endpoints'
+                else:
+                    logger.warning(f"No mapping found for suite name '{suite_name}' in database")
+                    return suite_name
 
         except Exception as e:
             logger.error(f"Could not resolve suite name mapping from database: {e}")
@@ -1586,10 +1592,19 @@ class TestExecutionEngine:
                         # Following .cursor rules: Use direct access for known attributes
                         return await generator.generate_integration_tests()
                 else:
-                    logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
-                    # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
-                    # Following .cursor rules: Use direct access for known attributes
-                    return await generator.generate_integration_tests()
+                    # ✅ FALLBACK MAPPING: Handle critical suites when database config is missing
+                    # Following .cursor rules: Database-driven with fallbacks for known suites
+                    if suite_name == 'api_endpoints' and hasattr(generator, 'generate_api_endpoint_tests'):
+                        logger.info(f"Using fallback mapping for 'api_endpoints' -> 'generate_api_endpoint_tests'")
+                        return await generator.generate_api_endpoint_tests()
+                    elif suite_name == 'api' and hasattr(generator, 'generate_api_endpoint_tests'):
+                        logger.info(f"Using fallback mapping for 'api' -> 'generate_api_endpoint_tests'")
+                        return await generator.generate_api_endpoint_tests()
+                    else:
+                        logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                        # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                        # Following .cursor rules: Use direct access for known attributes
+                        return await generator.generate_integration_tests()
 
             finally:
                 await conn.close()
