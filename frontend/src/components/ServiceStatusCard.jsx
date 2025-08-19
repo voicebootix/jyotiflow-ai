@@ -299,47 +299,6 @@ const ServiceStatusCard = ({
                 </div>
               </div>
             )}
-
-            {/* Show API endpoint test results */}
-            {(testType === "api" || testType === "api_endpoints") &&
-              lastResult.results && (
-                <div className="mt-2">
-                  <div className="text-xs font-medium text-gray-700 mb-1">
-                    Tested 4 API endpoints:
-                  </div>
-                  <div className="text-xs text-gray-600 space-y-1">
-                    {Object.entries(lastResult.results).map(
-                      ([testName, result], i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between"
-                        >
-                          <span className="truncate">
-                            {result.http_status_code === 200
-                              ? "✅"
-                              : result.http_status_code === 401
-                              ? "🔒"
-                              : result.http_status_code === 422
-                              ? "⚠️"
-                              : result.http_status_code === 500
-                              ? "❌"
-                              : result.http_status_code
-                              ? "❌"
-                              : "⏳"}
-                            {testName
-                              .replace("test_", "")
-                              .replace("_endpoint", "")
-                              .replace("_", " ")}
-                          </span>
-                          <span className="text-gray-500 ml-2">
-                            {result.http_status_code || "..."}
-                          </span>
-                        </div>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
           </div>
         )}
 
