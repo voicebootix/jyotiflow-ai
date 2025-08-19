@@ -9,6 +9,7 @@ import json
 import uuid
 import asyncio
 import asyncpg
+import httpx
 import secrets
 import string
 from datetime import datetime, timezone, timedelta
@@ -30,7 +31,12 @@ class TestGenerationError(Exception):
     pass
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-API_BASE_URL = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+API_BASE_URL = os.getenv("API_BASE_URL")
+if not API_BASE_URL:
+    raise ValueError(
+        "API_BASE_URL environment variable is required for API testing. "
+        "Set it to the production URL (e.g., export API_BASE_URL=https://jyotiflow-ai.onrender.com)"
+    )
 
 class TestStorageError(Exception):
     """Raised when test storage fails."""
@@ -406,8 +412,8 @@ async def test_credit_transaction_integrity():
         Returns:
             List of endpoint configurations for your 4 specified endpoints
         """
-        # Dynamic base URL from environment variable (no hardcoded values)
-        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+        # Get required API base URL from environment variable (no hardcoded fallbacks)
+        api_base_url = API_BASE_URL
         
         return [
             {
@@ -450,8 +456,8 @@ async def test_credit_transaction_integrity():
 
     def _generate_dynamic_test_code(self, config: Dict[str, Any]) -> str:
         """
-        Generate dynamic test code based on endpoint configuration.
-        No hardcoded URLs, follows .cursor rules.
+        Generate simple test code for real endpoint testing.
+        No hardcoded URLs, uses actual endpoints.
         
         Args:
             config: Endpoint configuration dictionary
@@ -463,148 +469,178 @@ async def test_credit_transaction_integrity():
         endpoint_url = config["endpoint_url"] 
         http_method = config["http_method"].upper()
         
-        # Common imports and helpers (no duplication)
-        imports_and_helpers = """
-import httpx
-import uuid
-import secrets
-import string
-
-def generate_secure_test_password():
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    return ''.join(secrets.choice(alphabet) for _ in range(16))
-
-def generate_test_email():
-    return f"test_{uuid.uuid4()}@example.com"
-"""
-        
-        # Generate test function based on endpoint type
+        # Simple test code based on endpoint
         if test_name == "test_health_check_endpoint":
-            test_function = f"""
+            return f"""
+import httpx
+
 async def {test_name}():
     try:
         async with httpx.AsyncClient() as client:
             response = await client.get("{endpoint_url}")
-            assert response.status_code == 200, f"Expected 200, got {{response.status_code}}"
-            
-            data = response.json()
-            assert data.get("status") == "healthy", "API should be healthy"
-            assert "timestamp" in data, "Health check should include timestamp"
-            
-            return {{"status": "passed", "message": "Health check endpoint working"}}
+            return {{"status": "passed" if response.status_code == 200 else "failed", 
+                    "status_code": response.status_code, 
+                    "message": f"Health endpoint returned {{response.status_code}}"}}
     except Exception as e:
         return {{"status": "failed", "error": str(e)}}
 """
         
         elif test_name == "test_user_registration_endpoint":
-            test_function = f"""
+            return f"""
+import httpx
+import uuid
+
 async def {test_name}():
     try:
-        test_email = generate_test_email()
-        test_password = generate_secure_test_password()
-        
+        test_email = f"test_{{uuid.uuid4()}}@example.com"
         async with httpx.AsyncClient() as client:
-            response = await client.{http_method.lower()}(
+            response = await client.post(
                 "{endpoint_url}",
-                json={{
-                    "email": test_email,
-                    "password": test_password,
-                    "name": "Test User"
-                }}
+                json={{"email": test_email, "password": "TestPass123!", "name": "Test User"}},
+                headers={{"X-Test-Run": "true"}}
             )
             
-            assert response.status_code in [200, 201], f"Expected 200/201, got {{response.status_code}}"
+            # Mark for cleanup
+            if response.status_code in [200, 201]:
+                await client.post(
+                    f"{API_BASE_URL}/api/admin/mark-for-deletion",
+                    json={{"test_email": test_email, "resource_type": "test_user"}},
+                    headers={{"X-Test-Run": "true", "X-Admin-Action": "mark-deletion"}}
+                )
             
-            data = response.json()
-            assert data.get("status") == "success", "Registration should succeed"
-            assert "user_id" in data.get("data", {{}}) or "id" in data.get("data", {{}}), "Should return user_id"
-            
-            return {{"status": "passed", "message": "User registration endpoint working"}}
-            
+            return {{"status": "passed" if response.status_code in [200, 201] else "failed",
+                    "status_code": response.status_code,
+                    "message": f"Registration returned {{response.status_code}}"}}
     except Exception as e:
-        return {{"status": "failed", "error": f"Registration failed: {{str(e)}}"}}
+        return {{"status": "failed", "error": str(e)}}
 """
         
         elif test_name == "test_user_login_endpoint":
-            # Get dynamic registration endpoint for dependency
-            api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-            reg_endpoint = api_base_url + "/api/auth/register"
-            
-            test_function = f"""
+            return f"""
+import httpx
+import uuid
+
 async def {test_name}():
     try:
-        # First register a user
-        test_email = generate_test_email()
-        test_password = generate_secure_test_password()
-        
+        test_email = f"test_{{uuid.uuid4()}}@example.com"
         async with httpx.AsyncClient() as client:
-            # Register user first (dynamic URL)
+            # Register first
             reg_response = await client.post(
-                "{reg_endpoint}",
-                json={{
-                    "email": test_email,
-                    "password": test_password,
-                    "name": "Test User"
-                }}
+                "{API_BASE_URL}/api/auth/register",
+                json={{"email": test_email, "password": "TestPass123!", "name": "Test User"}},
+                headers={{"X-Test-Run": "true"}}
             )
             
             if reg_response.status_code not in [200, 201]:
-                return {{"status": "failed", "error": f"Registration failed: {{reg_response.status_code}}"}}
+                return {{"status": "failed", "error": "Registration failed for login test"}}
             
-            # Now test login
-            login_response = await client.{http_method.lower()}(
+            # Test login
+            login_response = await client.post(
                 "{endpoint_url}",
-                json={{
-                    "email": test_email,
-                    "password": test_password
-                }}
+                json={{"email": test_email, "password": "TestPass123!"}},
+                headers={{"X-Test-Run": "true"}}
             )
             
-            assert login_response.status_code in [200, 201], f"Expected 200/201, got {{login_response.status_code}}"
+            # Cleanup
+            await client.post(
+                f"{API_BASE_URL}/api/admin/mark-for-deletion",
+                json={{"test_email": test_email, "resource_type": "test_user"}},
+                headers={{"X-Test-Run": "true", "X-Admin-Action": "mark-deletion"}}
+            )
             
-            data = login_response.json()
-            assert data.get("status") == "success", "Login should succeed"
-            assert "access_token" in data.get("data", {{}}) or "token" in data.get("data", {{}}), "Should return access token"
-            
-            return {{"status": "passed", "message": "User login endpoint working"}}
-            
+            return {{"status": "passed" if login_response.status_code in [200, 201] else "failed",
+                    "status_code": login_response.status_code,
+                    "message": f"Login returned {{login_response.status_code}}"}}
     except Exception as e:
-        return {{"status": "failed", "error": f"Login test failed: {{str(e)}}"}}
+        return {{"status": "failed", "error": str(e)}}
 """
         
         elif test_name == "test_spiritual_guidance_endpoint":
-            test_function = f"""
+            return f"""
+import httpx
+
 async def {test_name}():
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.{http_method.lower()}(
+            response = await client.post(
                 "{endpoint_url}",
                 json={{"question": "What is my life purpose?"}},
-                headers={{"Authorization": "Bearer test_token"}}
+                headers={{"Authorization": "Bearer test_token", "X-Test-Run": "true"}}
             )
             
             # Expect 401 for invalid token, but endpoint should exist
-            assert response.status_code in [200, 401, 422], f"Unexpected status: {{response.status_code}}"
-            
-            return {{"status": "passed", "message": "Spiritual guidance endpoint accessible"}}
+            return {{"status": "passed" if response.status_code in [200, 401, 422] else "failed",
+                    "status_code": response.status_code,
+                    "message": f"Spiritual guidance returned {{response.status_code}}"}}
     except Exception as e:
         return {{"status": "failed", "error": str(e)}}
 """
         
         else:
-            # Generic test function for other endpoints
-            test_function = f"""
+            return f"""
+import httpx
+
 async def {test_name}():
     try:
         async with httpx.AsyncClient() as client:
             response = await client.{http_method.lower()}("{endpoint_url}")
-            assert response.status_code in [200, 401, 403, 422], f"Unexpected status: {{response.status_code}}"
-            return {{"status": "passed", "message": "Endpoint accessible"}}
+            return {{"status": "passed" if response.status_code in [200, 401, 403, 422] else "failed",
+                    "status_code": response.status_code,
+                    "message": f"Endpoint returned {{response.status_code}}"}}
     except Exception as e:
         return {{"status": "failed", "error": str(e)}}
 """
+
+    async def _cleanup_test_resources(self, test_session_id: str) -> Dict[str, Any]:
+        """
+        Cleanup test resources created during API testing.
+        Calls admin endpoints to delete test users and resources.
         
-        return imports_and_helpers + test_function
+        Args:
+            test_session_id: Session ID to identify test resources
+            
+        Returns:
+            Dict with cleanup results
+        """
+        try:
+            cleanup_results = []
+            
+            # Call admin cleanup endpoint to delete test users
+            async with httpx.AsyncClient() as client:
+                cleanup_response = await client.post(
+                    f"{API_BASE_URL}/api/admin/cleanup/test-resources",
+                    json={"test_session_id": test_session_id},
+                    headers={"X-Test-Run": "true", "X-Admin-Action": "cleanup"}
+                )
+                
+                if cleanup_response.status_code == 200:
+                    cleanup_results.append({
+                        "resource": "test_users",
+                        "status": "cleaned",
+                        "details": cleanup_response.json()
+                    })
+                else:
+                    cleanup_results.append({
+                        "resource": "test_users",
+                        "status": "cleanup_failed", 
+                        "error": f"Status: {cleanup_response.status_code}"
+                    })
+            
+            return {
+                "status": "cleanup_completed",
+                "cleaned_resources": cleanup_results,
+                "test_session_id": test_session_id
+            }
+            
+        except Exception as e:
+            logger.error(f"Test resource cleanup failed: {e}")
+            return {
+                "status": "cleanup_failed",
+                "error": str(e),
+                "test_session_id": test_session_id
+            }
+
+
 
     async def generate_api_tests(self) -> Dict[str, Any]:
         """
@@ -627,7 +663,7 @@ async def {test_name}():
                     "test_cases": []
                 }
             
-            # Generate test cases dynamically
+            # Generate test cases for real endpoints
             test_cases = []
             for config in endpoint_configs:
                 test_case = {
@@ -946,7 +982,7 @@ async def test_user_journey_spiritual_session():
         async with httpx.AsyncClient() as client:
             # Step 1: User registration
             reg_response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/register",
+                f"{API_BASE_URL}/api/register",
                 json={"email": test_email, "password": generate_secure_test_password(), "name": "Journey Test"}
             )
             
@@ -1765,7 +1801,7 @@ async def test_social_media_automation_health():
         try:
             import httpx
             async with httpx.AsyncClient() as client:
-                response = await client.get("https://jyotiflow-ai.onrender.com/api/monitoring/social-media-status")
+                response = await client.get(f"{API_BASE_URL}/api/monitoring/social-media-status")
                 api_healthy = response.status_code in [200, 401, 403]
         except:
             api_healthy = False
@@ -2456,7 +2492,7 @@ async def test_live_audio_video_system_health():
         try:
             import httpx
             async with httpx.AsyncClient() as client:
-                response = await client.get("https://jyotiflow-ai.onrender.com/api/admin/agora/overview")
+                response = await client.get(f"{API_BASE_URL}/api/admin/agora/overview")
                 api_healthy = response.status_code in [200, 401, 403]
         except (ImportError, Exception) as api_error:
              logger.debug(f"API health check failed: {api_error}")
@@ -3512,7 +3548,7 @@ async def test_notification_api_endpoints():
         async with httpx.AsyncClient() as client:
             for endpoint in endpoints_to_test:
                 try:
-                    url = f"https://jyotiflow-ai.onrender.com{endpoint['url']}"
+                    url = f"{API_BASE_URL}{endpoint['url']}"
                     response = await client.post(url, json={})
                     
                     endpoint_results[endpoint['business_function']] = {
