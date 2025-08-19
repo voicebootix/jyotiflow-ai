@@ -39,7 +39,7 @@ except ImportError:
     def send_push_notification(to: str, content: str):
         pass
 
-from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance # IMPORT PUTHU RAG FUNCTION
+# RAG system import moved to runtime to avoid startup dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -304,12 +304,18 @@ class FollowUpService:
                         Please provide a new, very short (1-2 sentences) and compassionate follow-up tip or a piece of wisdom from Swamiji's perspective that builds upon their original question. Do not repeat the previous guidance.
                         """
                         try:
+                            # Runtime import of RAG function
+                            from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+                            
                             rag_response = await get_rag_enhanced_guidance(
                                 user_query=rag_query,
                                 birth_details=None, # Not needed for a follow-up tip
                                 service_type="follow_up_wisdom"
                             )
                             rag_guidance = rag_response.get("enhanced_guidance", "")
+                        except ImportError as import_error:
+                            logger.warning(f"RAG system not available for follow-up: {import_error}")
+                            rag_guidance = "" # Fallback to empty string if RAG not available
                         except Exception as rag_error:
                             logger.error(f"RAG query for follow-up failed: {rag_error}")
                             rag_guidance = "" # Fallback to empty string if RAG fails

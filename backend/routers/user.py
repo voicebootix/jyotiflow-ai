@@ -485,7 +485,7 @@ async def _get_personalized_services(user_id: str, db) -> list:
         return []
 
 from services.spiritual_calendar_service import SpiritualCalendarService
-from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+# RAG system import moved to runtime to avoid startup dependencies
 from auth.jwt_config import get_user_email_from_token
 
 
@@ -515,14 +515,22 @@ async def get_daily_wisdom(request: Request, db=Depends(get_db)):
         # 3. Construct a query for the RAG engine
         rag_query = f"I am a '{spiritual_level}' on my spiritual journey. Today's spiritual theme is '{theme_name}'. Please provide me with a short, compassionate, and inspiring 'Daily Wisdom' quote (1-2 sentences) from the perspective of a wise Swamiji that is suitable for my level and today's theme."
 
-        # 4. Call the RAG engine
-        rag_response = await get_rag_enhanced_guidance(
-            user_query=rag_query,
-            birth_details=None, # Not needed for this query
-            service_type="daily_wisdom"
-        )
-
-        wisdom_quote = rag_response.get("enhanced_guidance", "Embrace the peace within and let your spirit soar. The universe is always guiding you towards your true path.")
+        # 4. Call the RAG engine with runtime import
+        try:
+            from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            
+            rag_response = await get_rag_enhanced_guidance(
+                user_query=rag_query,
+                birth_details=None, # Not needed for this query
+                service_type="daily_wisdom"
+            )
+            wisdom_quote = rag_response.get("enhanced_guidance", "Embrace the peace within and let your spirit soar. The universe is always guiding you towards your true path.")
+        except ImportError:
+            logger.warning("RAG system not available for daily wisdom")
+            wisdom_quote = "Embrace the peace within and let your spirit soar. The universe is always guiding you towards your true path."
+        except Exception as e:
+            logger.error(f"RAG query for daily wisdom failed: {e}")
+            wisdom_quote = "Embrace the peace within and let your spirit soar. The universe is always guiding you towards your true path."
 
         return {
             "success": True,

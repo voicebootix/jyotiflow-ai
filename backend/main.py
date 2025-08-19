@@ -268,6 +268,22 @@ async def lifespan(app: FastAPI):
         print("✅ Database connection pool initialized successfully!")
         print("📊 Pool configuration: connections ready for use")
         
+        # Initialize RAG Knowledge Engine System
+        try:
+            from .enhanced_rag_knowledge_engine import initialize_rag_system
+            openai_api_key = os.getenv("OPENAI_API_KEY")
+            if openai_api_key:
+                await initialize_rag_system(db_pool, openai_api_key)
+                print("✅ RAG Knowledge Engine initialized successfully!")
+                print("🧠 Dynamic spiritual content generation enabled")
+            else:
+                print("⚠️ OpenAI API key not found - RAG system disabled")
+                print("   → Spiritual content will use fallback themes")
+        except Exception as rag_error:
+            print(f"⚠️ Failed to initialize RAG system: {rag_error}")
+            print("   → Will fallback to hardcoded spiritual themes")
+            print("   → App will continue normally with reduced functionality")
+        
         # Initialize monitoring system if available - Enhanced error handling
         if MONITORING_AVAILABLE:
             try:

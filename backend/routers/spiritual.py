@@ -390,7 +390,7 @@ async def get_spiritual_guidance(request: Request):
 
         # Try to use RAG system first
         try:
-            from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
             
             logger.info("🤖 Using RAG system for enhanced guidance")
             rag_response = await get_rag_enhanced_guidance(

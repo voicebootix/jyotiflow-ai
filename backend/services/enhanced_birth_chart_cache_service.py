@@ -20,13 +20,6 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-# Import existing RAG engine
-try:
-    from enhanced_rag_knowledge_engine import RAGKnowledgeEngine, KnowledgeQuery
-    RAG_AVAILABLE = True
-except ImportError:
-    RAG_AVAILABLE = False
-
 logger = logging.getLogger(__name__)
 
 class ProkeralaPDFProcessor:
