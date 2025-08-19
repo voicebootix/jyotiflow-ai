@@ -270,7 +270,7 @@ async def lifespan(app: FastAPI):
         
         # Initialize RAG Knowledge Engine System
         try:
-            from backend.enhanced_rag_knowledge_engine import initialize_rag_system
+            from .enhanced_rag_knowledge_engine import initialize_rag_system
             openai_api_key = os.getenv("OPENAI_API_KEY")
             if openai_api_key:
                 await initialize_rag_system(db_pool, openai_api_key)
