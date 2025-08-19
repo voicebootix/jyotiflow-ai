@@ -224,9 +224,70 @@ async def get_content_calendar(
     date: Optional[str] = None, platform: Optional[str] = None,
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
-    # Check if automation engine is available
-    if not AUTOMATION_ENGINE_AVAILABLE:
-        logger.warning("Social Media Automation Engine not available, using enhanced fallback data")
+    try:
+        # Check if automation engine is available
+        if not AUTOMATION_ENGINE_AVAILABLE:
+            logger.warning("Social Media Automation Engine not available, using enhanced fallback data")
+            raise Exception("Automation engine not available")
+            
+        # Get marketing engine instance via dependency resolution
+        marketing_engine = await _resolve_dependency_via_fastapi(request, get_social_media_engine)
+        
+        # Generate daily content plan using the marketing engine
+        daily_plan = await marketing_engine.generate_daily_content_plan()
+        
+        # Convert content plans to calendar items
+        calendar_items = []
+        item_id = 1
+        
+        for platform_name, content_plans in daily_plan.items():
+            for plan in content_plans:
+                # Determine status and date based on scheduled_time
+                scheduled_time = plan.scheduled_time if hasattr(plan, 'scheduled_time') else None
+                if scheduled_time:
+                    status = ContentStatus.SCHEDULED
+                    item_date = scheduled_time.date()
+                else:
+                    status = ContentStatus.DRAFT
+                    item_date = datetime.now().date()
+                
+                calendar_item = ContentCalendarItem(
+                    id=item_id,
+                    date=item_date,
+                    platform=platform_name.title(),
+                    content=f"{plan.title}: {plan.description[:100]}..." if len(plan.description) > 100 else f"{plan.title}: {plan.description}",
+                    status=status,
+                    content_type=plan.content_type if hasattr(plan, 'content_type') else None,
+                    hashtags=plan.hashtags if hasattr(plan, 'hashtags') else None,
+                    scheduled_time=scheduled_time
+                )
+                calendar_items.append(calendar_item)
+                item_id += 1
+        
+        # Apply filters
+        filtered_data = calendar_items
+        if platform:
+            filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+        if date:
+            filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
+        
+        # Store content in database for persistence
+        try:
+            await _store_calendar_content_in_db(filtered_data)
+            storage_message = " Content stored in database."
+        except Exception as e:
+            logger.error(f"Failed to store calendar content: {e}")
+            storage_message = " (Storage failed)"
+        
+        return StandardResponse(
+            success=True, 
+            data={"calendar": filtered_data}, 
+            message=f"Content calendar retrieved successfully with {len(filtered_data)} items.{storage_message}"
+        )
+        
+    except Exception as e:
+        logger.error(f"Error generating content calendar: {e}", exc_info=True)
+        
         # Enhanced fallback data with spiritual themes
         try:
             from services.spiritual_calendar_service import SpiritualCalendarService
@@ -275,71 +336,6 @@ async def get_content_calendar(
             data={"calendar": filtered_data}, 
             message=f"Content calendar retrieved with enhanced fallback data ({len(filtered_data)} items).{storage_message}"
         )
-    
-    try:
-        # Get marketing engine instance via dependency resolution
-        marketing_engine = await _resolve_dependency_via_fastapi(request, get_social_media_engine)
-        
-        # Generate daily content plan using the marketing engine
-        daily_plan = await marketing_engine.generate_daily_content_plan()
-        
-        # Convert content plans to calendar items
-        calendar_items = []
-        item_id = 1
-        
-        for platform_name, content_plans in daily_plan.items():
-            for plan in content_plans:
-                # Determine status and date based on scheduled_time
-                scheduled_time = plan.scheduled_time if hasattr(plan, 'scheduled_time') else None
-                if scheduled_time:
-                    status = ContentStatus.SCHEDULED
-                    item_date = scheduled_time.date()
-                else:
-                    status = ContentStatus.DRAFT
-                    item_date = datetime.now().date()
-                
-                calendar_item = ContentCalendarItem(
-                    id=item_id,
-                    date=item_date,
-                    platform=platform_name.title(),
-                    content=f"{plan.title}: {plan.description[:100]}..." if len(plan.description) > 100 else f"{plan.title}: {plan.description}",
-                    status=status,
-                    content_type=plan.content_type if hasattr(plan, 'content_type') else None,
-                    hashtags=plan.hashtags if hasattr(plan, 'hashtags') else None,
-                    scheduled_time=scheduled_time
-                )
-                calendar_items.append(calendar_item)
-                item_id += 1
-        
-        # Apply filters
-        filtered_data = calendar_items
-    if platform:
-        filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
-    if date:
-        filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
-        
-        # Store content in database for persistence
-        try:
-            await _store_calendar_content_in_db(filtered_data)
-            storage_message = " Content stored in database."
-        except Exception as e:
-            logger.error(f"Failed to store calendar content: {e}")
-            storage_message = " (Storage failed)"
-        
-        return StandardResponse(
-            success=True, 
-            data={"calendar": filtered_data}, 
-            message=f"Content calendar retrieved successfully with {len(filtered_data)} items.{storage_message}"
-        )
-        
-    except Exception as e:
-        logger.error(f"Error generating content calendar: {e}", exc_info=True)
-        # Final fallback to basic mock data
-        fallback_data = [
-            ContentCalendarItem(id=1, date=datetime.now().date(), platform="Facebook", content="Daily spiritual wisdom", status=ContentStatus.DRAFT),
-            ContentCalendarItem(id=2, date=datetime.now().date(), platform="Instagram", content="Mindfulness quote", status=ContentStatus.DRAFT),
-        ]
-        return StandardResponse(success=True, data={"calendar": fallback_data}, message="Content calendar retrieved with basic fallback data.")
 
 @social_marketing_router.get("/campaigns", response_model=StandardResponse)
 async def get_campaigns(
