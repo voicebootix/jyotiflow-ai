@@ -20,12 +20,8 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-# Import existing RAG engine
-try:
-    from enhanced_rag_knowledge_engine import RAGKnowledgeEngine, KnowledgeQuery
-    RAG_AVAILABLE = True
-except ImportError:
-    RAG_AVAILABLE = False
+# RAG system imports moved to runtime to avoid startup dependencies
+RAG_AVAILABLE = None  # Unknown until runtime check
 
 logger = logging.getLogger(__name__)
 

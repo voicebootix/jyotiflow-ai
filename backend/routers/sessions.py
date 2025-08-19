@@ -256,7 +256,7 @@ async def start_session(request: Request, session_data: Dict[str, Any], db=Depen
     
     try:
         # Import and use the RAG-enhanced spiritual guidance system
-        from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+        from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
         
         # Get enhanced guidance with RAG + Prokerala integration
         rag_result = await get_rag_enhanced_guidance(
