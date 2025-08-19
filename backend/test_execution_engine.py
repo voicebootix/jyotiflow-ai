@@ -943,7 +943,9 @@ class TestExecutionEngine:
     async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> str:
         """Create a new test execution session with dynamic parameters."""
         if not self.database_url:
-            return str(uuid.uuid4())
+            session_id = str(uuid.uuid4())
+            logger.error(f"❌ DATABASE_URL not set - session {session_id} will NOT be stored in database!")
+            return session_id
         session_id = str(uuid.uuid4())
         # ✅ SQL INJECTION PREVENTION: Whitelist of allowed column names
         # Following .cursor rules: No dynamic SQL construction from user input
@@ -991,12 +993,15 @@ class TestExecutionEngine:
             conn = await asyncpg.connect(self.database_url)
             try:
                 await conn.execute(query, *values)
+                logger.info(f"✅ Successfully created test session: {session_id} in database")
             finally:
                 await conn.close()
         except Exception as e:
-            logger.error(f"Failed to create test session in database: {e}")
-            logger.error(f"Query: {query}")
-            logger.error(f"Values: {values}")
+            logger.error("❌ FAILED to create test session in database", exc_info=e)
+            logger.error("   Session ID: %s | Test Type: %s | Test Category: %s", 
+                        session_id, test_type, test_category)
+            logger.debug("   Query: %s", query)
+            logger.debug("   Values: <redacted> (%d values)", len(values))
             # Don't return the session_id if creation failed - return None to indicate failure
             return None
         return session_id
@@ -1037,11 +1042,11 @@ class TestExecutionEngine:
                 await conn.execute(query, *params)
             except Exception as inner_e:
                 # Handle execution errors while ensuring connection cleanup
-                logger.warning(f"Could not execute update query: {inner_e}")
+                logger.warning("Could not execute update query", exc_info=inner_e)
                 raise  # Re-raise to be caught by outer except
                 
         except Exception as e:
-            logger.warning(f"Could not update test session: {e}")
+            logger.warning("Could not update test session", exc_info=e)
         finally:
             # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
             # Following .cursor rules: Safe resource cleanup, no errors on failed connections
@@ -1052,6 +1057,7 @@ class TestExecutionEngine:
     async def _store_test_result(self, session_id: str, test_case: Dict[str, Any], result: Dict[str, Any]):
         """Store individual test result with fixed column whitelist for security."""
         if not self.database_url:
+            logger.error("❌ DATABASE_URL not set - test results will NOT be stored in database!")
             return
 
         # ✅ SECURITY FIX: Fixed whitelist of allowed columns to prevent SQL injection
@@ -1109,11 +1115,19 @@ class TestExecutionEngine:
                 await conn.execute(query, *values)
             except Exception as inner_e:
                 # Handle execution errors while ensuring connection cleanup
-                logger.warning(f"Could not execute test result insert: {inner_e}")
-                raise  # Re-raise to be caught by outer  except
+                logger.warning("Could not execute test result insert", exc_info=inner_e)
+                raise  # Re-raise to be caught by outer except
                 
         except Exception as e:
-            logger.warning(f"Could not store test result: {e}")
+            logger.error("❌ FAILED to store test result in database", exc_info=e)
+            logger.error("   Test: %s | Session ID: %s | DB Connected: %s", 
+                        test_case.get('test_name', 'unknown'), 
+                        session_id,
+                        'Yes' if self.database_url else 'No')
+            logger.debug("   Result data: <redacted> (%d bytes)", len(str(result)))
+        else:
+            # Log successful storage
+            logger.info(f"✅ Successfully stored test result: {test_case.get('test_name', 'unknown')} in database")
         finally:
             # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
             # Following .cursor rules: Safe resource cleanup, no errors on failed connections
