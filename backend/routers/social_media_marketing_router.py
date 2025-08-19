@@ -129,11 +129,11 @@ async def _store_calendar_content_in_db(calendar_items: list) -> None:
                     
                     await conn.execute("""
                         INSERT INTO social_content 
-                        (content_id, platform, content_type, title, content_text, hashtags, status, scheduled_at)
+                        (content_id, platform, content_type, title, content, hashtags, status, scheduled_at)
                         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                         ON CONFLICT (content_id) DO UPDATE SET
                         title = EXCLUDED.title,
-                        content_text = EXCLUDED.content_text,
+                        content = EXCLUDED.content,
                         hashtags = EXCLUDED.hashtags,
                         status = EXCLUDED.status,
                         scheduled_at = EXCLUDED.scheduled_at,
