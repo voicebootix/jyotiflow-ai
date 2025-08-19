@@ -270,7 +270,7 @@ async def lifespan(app: FastAPI):
         
         # Initialize RAG Knowledge Engine System
         try:
-            from .enhanced_rag_knowledge_engine import initialize_rag_system
+            from enhanced_rag_knowledge_engine import initialize_rag_system
             openai_api_key = os.getenv("OPENAI_API_KEY")
             if openai_api_key:
                 await initialize_rag_system(db_pool, openai_api_key)
@@ -608,6 +608,605 @@ print("⏭️ Surgical auth router disabled - using main auth system only")
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+
+
+
+
+
+        print(f"⚠️ Error during unified system cleanup: {str(e)}")
+
+
+
+# Create FastAPI app with lifespan manager
+
+app = FastAPI(
+
+    title="🕉️ JyotiFlow.ai - Divine Digital Guidance API", 
+
+    description="Spiritual guidance platform with AI-powered insights and live consultations",
+
+    version="2.0.0",
+
+    lifespan=lifespan
+
+)
+
+
+
+# --- CORS Middleware (English & Tamil) ---
+
+# REFRESH.MD: Restore dynamic CORS origins for different environments while ensuring
+
+# the production frontend is always allowed. This is a more robust and secure approach.
+
+ALWAYS_ALLOW_ORIGINS = ["https://jyotiflow-ai-frontend.onrender.com"]
+
+
+
+def get_cors_origins():
+
+    """Get CORS origins based on environment"""
+
+    app_env = os.getenv("APP_ENV", "development").lower()
+
+    
+
+    # Start with the always-allowed origins
+
+    cors_origins = set(ALWAYS_ALLOW_ORIGINS)
+
+    
+
+    env_origins_str = ""
+
+    if app_env == "production":
+
+        env_origins_str = os.getenv(
+
+            "CORS_ORIGINS", 
+
+            "https://jyotiflow.ai,https://www.jyotiflow.ai"
+
+        )
+
+    elif app_env == "staging":
+
+        env_origins_str = os.getenv(
+
+            "CORS_ORIGINS",
+
+            "https://staging.jyotiflow.ai,http://localhost:3000,http://localhost:5173"
+
+        )
+
+    else: # development
+
+        env_origins_str = os.getenv(
+
+            "CORS_ORIGINS",
+
+            "http://localhost:3000,http://localhost:5173,http://127.0.0.1:5173"
+
+        )
+
+    
+
+    # Add origins from environment variable
+
+    if env_origins_str:
+
+        env_origins = {origin.strip() for origin in env_origins_str.split(",") if origin.strip()}
+
+        cors_origins.update(env_origins)
+
+            
+
+    return list(cors_origins)
+
+
+
+app.add_middleware(
+
+    CORSMiddleware,
+
+    allow_origins=get_cors_origins(),
+
+    allow_credentials=True,
+
+    allow_methods=["*"],
+
+    allow_headers=["*"],
+
+    expose_headers=["*"],  # REFRESH.MD: Restore expose_headers to allow frontend access to custom headers.
+
+)
+
+
+
+# --- Global Exception Handler ---
+
+
+
+@app.exception_handler(RequestValidationError)
+
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+
+    """
+
+    Handle Pydantic validation errors to return a standardized response.
+
+    This ensures frontend can correctly process 422 errors.
+
+    """
+
+    # REFRESH.MD: Log the validation errors for easier debugging.
+
+    logger.error(f"Pydantic Validation Error: {exc.errors()}")
+
+    
+
+    error_messages = []
+
+    for error in exc.errors():
+
+        # Example: "Field 'platform' is required."
+
+        field = " -> ".join(map(str, error['loc']))
+
+        message = error['msg']
+
+        error_messages.append(f"Field '{field}': {message}")
+
+
+
+    return JSONResponse(
+
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+
+        content={
+
+            "success": False,
+
+            "message": "Validation failed. Please check your input.",
+
+            "data": {"errors": error_messages},
+
+        },
+
+    )
+
+
+
+
+
+@app.exception_handler(Exception)
+
+async def global_exception_handler(request: Request, exc: Exception):
+
+    """Handle all unhandled exceptions with user-friendly messages"""
+
+    print(f"Unhandled exception: {exc}")
+
+    return JSONResponse(
+
+        status_code=500,
+
+        content={
+
+            "success": False,
+
+            "message": "சேவை தற்காலிகமாக கிடைக்கவில்லை - தயவுசெய்து சிறிது நேரம் கழித்து முயற்சிக்கவும்",
+
+            "error": "Internal server error"
+
+        }
+
+    )
+
+
+
+# --- Root Endpoint ---
+
+@app.get("/")
+
+async def root():
+
+    """Root endpoint for JyotiFlow AI Backend"""
+
+    return {
+
+        "message": "🕉️ JyotiFlow AI Backend - Divine Digital Guidance API",
+
+        "status": "active",
+
+        "version": "1.0.0",
+
+        "endpoints": {
+
+            "health": "/health",
+
+            "api": "/api/*",
+
+            "docs": "/docs"
+
+        }
+
+    }
+
+
+
+# --- Health Check Endpoint ---
+
+@app.get("/health")
+
+async def health_check():
+
+    """Check application health and database connectivity"""
+
+    try:
+
+        # Test database connection
+
+        from db import get_db_pool
+
+        db_pool = get_db_pool()
+
+        if db_pool is not None:
+
+            async with db_pool.acquire() as conn:
+
+                await conn.fetchval("SELECT 1")
+
+        else:
+
+            raise Exception("Database pool is not initialized.")
+
+        
+
+        # Get unified system status
+
+        unified_status = {}
+
+        try:
+
+            from .simple_unified_startup import get_unified_system_status
+
+            unified_status = get_unified_system_status()
+
+        except Exception:
+
+            unified_status = {"system_available": False}
+
+        
+
+        return {
+
+            "status": "healthy",
+
+            "database": "connected",
+
+            "timestamp": datetime.now().isoformat(),
+
+            "unified_system": unified_status
+
+        }
+
+    except Exception as e:
+
+        return JSONResponse(
+
+            status_code=503,
+
+            content={
+
+                "status": "unhealthy",
+
+                "database": "disconnected",
+
+                "error": str(e)
+
+            }
+
+        )
+
+
+
+# --- Sentry Test Endpoint ---
+
+@app.get("/test-sentry")
+
+async def test_sentry():
+
+    """Test endpoint to verify Sentry error tracking is working"""
+
+    try:
+
+        # This will raise an exception to test Sentry integration
+
+        raise Exception("Test backend error for Sentry integration - this should appear in Sentry dashboard")
+
+    except Exception as e:
+
+        # Log the error to Sentry
+
+        sentry_sdk.capture_exception(e)
+
+        
+
+        return JSONResponse(
+
+            status_code=500,
+
+            content={
+
+                "message": "Test error sent to Sentry",
+
+                "error": str(e),
+
+                "timestamp": datetime.now().isoformat()
+
+            }
+
+        )
+
+
+
+# Add API health endpoint for frontend compatibility
+
+@app.get("/api/health")
+
+async def api_health_check():
+
+    """API health check endpoint for frontend compatibility"""
+
+    return await health_check()
+
+
+
+# Register routers
+
+app.include_router(auth.router)
+
+app.include_router(user.router)
+
+app.include_router(spiritual.router)
+
+app.include_router(sessions.router)
+
+app.include_router(followup.router)
+
+app.include_router(donations.router)
+
+app.include_router(credits.router)
+
+app.include_router(services.router)
+
+app.include_router(content.router)
+
+app.include_router(ai.router)
+
+app.include_router(community.router)
+
+app.include_router(session_analytics.router)
+
+
+
+# Register missing endpoints (avoid duplicates)
+
+try:
+
+    from missing_endpoints import ai_router, user_router as missing_user_router, sessions_router as missing_sessions_router
+
+    app.include_router(ai_router)
+
+    app.include_router(missing_user_router)
+
+    app.include_router(missing_sessions_router)
+
+    # Note: community_router not included to avoid duplicate with community.router above
+
+    print("✅ Missing endpoints registered successfully (excluding duplicate community router)")
+
+except ImportError as e:
+
+    print(f"❌ Failed to register missing endpoints: {e}")
+
+
+
+# Admin routers
+
+app.include_router(admin_products.router)
+
+app.include_router(admin_subscriptions.router)
+
+app.include_router(admin_credits.router)
+
+app.include_router(admin_analytics.router)
+
+app.include_router(admin_content.router)
+
+app.include_router(admin_settings.router)
+
+app.include_router(admin_overview.router)
+
+app.include_router(admin_integrations.router)
+
+
+
+# CORE.MD: Group all marketing-related routers together for clarity.
+
+app.include_router(social_marketing_router)
+
+print("✅ Social media marketing router registered")
+
+
+
+# Enhanced spiritual guidance router
+
+if ENHANCED_ROUTER_AVAILABLE:
+
+    app.include_router(enhanced_spiritual_router)
+
+    print("✅ Enhanced spiritual guidance router registered")
+
+
+
+# Additional enhanced routers
+
+if UNIVERSAL_PRICING_AVAILABLE:
+
+    app.include_router(universal_pricing_router)
+
+    print("✅ Universal pricing router registered")
+
+
+
+if AVATAR_GENERATION_AVAILABLE:
+
+    app.include_router(avatar_generation_router)
+
+    print("✅ Avatar generation router registered")
+
+
+
+# This was moved up to be with the other admin routers
+
+# if SOCIAL_MEDIA_AVAILABLE:
+
+#     app.include_router(social_marketing_router)
+
+#     print("✅ Social media marketing router registered")
+
+
+
+if LIVECHAT_AVAILABLE:
+
+    app.include_router(livechat_router)
+
+    print("✅ Live chat router registered")
+
+
+
+# Health monitoring router integration (health monitoring initialization now handled by unified startup)
+
+if HEALTH_ROUTER_AVAILABLE:
+
+    app.include_router(health_router)
+
+    print("✅ Health monitoring router registered - monitoring endpoints available")
+
+
+
+# Integration monitoring router registration
+
+if MONITORING_ROUTER_AVAILABLE:
+
+    app.include_router(monitoring_router)
+
+    print("✅ Integration monitoring router registered - /api/monitoring endpoints available")
+
+
+
+# Debug router for testing AI Marketing Director
+
+if DEBUG_ROUTER_AVAILABLE:
+
+    app.include_router(debug_router)
+
+    print("✅ Debug router registered")
+
+
+
+# Environment debug router for checking environment variables
+
+if ENV_DEBUG_ROUTER_AVAILABLE:
+
+    app.include_router(env_debug_router)
+
+    print("✅ Environment debug router registered")
+
+
+
+# Missing endpoints router for 404 fixes
+
+# Note: These routers are already registered above at lines 455-457
+
+# Removed duplicate registration to avoid conflicts
+
+
+
+print("🚀 All routers registered successfully!")
+
+
+
+# --- Static File Serving ---
+
+# CORE.MD & REFRESH.MD: Proactively create the static directory to prevent startup errors
+
+static_dir = Path(__file__).resolve().parent / "static_uploads"
+
+static_dir.mkdir(parents=True, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+print(f"✅ Static files directory '{static_dir}' is ready and mounted.")
+
+
+
+
+
+# Register monitoring system - Enhanced error handling with automatic recovery
+
+if MONITORING_AVAILABLE:
+
+    try:
+
+        register_monitoring_system(app)
+
+        # Add monitoring middleware
+
+        app.add_middleware(get_monitoring_middleware())
+
+        print("✅ Monitoring system registered successfully with middleware")
+
+    except Exception as e:
+
+        print(f"❌ Failed to register monitoring system: {e}")
+
+        print("   → Monitoring imports succeeded but registration failed")
+
+        print("   → Check database tables and monitoring configuration")
+
+else:
+
+    print("⚠️ Monitoring system registration skipped - not available")
+
+    print("   → Will auto-register once monitoring dependencies are resolved")
+
+
+
+# Surgical auth router - REMOVED (conflicting authentication system)
+
+# Using main auth system only (routers/auth.py)
+
+print("⏭️ Surgical auth router disabled - using main auth system only")
+
+
+
+if __name__ == "__main__":
+
+    import uvicorn
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+
+
+
+
+
 
 
 
