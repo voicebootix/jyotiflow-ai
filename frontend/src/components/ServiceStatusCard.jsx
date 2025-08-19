@@ -53,19 +53,35 @@ const ServiceStatusCard = ({
     setStatus("running");
 
     try {
-      // FIXED: Send specific test suite name for individual test execution
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          test_type: testType,
-          test_suite: testType, // FIXED: Add test_suite parameter for specific execution
-          environment: "production",
-          triggered_by: "individual_card",
-        }),
-      });
+      // Enhanced API endpoint test execution with proper configuration
+      const requestBody = {
+        test_type:
+          testType === "api" || testType === "api_endpoints"
+            ? "integration"
+            : testType,
+        test_suite:
+          testType === "api" || testType === "api_endpoints"
+            ? "api_endpoints"
+            : testType, // Map both api and api_endpoints to correct suite
+        environment: import.meta.env.VITE_APP_ENV || "production",
+        triggered_by: "frontend_button",
+      };
+
+      console.log(`🧪 Triggering test for ${title}:`, requestBody);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/monitoring/test-execute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Test-Run": "true",
+            "X-Test-Environment": requestBody.environment,
+            "User-Agent": "JyotiFlow-Frontend/1.0",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
@@ -218,6 +234,108 @@ const ServiceStatusCard = ({
                 </span>
               </div>
             )}
+            {lastResult.avg_response_time_ms && (
+              <div className="flex justify-between">
+                <span>Avg Response:</span>
+                <span className="font-medium">
+                  {lastResult.avg_response_time_ms.toFixed(0)}ms
+                </span>
+              </div>
+            )}
+
+            {/* Admin Services specific: Show individual endpoint results */}
+            {testType === "admin_services" && lastResult.endpoint_results && (
+              <div className="mt-2 space-y-1">
+                <div className="text-xs font-medium text-gray-700 mb-1">
+                  Endpoint Results:
+                </div>
+                {Object.entries(lastResult.endpoint_results).map(
+                  ([key, result], index) => (
+                    <div
+                      key={index}
+                      className="flex justify-between items-center"
+                    >
+                      <span
+                        className="text-xs truncate"
+                        title={result.business_function || key}
+                      >
+                        {result.business_function || key}:
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {result.endpoint_accessible ? (
+                          <CheckCircle className="h-3 w-3 text-green-500" />
+                        ) : (
+                          <XCircle className="h-3 w-3 text-red-500" />
+                        )}
+                        <span className="text-xs">{result.status_code}</span>
+                        {result.response_time_ms && (
+                          <span className="text-xs text-gray-500">
+                            ({result.response_time_ms}ms)
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
+            {/* Show endpoints tested for Admin Services */}
+            {testType === "admin_services" && lastResult.endpoints_tested && (
+              <div className="mt-2">
+                <div className="text-xs font-medium text-gray-700 mb-1">
+                  Tested {lastResult.endpoints_tested.length} endpoints:
+                </div>
+                <div className="text-xs text-gray-600">
+                  {lastResult.endpoints_tested.map((ep, i) => (
+                    <div
+                      key={i}
+                      className="truncate"
+                      title={`${ep.method} ${ep.endpoint}`}
+                    >
+                      • {ep.business_function}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Show API endpoint test results */}
+            {(testType === "api" || testType === "api_endpoints") &&
+              lastResult.results && (
+                <div className="mt-2">
+                  <div className="text-xs font-medium text-gray-700 mb-1">
+                    Tested 4 API endpoints:
+                  </div>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    {Object.entries(lastResult.results).map(
+                      ([testName, result], i) => (
+                        <div
+                          key={i}
+                          className="flex items-center justify-between"
+                        >
+                          <span className="truncate">
+                            {result.http_status_code === 200
+                              ? "✅"
+                              : result.http_status_code === 401
+                              ? "🔒"
+                              : result.http_status_code
+                              ? "❌"
+                              : "⏳"}
+                            {testName
+                              .replace("test_", "")
+                              .replace("_endpoint", "")
+                              .replace("_", " ")}
+                          </span>
+                          <span className="text-gray-500 ml-2">
+                            {result.http_status_code || "..."}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
           </div>
         )}
 
