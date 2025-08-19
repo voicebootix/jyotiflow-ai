@@ -224,6 +224,10 @@ class TestExecutionEngine:
         logger.info("⚡ Executing quick health check...")
         
         session_id = await self._create_test_session("Quick Health Check", "health_check")
+        if session_id is None:
+            # Session creation failed - generate a temporary ID for this run but don't store results
+            session_id = str(uuid.uuid4())
+            logger.warning(f"Session creation failed - using temporary ID {session_id} (results won't be stored)")
         
         # Get health checks from database configuration instead of hardcoded list
          # Get health checks from database configuration instead of hardcoded list
@@ -940,12 +944,11 @@ class TestExecutionEngine:
     # If a health check method doesn't exist, the system will handle it gracefully via the whitelist
     # No need for hardcoded placeholder methods that return fake statuses
     
-    async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> str:
+    async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> Optional[str]:
         """Create a new test execution session with dynamic parameters."""
         if not self.database_url:
-            session_id = str(uuid.uuid4())
-            logger.error(f"❌ DATABASE_URL not set - session {session_id} will NOT be stored in database!")
-            return session_id
+            logger.warning("⚠️ DATABASE_URL not set - test session will NOT be stored in database!")
+            return None
         session_id = str(uuid.uuid4())
         # ✅ SQL INJECTION PREVENTION: Whitelist of allowed column names
         # Following .cursor rules: No dynamic SQL construction from user input
