@@ -43,11 +43,11 @@ class SpiritualCalendarService:
         try:
             # Check if RAG system is available first
             try:
-                from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
-                if not rag_engine:
+                from backend.enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+                if rag_engine is None:
                     raise Exception("RAG engine not initialized")
             except ImportError as ie:
-                raise Exception(f"RAG system import failed: {ie}")
+                raise Exception("RAG system import failed") from ie
             
             # Get current date context
             today = datetime.now()
@@ -191,11 +191,11 @@ class SpiritualCalendarService:
         try:
             # Check if RAG system is available first
             try:
-                from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
-                if not rag_engine:
+                from backend.enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+                if rag_engine is None:
                     raise Exception("RAG engine not initialized")
             except ImportError as ie:
-                raise Exception(f"RAG system import failed: {ie}")
+                raise Exception("RAG system import failed") from ie
             
             day_name = calendar.day_name[target_date.weekday()]
             month_name = calendar.month_name[target_date.month]
