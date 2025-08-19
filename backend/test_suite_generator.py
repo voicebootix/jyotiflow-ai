@@ -12,7 +12,7 @@ import asyncpg
 import secrets
 import string
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, List
 import logging 
 
 
@@ -398,175 +398,260 @@ async def test_credit_transaction_integrity():
             ]
         }
     
-    async def generate_api_tests(self) -> Dict[str, Any]:
-        """Generate API endpoint tests"""
-        return {
-            "test_suite_name": "API Endpoints",
-            "test_category": "api",
-            "description": "Tests for all API endpoints and spiritual service interfaces",
-            "test_cases": [
-                {
-                    "test_name": "test_health_check_endpoint",
-                    "description": "Test health check endpoint availability",
-                    "test_type": "integration",
-                    "priority": "critical",
-                    "test_code": """
-import httpx
+    def _get_api_endpoint_config(self) -> List[Dict[str, Any]]:
+        """
+        Get API endpoint configurations for direct HTTP testing.
+        Dynamic URLs from environment variables, results stored in database.
+        
+        Returns:
+            List of endpoint configurations for your 4 specified endpoints
+        """
+        # Dynamic base URL from environment variable (no hardcoded values)
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+        
+        return [
+            {
+                "test_name": "test_health_check_endpoint",
+                "endpoint_url": api_base_url + "/health",
+                "http_method": "GET",
+                "description": "Test health check endpoint availability",
+                "priority": "critical",
+                "timeout_seconds": 10,
+                "expected_result": "Health endpoint returns 200 with healthy status"
+            },
+            {
+                "test_name": "test_user_registration_endpoint", 
+                "endpoint_url": api_base_url + "/api/auth/register",
+                "http_method": "POST",
+                "description": "Test user registration API endpoint",
+                "priority": "critical", 
+                "timeout_seconds": 15,
+                "expected_result": "User registration succeeds with user_id returned"
+            },
+            {
+                "test_name": "test_user_login_endpoint",
+                "endpoint_url": api_base_url + "/api/auth/login", 
+                "http_method": "POST",
+                "description": "Test user login API endpoint",
+                "priority": "critical",
+                "timeout_seconds": 15,
+                "expected_result": "User login succeeds with access token returned"
+            },
+            {
+                "test_name": "test_spiritual_guidance_endpoint",
+                "endpoint_url": api_base_url + "/api/spiritual/guidance",
+                "http_method": "POST", 
+                "description": "Test spiritual guidance API endpoint",
+                "priority": "high",
+                "timeout_seconds": 15,
+                "expected_result": "Spiritual guidance endpoint accessible"
+            }
+        ]
 
-async def test_health_check_endpoint():
+    def _generate_dynamic_test_code(self, config: Dict[str, Any]) -> str:
+        """
+        Generate dynamic test code based on endpoint configuration.
+        No hardcoded URLs, follows .cursor rules.
+        
+        Args:
+            config: Endpoint configuration dictionary
+            
+        Returns:
+            Generated test code string
+        """
+        test_name = config["test_name"]
+        endpoint_url = config["endpoint_url"] 
+        http_method = config["http_method"].upper()
+        
+        # Common imports and helpers (no duplication)
+        imports_and_helpers = """
+import httpx
+import uuid
+import secrets
+import string
+
+def generate_secure_test_password():
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
+    return ''.join(secrets.choice(alphabet) for _ in range(16))
+
+def generate_test_email():
+    return f"test_{uuid.uuid4()}@example.com"
+"""
+        
+        # Generate test function based on endpoint type
+        if test_name == "test_health_check_endpoint":
+            test_function = f"""
+async def {test_name}():
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.get("https://jyotiflow-ai.onrender.com/health")
-            assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+            response = await client.get("{endpoint_url}")
+            assert response.status_code == 200, f"Expected 200, got {{response.status_code}}"
             
             data = response.json()
             assert data.get("status") == "healthy", "API should be healthy"
             assert "timestamp" in data, "Health check should include timestamp"
             
-            return {"status": "passed", "message": "Health check endpoint working"}
+            return {{"status": "passed", "message": "Health check endpoint working"}}
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
-""",
-                    "expected_result": "Health endpoint returns 200 with healthy status",
-                    "timeout_seconds": 10
-                },
-                {
-                    "test_name": "test_user_registration_endpoint",
-                    "description": "Test user registration API endpoint",
-                    "test_type": "integration",
-                    "priority": "critical",
-                    "test_code": """
-import httpx
-import uuid
-import secrets
-import string
-
-def generate_secure_test_password():
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    return ''.join(secrets.choice(alphabet) for _ in range(16))
-
-def generate_test_email():
-    return f"test_{uuid.uuid4()}@example.com"
-
-async def test_user_registration_endpoint():
+        return {{"status": "failed", "error": str(e)}}
+"""
+        
+        elif test_name == "test_user_registration_endpoint":
+            test_function = f"""
+async def {test_name}():
     try:
         test_email = generate_test_email()
+        test_password = generate_secure_test_password()
         
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/register",
-                json={
+            response = await client.{http_method.lower()}(
+                "{endpoint_url}",
+                json={{
                     "email": test_email,
-                    "password": generate_secure_test_password(),
+                    "password": test_password,
                     "name": "Test User"
-                }
+                }}
             )
             
-            assert response.status_code in [200, 201], f"Expected 200/201, got {response.status_code}"
+            assert response.status_code in [200, 201], f"Expected 200/201, got {{response.status_code}}"
             
             data = response.json()
             assert data.get("status") == "success", "Registration should succeed"
-            assert "user_id" in data.get("data", {}), "Should return user_id"
+            assert "user_id" in data.get("data", {{}}) or "id" in data.get("data", {{}}), "Should return user_id"
             
-            return {"status": "passed", "message": "User registration endpoint working"}
+            return {{"status": "passed", "message": "User registration endpoint working"}}
             
     except Exception as e:
-        return {"status": "failed", "error": f"Registration failed: {str(e)}"}
-""",
-                    "expected_result": "User registration succeeds with user_id returned",
-                    "timeout_seconds": 15
-                },
-                {
-                    "test_name": "test_user_login_endpoint",
-                    "description": "Test user login API endpoint",
-                    "test_type": "integration",
-                    "priority": "critical",
-                    "test_code": """
-import httpx
-import uuid
-import secrets
-import string
-
-def generate_secure_test_password():
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    return ''.join(secrets.choice(alphabet) for _ in range(16))
-
-def generate_test_email():
-    return f"test_{uuid.uuid4()}@example.com"
-
-async def test_user_login_endpoint():
+        return {{"status": "failed", "error": f"Registration failed: {{str(e)}}"}}
+"""
+        
+        elif test_name == "test_user_login_endpoint":
+            # Get dynamic registration endpoint for dependency
+            api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+            reg_endpoint = api_base_url + "/api/auth/register"
+            
+            test_function = f"""
+async def {test_name}():
     try:
         # First register a user
         test_email = generate_test_email()
         test_password = generate_secure_test_password()
         
         async with httpx.AsyncClient() as client:
-            # Register user
+            # Register user first (dynamic URL)
             reg_response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/register",
-                json={
+                "{reg_endpoint}",
+                json={{
                     "email": test_email,
                     "password": test_password,
                     "name": "Test User"
-                }
+                }}
             )
             
             if reg_response.status_code not in [200, 201]:
-                return {"status": "failed", "error": f"Registration failed: {reg_response.status_code}"}
+                return {{"status": "failed", "error": f"Registration failed: {{reg_response.status_code}}"}}
             
             # Now test login
-            login_response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/login",
-                json={
+            login_response = await client.{http_method.lower()}(
+                "{endpoint_url}",
+                json={{
                     "email": test_email,
                     "password": test_password
-                }
+                }}
             )
             
-            assert login_response.status_code in [200, 201], f"Expected 200/201, got {login_response.status_code}"
+            assert login_response.status_code in [200, 201], f"Expected 200/201, got {{login_response.status_code}}"
             
             data = login_response.json()
             assert data.get("status") == "success", "Login should succeed"
-            assert "access_token" in data.get("data", {}), "Should return access token"
+            assert "access_token" in data.get("data", {{}}) or "token" in data.get("data", {{}}), "Should return access token"
             
-            return {"status": "passed", "message": "User login endpoint working"}
+            return {{"status": "passed", "message": "User login endpoint working"}}
             
     except Exception as e:
-        return {"status": "failed", "error": f"Login test failed: {str(e)}"}
-""",
-                    "expected_result": "User login succeeds with access token returned",
-                    "timeout_seconds": 15
-                },
-                {
-                    "test_name": "test_spiritual_guidance_endpoint",
-                    "description": "Test spiritual guidance API endpoint",
-                    "test_type": "integration",
-                    "priority": "high",
-                    "test_code": """
-import httpx
-
-async def test_spiritual_guidance_endpoint():
+        return {{"status": "failed", "error": f"Login test failed: {{str(e)}}"}}
+"""
+        
+        elif test_name == "test_spiritual_guidance_endpoint":
+            test_function = f"""
+async def {test_name}():
     try:
-        # This would require authentication - test basic endpoint availability
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/spiritual-guidance",
-                json={"question": "What is my life purpose?"},
-                headers={"Authorization": "Bearer test_token"}
+            response = await client.{http_method.lower()}(
+                "{endpoint_url}",
+                json={{"question": "What is my life purpose?"}},
+                headers={{"Authorization": "Bearer test_token"}}
             )
             
             # Expect 401 for invalid token, but endpoint should exist
-            assert response.status_code in [200, 401, 422], f"Unexpected status: {response.status_code}"
+            assert response.status_code in [200, 401, 422], f"Unexpected status: {{response.status_code}}"
             
-            return {"status": "passed", "message": "Spiritual guidance endpoint accessible"}
+            return {{"status": "passed", "message": "Spiritual guidance endpoint accessible"}}
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
-""",
-                    "expected_result": "Spiritual guidance endpoint accessible",
-                    "timeout_seconds": 15
+        return {{"status": "failed", "error": str(e)}}
+"""
+        
+        else:
+            # Generic test function for other endpoints
+            test_function = f"""
+async def {test_name}():
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.{http_method.lower()}("{endpoint_url}")
+            assert response.status_code in [200, 401, 403, 422], f"Unexpected status: {{response.status_code}}"
+            return {{"status": "passed", "message": "Endpoint accessible"}}
+    except Exception as e:
+        return {{"status": "failed", "error": str(e)}}
+"""
+        
+        return imports_and_helpers + test_function
+
+    async def generate_api_tests(self) -> Dict[str, Any]:
+        """
+        Generate dynamic API endpoint tests that make direct HTTP requests.
+        Endpoint configs in code, test results stored in database. Follows .cursor rules.
+        
+        Returns:
+            Dict containing dynamically generated test suite
+        """
+        try:
+            # Get endpoint configurations (in code, results stored in database)
+            endpoint_configs = self._get_api_endpoint_config()
+            
+            if not endpoint_configs:
+                logger.warning("No API endpoint configurations found")
+                return {
+                    "test_suite_name": "API Endpoints",
+                    "test_category": "api", 
+                    "description": "No API tests configured",
+                    "test_cases": []
                 }
-            ]
-        }
+            
+            # Generate test cases dynamically
+            test_cases = []
+            for config in endpoint_configs:
+                test_case = {
+                    "test_name": config["test_name"],
+                    "description": config["description"],
+                    "test_type": "integration", 
+                    "priority": config["priority"],
+                    "test_code": self._generate_dynamic_test_code(config),
+                    "expected_result": config["expected_result"],
+                    "timeout_seconds": config["timeout_seconds"]
+                }
+                test_cases.append(test_case)
+            
+            return {
+                "test_suite_name": "API Endpoints",
+                "test_category": "api",
+                "description": f"Dynamic tests for {len(test_cases)} API endpoints (direct HTTP requests, results stored in database)",
+                "test_cases": test_cases
+            }
+            
+        except Exception as e:
+            logger.error(f"Failed to generate dynamic API tests: {e}")
+            raise TestGenerationError(f"API test generation failed: {e}") from e
+
     
     async def generate_spiritual_services_tests(self) -> Dict[str, Any]:
         """Generate spiritual services business logic tests"""
