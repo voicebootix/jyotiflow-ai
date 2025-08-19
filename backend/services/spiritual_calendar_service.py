@@ -43,7 +43,7 @@ class SpiritualCalendarService:
         try:
             # Check if RAG system is available first
             try:
-                from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+                from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
                 if rag_engine is None:
                     raise Exception("RAG engine not initialized")
             except ImportError as ie:
@@ -191,7 +191,7 @@ class SpiritualCalendarService:
         try:
             # Check if RAG system is available first
             try:
-                from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+                from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
                 if rag_engine is None:
                     raise Exception("RAG engine not initialized")
             except ImportError as ie:
