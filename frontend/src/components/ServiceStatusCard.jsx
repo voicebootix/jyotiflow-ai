@@ -319,6 +319,10 @@ const ServiceStatusCard = ({
                               ? "✅"
                               : result.http_status_code === 401
                               ? "🔒"
+                              : result.http_status_code === 422
+                              ? "⚠️"
+                              : result.http_status_code === 500
+                              ? "❌"
                               : result.http_status_code
                               ? "❌"
                               : "⏳"}

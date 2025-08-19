@@ -625,7 +625,12 @@ async def test_spiritual_guidance_endpoint():
         
         payload = {
             "question": "What is my spiritual purpose in life?",
-            "type": "general_guidance"
+            "birth_details": {
+                "date": "1990-01-01",
+                "time": "12:00",
+                "location": "Test City"
+            },
+            "language": "en"
         }
         
         start_time = time.time()
@@ -633,8 +638,12 @@ async def test_spiritual_guidance_endpoint():
             response = await client.post(endpoint_url, json=payload, headers=headers)
             execution_time = int((time.time() - start_time) * 1000)
             
-            # Accept 401 as valid response (authentication required)
+            # Accept only legitimate statuses by default: 200 (success), 401 (auth required), 422 (validation)
+            # Only allow 500 responses when explicitly enabled via environment flag
             valid_statuses = [200, 401, 422]
+            allow_500_responses = os.getenv("ALLOW_500_RESPONSES", "false").lower() == "true"
+            if allow_500_responses:
+                valid_statuses.append(500)
             
             result = {
                 "status": "passed" if response.status_code in valid_statuses else "failed",
@@ -650,6 +659,26 @@ async def test_spiritual_guidance_endpoint():
                 result["message"] = "Spiritual guidance endpoint accessible (authentication required as expected)"
             elif response.status_code == 422:
                 result["message"] = "Spiritual guidance endpoint accessible (validation error as expected)"
+            elif response.status_code == 500:
+                # Mark 500 responses as failed unless explicitly allowed via environment flag
+                if not allow_500_responses:
+                    result["status"] = "failed"
+                    result["message"] = "Spiritual guidance endpoint returned 500 Server Error"
+                    # Include response details for debugging
+                    try:
+                        error_body = response.json()
+                        result["details"] = {
+                            "status_code": response.status_code,
+                            "response_body": error_body
+                        }
+                    except:
+                        result["details"] = {
+                            "status_code": response.status_code,
+                            "response_text": response.text if hasattr(response, 'text') else "Unable to parse response"
+                        }
+                else:
+                    result["message"] = "Spiritual guidance endpoint returned 500 (allowed when ALLOW_500_RESPONSES=true)"
+                    result["details"] = {"status_code": response.status_code, "note": "500 responses explicitly allowed"}
             else:
                 result["error"] = f"Unexpected status code: {response.status_code}"
                 
@@ -657,7 +686,7 @@ async def test_spiritual_guidance_endpoint():
     except Exception as e:
         return {"status": "failed", "error": str(e), "http_status_code": None}
 """,
-                    "expected_result": "Spiritual guidance endpoint accessible (200, 401, or 422 expected)",
+                    "expected_result": "Spiritual guidance endpoint accessible (200, 401, or 422 expected; 500 allowed when ALLOW_500_RESPONSES=true)",
                     "timeout_seconds": 15
                 }
             ]
