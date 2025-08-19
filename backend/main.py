@@ -612,13 +612,6 @@ if __name__ == "__main__":
 
 
 
-
-
-
-        print(f"⚠️ Error during unified system cleanup: {str(e)}")
-
-
-
 # Create FastAPI app with lifespan manager
 
 app = FastAPI(
