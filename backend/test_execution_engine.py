@@ -35,7 +35,7 @@ ALLOWED_GENERATOR_METHODS = {
     'generate_integration_tests',
     'generate_security_tests', 
     'generate_database_tests',
-    'generate_api_tests',
+    'generate_api_endpoint_tests',  # Fixed: Updated from generate_api_tests to match actual method name
     'generate_analytics_monitoring_tests',
     'generate_auto_healing_tests',
     'generate_performance_tests',
@@ -44,13 +44,14 @@ ALLOWED_GENERATOR_METHODS = {
     'generate_load_tests',
     'generate_admin_services_tests',
     'generate_spiritual_tests',
+    'generate_spiritual_services_tests',  # Added: Missing method that exists in TestSuiteGenerator
     'generate_credit_payment_tests',
     'generate_user_management_tests',
     'generate_avatar_generation_tests',
-    'generate_social_media_tests',
-    'generate_community_services_tests',
-    'generate_notification_services_tests',
-    'generate_live_audio_video_tests'
+    'generate_social_media_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_live_audio_video_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_community_services_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_notification_services_tests'  # Added: Missing method that exists in TestSuiteGenerator
 }
 
 class TestExecutionError(Exception):
@@ -1460,8 +1461,14 @@ class TestExecutionEngine:
                 logger.info(f"Mapping legacy suite name '{suite_name}' to '{mapped_name}' (from database)")
                 return mapped_name
             else:
-                logger.warning(f"No mapping found for suite name '{suite_name}' in database")
-                return suite_name
+                # ✅ FALLBACK MAPPING: Handle critical suites when database mapping is missing  
+                # Following .cursor rules: Database-driven with fallbacks for known suites
+                if suite_name == 'api':
+                    logger.info(f"Using fallback mapping: 'api' -> 'api_endpoints'")
+                    return 'api_endpoints'
+                else:
+                    logger.warning(f"No mapping found for suite name '{suite_name}' in database")
+                    return suite_name
 
         except Exception as e:
             logger.error(f"Could not resolve suite name mapping from database: {e}")
@@ -1586,10 +1593,19 @@ class TestExecutionEngine:
                         # Following .cursor rules: Use direct access for known attributes
                         return await generator.generate_integration_tests()
                 else:
-                    logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
-                    # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
-                    # Following .cursor rules: Use direct access for known attributes
-                    return await generator.generate_integration_tests()
+                    # ✅ FALLBACK MAPPING: Handle critical suites when database config is missing
+                    # Following .cursor rules: Database-driven with fallbacks for known suites
+                    if suite_name == 'api_endpoints' and hasattr(generator, 'generate_api_endpoint_tests'):
+                        logger.info(f"Using fallback mapping for 'api_endpoints' -> 'generate_api_endpoint_tests'")
+                        return await generator.generate_api_endpoint_tests()
+                    elif suite_name == 'api' and hasattr(generator, 'generate_api_endpoint_tests'):
+                        logger.info(f"Using fallback mapping for 'api' -> 'generate_api_endpoint_tests'")
+                        return await generator.generate_api_endpoint_tests()
+                    else:
+                        logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                        # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                        # Following .cursor rules: Use direct access for known attributes
+                        return await generator.generate_integration_tests()
 
             finally:
                 await conn.close()
