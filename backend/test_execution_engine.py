@@ -997,12 +997,11 @@ class TestExecutionEngine:
             finally:
                 await conn.close()
         except Exception as e:
-            logger.error(f"❌ FAILED to create test session in database: {e}")
-            logger.error(f"   Session ID: {session_id}")
-            logger.error(f"   Test Type: {test_type}")
-            logger.error(f"   Test Category: {test_category}")
-            logger.error(f"   Query: {query}")
-            logger.error(f"   Values: {values}")
+            logger.error("❌ FAILED to create test session in database", exc_info=e)
+            logger.error("   Session ID: %s | Test Type: %s | Test Category: %s", 
+                        session_id, test_type, test_category)
+            logger.debug("   Query: %s", query)
+            logger.debug("   Values: <redacted> (%d values)", len(values))
             # Don't return the session_id if creation failed - return None to indicate failure
             return None
         return session_id
@@ -1043,11 +1042,11 @@ class TestExecutionEngine:
                 await conn.execute(query, *params)
             except Exception as inner_e:
                 # Handle execution errors while ensuring connection cleanup
-                logger.warning(f"Could not execute update query: {inner_e}")
+                logger.warning("Could not execute update query", exc_info=inner_e)
                 raise  # Re-raise to be caught by outer except
                 
         except Exception as e:
-            logger.warning(f"Could not update test session: {e}")
+            logger.warning("Could not update test session", exc_info=e)
         finally:
             # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
             # Following .cursor rules: Safe resource cleanup, no errors on failed connections
@@ -1116,14 +1115,16 @@ class TestExecutionEngine:
                 await conn.execute(query, *values)
             except Exception as inner_e:
                 # Handle execution errors while ensuring connection cleanup
-                logger.warning(f"Could not execute test result insert: {inner_e}")
-                raise  # Re-raise to be caught by outer  except
+                logger.warning("Could not execute test result insert", exc_info=inner_e)
+                raise  # Re-raise to be caught by outer except
                 
         except Exception as e:
-            logger.error(f"❌ FAILED to store test result in database: {e}")
-            logger.error(f"   Test: {test_case.get('test_name', 'unknown')}")
-            logger.error(f"   Session ID: {session_id}")
-            logger.error(f"   Database URL set: {'Yes' if self.database_url else 'No'}")
+            logger.error("❌ FAILED to store test result in database", exc_info=e)
+            logger.error("   Test: %s | Session ID: %s | DB Connected: %s", 
+                        test_case.get('test_name', 'unknown'), 
+                        session_id,
+                        'Yes' if self.database_url else 'No')
+            logger.debug("   Result data: <redacted> (%d bytes)", len(str(result)))
         else:
             # Log successful storage
             logger.info(f"✅ Successfully stored test result: {test_case.get('test_name', 'unknown')} in database")
