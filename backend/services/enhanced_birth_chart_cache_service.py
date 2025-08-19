@@ -20,9 +20,6 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
-# RAG system imports moved to runtime to avoid startup dependencies
-RAG_AVAILABLE = None  # Unknown until runtime check
-
 logger = logging.getLogger(__name__)
 
 class ProkeralaPDFProcessor:
