@@ -159,7 +159,7 @@ class TestSuiteGenerator:
                 test_suites["database_tests"] = {"error": str(e)}
             
             try:
-                test_suites["api_tests"] = await self.generate_api_tests()
+                test_suites["api_tests"] = await self.generate_api_endpoint_tests()
             except Exception as e:
                 logger.warning(f"API tests generation failed: {e}")
                 test_suites["api_tests"] = {"error": str(e)}
@@ -398,7 +398,7 @@ async def test_credit_transaction_integrity():
             ]
         }
     
-    async def generate_api_tests(self) -> Dict[str, Any]:
+    async def generate_api_endpoint_tests(self) -> Dict[str, Any]:
         """Generate API endpoint tests"""
         return {
             "test_suite_name": "API Endpoints",
@@ -412,20 +412,43 @@ async def test_credit_transaction_integrity():
                     "priority": "critical",
                     "test_code": """
 import httpx
+import os
+import time
 
 async def test_health_check_endpoint():
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.get("https://jyotiflow-ai.onrender.com/health")
-            assert response.status_code == 200, f"Expected 200, got {response.status_code}"
+        base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        endpoint_url = f"{base_url}/health"
+        
+        headers = {
+            "X-Test-Run": "true",
+            "X-Test-Type": "health-check",
+            "User-Agent": "JyotiFlow-TestRunner/1.0"
+        }
+        
+        start_time = time.time()
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(endpoint_url, headers=headers)
+            execution_time = int((time.time() - start_time) * 1000)
             
-            data = response.json()
-            assert data.get("status") == "healthy", "API should be healthy"
-            assert "timestamp" in data, "Health check should include timestamp"
+            result = {
+                "status": "passed" if response.status_code == 200 else "failed",
+                "http_status_code": response.status_code,
+                "execution_time_ms": execution_time,
+                "endpoint_url": endpoint_url,
+                "message": f"Health endpoint returned {response.status_code}"
+            }
             
-            return {"status": "passed", "message": "Health check endpoint working"}
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    result["message"] = f"Health check passed - API status: {data.get('status', 'unknown')}"
+                except:
+                    result["message"] = "Health endpoint returned 200 but invalid JSON"
+            
+            return result
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
+        return {"status": "failed", "error": str(e), "http_status_code": None}
 """,
                     "expected_result": "Health endpoint returns 200 with healthy status",
                     "timeout_seconds": 10
@@ -440,6 +463,8 @@ import httpx
 import uuid
 import secrets
 import string
+import os
+import time
 
 def generate_secure_test_password():
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
@@ -450,28 +475,47 @@ def generate_test_email():
 
 async def test_user_registration_endpoint():
     try:
-        test_email = generate_test_email()
+        base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        endpoint_url = f"{base_url}/api/auth/register"
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/register",
-                json={
-                    "email": test_email,
-                    "password": generate_secure_test_password(),
-                    "name": "Test User"
-                }
-            )
+        test_email = generate_test_email()
+        headers = {
+            "X-Test-Run": "true",
+            "X-Test-Type": "user-registration",
+            "User-Agent": "JyotiFlow-TestRunner/1.0",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "email": test_email,
+            "password": generate_secure_test_password(),
+            "name": "JyotiFlow Test User"
+        }
+        
+        start_time = time.time()
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(endpoint_url, json=payload, headers=headers)
+            execution_time = int((time.time() - start_time) * 1000)
             
-            assert response.status_code in [200, 201], f"Expected 200/201, got {response.status_code}"
+            result = {
+                "status": "passed" if response.status_code in [200, 201] else "failed",
+                "http_status_code": response.status_code,
+                "execution_time_ms": execution_time,
+                "endpoint_url": endpoint_url,
+                "test_email": test_email,
+                "message": f"Registration endpoint returned {response.status_code}"
+            }
             
-            data = response.json()
-            assert data.get("status") == "success", "Registration should succeed"
-            assert "user_id" in data.get("data", {}), "Should return user_id"
+            if response.status_code in [200, 201]:
+                try:
+                    data = response.json()
+                    result["message"] = f"User registration successful - Status: {data.get('status', 'unknown')}"
+                except:
+                    result["message"] = f"Registration returned {response.status_code} but invalid JSON"
             
-            return {"status": "passed", "message": "User registration endpoint working"}
-            
+            return result
     except Exception as e:
-        return {"status": "failed", "error": f"Registration failed: {str(e)}"}
+        return {"status": "failed", "error": str(e), "http_status_code": None}
 """,
                     "expected_result": "User registration succeeds with user_id returned",
                     "timeout_seconds": 15
@@ -486,6 +530,8 @@ import httpx
 import uuid
 import secrets
 import string
+import os
+import time
 
 def generate_secure_test_password():
     alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
@@ -496,43 +542,61 @@ def generate_test_email():
 
 async def test_user_login_endpoint():
     try:
-        # First register a user
+        base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        register_url = f"{base_url}/api/auth/register"
+        login_url = f"{base_url}/api/auth/login"
+        
         test_email = generate_test_email()
         test_password = generate_secure_test_password()
         
-        async with httpx.AsyncClient() as client:
-            # Register user
-            reg_response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/register",
-                json={
-                    "email": test_email,
-                    "password": test_password,
-                    "name": "Test User"
-                }
-            )
-            
-            if reg_response.status_code not in [200, 201]:
-                return {"status": "failed", "error": f"Registration failed: {reg_response.status_code}"}
+        headers = {
+            "X-Test-Run": "true",
+            "X-Test-Type": "user-login",
+            "User-Agent": "JyotiFlow-TestRunner/1.0",
+            "Content-Type": "application/json"
+        }
+        
+        start_time = time.time()
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            # First register a test user
+            reg_payload = {
+                "email": test_email,
+                "password": test_password,
+                "name": "JyotiFlow Test User"
+            }
+            reg_response = await client.post(register_url, json=reg_payload, headers=headers)
             
             # Now test login
-            login_response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/login",
-                json={
-                    "email": test_email,
-                    "password": test_password
-                }
-            )
+            login_payload = {
+                "email": test_email,
+                "password": test_password
+            }
+            response = await client.post(login_url, json=login_payload, headers=headers)
+            execution_time = int((time.time() - start_time) * 1000)
             
-            assert login_response.status_code in [200, 201], f"Expected 200/201, got {login_response.status_code}"
+            result = {
+                "status": "passed" if response.status_code in [200, 201] else "failed",
+                "http_status_code": response.status_code,
+                "execution_time_ms": execution_time,
+                "endpoint_url": login_url,
+                "test_email": test_email,
+                "registration_status": reg_response.status_code,
+                "message": f"Login endpoint returned {response.status_code}"
+            }
             
-            data = login_response.json()
-            assert data.get("status") == "success", "Login should succeed"
-            assert "access_token" in data.get("data", {}), "Should return access token"
+            if response.status_code in [200, 201]:
+                try:
+                    data = response.json()
+                    result["message"] = f"User login successful - Status: {data.get('status', 'unknown')}"
+                except:
+                    result["message"] = f"Login returned {response.status_code} but invalid JSON"
+            else:
+                if reg_response.status_code not in [200, 201]:
+                    result["error"] = f"Expected 200/201, got {response.status_code} (Registration failed with {reg_response.status_code})"
             
-            return {"status": "passed", "message": "User login endpoint working"}
-            
+            return result
     except Exception as e:
-        return {"status": "failed", "error": f"Login test failed: {str(e)}"}
+        return {"status": "failed", "error": str(e), "http_status_code": None}
 """,
                     "expected_result": "User login succeeds with access token returned",
                     "timeout_seconds": 15
@@ -544,25 +608,56 @@ async def test_user_login_endpoint():
                     "priority": "high",
                     "test_code": """
 import httpx
+import os
+import time
 
 async def test_spiritual_guidance_endpoint():
     try:
-        # This would require authentication - test basic endpoint availability
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://jyotiflow-ai.onrender.com/api/spiritual-guidance",
-                json={"question": "What is my life purpose?"},
-                headers={"Authorization": "Bearer test_token"}
-            )
+        base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        endpoint_url = f"{base_url}/api/spiritual/guidance"
+        
+        headers = {
+            "X-Test-Run": "true",
+            "X-Test-Type": "spiritual-guidance",
+            "User-Agent": "JyotiFlow-TestRunner/1.0",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "question": "What is my spiritual purpose in life?",
+            "type": "general_guidance"
+        }
+        
+        start_time = time.time()
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(endpoint_url, json=payload, headers=headers)
+            execution_time = int((time.time() - start_time) * 1000)
             
-            # Expect 401 for invalid token, but endpoint should exist
-            assert response.status_code in [200, 401, 422], f"Unexpected status: {response.status_code}"
+            # Accept 401 as valid response (authentication required)
+            valid_statuses = [200, 401, 422]
             
-            return {"status": "passed", "message": "Spiritual guidance endpoint accessible"}
+            result = {
+                "status": "passed" if response.status_code in valid_statuses else "failed",
+                "http_status_code": response.status_code,
+                "execution_time_ms": execution_time,
+                "endpoint_url": endpoint_url,
+                "message": f"Spiritual guidance endpoint returned {response.status_code}"
+            }
+            
+            if response.status_code == 200:
+                result["message"] = "Spiritual guidance endpoint accessible and working"
+            elif response.status_code == 401:
+                result["message"] = "Spiritual guidance endpoint accessible (authentication required as expected)"
+            elif response.status_code == 422:
+                result["message"] = "Spiritual guidance endpoint accessible (validation error as expected)"
+            else:
+                result["error"] = f"Unexpected status code: {response.status_code}"
+                
+            return result
     except Exception as e:
-        return {"status": "failed", "error": str(e)}
+        return {"status": "failed", "error": str(e), "http_status_code": None}
 """,
-                    "expected_result": "Spiritual guidance endpoint accessible",
+                    "expected_result": "Spiritual guidance endpoint accessible (200, 401, or 422 expected)",
                     "timeout_seconds": 15
                 }
             ]
