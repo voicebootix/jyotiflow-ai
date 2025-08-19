@@ -1,5 +1,6 @@
 
 import logging
+import asyncio
 from datetime import datetime, timedelta
 import random
 from typing import Dict, Any, List
@@ -40,7 +41,13 @@ class SpiritualCalendarService:
     async def _generate_rag_powered_theme(self) -> Dict[str, Any]:
         """Generate spiritual theme using RAG knowledge engine"""
         try:
-            from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            # Check if RAG system is available first
+            try:
+                from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+                if not rag_engine:
+                    raise Exception("RAG engine not initialized")
+            except ImportError as ie:
+                raise Exception(f"RAG system import failed: {ie}")
             
             # Get current date context
             today = datetime.now()
@@ -66,12 +73,18 @@ class SpiritualCalendarService:
             Description: [Beautiful description]
             """
             
-            # Query RAG system
-            rag_response = await get_rag_enhanced_guidance(
-                user_query=spiritual_query,
-                birth_details=None,
-                service_type="daily_spiritual_guidance"
-            )
+            # Query RAG system with timeout
+            try:
+                rag_response = await asyncio.wait_for(
+                    get_rag_enhanced_guidance(
+                        user_query=spiritual_query,
+                        birth_details=None,
+                        service_type="daily_spiritual_guidance"
+                    ),
+                    timeout=10.0  # 10 second timeout
+                )
+            except asyncio.TimeoutError:
+                raise Exception("RAG system timeout")
             
             if rag_response and rag_response.get("enhanced_guidance"):
                 parsed_theme = self._parse_rag_theme_response(rag_response["enhanced_guidance"])
@@ -176,7 +189,13 @@ class SpiritualCalendarService:
     async def _generate_rag_theme_for_date(self, target_date: datetime) -> Dict[str, Any]:
         """Generate RAG theme for a specific date"""
         try:
-            from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            # Check if RAG system is available first
+            try:
+                from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+                if not rag_engine:
+                    raise Exception("RAG engine not initialized")
+            except ImportError as ie:
+                raise Exception(f"RAG system import failed: {ie}")
             
             day_name = calendar.day_name[target_date.weekday()]
             month_name = calendar.month_name[target_date.month]
@@ -187,17 +206,24 @@ class SpiritualCalendarService:
             For {day_name}, {target_date.day} {month_name} {target_date.year}, during {season} season:
             Please provide a unique daily spiritual theme that includes:
             1. A meaningful spiritual theme name (2-3 words)
-            2. A inspiring description (1-2 sentences)
+            2. An inspiring description (1-2 sentences)
             
             Make it specific to this day and season, rooted in wisdom traditions.
             Format: Theme: [Name] | Description: [Description]
             """
             
-            rag_response = await get_rag_enhanced_guidance(
-                user_query=spiritual_query,
-                birth_details=None,
-                service_type="daily_spiritual_guidance"
-            )
+            # Query RAG system with timeout
+            try:
+                rag_response = await asyncio.wait_for(
+                    get_rag_enhanced_guidance(
+                        user_query=spiritual_query,
+                        birth_details=None,
+                        service_type="daily_spiritual_guidance"
+                    ),
+                    timeout=8.0  # 8 second timeout for individual dates
+                )
+            except asyncio.TimeoutError:
+                raise Exception(f"RAG system timeout for {target_date}")
             
             if rag_response and rag_response.get("enhanced_guidance"):
                 return self._parse_rag_theme_response(rag_response["enhanced_guidance"])
