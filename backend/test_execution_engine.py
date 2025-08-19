@@ -35,7 +35,7 @@ ALLOWED_GENERATOR_METHODS = {
     'generate_integration_tests',
     'generate_security_tests', 
     'generate_database_tests',
-    'generate_api_tests',
+    'generate_api_endpoint_tests',  # Fixed: Updated from generate_api_tests to match actual method name
     'generate_analytics_monitoring_tests',
     'generate_auto_healing_tests',
     'generate_performance_tests',
@@ -44,13 +44,14 @@ ALLOWED_GENERATOR_METHODS = {
     'generate_load_tests',
     'generate_admin_services_tests',
     'generate_spiritual_tests',
+    'generate_spiritual_services_tests',  # Added: Missing method that exists in TestSuiteGenerator
     'generate_credit_payment_tests',
     'generate_user_management_tests',
     'generate_avatar_generation_tests',
-    'generate_social_media_tests',
-    'generate_community_services_tests',
-    'generate_notification_services_tests',
-    'generate_live_audio_video_tests'
+    'generate_social_media_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_live_audio_video_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_community_services_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_notification_services_tests'  # Added: Missing method that exists in TestSuiteGenerator
 }
 
 class TestExecutionError(Exception):
