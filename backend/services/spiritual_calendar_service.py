@@ -155,7 +155,7 @@ class SpiritualCalendarService:
             return theme
         except Exception as e:
             logger.error(f"Even fallback theme failed: {e}")
-            return {"theme": "Universal Love", "description": "Connecting with the boundless love that permeates the universe."}
+        return {"theme": "Universal Love", "description": "Connecting with the boundless love that permeates the universe."}
 
     async def get_upcoming_events(self, days: int = 7) -> List[Dict[str, Any]]:
         """
