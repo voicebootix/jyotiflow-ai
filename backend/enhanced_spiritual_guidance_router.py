@@ -25,19 +25,8 @@ except ImportError:
     logger = logging.getLogger(__name__)
     logger.warning("Dynamic pricing system not available - using fixed pricing")
 
-# Try to import enhanced RAG system
-try:
-    from enhanced_rag_knowledge_engine import (
-        initialize_rag_system, 
-        get_rag_enhanced_guidance, 
-        rag_engine, 
-        persona_engine,
-        knowledge_expansion
-    )
-    RAG_AVAILABLE = True
-except ImportError:
-    RAG_AVAILABLE = False
-    logging.warning("RAG system not available, using fallback mode")
+# RAG system availability flag (will be checked at runtime)
+RAG_AVAILABLE = None  # Unknown until first runtime check
 
 # Import existing spiritual guidance logic
 try:
@@ -138,6 +127,18 @@ class EnhancedSpiritualGuidanceEngine:
     async def initialize(self):
         """Initialize the enhanced guidance engine"""
         try:
+            # Runtime import of RAG system
+            try:
+                from .enhanced_rag_knowledge_engine import initialize_rag_system
+                global RAG_AVAILABLE
+                RAG_AVAILABLE = True
+            except ImportError as import_error:
+                logger.warning(f"RAG system not available: {import_error}")
+                global RAG_AVAILABLE
+                RAG_AVAILABLE = False
+                self.fallback_mode = True
+                return
+            
             if RAG_AVAILABLE and DATABASE_AVAILABLE and db.db_pool:
                 openai_api_key = os.getenv("OPENAI_API_KEY", "fallback_key")
                 
@@ -165,11 +166,17 @@ class EnhancedSpiritualGuidanceEngine:
             traditional_result = None
             
             if self.rag_initialized and not self.fallback_mode:
-                enhanced_result = await get_rag_enhanced_guidance(
-                    request.question,
-                    request.birth_details,
-                    request.service_type
-                )
+                # Runtime import for RAG guidance function
+                try:
+                    from .enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+                    enhanced_result = await get_rag_enhanced_guidance(
+                        request.question,
+                        request.birth_details,
+                        request.service_type
+                    )
+                except ImportError as import_error:
+                    logger.warning(f"RAG guidance function not available: {import_error}")
+                    enhanced_result = None
             
             # Get traditional guidance for comparison/fallback
             if EXISTING_SPIRITUAL_AVAILABLE:

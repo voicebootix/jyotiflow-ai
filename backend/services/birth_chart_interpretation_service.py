@@ -10,9 +10,7 @@ import asyncio
 from typing import Dict, List, Any, Optional
 import logging
 
-# Assuming the RAG engine can be accessed.
-# This might need to be passed in via dependency injection.
-from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+# RAG engine will be imported at runtime to avoid startup dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +20,6 @@ class BirthChartInterpretationService:
     """
 
     def __init__(self):
-        if not rag_engine:
-            # In a real FastAPI app, the engine would be initialized on startup.
-            # This is a fallback for direct script execution.
-            logger.warning("RAG Engine not initialized. Interpretations will be limited.")
         logger.info("Birth Chart Interpretation Service initialized.")
 
     async def get_comprehensive_interpretation(self, prokerala_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -38,7 +32,16 @@ class BirthChartInterpretationService:
         Returns:
             A dictionary containing detailed interpretations for each planet and aspect.
         """
-        if not rag_engine:
+        # Runtime check for RAG engine availability
+        try:
+            from ..enhanced_rag_knowledge_engine import rag_engine
+            if not rag_engine:
+                return {
+                    "error": "RAG Engine is not initialized.",
+                    "summary": "Could not perform interpretation."
+                }
+        except ImportError:
+            logger.warning("RAG Engine not available, cannot perform interpretation")
             return {
                 "error": "RAG Engine is not available.",
                 "summary": "Could not perform interpretation."
@@ -146,6 +149,9 @@ class BirthChartInterpretationService:
         Helper function to query the RAG engine and handle potential errors.
         """
         try:
+            # Runtime import of RAG function
+            from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            
             response = await get_rag_enhanced_guidance(
                 user_query=query,
                 birth_details=None, # We are asking conceptual questions, not for a specific person
@@ -153,6 +159,9 @@ class BirthChartInterpretationService:
             )
             interpretation_text = response.get("enhanced_guidance", "No specific guidance available.")
             return {key: interpretation_text}
+        except ImportError:
+            logger.warning(f"RAG system not available for interpretation of {key}")
+            return {key: f"RAG system not available - cannot interpret {key}."}
         except Exception as e:
             logger.error(f"RAG query failed for key '{key}': {e}")
             return {key: "Could not retrieve interpretation due to an internal error."}
@@ -178,12 +187,22 @@ class BirthChartInterpretationService:
         ---
         """
 
-        response = await get_rag_enhanced_guidance(
-            user_query=summary_query,
-            birth_details=None,
-            service_type="astrological_summary"
-        )
-        return response.get("enhanced_guidance", "A summary could not be generated.")
+        try:
+            # Runtime import of RAG function
+            from ..enhanced_rag_knowledge_engine import get_rag_enhanced_guidance
+            
+            response = await get_rag_enhanced_guidance(
+                user_query=summary_query,
+                birth_details=None,
+                service_type="astrological_summary"
+            )
+            return response.get("enhanced_guidance", "A summary could not be generated.")
+        except ImportError:
+            logger.warning("RAG system not available for summary generation")
+            return "RAG system not available - cannot generate comprehensive summary."
+        except Exception as e:
+            logger.error(f"RAG summary generation failed: {e}")
+            return "A summary could not be generated due to an internal error."
 
 # Example Usage
 async def main():
