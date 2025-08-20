@@ -700,6 +700,7 @@ async def test_spiritual_guidance_endpoint():
             "description": "Critical tests for spiritual endpoints, avatar generation, pricing, knowledge domains, and birth chart caching - Database Driven",
             "test_cases": [
                 {
+                    
                     "test_name": "test_business_logic_validator",
                     "description": "Test business logic validation endpoint with environment-configurable base URL",
                     "test_type": "integration",
