@@ -2948,7 +2948,9 @@ import uuid
 async def test_payment_api_endpoints():
     try:
         # Test revenue-critical payment endpoints (your 5 specified endpoints) - Dynamic, no hardcoded URLs
-        api_base_url = API_BASE_URL  # Dynamic from environment variable
+        api_base_url = os.environ.get("API_BASE_URL")
+        if not api_base_url:
+            raise ValueError("API_BASE_URL environment variable is required for API endpoint tests")
         test_session_id = f"credit_payment_{uuid.uuid4()}"
         
         endpoints_to_test = [
@@ -2970,9 +2972,10 @@ async def test_payment_api_endpoints():
         
         async with httpx.AsyncClient() as client:
             for endpoint in endpoints_to_test:
+                # Dynamic URL construction - moved out of try block to prevent UnboundLocalError
+                url = f"{api_base_url}{endpoint['url']}"
+                
                 try:
-                    url = f"{api_base_url}{endpoint['url']}"  # Dynamic URL construction
-                    
                     if endpoint['method'] == 'GET':
                         response = await client.get(url)
                     else:
@@ -2992,12 +2995,12 @@ async def test_payment_api_endpoints():
                     # Store in database (database-driven approach)
                     if conn:
                         try:
-                            await conn.execute("""
+                            await conn.execute('''
                                 INSERT INTO monitoring_api_calls 
                                 (test_session_id, endpoint_url, http_method, status_code, test_type, business_function, created_at)
                                 VALUES ($1, $2, $3, $4, $5, $6, NOW())
                                 ON CONFLICT DO NOTHING
-                            """, test_session_id, url, endpoint['method'], response.status_code, 
+                            ''', test_session_id, url, endpoint['method'], response.status_code, 
                                 "credit_payment", endpoint['business_function'])
                         except Exception as db_error:
                             result["db_storage_error"] = str(db_error)
@@ -3015,12 +3018,12 @@ async def test_payment_api_endpoints():
                     # Store error in database
                     if conn:
                         try:
-                            await conn.execute("""
+                            await conn.execute('''
                                 INSERT INTO monitoring_api_calls 
                                 (test_session_id, endpoint_url, http_method, status_code, test_type, business_function, error_details, created_at)
                                 VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
                                 ON CONFLICT DO NOTHING
-                            """, test_session_id, url, endpoint['method'], 500, 
+                            ''', test_session_id, url, endpoint['method'], 500, 
                                 "credit_payment", endpoint['business_function'], str(endpoint_error))
                         except:
                             pass
