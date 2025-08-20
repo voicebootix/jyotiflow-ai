@@ -259,6 +259,19 @@ async def lifespan(app: FastAPI):
     try:
         print("🚀 Starting JyotiFlow.ai backend with unified system...")
         
+        # Apply critical RAG migrations first
+        try:
+            print("🔄 Running auto-deployment migrations...")
+            from auto_deploy_migration import run_auto_deployment_migrations
+            migration_success = await run_auto_deployment_migrations()
+            if migration_success:
+                print("✅ Auto-deployment migrations completed successfully")
+            else:
+                print("⚠️ Some auto-deployment migrations failed, continuing startup")
+        except Exception as migration_error:
+            print(f"⚠️ Auto-deployment migration error: {migration_error}")
+            print("   → Will continue startup with existing database state")
+        
         # Initialize everything through the clean system
         db_pool = await initialize_unified_jyotiflow()
         

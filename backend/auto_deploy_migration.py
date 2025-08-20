@@ -179,7 +179,9 @@ async def run_auto_deployment_migrations():
         critical_migrations = [
             "add_prokerala_smart_pricing.sql",
             "enhance_service_types_rag.sql",
-            "fix_missing_columns.sql"
+            "fix_missing_columns.sql",
+            "026_add_pgvector_extension.sql",
+            "027_populate_spiritual_knowledge_base.sql"
         ]
         
         migrations_dir = Path(__file__).parent / "migrations"
