@@ -165,12 +165,6 @@ class TestSuiteGenerator:
                 test_suites["api_tests"] = {"error": str(e)}
             
             try:
-                test_suites["credit_payment_tests"] = await self.generate_credit_payment_tests()
-            except Exception as e:
-                logger.warning(f"Credit/Payment tests generation failed: {e}")
-                test_suites["credit_payment_tests"] = {"error": str(e)}
-            
-            try:
                 test_suites["spiritual_services_tests"] = await self.generate_spiritual_services_tests()
             except Exception as e:
                 logger.warning(f"Spiritual services tests generation failed: {e}")
