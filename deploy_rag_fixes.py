@@ -67,7 +67,7 @@ class RAGDeploymentFixer:
         regular_statements = []
         
         for stmt in statements:
-            if re.search(r'CREATE\s+INDEX.*CONCURRENTLY|DROP\s+INDEX.*CONCURRENTLY', stmt, re.IGNORECASE):
+            if re.search(r'\bCONCURRENTLY\b', stmt, re.IGNORECASE):
                 concurrent_statements.append(stmt)
             elif stmt.strip() and not stmt.strip().startswith('--'):
                 regular_statements.append(stmt)
