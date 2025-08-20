@@ -710,7 +710,7 @@ import os
 import time
 
 async def test_business_logic_validator():
-    \"\"\"Test business logic validation endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+    '''Test business logic validation endpoint - environment-configurable base URL, direct endpoint configuration'''
     try:
         # Direct endpoint configuration (not from database)
         endpoint = "/api/monitoring/business-logic-validate"
@@ -780,7 +780,7 @@ import os
 import time
 
 async def test_spiritual_avatar_engine():
-    \"\"\"Test spiritual avatar generation endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+    '''Test spiritual avatar generation endpoint - environment-configurable base URL, direct endpoint configuration'''
     try:
         # Direct endpoint configuration (not from database)
         endpoint = "/api/avatar/generate"
@@ -852,7 +852,7 @@ import os
 import time
 
 async def test_monetization_optimizer():
-    \"\"\"Test monetization optimizer endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+    '''Test monetization optimizer pricing recommendations endpoint - environment-configurable base URL, direct endpoint configuration'''
     try:
         # Direct endpoint configuration (not from database)
         endpoint = "/api/spiritual/enhanced/pricing/smart-recommendations"
@@ -920,7 +920,7 @@ import os
 import time
 
 async def test_rag_knowledge_retrieval():
-    \"\"\"Test RAG knowledge domains endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+    '''Test RAG knowledge domains endpoint - environment-configurable base URL, direct endpoint configuration'''
     try:
         # Direct endpoint configuration (not from database)
         endpoint = "/api/spiritual/enhanced/knowledge-domains"
@@ -985,7 +985,7 @@ import os
 import time
 
 async def test_birth_chart_cache():
-    \"\"\"Test birth chart cache status endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+    '''Test birth chart cache status endpoint - environment-configurable base URL, direct endpoint configuration'''
     try:
         # Direct endpoint configuration (not from database)
         endpoint = "/api/spiritual/birth-chart/cache-status"
