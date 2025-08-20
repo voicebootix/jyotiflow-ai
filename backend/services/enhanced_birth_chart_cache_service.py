@@ -532,3 +532,1082 @@ Make it personal and practical for daily life.
                 'expires_at': None,
                 'has_free_birth_chart': False
             }
+                
+
+                if basic_resp.status_code == 200:
+
+                    basic_data = basic_resp.json()
+
+                    if "data" in basic_data:
+
+                        chart_data.update(basic_data["data"])
+
+                
+
+                # Get chart visualization
+
+                chart_params = {**params, "chart_type": "rasi", "chart_style": "north-indian", "format": "json"}
+
+                chart_resp = await client.get(
+
+                    "https://api.prokerala.com/v2/astrology/chart",
+
+                    headers=headers,
+
+                    params=chart_params
+
+                )
+
+                
+
+                if chart_resp.status_code == 200:
+
+                    chart_visual_data = chart_resp.json()
+
+                    if "data" in chart_visual_data:
+
+                        chart_data["chart_visualization"] = chart_visual_data["data"]
+
+            
+
+            return chart_data
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Birth chart data fetch failed: {e}")
+
+            raise
+
+    
+
+    async def _generate_swamiji_reading(self, birth_chart_data: Dict[str, Any], 
+
+                                       pdf_reports: Dict[str, Any], 
+
+                                       birth_details: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Generate Swamiji's personalized reading using OpenAI"""
+
+        try:
+
+            if not self.openai_client:
+
+                logger.warning("OpenAI not available for Swamiji reading")
+
+                return {
+
+                    'reading': 'Swamiji\'s personalized reading is currently unavailable. Please try again later.',
+
+                    'personality_insights': ['Reading generation temporarily unavailable'],
+
+                    'spiritual_guidance': ['Please check back later for personalized guidance'],
+
+                    'practical_advice': ['Service will be restored shortly'],
+
+                    'generated_at': datetime.now().isoformat(),
+
+                    'generated_with': 'service_unavailable'
+
+                }
+
+            
+
+            # Build comprehensive prompt
+
+            prompt = self._build_swamiji_prompt(birth_chart_data, pdf_reports, birth_details)
+
+            
+
+            # Generate reading with OpenAI
+
+            response = await self.openai_client.chat.completions.create(
+
+                model="gpt-4o-mini",
+
+                messages=[
+
+                    {
+
+                        "role": "system",
+
+                        "content": "You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions. Provide personalized spiritual guidance with cultural authenticity."
+
+                    },
+
+                    {
+
+                        "role": "user",
+
+                        "content": prompt
+
+                    }
+
+                ],
+
+                max_tokens=1500,
+
+                temperature=0.7
+
+            )
+
+            
+
+            reading = response.choices[0].message.content
+
+            
+
+            # Extract structured insights
+
+            personality_insights = self._extract_personality_insights(reading)
+
+            spiritual_guidance = self._extract_spiritual_guidance(reading)
+
+            practical_advice = self._extract_practical_advice(reading)
+
+            
+
+            return {
+
+                'reading': reading,
+
+                'personality_insights': personality_insights,
+
+                'spiritual_guidance': spiritual_guidance,
+
+                'practical_advice': practical_advice,
+
+                'generated_at': datetime.now().isoformat(),
+
+                'generated_with': 'openai_enhanced'
+
+            }
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Error generating Swamiji reading: {e}")
+
+            return {
+
+                'reading': 'Unable to generate personalized reading at this time. Please try again later.',
+
+                'personality_insights': ['Reading generation failed'],
+
+                'spiritual_guidance': ['Please try again later'],
+
+                'practical_advice': ['Service temporarily unavailable'],
+
+                'generated_at': datetime.now().isoformat(),
+
+                'generated_with': 'error_fallback'
+
+            }
+
+    
+
+    def _build_swamiji_prompt(self, birth_chart_data: Dict[str, Any], 
+
+                              pdf_reports: Dict[str, Any], 
+
+                              birth_details: Dict[str, Any]) -> str:
+
+        """Build comprehensive prompt for Swamiji's reading"""
+
+        
+
+        # Extract key astrological data
+
+        nakshatra = birth_chart_data.get('nakshatra', {}).get('name', 'Unknown')
+
+        moon_sign = birth_chart_data.get('chandra_rasi', {}).get('name', 'Unknown')
+
+        sun_sign = birth_chart_data.get('soorya_rasi', {}).get('name', 'Unknown')
+
+        ascendant = birth_chart_data.get('lagna', {}).get('name', 'Unknown')
+
+        
+
+        # Build PDF insights
+
+        pdf_insights = ""
+
+        for report_type, report_data in pdf_reports.items():
+
+            if report_data.get('text_content'):
+
+                pdf_insights += f"\n\n{report_type.upper()} INSIGHTS:\n{report_data['text_content'][:500]}..."
+
+        
+
+        prompt = f"""
+
+Vanakkam! I am providing a comprehensive spiritual reading for someone born on {birth_details.get('date')} at {birth_details.get('time')} in {birth_details.get('location')}.
+
+
+
+ASTROLOGICAL FOUNDATION:
+
+- Birth Nakshatra: {nakshatra}
+
+- Moon Sign (Chandra Rasi): {moon_sign}
+
+- Sun Sign (Soorya Rasi): {sun_sign}
+
+- Ascendant (Lagna): {ascendant}
+
+
+
+DETAILED ASTROLOGICAL INSIGHTS:{pdf_insights}
+
+
+
+CHART VISUALIZATION DATA:
+
+{json.dumps(birth_chart_data.get('chart_visualization', {}), indent=2)[:1000]}...
+
+
+
+Please provide a comprehensive reading that includes:
+
+1. Personality analysis based on nakshatra and planetary positions
+
+2. Life path guidance and spiritual development
+
+3. Relationship and marriage prospects
+
+4. Career and financial guidance
+
+5. Health and wellness advice
+
+6. Specific spiritual remedies and practices
+
+7. Auspicious timings and recommendations
+
+
+
+Write in your authentic Tamil-English style with compassion and wisdom.
+
+Make it personal and practical for daily life.
+
+"""
+
+        
+
+        return prompt
+
+    
+
+    def _extract_chart_summary(self, birth_chart_data: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Extract key chart summary for quick display"""
+
+        return {
+
+            'nakshatra': birth_chart_data.get('nakshatra', {}).get('name', 'Unknown'),
+
+            'moon_sign': birth_chart_data.get('chandra_rasi', {}).get('name', 'Unknown'),
+
+            'sun_sign': birth_chart_data.get('soorya_rasi', {}).get('name', 'Unknown'),
+
+            'ascendant': birth_chart_data.get('lagna', {}).get('name', 'Unknown'),
+
+            'has_chart_visualization': bool(birth_chart_data.get('chart_visualization'))
+
+        }
+
+    
+
+    def _extract_personality_insights(self, reading: str) -> List[str]:
+
+        """Extract personality insights from AI reading"""
+
+        insights = []
+
+        lines = reading.split('\n')
+
+        
+
+        for line in lines:
+
+            if any(keyword in line.lower() for keyword in ['personality', 'nature', 'character', 'trait']):
+
+                insights.append(line.strip())
+
+        
+
+        return insights[:3]  # Top 3 personality insights
+
+    
+
+    def _extract_spiritual_guidance(self, reading: str) -> List[str]:
+
+        """Extract spiritual guidance from AI reading"""
+
+        guidance = []
+
+        lines = reading.split('\n')
+
+        
+
+        for line in lines:
+
+            if any(keyword in line.lower() for keyword in ['spiritual', 'remedy', 'practice', 'mantra', 'meditation']):
+
+                guidance.append(line.strip())
+
+        
+
+        return guidance[:3]  # Top 3 spiritual guidance points
+
+    
+
+    def _extract_practical_advice(self, reading: str) -> List[str]:
+
+        """Extract practical advice from AI reading"""
+
+        advice = []
+
+        lines = reading.split('\n')
+
+        
+
+        for line in lines:
+
+            if any(keyword in line.lower() for keyword in ['should', 'avoid', 'recommend', 'suggest', 'advice']):
+
+                advice.append(line.strip())
+
+        
+
+        return advice[:3]  # Top 3 practical advice points
+
+    
+
+    async def _cache_complete_profile(self, user_email: str, birth_details: Dict[str, Any], 
+
+                                     complete_profile: Dict[str, Any]) -> bool:
+
+        """Cache complete profile to database"""
+
+        try:
+
+            birth_hash = self.generate_birth_details_hash(birth_details)
+
+            cached_at = datetime.now()
+
+            expires_at = cached_at + timedelta(days=self.cache_duration_days)
+
+            
+
+            conn = None
+
+            try:
+
+                conn = await asyncpg.connect(self.db_url)
+
+                
+
+                # Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) instead of INSERT OR REPLACE
+
+                await conn.execute("""
+
+                    INSERT INTO users 
+
+                    (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
+
+                     birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
+
+                     birth_location, name, password_hash, role, credits)
+
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+
+                    ON CONFLICT (email) DO UPDATE SET
+
+                    birth_chart_data = $2,
+
+                    birth_chart_hash = $3,
+
+                    birth_chart_cached_at = $4,
+
+                    birth_chart_expires_at = $5,
+
+                    has_free_birth_chart = $6,
+
+                    birth_date = $7,
+
+                    birth_time = $8,
+
+                    birth_location = $9,
+
+                    name = $10
+
+                """, 
+
+                user_email,
+
+                json.dumps(complete_profile),
+
+                birth_hash,
+
+                cached_at,
+
+                expires_at,
+
+                True,
+
+                birth_details.get('date'),
+
+                birth_details.get('time'),
+
+                birth_details.get('location'),
+
+                birth_details.get('name', 'User'),
+
+                'temp_hash',  # This would be set during actual registration
+
+                'user',
+
+                50  # Default credits for new users
+
+                )
+
+            finally:
+
+                if conn:
+
+                    await conn.close()
+
+            
+
+            logger.info(f"✅ Complete profile cached for {user_email}")
+
+            return True
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Error caching complete profile: {e}")
+
+            return False
+
+    
+
+    async def get_user_profile_status(self, user_email: str) -> Dict[str, Any]:
+
+        """Get user's complete profile status"""
+
+        conn = None
+
+        result = None
+
+        try:
+
+            conn = await asyncpg.connect(self.db_url)
+
+            result = await conn.fetchrow("""
+
+                SELECT birth_date, birth_time, birth_location, birth_chart_cached_at, 
+
+                       birth_chart_expires_at, has_free_birth_chart,
+
+                       (birth_chart_data IS NOT NULL) as has_cached_data,
+
+                       (birth_chart_expires_at > NOW()) as cache_valid
+
+                FROM users 
+
+                WHERE email = $1
+
+            """, user_email)
+
+        except Exception as e:
+
+            logger.error(f"Error getting user profile status: {e}")
+
+            return {'error': str(e)}
+
+        finally:
+
+            if conn:
+
+                await conn.close()
+
+        if result:
+
+            return {
+
+                'has_birth_details': bool(result['birth_date'] and result['birth_time'] and result['birth_location']),
+
+                'has_cached_data': bool(result['has_cached_data']),
+
+                'cache_valid': bool(result['cache_valid']),
+
+                'cached_at': result['birth_chart_cached_at'],
+
+                'expires_at': result['birth_chart_expires_at'],
+
+                'has_free_birth_chart': bool(result['has_free_birth_chart'])
+
+            }
+
+        else:
+
+            return {
+
+                'has_birth_details': False,
+
+                'has_cached_data': False,
+
+                'cache_valid': False,
+
+                'cached_at': None,
+
+                'expires_at': None,
+
+                'has_free_birth_chart': False
+
+            }
+
+                
+
+                if basic_resp.status_code == 200:
+
+                    basic_data = basic_resp.json()
+
+                    if "data" in basic_data:
+
+                        chart_data.update(basic_data["data"])
+
+                
+
+                # Get chart visualization
+
+                chart_params = {**params, "chart_type": "rasi", "chart_style": "north-indian", "format": "json"}
+
+                chart_resp = await client.get(
+
+                    "https://api.prokerala.com/v2/astrology/chart",
+
+                    headers=headers,
+
+                    params=chart_params
+
+                )
+
+                
+
+                if chart_resp.status_code == 200:
+
+                    chart_visual_data = chart_resp.json()
+
+                    if "data" in chart_visual_data:
+
+                        chart_data["chart_visualization"] = chart_visual_data["data"]
+
+            
+
+            return chart_data
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Birth chart data fetch failed: {e}")
+
+            raise
+
+    
+
+    async def _generate_swamiji_reading(self, birth_chart_data: Dict[str, Any], 
+
+                                       pdf_reports: Dict[str, Any], 
+
+                                       birth_details: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Generate Swamiji's personalized reading using OpenAI"""
+
+        try:
+
+            if not self.openai_client:
+
+                logger.warning("OpenAI not available for Swamiji reading")
+
+                return {
+
+                    'reading': 'Swamiji\'s personalized reading is currently unavailable. Please try again later.',
+
+                    'personality_insights': ['Reading generation temporarily unavailable'],
+
+                    'spiritual_guidance': ['Please check back later for personalized guidance'],
+
+                    'practical_advice': ['Service will be restored shortly'],
+
+                    'generated_at': datetime.now().isoformat(),
+
+                    'generated_with': 'service_unavailable'
+
+                }
+
+            
+
+            # Build comprehensive prompt
+
+            prompt = self._build_swamiji_prompt(birth_chart_data, pdf_reports, birth_details)
+
+            
+
+            # Generate reading with OpenAI
+
+            response = await self.openai_client.chat.completions.create(
+
+                model="gpt-4o-mini",
+
+                messages=[
+
+                    {
+
+                        "role": "system",
+
+                        "content": "You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions. Provide personalized spiritual guidance with cultural authenticity."
+
+                    },
+
+                    {
+
+                        "role": "user",
+
+                        "content": prompt
+
+                    }
+
+                ],
+
+                max_tokens=1500,
+
+                temperature=0.7
+
+            )
+
+            
+
+            reading = response.choices[0].message.content
+
+            
+
+            # Extract structured insights
+
+            personality_insights = self._extract_personality_insights(reading)
+
+            spiritual_guidance = self._extract_spiritual_guidance(reading)
+
+            practical_advice = self._extract_practical_advice(reading)
+
+            
+
+            return {
+
+                'reading': reading,
+
+                'personality_insights': personality_insights,
+
+                'spiritual_guidance': spiritual_guidance,
+
+                'practical_advice': practical_advice,
+
+                'generated_at': datetime.now().isoformat(),
+
+                'generated_with': 'openai_enhanced'
+
+            }
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Error generating Swamiji reading: {e}")
+
+            return {
+
+                'reading': 'Unable to generate personalized reading at this time. Please try again later.',
+
+                'personality_insights': ['Reading generation failed'],
+
+                'spiritual_guidance': ['Please try again later'],
+
+                'practical_advice': ['Service temporarily unavailable'],
+
+                'generated_at': datetime.now().isoformat(),
+
+                'generated_with': 'error_fallback'
+
+            }
+
+    
+
+    def _build_swamiji_prompt(self, birth_chart_data: Dict[str, Any], 
+
+                              pdf_reports: Dict[str, Any], 
+
+                              birth_details: Dict[str, Any]) -> str:
+
+        """Build comprehensive prompt for Swamiji's reading"""
+
+        
+
+        # Extract key astrological data
+
+        nakshatra = birth_chart_data.get('nakshatra', {}).get('name', 'Unknown')
+
+        moon_sign = birth_chart_data.get('chandra_rasi', {}).get('name', 'Unknown')
+
+        sun_sign = birth_chart_data.get('soorya_rasi', {}).get('name', 'Unknown')
+
+        ascendant = birth_chart_data.get('lagna', {}).get('name', 'Unknown')
+
+        
+
+        # Build PDF insights
+
+        pdf_insights = ""
+
+        for report_type, report_data in pdf_reports.items():
+
+            if report_data.get('text_content'):
+
+                pdf_insights += f"\n\n{report_type.upper()} INSIGHTS:\n{report_data['text_content'][:500]}..."
+
+        
+
+        prompt = f"""
+
+Vanakkam! I am providing a comprehensive spiritual reading for someone born on {birth_details.get('date')} at {birth_details.get('time')} in {birth_details.get('location')}.
+
+
+
+ASTROLOGICAL FOUNDATION:
+
+- Birth Nakshatra: {nakshatra}
+
+- Moon Sign (Chandra Rasi): {moon_sign}
+
+- Sun Sign (Soorya Rasi): {sun_sign}
+
+- Ascendant (Lagna): {ascendant}
+
+
+
+DETAILED ASTROLOGICAL INSIGHTS:{pdf_insights}
+
+
+
+CHART VISUALIZATION DATA:
+
+{json.dumps(birth_chart_data.get('chart_visualization', {}), indent=2)[:1000]}...
+
+
+
+Please provide a comprehensive reading that includes:
+
+1. Personality analysis based on nakshatra and planetary positions
+
+2. Life path guidance and spiritual development
+
+3. Relationship and marriage prospects
+
+4. Career and financial guidance
+
+5. Health and wellness advice
+
+6. Specific spiritual remedies and practices
+
+7. Auspicious timings and recommendations
+
+
+
+Write in your authentic Tamil-English style with compassion and wisdom.
+
+Make it personal and practical for daily life.
+
+"""
+
+        
+
+        return prompt
+
+    
+
+    def _extract_chart_summary(self, birth_chart_data: Dict[str, Any]) -> Dict[str, Any]:
+
+        """Extract key chart summary for quick display"""
+
+        return {
+
+            'nakshatra': birth_chart_data.get('nakshatra', {}).get('name', 'Unknown'),
+
+            'moon_sign': birth_chart_data.get('chandra_rasi', {}).get('name', 'Unknown'),
+
+            'sun_sign': birth_chart_data.get('soorya_rasi', {}).get('name', 'Unknown'),
+
+            'ascendant': birth_chart_data.get('lagna', {}).get('name', 'Unknown'),
+
+            'has_chart_visualization': bool(birth_chart_data.get('chart_visualization'))
+
+        }
+
+    
+
+    def _extract_personality_insights(self, reading: str) -> List[str]:
+
+        """Extract personality insights from AI reading"""
+
+        insights = []
+
+        lines = reading.split('\n')
+
+        
+
+        for line in lines:
+
+            if any(keyword in line.lower() for keyword in ['personality', 'nature', 'character', 'trait']):
+
+                insights.append(line.strip())
+
+        
+
+        return insights[:3]  # Top 3 personality insights
+
+    
+
+    def _extract_spiritual_guidance(self, reading: str) -> List[str]:
+
+        """Extract spiritual guidance from AI reading"""
+
+        guidance = []
+
+        lines = reading.split('\n')
+
+        
+
+        for line in lines:
+
+            if any(keyword in line.lower() for keyword in ['spiritual', 'remedy', 'practice', 'mantra', 'meditation']):
+
+                guidance.append(line.strip())
+
+        
+
+        return guidance[:3]  # Top 3 spiritual guidance points
+
+    
+
+    def _extract_practical_advice(self, reading: str) -> List[str]:
+
+        """Extract practical advice from AI reading"""
+
+        advice = []
+
+        lines = reading.split('\n')
+
+        
+
+        for line in lines:
+
+            if any(keyword in line.lower() for keyword in ['should', 'avoid', 'recommend', 'suggest', 'advice']):
+
+                advice.append(line.strip())
+
+        
+
+        return advice[:3]  # Top 3 practical advice points
+
+    
+
+    async def _cache_complete_profile(self, user_email: str, birth_details: Dict[str, Any], 
+
+                                     complete_profile: Dict[str, Any]) -> bool:
+
+        """Cache complete profile to database"""
+
+        try:
+
+            birth_hash = self.generate_birth_details_hash(birth_details)
+
+            cached_at = datetime.now()
+
+            expires_at = cached_at + timedelta(days=self.cache_duration_days)
+
+            
+
+            conn = None
+
+            try:
+
+                conn = await asyncpg.connect(self.db_url)
+
+                
+
+                # Use PostgreSQL UPSERT (INSERT ... ON CONFLICT) instead of INSERT OR REPLACE
+
+                await conn.execute("""
+
+                    INSERT INTO users 
+
+                    (email, birth_chart_data, birth_chart_hash, birth_chart_cached_at, 
+
+                     birth_chart_expires_at, has_free_birth_chart, birth_date, birth_time, 
+
+                     birth_location, name, password_hash, role, credits)
+
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+
+                    ON CONFLICT (email) DO UPDATE SET
+
+                    birth_chart_data = $2,
+
+                    birth_chart_hash = $3,
+
+                    birth_chart_cached_at = $4,
+
+                    birth_chart_expires_at = $5,
+
+                    has_free_birth_chart = $6,
+
+                    birth_date = $7,
+
+                    birth_time = $8,
+
+                    birth_location = $9,
+
+                    name = $10
+
+                """, 
+
+                user_email,
+
+                json.dumps(complete_profile),
+
+                birth_hash,
+
+                cached_at,
+
+                expires_at,
+
+                True,
+
+                birth_details.get('date'),
+
+                birth_details.get('time'),
+
+                birth_details.get('location'),
+
+                birth_details.get('name', 'User'),
+
+                'temp_hash',  # This would be set during actual registration
+
+                'user',
+
+                50  # Default credits for new users
+
+                )
+
+            finally:
+
+                if conn:
+
+                    await conn.close()
+
+            
+
+            logger.info(f"✅ Complete profile cached for {user_email}")
+
+            return True
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Error caching complete profile: {e}")
+
+            return False
+
+    
+
+    async def get_user_profile_status(self, user_email: str) -> Dict[str, Any]:
+
+        """Get user's complete profile status"""
+
+        conn = None
+
+        result = None
+
+        try:
+
+            conn = await asyncpg.connect(self.db_url)
+
+            result = await conn.fetchrow("""
+
+                SELECT birth_date, birth_time, birth_location, birth_chart_cached_at, 
+
+                       birth_chart_expires_at, has_free_birth_chart,
+
+                       (birth_chart_data IS NOT NULL) as has_cached_data,
+
+                       (birth_chart_expires_at > NOW()) as cache_valid
+
+                FROM users 
+
+                WHERE email = $1
+
+            """, user_email)
+
+        except Exception as e:
+
+            logger.error(f"Error getting user profile status: {e}")
+
+            return {'error': str(e)}
+
+        finally:
+
+            if conn:
+
+                await conn.close()
+
+        if result:
+
+            return {
+
+                'has_birth_details': bool(result['birth_date'] and result['birth_time'] and result['birth_location']),
+
+                'has_cached_data': bool(result['has_cached_data']),
+
+                'cache_valid': bool(result['cache_valid']),
+
+                'cached_at': result['birth_chart_cached_at'],
+
+                'expires_at': result['birth_chart_expires_at'],
+
+                'has_free_birth_chart': bool(result['has_free_birth_chart'])
+
+            }
+
+        else:
+
+            return {
+
+                'has_birth_details': False,
+
+                'has_cached_data': False,
+
+                'cache_valid': False,
+
+                'cached_at': None,
+
+                'expires_at': None,
+
+                'has_free_birth_chart': False
+
+            }

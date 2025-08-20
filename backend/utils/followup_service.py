@@ -631,3 +631,1254 @@ class FollowUpService:
         except (ValueError, IndexError) as e:
             logger.error(f"Failed to parse command tag '{command_tag}': {e}")
             return 0 
+                            rag_guidance = "" # Fallback to empty string if RAG fails
+
+
+
+            # 3. Prepare variables for substitution
+
+            variables = {
+
+                'user_name': user.get('name', user.get('full_name', 'Divine Soul')),
+
+                'user_email': user['email'],
+
+                'rag_wisdom': rag_guidance, # Add the new RAG wisdom
+
+                **session_data
+
+            }
+
+            
+
+            # 4. Get content based on user's preferred language
+
+            user_language = user.get('preferred_language', 'en')
+
+            
+
+            if user_language == 'ta' and template.get('tamil_content'):
+
+                content = template['tamil_content']
+
+                subject = template.get('tamil_subject', template.get('subject', 'A Message from Swamiji'))
+
+            else:
+
+                content = template.get('content', 'Thank you for your session with JyotiFlow!')
+
+                subject = template.get('subject', 'A Message from Swamiji')
+
+            
+
+            # Add a placeholder for RAG wisdom in the template if it doesn't exist
+
+            if '{{rag_wisdom}}' not in content and rag_guidance:
+
+                content += "\n\nHere is a little more wisdom for your journey:\n{{rag_wisdom}}"
+
+
+
+            # 5. Substitute variables
+
+            for var_name, var_value in variables.items():
+
+                placeholder = f"{{{{{var_name}}}}}"
+
+                # Ensure var_value is a string before replacing
+
+                content = content.replace(placeholder, str(var_value or ''))
+
+                subject = subject.replace(placeholder, str(var_value or ''))
+
+            
+
+            return subject, content
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Failed to prepare message content: {e}", exc_info=True)
+
+            # Fallback to a simple, non-personalized message
+
+            return "A Message from Swamiji", f"Vanakkam {user.get('name', 'Divine Soul')},\n\nWe hope you are finding peace and clarity on your spiritual path. Remember to apply the wisdom from your recent session in your daily life.\n\nBlessings,\nSwami Jyotirananthan"
+
+
+
+    async def _send_message(self, channel: str, to: str, subject: str, content: str) -> bool:
+
+        """Send message through specified channel"""
+
+        try:
+
+            if channel == 'email':
+
+                await send_email(to, subject, content)
+
+            elif channel == 'sms':
+
+                await asyncio.get_event_loop().run_in_executor(None, send_sms, to, content)
+
+            elif channel == 'whatsapp':
+
+                await asyncio.get_event_loop().run_in_executor(None, send_whatsapp, to, content)
+
+            elif channel == 'push':
+
+                logger.warning("Push notifications not fully implemented")
+
+                return False
+
+            else:
+
+                logger.error(f"Unsupported channel: {channel}")
+
+                return False
+
+            
+
+            return True
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Failed to send {channel} message: {e}")
+
+            return False
+
+    
+
+    async def _mark_followup_sent(self, followup_id: str):
+
+        """Mark follow-up as sent and update session tracking"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            # Get follow-up details to update session tracking
+
+            followup = await self._get_followup_by_id(followup_id)
+
+            
+
+            # Update follow-up schedule
+
+            await conn.execute("""
+
+                UPDATE follow_up_schedules 
+
+                SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+
+                WHERE id = $1
+
+            """, followup_id)
+
+            
+
+            # Update session tracking if session_id exists
+
+            if followup and followup.get('session_id'):
+
+                channel = followup.get('channel', '').lower()
+
+                if channel == 'email':
+
+                    await conn.execute("""
+
+                        UPDATE sessions 
+
+                        SET follow_up_email_sent = TRUE 
+
+                        WHERE id = $1
+
+                    """, followup['session_id'])
+
+                elif channel == 'sms':
+
+                    await conn.execute("""
+
+                        UPDATE sessions 
+
+                        SET follow_up_sms_sent = TRUE 
+
+                        WHERE id = $1
+
+                    """, followup['session_id'])
+
+                elif channel == 'whatsapp':
+
+                    await conn.execute("""
+
+                        UPDATE sessions 
+
+                        SET follow_up_whatsapp_sent = TRUE 
+
+                        WHERE id = $1
+
+                    """, followup['session_id'])
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _mark_followup_failed(self, followup_id: str, reason: str):
+
+        """Mark follow-up as failed"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            await conn.execute("""
+
+                UPDATE follow_up_schedules 
+
+                SET status = 'failed', failure_reason = $1, updated_at = NOW()
+
+                WHERE id = $2
+
+            """, reason, followup_id)
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _track_analytics(self, template_id: str, channel: str, event: str):
+
+        """Track follow-up analytics"""
+
+        try:
+
+            today = datetime.now(timezone.utc).date()
+
+            conn = await self.db.get_connection()
+
+            try:
+
+                # PostgreSQL UPSERT
+
+                await conn.execute("""
+
+                    INSERT INTO follow_up_analytics (
+
+                        date, template_id, channel, total_sent, created_at, updated_at
+
+                    ) VALUES ($1, $2, $3, 1, NOW(), NOW())
+
+                    ON CONFLICT (date, template_id, channel) 
+
+                    DO UPDATE SET total_sent = follow_up_analytics.total_sent + 1, updated_at = NOW()
+
+                """, today, template_id, channel)
+
+            finally:
+
+                await self.db.release_connection(conn)
+
+        except Exception as e:
+
+            logger.error(f"Failed to track analytics: {e}")
+
+    
+
+    async def _validate_scheduling_constraints(self, request, template: Dict):
+
+        """Validate scheduling constraints"""
+
+        # Ensure settings are loaded
+
+        await self._ensure_settings_loaded()
+
+        
+
+        # Check max follow-ups per session
+
+        session_id = getattr(request, 'session_id', None)
+
+        if session_id:
+
+            count = await self._get_followup_count_for_session(session_id)
+
+            max_count = self.settings.get('max_followups_per_session', 3)
+
+            if count >= max_count:
+
+                raise HTTPException(
+
+                    status_code=400, 
+
+                    detail=f"Maximum follow-ups ({max_count}) already scheduled for this session"
+
+                )
+
+        
+
+        # Check minimum interval
+
+        scheduled_at = getattr(request, 'scheduled_at', None)
+
+        if scheduled_at:
+
+            min_interval = timedelta(hours=self.settings.get('min_interval_hours', 24))
+
+            last_followup = await self._get_last_followup_for_user(request.user_email)
+
+            if last_followup and (scheduled_at - last_followup['scheduled_at']) < min_interval:
+
+                raise HTTPException(
+
+                    status_code=400,
+
+                    detail=f"Minimum interval of {min_interval} required between follow-ups"
+
+                )
+
+    
+
+    async def _calculate_optimal_time(self, user_email: str, template: Dict) -> datetime:
+
+        """Calculate optimal time for follow-up based on user behavior"""
+
+        try:
+
+            # Get user's last activity time
+
+            user = await self._get_user_by_email(user_email)
+
+            if not user:
+
+                return datetime.now(timezone.utc) + timedelta(days=1)
+
+            
+
+            # Simple logic: schedule for next day at 10 AM user's timezone
+
+            optimal_time = datetime.now(timezone.utc) + timedelta(days=1)
+
+            optimal_time = optimal_time.replace(hour=10, minute=0, second=0, microsecond=0)
+
+            
+
+            return optimal_time
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Failed to calculate optimal time: {e}")
+
+            return datetime.now(timezone.utc) + timedelta(days=1)
+
+    
+
+    # Database helper methods - PostgreSQL only
+
+    async def _get_user_by_email(self, email: str) -> Optional[Dict]:
+
+        """Get user by email"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM users WHERE email = $1", email)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_template_by_id(self, template_id: str) -> Optional[Dict]:
+
+        """Get template by ID"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM follow_up_templates WHERE id = $1", template_id)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_followup_by_id(self, followup_id: str) -> Optional[Dict]:
+
+        """Get follow-up by ID"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM follow_up_schedules WHERE id = $1", followup_id)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_session_by_id(self, session_id: str) -> Optional[Dict]:
+
+        """Get session by ID"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM sessions WHERE id = $1", session_id)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_followup_count_for_session(self, session_id: str) -> int:
+
+        """Get follow-up count for a session"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            count = await conn.fetchval("SELECT COUNT(*) FROM follow_up_schedules WHERE session_id = $1", session_id)
+
+            return count or 0
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_last_followup_for_user(self, user_email: str) -> Optional[Dict]:
+
+        """Get last follow-up for user"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("""
+
+                SELECT * FROM follow_up_schedules 
+
+                WHERE user_email = $1 
+
+                ORDER BY scheduled_at DESC 
+
+                LIMIT 1
+
+            """, user_email)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def get_user_followups(self, user_email: str) -> List[Dict]:
+
+        """Get all follow-ups for a user"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            rows = await conn.fetch("""
+
+                SELECT fs.*, ft.name as template_name, ft.tamil_name as template_tamil_name
+
+                FROM follow_up_schedules fs
+
+                JOIN follow_up_templates ft ON fs.template_id = ft.id
+
+                WHERE fs.user_email = $1
+
+                ORDER BY fs.scheduled_at DESC
+
+            """, user_email)
+
+            return [dict(row) for row in rows]
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def cancel_followup(self, followup_id: str, user_email: str) -> bool:
+
+        """Cancel a follow-up"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            result = await conn.execute("""
+
+                UPDATE follow_up_schedules 
+
+                SET status = 'cancelled', updated_at = NOW()
+
+                WHERE id = $1 AND user_email = $2 AND status = 'pending'
+
+            """, followup_id, user_email)
+
+            
+
+            # Parse asyncpg command tag to get affected row count
+
+            return self._parse_affected_rows(result) > 0
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    def _parse_affected_rows(self, command_tag: str) -> int:
+
+        """
+
+        Parse asyncpg command tag to extract the number of affected rows.
+
+        
+
+        Command tag formats:
+
+        - UPDATE: "UPDATE n" where n = affected rows
+
+        - DELETE: "DELETE n" where n = affected rows  
+
+        - INSERT: "INSERT oid n" where n = affected rows
+
+        - SELECT: "SELECT n" where n = selected rows
+
+        
+
+        Args:
+
+            command_tag: Command tag string returned by asyncpg.execute()
+
+            
+
+        Returns:
+
+            Number of affected rows, or 0 if parsing fails
+
+        """
+
+        try:
+
+            parts = command_tag.strip().split()
+
+            
+
+            if not parts:
+
+                logger.warning(f"Empty command tag received: '{command_tag}'")
+
+                return 0
+
+            
+
+            command = parts[0].upper()
+
+            
+
+            if command in ('UPDATE', 'DELETE', 'SELECT'):
+
+                # Format: "COMMAND n"
+
+                if len(parts) >= 2:
+
+                    return int(parts[1])
+
+                else:
+
+                    logger.warning(f"Unexpected {command} command tag format: '{command_tag}'")
+
+                    return 0
+
+                    
+
+            elif command == 'INSERT':
+
+                # Format: "INSERT oid n" where we want n
+
+                if len(parts) >= 3:
+
+                    return int(parts[2])
+
+                else:
+
+                    logger.warning(f"Unexpected INSERT command tag format: '{command_tag}'")
+
+                    return 0
+
+                    
+
+            else:
+
+                # Unknown command type
+
+                logger.warning(f"Unknown command type in tag: '{command_tag}'")
+
+                return 0
+
+                
+
+        except (ValueError, IndexError) as e:
+
+            logger.error(f"Failed to parse command tag '{command_tag}': {e}")
+
+            return 0 
+
+                            rag_guidance = "" # Fallback to empty string if RAG fails
+
+
+
+            # 3. Prepare variables for substitution
+
+            variables = {
+
+                'user_name': user.get('name', user.get('full_name', 'Divine Soul')),
+
+                'user_email': user['email'],
+
+                'rag_wisdom': rag_guidance, # Add the new RAG wisdom
+
+                **session_data
+
+            }
+
+            
+
+            # 4. Get content based on user's preferred language
+
+            user_language = user.get('preferred_language', 'en')
+
+            
+
+            if user_language == 'ta' and template.get('tamil_content'):
+
+                content = template['tamil_content']
+
+                subject = template.get('tamil_subject', template.get('subject', 'A Message from Swamiji'))
+
+            else:
+
+                content = template.get('content', 'Thank you for your session with JyotiFlow!')
+
+                subject = template.get('subject', 'A Message from Swamiji')
+
+            
+
+            # Add a placeholder for RAG wisdom in the template if it doesn't exist
+
+            if '{{rag_wisdom}}' not in content and rag_guidance:
+
+                content += "\n\nHere is a little more wisdom for your journey:\n{{rag_wisdom}}"
+
+
+
+            # 5. Substitute variables
+
+            for var_name, var_value in variables.items():
+
+                placeholder = f"{{{{{var_name}}}}}"
+
+                # Ensure var_value is a string before replacing
+
+                content = content.replace(placeholder, str(var_value or ''))
+
+                subject = subject.replace(placeholder, str(var_value or ''))
+
+            
+
+            return subject, content
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Failed to prepare message content: {e}", exc_info=True)
+
+            # Fallback to a simple, non-personalized message
+
+            return "A Message from Swamiji", f"Vanakkam {user.get('name', 'Divine Soul')},\n\nWe hope you are finding peace and clarity on your spiritual path. Remember to apply the wisdom from your recent session in your daily life.\n\nBlessings,\nSwami Jyotirananthan"
+
+
+
+    async def _send_message(self, channel: str, to: str, subject: str, content: str) -> bool:
+
+        """Send message through specified channel"""
+
+        try:
+
+            if channel == 'email':
+
+                await send_email(to, subject, content)
+
+            elif channel == 'sms':
+
+                await asyncio.get_event_loop().run_in_executor(None, send_sms, to, content)
+
+            elif channel == 'whatsapp':
+
+                await asyncio.get_event_loop().run_in_executor(None, send_whatsapp, to, content)
+
+            elif channel == 'push':
+
+                logger.warning("Push notifications not fully implemented")
+
+                return False
+
+            else:
+
+                logger.error(f"Unsupported channel: {channel}")
+
+                return False
+
+            
+
+            return True
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Failed to send {channel} message: {e}")
+
+            return False
+
+    
+
+    async def _mark_followup_sent(self, followup_id: str):
+
+        """Mark follow-up as sent and update session tracking"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            # Get follow-up details to update session tracking
+
+            followup = await self._get_followup_by_id(followup_id)
+
+            
+
+            # Update follow-up schedule
+
+            await conn.execute("""
+
+                UPDATE follow_up_schedules 
+
+                SET status = 'sent', sent_at = NOW(), updated_at = NOW()
+
+                WHERE id = $1
+
+            """, followup_id)
+
+            
+
+            # Update session tracking if session_id exists
+
+            if followup and followup.get('session_id'):
+
+                channel = followup.get('channel', '').lower()
+
+                if channel == 'email':
+
+                    await conn.execute("""
+
+                        UPDATE sessions 
+
+                        SET follow_up_email_sent = TRUE 
+
+                        WHERE id = $1
+
+                    """, followup['session_id'])
+
+                elif channel == 'sms':
+
+                    await conn.execute("""
+
+                        UPDATE sessions 
+
+                        SET follow_up_sms_sent = TRUE 
+
+                        WHERE id = $1
+
+                    """, followup['session_id'])
+
+                elif channel == 'whatsapp':
+
+                    await conn.execute("""
+
+                        UPDATE sessions 
+
+                        SET follow_up_whatsapp_sent = TRUE 
+
+                        WHERE id = $1
+
+                    """, followup['session_id'])
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _mark_followup_failed(self, followup_id: str, reason: str):
+
+        """Mark follow-up as failed"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            await conn.execute("""
+
+                UPDATE follow_up_schedules 
+
+                SET status = 'failed', failure_reason = $1, updated_at = NOW()
+
+                WHERE id = $2
+
+            """, reason, followup_id)
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _track_analytics(self, template_id: str, channel: str, event: str):
+
+        """Track follow-up analytics"""
+
+        try:
+
+            today = datetime.now(timezone.utc).date()
+
+            conn = await self.db.get_connection()
+
+            try:
+
+                # PostgreSQL UPSERT
+
+                await conn.execute("""
+
+                    INSERT INTO follow_up_analytics (
+
+                        date, template_id, channel, total_sent, created_at, updated_at
+
+                    ) VALUES ($1, $2, $3, 1, NOW(), NOW())
+
+                    ON CONFLICT (date, template_id, channel) 
+
+                    DO UPDATE SET total_sent = follow_up_analytics.total_sent + 1, updated_at = NOW()
+
+                """, today, template_id, channel)
+
+            finally:
+
+                await self.db.release_connection(conn)
+
+        except Exception as e:
+
+            logger.error(f"Failed to track analytics: {e}")
+
+    
+
+    async def _validate_scheduling_constraints(self, request, template: Dict):
+
+        """Validate scheduling constraints"""
+
+        # Ensure settings are loaded
+
+        await self._ensure_settings_loaded()
+
+        
+
+        # Check max follow-ups per session
+
+        session_id = getattr(request, 'session_id', None)
+
+        if session_id:
+
+            count = await self._get_followup_count_for_session(session_id)
+
+            max_count = self.settings.get('max_followups_per_session', 3)
+
+            if count >= max_count:
+
+                raise HTTPException(
+
+                    status_code=400, 
+
+                    detail=f"Maximum follow-ups ({max_count}) already scheduled for this session"
+
+                )
+
+        
+
+        # Check minimum interval
+
+        scheduled_at = getattr(request, 'scheduled_at', None)
+
+        if scheduled_at:
+
+            min_interval = timedelta(hours=self.settings.get('min_interval_hours', 24))
+
+            last_followup = await self._get_last_followup_for_user(request.user_email)
+
+            if last_followup and (scheduled_at - last_followup['scheduled_at']) < min_interval:
+
+                raise HTTPException(
+
+                    status_code=400,
+
+                    detail=f"Minimum interval of {min_interval} required between follow-ups"
+
+                )
+
+    
+
+    async def _calculate_optimal_time(self, user_email: str, template: Dict) -> datetime:
+
+        """Calculate optimal time for follow-up based on user behavior"""
+
+        try:
+
+            # Get user's last activity time
+
+            user = await self._get_user_by_email(user_email)
+
+            if not user:
+
+                return datetime.now(timezone.utc) + timedelta(days=1)
+
+            
+
+            # Simple logic: schedule for next day at 10 AM user's timezone
+
+            optimal_time = datetime.now(timezone.utc) + timedelta(days=1)
+
+            optimal_time = optimal_time.replace(hour=10, minute=0, second=0, microsecond=0)
+
+            
+
+            return optimal_time
+
+            
+
+        except Exception as e:
+
+            logger.error(f"Failed to calculate optimal time: {e}")
+
+            return datetime.now(timezone.utc) + timedelta(days=1)
+
+    
+
+    # Database helper methods - PostgreSQL only
+
+    async def _get_user_by_email(self, email: str) -> Optional[Dict]:
+
+        """Get user by email"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM users WHERE email = $1", email)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_template_by_id(self, template_id: str) -> Optional[Dict]:
+
+        """Get template by ID"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM follow_up_templates WHERE id = $1", template_id)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_followup_by_id(self, followup_id: str) -> Optional[Dict]:
+
+        """Get follow-up by ID"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM follow_up_schedules WHERE id = $1", followup_id)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_session_by_id(self, session_id: str) -> Optional[Dict]:
+
+        """Get session by ID"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("SELECT * FROM sessions WHERE id = $1", session_id)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_followup_count_for_session(self, session_id: str) -> int:
+
+        """Get follow-up count for a session"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            count = await conn.fetchval("SELECT COUNT(*) FROM follow_up_schedules WHERE session_id = $1", session_id)
+
+            return count or 0
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def _get_last_followup_for_user(self, user_email: str) -> Optional[Dict]:
+
+        """Get last follow-up for user"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            row = await conn.fetchrow("""
+
+                SELECT * FROM follow_up_schedules 
+
+                WHERE user_email = $1 
+
+                ORDER BY scheduled_at DESC 
+
+                LIMIT 1
+
+            """, user_email)
+
+            return dict(row) if row else None
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def get_user_followups(self, user_email: str) -> List[Dict]:
+
+        """Get all follow-ups for a user"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            rows = await conn.fetch("""
+
+                SELECT fs.*, ft.name as template_name, ft.tamil_name as template_tamil_name
+
+                FROM follow_up_schedules fs
+
+                JOIN follow_up_templates ft ON fs.template_id = ft.id
+
+                WHERE fs.user_email = $1
+
+                ORDER BY fs.scheduled_at DESC
+
+            """, user_email)
+
+            return [dict(row) for row in rows]
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    async def cancel_followup(self, followup_id: str, user_email: str) -> bool:
+
+        """Cancel a follow-up"""
+
+        conn = await self.db.get_connection()
+
+        try:
+
+            result = await conn.execute("""
+
+                UPDATE follow_up_schedules 
+
+                SET status = 'cancelled', updated_at = NOW()
+
+                WHERE id = $1 AND user_email = $2 AND status = 'pending'
+
+            """, followup_id, user_email)
+
+            
+
+            # Parse asyncpg command tag to get affected row count
+
+            return self._parse_affected_rows(result) > 0
+
+        finally:
+
+            await self.db.release_connection(conn)
+
+    
+
+    def _parse_affected_rows(self, command_tag: str) -> int:
+
+        """
+
+        Parse asyncpg command tag to extract the number of affected rows.
+
+        
+
+        Command tag formats:
+
+        - UPDATE: "UPDATE n" where n = affected rows
+
+        - DELETE: "DELETE n" where n = affected rows  
+
+        - INSERT: "INSERT oid n" where n = affected rows
+
+        - SELECT: "SELECT n" where n = selected rows
+
+        
+
+        Args:
+
+            command_tag: Command tag string returned by asyncpg.execute()
+
+            
+
+        Returns:
+
+            Number of affected rows, or 0 if parsing fails
+
+        """
+
+        try:
+
+            parts = command_tag.strip().split()
+
+            
+
+            if not parts:
+
+                logger.warning(f"Empty command tag received: '{command_tag}'")
+
+                return 0
+
+            
+
+            command = parts[0].upper()
+
+            
+
+            if command in ('UPDATE', 'DELETE', 'SELECT'):
+
+                # Format: "COMMAND n"
+
+                if len(parts) >= 2:
+
+                    return int(parts[1])
+
+                else:
+
+                    logger.warning(f"Unexpected {command} command tag format: '{command_tag}'")
+
+                    return 0
+
+                    
+
+            elif command == 'INSERT':
+
+                # Format: "INSERT oid n" where we want n
+
+                if len(parts) >= 3:
+
+                    return int(parts[2])
+
+                else:
+
+                    logger.warning(f"Unexpected INSERT command tag format: '{command_tag}'")
+
+                    return 0
+
+                    
+
+            else:
+
+                # Unknown command type
+
+                logger.warning(f"Unknown command type in tag: '{command_tag}'")
+
+                return 0
+
+                
+
+        except (ValueError, IndexError) as e:
+
+            logger.error(f"Failed to parse command tag '{command_tag}': {e}")
+
+            return 0 

@@ -225,9 +225,9 @@ async def get_content_calendar(
     admin_user: dict = Depends(AuthenticationHelper.verify_admin_access_strict)
 ):
     try:
-        # Check if automation engine is available
-        if not AUTOMATION_ENGINE_AVAILABLE:
-            logger.warning("Social Media Automation Engine not available, using enhanced fallback data")
+    # Check if automation engine is available
+    if not AUTOMATION_ENGINE_AVAILABLE:
+        logger.warning("Social Media Automation Engine not available, using enhanced fallback data")
             raise Exception("Automation engine not available")
             
         # Get marketing engine instance via dependency resolution
@@ -266,10 +266,10 @@ async def get_content_calendar(
         
         # Apply filters
         filtered_data = calendar_items
-        if platform:
-            filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
-        if date:
-            filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
+    if platform:
+        filtered_data = [item for item in filtered_data if item.platform.lower() == platform.lower()]
+    if date:
+        filtered_data = [item for item in filtered_data if str(item.date).startswith(date)]
         
         # Store content in database for persistence
         try:
