@@ -720,7 +720,31 @@ async def test_business_logic_validator():
         test_data = {
             "session_context": {
                 "spiritual_question": "How can meditation help me find inner peace?",
-                "birth_details": {"date": "1990-01-01", "time": "12:00", "location": "Mumbai, India"}
+                "birth_details": {"date": "1990-01-01", "time": "12:00", "location": "Mumbai, India"},
+                "integration_results": {
+                    "rag_knowledge": {
+                        "passed": True,
+                        "actual": {
+                            "knowledge": "Meditation is a sacred practice that brings stillness to the mind and connects us with our inner divine nature."
+                        }
+                    },
+                    "prokerala_data": {
+                        "passed": True,
+                        "actual": {
+                            "planets": [
+                                {"name": "Sun", "position": "Capricorn"},
+                                {"name": "Moon", "position": "Virgo"}
+                            ],
+                            "nakshatra": {"name": "Uttara Ashadha", "lord": "Sun"}
+                        }
+                    },
+                    "openai_guidance": {
+                        "passed": True,
+                        "actual": {
+                            "response": "Dear blessed soul, meditation brings peace and spiritual awakening through regular practice."
+                        }
+                    }
+                }
             }
         }
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
