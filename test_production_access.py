@@ -10,33 +10,25 @@ import os
 
 async def test_production_access():
     """Test production database capabilities"""
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        # Try to get from Render environment (they might have set it)
+        DATABASE_URL = os.getenv("SUPABASE_DB_URL") or os.getenv("DB_URL")
+    
+    if not DATABASE_URL:
+        print("❌ No database URL found in environment")
+        print("💡 Available DB environment variables:")
+        # Securely list environment variables without exposing values
+        for var in sorted(k for k in os.environ if 'DB' in k.upper() or 'DATABASE' in k.upper()):
+            print(f"   {var}: ********")
+        return False
+    
+    conn = None
     try:
-        DATABASE_URL = os.getenv("DATABASE_URL")
-        if not DATABASE_URL:
-            # Try to get from Render environment (they might have set it)
-            DATABASE_URL = os.getenv("SUPABASE_DB_URL") or os.getenv("DB_URL")
-        
-        if not DATABASE_URL:
-            print("❌ No database URL found in environment")
-            print("💡 Available env vars:")
-            db_vars = [k for k in os.environ.keys() if 'DB' in k.upper() or 'DATABASE' in k.upper()]
-            for var in sorted(db_vars):
-                value = os.environ[var]
-                # Hide credentials but show structure
-                if 'postgresql://' in value:
-                    parts = value.split('@')
-                    if len(parts) == 2:
-                        print(f"   {var}: postgresql://***@{parts[1]}")
-                    else:
-                        print(f"   {var}: {value}")
-                else:
-                    print(f"   {var}: {value}")
-            return False
-        
         print("🔌 Testing database connection...")
-        print(f"📍 Target: {DATABASE_URL.split('@')[1] if '@' in DATABASE_URL else 'Unknown'}")
+        print("📍 Target: ********")  # Don't expose any part of connection string
         
-        conn = await asyncpg.connect(DATABASE_URL)
+        conn = await asyncpg.connect(DATABASE_URL, command_timeout=10)
         print("✅ Connected successfully!")
         
         # Test basic permissions
@@ -106,12 +98,17 @@ async def test_production_access():
             except Exception as e:
                 print(f"   ❌ Vector operations: {e}")
         
-        await conn.close()
         return True
         
     except Exception as e:
         print(f"❌ Connection test failed: {e}")
         return False
+    finally:
+        if conn and not conn.is_closed():
+            try:
+                await conn.close()
+            except Exception:
+                pass  # Ignore errors when closing
 
 if __name__ == "__main__":
     success = asyncio.run(test_production_access())

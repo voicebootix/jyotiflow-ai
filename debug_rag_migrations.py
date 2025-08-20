@@ -12,6 +12,7 @@ from pathlib import Path
 
 async def debug_rag_migrations():
     """Debug RAG migration failures"""
+    conn = None
     try:
         # Get database URL
         DATABASE_URL = os.getenv("DATABASE_URL")
@@ -20,7 +21,7 @@ async def debug_rag_migrations():
             return False
         
         print(f"🔌 Connecting to database...")
-        conn = await asyncpg.connect(DATABASE_URL)
+        conn = await asyncpg.connect(DATABASE_URL, command_timeout=30)
         print("✅ Database connection established")
         
         print("\n" + "="*60)
@@ -161,7 +162,9 @@ async def debug_rag_migrations():
             try:
                 # Test vector similarity if we have data
                 if total_count > 0:
-                    test_embedding = "[0.1, 0.2, 0.3]" + ", 0.0" * 1533  # Create 1536-dim test vector
+                    # Create proper 1536-dimensional test vector
+                    test_values = [0.1] * 1536
+                    test_embedding = "[" + ", ".join(map(str, test_values)) + "]"
                     
                     # Test vector similarity search
                     test_query = f"""
@@ -179,16 +182,13 @@ async def debug_rag_migrations():
                             print(f"   📖 {result['title']} ({result['category']})")
                     else:
                         print("⚠️ No vectors found for similarity search")
-                        
-                except Exception as e:
-                    print(f"❌ Vector operation failed: {e}")
-            else:
-                print("⚠️ Cannot test - missing table or extension")
+                else:
+                    print("⚠️ Cannot test - missing table or extension")
+            except Exception as e:
+                print(f"❌ Vector operation failed: {e}")
         else:
             print("⚠️ Cannot test RAG - missing requirements")
             
-        await conn.close()
-        
         print("\n" + "="*60)
         print("📋 SUMMARY")
         print("="*60)
@@ -215,6 +215,12 @@ async def debug_rag_migrations():
     except Exception as e:
         print(f"❌ Debug script failed: {e}")
         return False
+    finally:
+        if conn and not conn.is_closed():
+            try:
+                await conn.close()
+            except Exception:
+                pass  # Ignore errors when closing
 
 if __name__ == "__main__":
     success = asyncio.run(debug_rag_migrations())

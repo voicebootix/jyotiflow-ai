@@ -12,15 +12,16 @@ from pathlib import Path
 
 async def manual_rag_fix():
     """Manually fix RAG system issues"""
+    # Get database URL
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        print("❌ DATABASE_URL environment variable not set")
+        return False
+    
+    conn = None
     try:
-        # Get database URL
-        DATABASE_URL = os.getenv("DATABASE_URL")
-        if not DATABASE_URL:
-            print("❌ DATABASE_URL environment variable not set")
-            return False
-        
         print("🔧 Starting manual RAG system fix...")
-        conn = await asyncpg.connect(DATABASE_URL)
+        conn = await asyncpg.connect(DATABASE_URL, command_timeout=30)
         print("✅ Database connection established")
         
         # Step 1: Check and enable vector extension
@@ -289,6 +290,12 @@ async def manual_rag_fix():
     except Exception as e:
         print(f"❌ Manual RAG fix failed: {e}")
         return False
+    finally:
+        if conn and not conn.is_closed():
+            try:
+                await conn.close()
+            except Exception:
+                pass  # Ignore errors when closing
 
 if __name__ == "__main__":
     success = asyncio.run(manual_rag_fix())
