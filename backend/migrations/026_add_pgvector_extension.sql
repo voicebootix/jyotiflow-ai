@@ -20,7 +20,7 @@ BEGIN
     ) THEN
         -- Convert FLOAT[] to vector type for better performance
         ALTER TABLE rag_knowledge_base 
-        ALTER COLUMN embedding_vector TYPE vector(1536);
+        ALTER COLUMN embedding_vector TYPE vector(1536) USING embedding_vector::vector(1536);
         
         RAISE NOTICE 'Converted embedding_vector from FLOAT[] to vector(1536)';
     ELSIF NOT EXISTS (
@@ -36,17 +36,17 @@ BEGIN
     END IF;
 END $$;
 
--- Create index for faster similarity search
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rag_knowledge_embedding 
+-- Create index for faster similarity search (non-concurrent for transaction compatibility)
+CREATE INDEX IF NOT EXISTS idx_rag_knowledge_embedding 
 ON rag_knowledge_base USING ivfflat (embedding_vector vector_cosine_ops)
 WITH (lists = 100);
 
--- Create index for category-based filtering
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rag_knowledge_category 
+-- Create index for category-based filtering  
+CREATE INDEX IF NOT EXISTS idx_rag_knowledge_category 
 ON rag_knowledge_base (category) WHERE is_active = true;
 
 -- Create index for tag-based search
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_rag_knowledge_tags 
+CREATE INDEX IF NOT EXISTS idx_rag_knowledge_tags 
 ON rag_knowledge_base USING GIN (tags) WHERE is_active = true;
 
 -- Verify the setup
@@ -57,5 +57,3 @@ SELECT
 FROM pg_indexes 
 WHERE tablename = 'rag_knowledge_base'
 ORDER BY indexname;
-
-COMMIT;

@@ -1,8 +1,11 @@
 -- Populate RAG knowledge base with comprehensive spiritual wisdom
 -- This provides the foundation for dynamic content generation
 
--- Clear any existing test data first
-TRUNCATE TABLE rag_knowledge_base RESTART IDENTITY CASCADE;
+-- Clear any existing migration seeded data (preserve production data)
+DELETE FROM rag_knowledge_base 
+WHERE metadata->>'created_for' = 'spiritual_calendar_service' 
+OR source_url LIKE 'https://jyotiflow.com/%'
+OR title IN ('The Path to Inner Peace', 'Meditation for Daily Life', 'Walking Meditation Wisdom');
 
 -- Insert comprehensive spiritual wisdom content
 INSERT INTO rag_knowledge_base (title, content, category, tags, source_url, metadata) VALUES
@@ -79,9 +82,9 @@ UPDATE rag_knowledge_base SET
 SELECT 
     category,
     COUNT(*) as entry_count,
-    STRING_AGG(DISTINCT unnest(tags), ', ') as common_tags
+    STRING_AGG(DISTINCT t.tag, ', ') as common_tags
 FROM rag_knowledge_base 
+LEFT JOIN LATERAL unnest(tags) AS t(tag) ON true
+WHERE metadata->>'created_for' = 'spiritual_calendar_service'
 GROUP BY category
 ORDER BY category;
-
-COMMIT;

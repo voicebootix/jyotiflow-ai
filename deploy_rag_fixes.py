@@ -12,6 +12,8 @@ import os
 import sys
 from pathlib import Path
 import logging
+import importlib.util
+import re
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -21,6 +23,70 @@ class RAGDeploymentFixer:
     def __init__(self, database_url):
         self.database_url = database_url
         self.migrations_dir = Path(__file__).parent / "backend" / "migrations"
+        self._has_is_active_column = None  # Cache for column detection
+    
+    def _parse_sql_file(self, content):
+        """Parse SQL file and separate transaction-safe and concurrent statements"""
+        # Remove standalone COMMIT/ROLLBACK statements
+        content = re.sub(r'^\s*(COMMIT|ROLLBACK)\s*;\s*$', '', content, flags=re.MULTILINE)
+        
+        # Split into individual statements
+        statements = []
+        current_statement = ""
+        in_do_block = False
+        
+        for line in content.split('\n'):
+            line = line.strip()
+            
+            # Track DO $$ blocks
+            if 'DO $$' in line or 'DO $' in line:
+                in_do_block = True
+            elif '$$;' in line or '$;' in line:
+                in_do_block = False
+                current_statement += line + '\n'
+                if current_statement.strip():
+                    statements.append(current_statement.strip())
+                current_statement = ""
+                continue
+            
+            # Add line to current statement
+            current_statement += line + '\n'
+            
+            # Check for statement end (semicolon not in DO block)
+            if line.endswith(';') and not in_do_block and not line.startswith('--'):
+                if current_statement.strip():
+                    statements.append(current_statement.strip())
+                current_statement = ""
+        
+        # Add any remaining statement
+        if current_statement.strip():
+            statements.append(current_statement.strip())
+        
+        # Classify statements
+        concurrent_statements = []
+        regular_statements = []
+        
+        for stmt in statements:
+            if re.search(r'CREATE\s+INDEX.*CONCURRENTLY|DROP\s+INDEX.*CONCURRENTLY', stmt, re.IGNORECASE):
+                concurrent_statements.append(stmt)
+            elif stmt.strip() and not stmt.strip().startswith('--'):
+                regular_statements.append(stmt)
+        
+        return regular_statements, concurrent_statements
+    
+    async def _check_is_active_column_exists(self, conn):
+        """Check if is_active column exists in rag_knowledge_base table"""
+        if self._has_is_active_column is None:
+            self._has_is_active_column = await conn.fetchval("""
+                SELECT EXISTS (
+                    SELECT 1 FROM information_schema.columns 
+                    WHERE table_name = 'rag_knowledge_base' 
+                    AND column_name = 'is_active'
+                )
+            """)
+            logger.info(f"📋 is_active column {'exists' if self._has_is_active_column else 'not found'}")
+        
+        return self._has_is_active_column
     
     async def apply_vector_extension_migration(self, conn):
         """Apply vector extension migration"""
@@ -36,8 +102,27 @@ class RAGDeploymentFixer:
             
             logger.info("🔧 Applying vector extension migration...")
             
-            async with conn.transaction():
-                await conn.execute(migration_content)
+            # Parse SQL file to separate transaction-safe and concurrent statements
+            regular_statements, concurrent_statements = self._parse_sql_file(migration_content)
+            
+            # Execute regular statements in transaction
+            if regular_statements:
+                async with conn.transaction():
+                    for stmt in regular_statements:
+                        try:
+                            await conn.execute(stmt)
+                        except Exception as e:
+                            logger.error(f"❌ Statement failed: {stmt[:50]}... Error: {e}")
+                            return False
+            
+            # Execute concurrent statements outside transaction
+            for stmt in concurrent_statements:
+                try:
+                    logger.info(f"🔄 Executing concurrent statement: {stmt[:50]}...")
+                    await conn.execute(stmt)
+                except Exception as e:
+                    logger.error(f"❌ Concurrent statement failed: {stmt[:50]}... Error: {e}")
+                    return False
             
             logger.info("✅ Vector extension migration applied successfully!")
             return True
@@ -60,8 +145,27 @@ class RAGDeploymentFixer:
             
             logger.info("📚 Applying knowledge base population migration...")
             
-            async with conn.transaction():
-                await conn.execute(migration_content)
+            # Parse SQL file to separate transaction-safe and concurrent statements
+            regular_statements, concurrent_statements = self._parse_sql_file(migration_content)
+            
+            # Execute regular statements in transaction
+            if regular_statements:
+                async with conn.transaction():
+                    for stmt in regular_statements:
+                        try:
+                            await conn.execute(stmt)
+                        except Exception as e:
+                            logger.error(f"❌ Statement failed: {stmt[:50]}... Error: {e}")
+                            return False
+            
+            # Execute concurrent statements outside transaction (if any)
+            for stmt in concurrent_statements:
+                try:
+                    logger.info(f"🔄 Executing concurrent statement: {stmt[:50]}...")
+                    await conn.execute(stmt)
+                except Exception as e:
+                    logger.error(f"❌ Concurrent statement failed: {stmt[:50]}... Error: {e}")
+                    return False
             
             logger.info("✅ Knowledge base migration applied successfully!")
             return True
@@ -86,38 +190,59 @@ class RAGDeploymentFixer:
                 logger.warning("⚠️ Vector extension not found")
                 return False
             
+            # Check if is_active column exists
+            has_is_active = await self._check_is_active_column_exists(conn)
+            
+            # Build queries based on column availability
+            if has_is_active:
+                count_query = "SELECT COUNT(*) FROM rag_knowledge_base WHERE is_active = true"
+                category_query = """
+                    SELECT DISTINCT category, COUNT(*) as count 
+                    FROM rag_knowledge_base 
+                    WHERE is_active = true 
+                    GROUP BY category 
+                    ORDER BY category
+                """
+                sample_query = """
+                    SELECT title, category 
+                    FROM rag_knowledge_base 
+                    WHERE content ILIKE '%inner peace%' 
+                    AND is_active = true 
+                    LIMIT 3
+                """
+            else:
+                count_query = "SELECT COUNT(*) FROM rag_knowledge_base"
+                category_query = """
+                    SELECT DISTINCT category, COUNT(*) as count 
+                    FROM rag_knowledge_base 
+                    GROUP BY category 
+                    ORDER BY category
+                """
+                sample_query = """
+                    SELECT title, category 
+                    FROM rag_knowledge_base 
+                    WHERE content ILIKE '%inner peace%' 
+                    LIMIT 3
+                """
+            
             # Check knowledge base entries
-            entry_count = await conn.fetchval("""
-                SELECT COUNT(*) FROM rag_knowledge_base WHERE is_active = true
-            """)
+            entry_count = await conn.fetchval(count_query)
             
             if entry_count > 0:
-                logger.info(f"✅ Found {entry_count} active knowledge base entries")
+                logger.info(f"✅ Found {entry_count} knowledge base entries")
             else:
-                logger.warning("⚠️ No active knowledge base entries found")
+                logger.warning("⚠️ No knowledge base entries found")
                 return False
             
             # Check categories
-            categories = await conn.fetch("""
-                SELECT DISTINCT category, COUNT(*) as count 
-                FROM rag_knowledge_base 
-                WHERE is_active = true 
-                GROUP BY category 
-                ORDER BY category
-            """)
+            categories = await conn.fetch(category_query)
             
             logger.info("📋 Knowledge base categories:")
             for row in categories:
                 logger.info(f"   - {row['category']}: {row['count']} entries")
             
             # Test a sample query (simple text search, no embeddings needed)
-            sample_entries = await conn.fetch("""
-                SELECT title, category 
-                FROM rag_knowledge_base 
-                WHERE content ILIKE '%inner peace%' 
-                AND is_active = true 
-                LIMIT 3
-            """)
+            sample_entries = await conn.fetch(sample_query)
             
             if sample_entries:
                 logger.info("✅ Sample query results:")
@@ -181,21 +306,27 @@ class RAGDeploymentFixer:
             if await self.test_rag_functionality(conn):
                 logger.info("🎯 RAG deployment completed successfully!")
                 
-                # Test RAG system initialization
+                # Test RAG system module availability
                 try:
-                    sys.path.append(str(Path(__file__).parent / 'backend'))
-                    from enhanced_rag_knowledge_engine import initialize_rag_system
+                    backend_path = Path(__file__).parent / 'backend'
+                    if str(backend_path) not in sys.path:
+                        sys.path.append(str(backend_path))
                     
-                    openai_api_key = os.getenv('OPENAI_API_KEY')
-                    if openai_api_key:
-                        logger.info("🧠 Testing RAG system initialization...")
-                        # We can't test full initialization without a pool, but we can import
-                        logger.info("✅ RAG system modules imported successfully")
+                    # Test if RAG module exists using importlib
+                    rag_spec = importlib.util.find_spec('enhanced_rag_knowledge_engine')
+                    if rag_spec:
+                        logger.info("✅ RAG system modules available")
+                        
+                        openai_api_key = os.getenv('OPENAI_API_KEY')
+                        if openai_api_key:
+                            logger.info("🧠 RAG system ready with OpenAI API key")
+                        else:
+                            logger.warning("⚠️ OPENAI_API_KEY not found in environment")
                     else:
-                        logger.warning("⚠️ OPENAI_API_KEY not found in environment")
+                        logger.warning("⚠️ RAG system module not found")
                 
-                except ImportError as e:
-                    logger.warning(f"⚠️ Could not import RAG system: {e}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not check RAG system availability: {e}")
                 
                 return True
             else:
