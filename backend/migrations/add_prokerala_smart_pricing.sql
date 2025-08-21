@@ -37,13 +37,16 @@ CREATE TABLE IF NOT EXISTS cache_analytics (
 -- Prokerala endpoint suggestions
 CREATE TABLE IF NOT EXISTS endpoint_suggestions (
     id SERIAL PRIMARY KEY,
-    endpoint_group VARCHAR(100) NOT NULL,
+    endpoint_group VARCHAR(100) NOT NULL UNIQUE,
     endpoints TEXT[] NOT NULL,
     description TEXT,
     typical_use_case VARCHAR(255),
     value_score INTEGER DEFAULT 5, -- 1-10 scale
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Ensure unique constraint exists for idempotency (for existing installations)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_endpoint_group ON endpoint_suggestions(endpoint_group);
 
 -- Insert endpoint group suggestions
 INSERT INTO endpoint_suggestions (endpoint_group, endpoints, description, typical_use_case, value_score) VALUES
@@ -57,7 +60,7 @@ INSERT INTO endpoint_suggestions (endpoint_group, endpoints, description, typica
  'Complete career analysis with timing', 'Professional career consultation', 10),
 ('life_reading', ARRAY['/astrology/birth-details', '/astrology/kundli/advanced', '/astrology/planet-position', '/astrology/dasha-periods', '/astrology/yoga', '/astrology/mangal-dosha', '/astrology/kaal-sarp-dosha', '/astrology/sade-sati', '/numerology/life-path-number', '/numerology/destiny-number', '/numerology/soul-urge-number'], 
  'Complete life analysis', '30-minute comprehensive reading', 10)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (endpoint_group) DO NOTHING;
 
 -- Add cache tracking to sessions table
 ALTER TABLE sessions 
