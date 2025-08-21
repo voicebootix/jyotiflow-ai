@@ -112,9 +112,10 @@ from simple_unified_startup import initialize_unified_jyotiflow, cleanup_unified
 try:
     from routers.enhanced_spiritual_guidance_router import router as enhanced_spiritual_router
     ENHANCED_ROUTER_AVAILABLE = True
-except ImportError:
+    print("✅ Enhanced spiritual guidance router imported successfully")
+except ImportError as e:
     ENHANCED_ROUTER_AVAILABLE = False
-    print("⚠️ Enhanced spiritual guidance router not available")
+    print(f"⚠️ Enhanced spiritual guidance router not available: {e}")
 
 # Import additional routers
 try:
@@ -127,9 +128,10 @@ except ImportError:
 try:
     from routers.avatar_generation_router import router as avatar_generation_router
     AVATAR_GENERATION_AVAILABLE = True
-except ImportError:
+    print("✅ Avatar generation router imported successfully")
+except ImportError as e:
     AVATAR_GENERATION_AVAILABLE = False
-    print("⚠️ Avatar generation router not available")
+    print(f"⚠️ Avatar generation router not available: {e}")
 
 try:
     from routers.livechat import router as livechat_router
@@ -547,6 +549,8 @@ print("✅ Social media marketing router registered")
 if ENHANCED_ROUTER_AVAILABLE:
     app.include_router(enhanced_spiritual_router)
     print("✅ Enhanced spiritual guidance router registered")
+else:
+    print("❌ Enhanced spiritual guidance router FAILED - tests may fail")
 
 # Additional enhanced routers
 if UNIVERSAL_PRICING_AVAILABLE:
@@ -556,6 +560,8 @@ if UNIVERSAL_PRICING_AVAILABLE:
 if AVATAR_GENERATION_AVAILABLE:
     app.include_router(avatar_generation_router)
     print("✅ Avatar generation router registered")
+else:
+    print("❌ Avatar generation router FAILED - tests may fail")
 
 # This was moved up to be with the other admin routers
 # if SOCIAL_MEDIA_AVAILABLE:

@@ -20,8 +20,11 @@ from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Callable, Union
 import logging
 
-# Add current directory to Python path for imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add current directory and parent directory to Python path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(current_dir)
+sys.path.append(parent_dir)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -713,6 +716,17 @@ class TestExecutionEngine:
                 test_globals['extract_table_from_query'] = extract_table_from_query
             except ImportError as e:
                 logger.warning("Could not import database_self_healing_system: %s", str(e))
+            
+            # Add test authentication helper
+            def create_test_headers():
+                """Create headers with test authentication token"""
+                return {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer test-token-for-endpoint-testing",
+                    "X-Test-Mode": "true"
+                }
+            
+            test_globals['create_test_headers'] = create_test_headers
             
             # Import core foundation enhanced
             try:
