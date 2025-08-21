@@ -173,7 +173,7 @@ class SpiritualCalendarService:
             except Exception as e:
                 logger.warning(f"RAG failed for {current_day.strftime('%Y-%m-%d')}: {e}")
                 # Fallback to deterministic theme
-            day_of_year = current_day.timetuple().tm_yday
+                day_of_year = current_day.timetuple().tm_yday
                 theme_index = day_of_year % len(self._fallback_themes)
                 theme = self._fallback_themes[theme_index]
             
