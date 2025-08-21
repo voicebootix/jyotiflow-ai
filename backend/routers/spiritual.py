@@ -37,7 +37,7 @@ except ImportError:
     ProkeralaService = None
     
     
-
+    
 try:
 
     from monitoring.integration_hooks import MonitoringHooks
@@ -349,13 +349,13 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                     logger.warning(f"[BirthChart] Birth details failed: {birth_details_response.text}")
                     
                     
-
+                    
             except Exception as e:
 
                 logger.error(f"[BirthChart] Birth details API error: {str(e)}")
             
             
-
+            
             # 2. Chart Visualization Endpoint (South Indian Style)
 
             try:
@@ -387,13 +387,13 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                     logger.warning(f"[BirthChart] Chart visualization failed: {chart_response.text}")
                     
                     
-
+                    
             except Exception as e:
 
                 logger.error(f"[BirthChart] Chart visualization API error: {str(e)}")
             
             
-
+            
             # 3. Planetary Positions Endpoint
 
             try:
@@ -425,13 +425,13 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                     logger.warning(f"[BirthChart] Planetary positions failed: {planets_response.text}")
                     
                     
-
+                    
             except Exception as e:
 
                 logger.error(f"[BirthChart] Planetary positions API error: {str(e)}")
             
             
-
+            
             # 4. Dasha Periods Endpoint
 
             try:
@@ -463,13 +463,13 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                     logger.warning(f"[BirthChart] Dasha periods failed: {dasha_response.text}")
                     
                     
-
+                    
             except Exception as e:
 
                 logger.error(f"[BirthChart] Dasha periods API error: {str(e)}")
             
             
-
+            
             # 5. Alternative Chart Endpoints (fallback)
 
             if "chart_visualization" not in chart_data:
@@ -509,7 +509,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                         logger.warning(f"[BirthChart] Alternative endpoint {endpoint} failed: {str(e)}")
             
             
-
+            
             # Create comprehensive response with South Indian chart preference
 
             if chart_data:
@@ -521,7 +521,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                     chart_data["chart_visualization"] = create_south_indian_chart_structure(chart_data["birth_details"])
                 
                 
-
+                
                 # Add metadata
 
                 chart_data["metadata"] = {
@@ -547,7 +547,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                 logger.info(f"[BirthChart] ✅ Comprehensive chart data compiled with keys: {list(chart_data.keys())}")
                 
                 
-
+                
             else:
 
                 logger.warning(f"[BirthChart] No chart data retrieved, creating fallback")
@@ -555,7 +555,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
                 chart_data = create_fallback_south_indian_chart(base_params)
                 
                 
-
+                
     except Exception as e:
 
         logger.error(f"[BirthChart] Comprehensive API call failed: {str(e)}")
@@ -571,7 +571,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
         raise HTTPException(status_code=503, detail="No birth chart data received from Prokerala API")
     
     
-
+    
     # --- GET RAG-POWERED INTERPRETATION ---
 
     interpretation_service = BirthChartInterpretationService()
@@ -595,7 +595,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
         chart_data["metadata"]["interpretation_status"] = "Interpretation service is currently unavailable or could not process the data. Please try again later."
     
     
-
+    
     # Enhanced response with metadata - NO MOCK DATA
 
     enhanced_response = {
@@ -673,7 +673,7 @@ async def get_prokerala_birth_chart_data(user_email: str, birth_details: dict) -
             enhanced_response["birth_chart"]["metadata"]["cached"] = False
     
     
-
+    
     return enhanced_response
 
 
@@ -819,7 +819,7 @@ async def get_spiritual_guidance(request: Request):
                         guidance_text = f"சுவாமி ஜோதிரணந்தனின் ஆன்மீக வழிகாட்டுதல்:\n\n{guidance_text}"
                 
                 
-
+                
                 return {
 
                     "success": True,
@@ -845,7 +845,7 @@ async def get_spiritual_guidance(request: Request):
                 logger.warning("⚠️ RAG system failed, falling back to basic guidance")
                 
                 
-
+                
         except Exception as rag_error:
 
             logger.warning(f"⚠️ RAG system error: {rag_error}, falling back to basic guidance")
@@ -989,7 +989,7 @@ async def get_spiritual_guidance(request: Request):
                 """
             
             
-
+            
             prompt = f"""
 
             You are Swami Jyotirananthan, a wise and compassionate spiritual guru with deep knowledge of Vedic astrology and Tamil spiritual traditions.
@@ -1081,7 +1081,7 @@ async def get_spiritual_guidance(request: Request):
         }
         
         
-
+        
     except Exception as e:
 
         logger.error(f"❌ Unexpected error in spiritual guidance endpoint: {e}")
@@ -1105,7 +1105,7 @@ async def get_birth_chart_cache_status(request: Request):
         return {"success": False, "message": "Authentication required"}
     
     
-
+    
     try:
 
         status = await birth_chart_cache.get_user_birth_chart_status(user_email)
@@ -1141,7 +1141,7 @@ async def clear_birth_chart_cache(request: Request):
         return {"success": False, "message": "Authentication required"}
     
     
-
+    
     try:
 
         success = await birth_chart_cache.invalidate_cache(user_email)
@@ -1183,7 +1183,7 @@ async def get_birth_chart_cache_statistics(request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     
-
+    
     conn = None
 
     try:
@@ -1205,7 +1205,7 @@ async def get_birth_chart_cache_statistics(request: Request):
             raise HTTPException(status_code=403, detail="Admin access required")
         
         
-
+        
         # Get cache statistics
 
         stats = await birth_chart_cache.get_cache_statistics()
@@ -1251,7 +1251,7 @@ async def cleanup_expired_birth_chart_cache(request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     
-
+    
     conn = None
 
     try:
@@ -1273,7 +1273,7 @@ async def cleanup_expired_birth_chart_cache(request: Request):
             raise HTTPException(status_code=403, detail="Admin access required")
         
         
-
+        
         # Cleanup expired cache
 
         result = await birth_chart_cache.cleanup_expired_cache()
@@ -1313,7 +1313,7 @@ async def link_anonymous_chart_to_user(request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     
-
+    
     try:
 
         data = await request.json()
@@ -1331,7 +1331,7 @@ async def link_anonymous_chart_to_user(request: Request):
             raise HTTPException(status_code=400, detail="Missing required data")
         
         
-
+        
         # Use the enhanced birth chart cache service to store the chart
 
         from services.enhanced_birth_chart_cache_service import EnhancedBirthChartCacheService
@@ -1385,7 +1385,7 @@ async def link_anonymous_chart_to_user(request: Request):
             raise HTTPException(status_code=500, detail="Failed to link chart to user")
             
             
-
+            
     except Exception as e:
 
         print(f"[BirthChart] Error linking chart to user: {e}")
@@ -1409,7 +1409,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
         raise HTTPException(status_code=401, detail="Authentication required")
     
     
-
+    
     try:
 
         # SECURITY FIX: Verify user is accessing their own data or is admin
@@ -1423,7 +1423,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
             raise HTTPException(status_code=404, detail="User not found")
         
         
-
+        
         # Convert user_id to integer for validation (if needed for future use)
 
         try:
@@ -1435,7 +1435,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
             raise HTTPException(status_code=400, detail="Invalid user ID format")
         
         
-
+        
         # Check authorization: user can only access their own data unless admin
 
         # Since sessions table uses user_email, we validate that the requested user_id
@@ -1447,7 +1447,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
             raise HTTPException(status_code=403, detail="Access denied - you can only view your own spiritual progress")
         
         
-
+        
         # Get user's sessions using user_email (correct foreign key)
 
         sessions = await db.fetch("""
@@ -1505,7 +1505,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
                 spiritual_level = level
         
         
-
+        
         # Calculate recent activity
 
         recent_sessions = [s for s in sessions if s['created_at'] > datetime.now() - timedelta(days=30)]
@@ -1523,7 +1523,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
             service_usage[service_name] = service_usage.get(service_name, 0) + 1
         
         
-
+        
         preferred_service = None
 
         if service_usage:
@@ -1533,7 +1533,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
             preferred_service = next(service for service, count in service_usage.items() if count == max_count)
         
         
-
+        
         progress_data = {
 
             "total_sessions": total_sessions,
@@ -1571,7 +1571,7 @@ async def get_spiritual_progress(user_id: str, request: Request, db=Depends(get_
         }
         
         
-
+        
     except Exception as e:
 
         print(f"[SpiritualProgress] Error getting progress: {e}")
@@ -1605,7 +1605,7 @@ def generate_journey_insights(session_count, completion_rate, spiritual_level):
         insights.append(f"You're a committed spiritual seeker with {session_count} sessions. Your wisdom is growing beautifully.")
     
     
-
+    
     if completion_rate > 80:
 
         insights.append("Your session completion rate is excellent! You're truly committed to your spiritual growth.")
@@ -1619,13 +1619,13 @@ def generate_journey_insights(session_count, completion_rate, spiritual_level):
         insights.append("Remember, consistency in spiritual practice leads to profound transformation.")
     
     
-
+    
     if spiritual_level in ["Advanced Practitioner", "Enlightened"]:
 
         insights.append("Your spiritual maturity is evident. Consider sharing your wisdom with other seekers.")
     
     
-
+    
     return insights
 
 
@@ -1655,7 +1655,7 @@ def create_south_indian_chart_structure(birth_details: dict) -> dict:
             houses.append(house)
         
         
-
+        
         return {
 
             "houses": houses,
@@ -1747,7 +1747,7 @@ def get_sign_for_house(house_number: int, birth_details: dict) -> str:
                 return chandra_rasi["name"]
         
         
-
+        
         # Default zodiac signs for houses
 
         default_signs = [
@@ -1789,7 +1789,7 @@ def get_planets_in_house(house_number: int, birth_details: dict) -> list:
                     planets.append(planet_info.get("name", "Unknown"))
         
         
-
+        
         # Default planet placement for demonstration
 
         if house_number == 1:  # Ascendant house
@@ -1805,7 +1805,7 @@ def get_planets_in_house(house_number: int, birth_details: dict) -> list:
             planets.append("Saturn")
             
             
-
+            
         return planets
 
     except Exception:
@@ -1905,7 +1905,7 @@ async def get_complete_birth_chart_profile(request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     
-
+    
     try:
 
         # Get user's birth details from profile
@@ -1931,7 +1931,7 @@ async def get_complete_birth_chart_profile(request: Request):
                 await db_manager.release_connection(conn)
         
         
-
+        
         if not user_data or not user_data['birth_date']:
 
             return {
@@ -1945,7 +1945,7 @@ async def get_complete_birth_chart_profile(request: Request):
             }
         
         
-
+        
         # If birth chart data exists and is not expired, return it
 
         if user_data['birth_chart_data']:
@@ -1979,7 +1979,7 @@ async def get_complete_birth_chart_profile(request: Request):
                         cached_date = datetime.min.replace(tzinfo=timezone.utc)  # Force regeneration with timezone
                     
                     
-
+                    
                     # Ensure both dates are timezone-aware for comparison
 
                     now = datetime.now(timezone.utc)
@@ -1989,7 +1989,7 @@ async def get_complete_birth_chart_profile(request: Request):
                         cached_date = cached_date.replace(tzinfo=timezone.utc)
                     
                     
-
+                    
                     if (now - cached_date).days < 30:
 
                         return {
@@ -2007,7 +2007,7 @@ async def get_complete_birth_chart_profile(request: Request):
                 pass  # Continue to regenerate if data is corrupted
         
         
-
+        
         # Generate new complete profile using enhanced service
 
         birth_details = {
@@ -2057,7 +2057,7 @@ async def get_complete_birth_chart_profile(request: Request):
                 await db_manager.release_connection(conn)
         
         
-
+        
         return {
 
             "success": True,
@@ -2067,7 +2067,7 @@ async def get_complete_birth_chart_profile(request: Request):
         }
         
         
-
+        
     except json.JSONDecodeError as e:
 
         logger.error(f"JSON decode error in birth chart profile: {e}")
@@ -2101,7 +2101,7 @@ async def generate_birth_chart_for_user(request: Request):
         raise HTTPException(status_code=401, detail="Authentication required")
     
     
-
+    
     try:
 
         # Get user's birth details from profile
@@ -2127,7 +2127,7 @@ async def generate_birth_chart_for_user(request: Request):
                 await db_manager.release_connection(conn)
         
         
-
+        
         if not user_data or not user_data['birth_date']:
 
             return {
@@ -2141,7 +2141,7 @@ async def generate_birth_chart_for_user(request: Request):
             }
         
         
-
+        
         birth_details = {
 
             'date': user_data['birth_date'] if isinstance(user_data['birth_date'], str) else user_data['birth_date'].strftime('%Y-%m-%d'),
@@ -2189,7 +2189,7 @@ async def generate_birth_chart_for_user(request: Request):
                 await db_manager.release_connection(conn)
         
         
-
+        
         return {
 
             "success": True,
@@ -2199,7 +2199,7 @@ async def generate_birth_chart_for_user(request: Request):
         }
         
         
-
+        
     except json.JSONDecodeError as e:
 
         logger.error(f"JSON decode error generating birth chart: {e}")
