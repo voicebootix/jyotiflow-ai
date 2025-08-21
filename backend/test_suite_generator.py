@@ -2844,6 +2844,7 @@ import asyncpg
 import uuid
 import os
 import time
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -2887,13 +2888,15 @@ async def test_credit_package_service():
                 # Dynamic URL construction
                 url = f"{api_base_url}{endpoint['url']}"
                 
+                # Start timing before request attempt
+                start_time = time.perf_counter()
+                request_payload = {} if endpoint['method'] != 'GET' else None
+                
                 try:
-                    # Measure response time
-                    start_time = time.perf_counter()
                     if endpoint['method'] == 'GET':
                         response = await client.get(url)
                     else:
-                        response = await client.post(url, json={})
+                        response = await client.post(url, json=request_payload)
                     end_time = time.perf_counter()
                     response_time_ms = int((end_time - start_time) * 1000)  # Convert to milliseconds
                     
@@ -2912,39 +2915,56 @@ async def test_credit_package_service():
                     # Store in database (database-driven approach)
                     if conn:
                         try:
+                            # Store session info and request payload properly in request_body as JSON
+                            request_body_json = json.dumps({
+                                "test_session_id": test_session_id,
+                                "request_payload": request_payload
+                            }) if request_payload is not None else json.dumps({"test_session_id": test_session_id})
+                            
                             await conn.execute('''
                                 INSERT INTO monitoring_api_calls 
                                 (endpoint, method, status_code, response_time, user_id, request_body, error)
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], response.status_code, 
-                                response_time_ms, None, None, None)
+                                response_time_ms, None, request_body_json, None)
                         except Exception as db_error:
                             result["db_storage_error"] = str(db_error)
                             logger.error(f"Database storage error for credit package service test: {db_error}")
                             raise
                     
                 except Exception as endpoint_error:
+                    # Calculate response time even in exception path
+                    end_time = time.perf_counter()
+                    response_time_ms = int((end_time - start_time) * 1000)
+                    
                     error_result = {
                         "available": False,
                         "error": str(endpoint_error),
                         "business_function": endpoint['business_function'],
                         "revenue_impact": endpoint['revenue_impact'],
                         "endpoint_url": url,
-                        "method": endpoint['method']
+                        "method": endpoint['method'],
+                        "response_time_ms": response_time_ms
                     }
                     test_results[endpoint['business_function']] = error_result
                     
                     # Store error in database
                     if conn:
                         try:
+                            # Store session info and request payload properly in request_body as JSON
+                            request_body_json = json.dumps({
+                                "test_session_id": test_session_id,
+                                "request_payload": request_payload
+                            }) if request_payload is not None else json.dumps({"test_session_id": test_session_id})
+                            
                             await conn.execute('''
                                 INSERT INTO monitoring_api_calls 
                                 (endpoint, method, status_code, response_time, user_id, request_body, error)
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], 500, 
-                                None, None, f"test_session_id:{test_session_id}", str(endpoint_error))
+                                response_time_ms, None, request_body_json, str(endpoint_error))
                         except Exception as e:
                             db_storage_error = str(e)
                             error_result["db_storage_error"] = db_storage_error
@@ -2992,6 +3012,7 @@ import asyncpg
 import uuid
 import os
 import time
+import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -3008,8 +3029,8 @@ async def test_payment_api_endpoints():
             {"url": "/api/credits/purchase", "method": "POST", "business_function": "Credit Purchase", "test_data": {"package_id": 1, "payment_method": "test"}},
             {"url": "/api/user/credits", "method": "GET", "business_function": "User Credit Balance", "test_data": None},
             {"url": "/api/admin/credit-packages", "method": "GET", "business_function": "Package Management", "test_data": None},
-            {"url": "/api/admin/subscriptions", "method": "GET", "business_function": "Subscription Management", "test_data": None},
-            {"url": "/api/services", "method": "GET", "business_function": "Service Types", "test_data": None}
+            {"url": "/api/admin/subscription-plans", "method": "GET", "business_function": "Subscription Management", "test_data": None},
+            {"url": "/api/services/types", "method": "GET", "business_function": "Service Types", "test_data": None}
         ]
         
         endpoint_results = {}
@@ -3030,13 +3051,15 @@ async def test_payment_api_endpoints():
                 # Dynamic URL construction - moved out of try block to prevent UnboundLocalError
                 url = f"{api_base_url}{endpoint['url']}"
                 
+                # Start timing before request attempt
+                start_time = time.perf_counter()
+                request_payload = endpoint['test_data'] or {} if endpoint['method'] != 'GET' else None
+                
                 try:
-                    # Measure response time
-                    start_time = time.perf_counter()
                     if endpoint['method'] == 'GET':
                         response = await client.get(url)
                     else:
-                        response = await client.post(url, json=endpoint['test_data'] or {})
+                        response = await client.post(url, json=request_payload)
                     end_time = time.perf_counter()
                     response_time_ms = int((end_time - start_time) * 1000)  # Convert to milliseconds
                     
@@ -3055,37 +3078,54 @@ async def test_payment_api_endpoints():
                     # Store in database (database-driven approach)
                     if conn:
                         try:
+                            # Store session info and request payload properly in request_body as JSON
+                            request_body_json = json.dumps({
+                                "test_session_id": test_session_id,
+                                "request_payload": request_payload
+                            }) if request_payload is not None else json.dumps({"test_session_id": test_session_id})
+                            
                             await conn.execute('''
                                 INSERT INTO monitoring_api_calls 
                                 (endpoint, method, status_code, response_time, user_id, request_body, error)
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], response.status_code, 
-                                response_time_ms, None, f"test_session_id:{test_session_id}", None)
+                                response_time_ms, None, request_body_json, None)
                         except Exception as db_error:
                             result["db_storage_error"] = str(db_error)
                             logger.error(f"Database storage error for payment API endpoints test: {db_error}")
                     
                 except Exception as endpoint_error:
+                    # Calculate response time even in exception path
+                    end_time = time.perf_counter()
+                    response_time_ms = int((end_time - start_time) * 1000)
+                    
                     error_result = {
                         "endpoint_accessible": False,
                         "error": str(endpoint_error),
                         "business_impact": "CRITICAL",
                         "endpoint_url": url,
-                        "method": endpoint['method']
+                        "method": endpoint['method'],
+                        "response_time_ms": response_time_ms
                     }
                     endpoint_results[endpoint['business_function']] = error_result
                     
                     # Store error in database
                     if conn:
                         try:
+                            # Store session info and request payload properly in request_body as JSON
+                            request_body_json = json.dumps({
+                                "test_session_id": test_session_id,
+                                "request_payload": request_payload
+                            }) if request_payload is not None else json.dumps({"test_session_id": test_session_id})
+                            
                             await conn.execute('''
                                 INSERT INTO monitoring_api_calls 
                                 (endpoint, method, status_code, response_time, user_id, request_body, error)
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], 500, 
-                                None, None, f"test_session_id:{test_session_id}", str(endpoint_error))
+                                response_time_ms, None, request_body_json, str(endpoint_error))
                         except Exception as e:
                             db_storage_error = str(e)
                             error_result["db_storage_error"] = db_storage_error
