@@ -397,7 +397,8 @@ async def test_credit_transaction_integrity():
                     "timeout_seconds": 30
                 }
             ]
-        }
+        } 
+        
     
     async def generate_api_endpoint_tests(self) -> Dict[str, Any]:
         """Generate API endpoint tests"""
