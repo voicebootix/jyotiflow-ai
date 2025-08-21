@@ -263,8 +263,17 @@ const spiritualAPI = {
     return this.get(`/api/avatar/status/${sessionId}`);
   },
 
-  async purchaseCredits(amount) {
-    return this.post("/api/credits/purchase", { amount });
+  async purchaseCredits(payload) {
+    // Flexible payload: number = amount, object/number = packageId or full payload
+    const body =
+      typeof payload === "number"
+        ? payload < 100
+          ? { package_id: payload }
+          : { amount: payload } // heuristic: small numbers are packageId
+        : typeof payload === "object"
+        ? payload
+        : { package_id: payload };
+    return this.post("/api/credits/purchase", body);
   },
 
   // Daily content methods
@@ -462,24 +471,20 @@ const spiritualAPI = {
   },
 
   async createCreditPackage(packageData) {
-    return this.post("/api/admin/products/credit-packages", packageData);
+    return this.post("/api/admin/credit-packages", packageData);
   },
 
   async updateCreditPackage(packageId, packageData) {
-    return this.request(`/api/admin/products/credit-packages/${packageId}`, {
+    return this.request(`/api/admin/credit-packages/${packageId}`, {
       method: "PUT",
       body: JSON.stringify(packageData),
     });
   },
 
   async deleteCreditPackage(packageId) {
-    return this.request(`/api/admin/products/credit-packages/${packageId}`, {
+    return this.request(`/api/admin/credit-packages/${packageId}`, {
       method: "DELETE",
     });
-  },
-
-  async purchaseCredits(packageId) {
-    return this.post("/api/credits/purchase", { package_id: packageId });
   },
 
   // Admin: Social Content Management
