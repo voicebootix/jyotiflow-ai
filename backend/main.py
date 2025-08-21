@@ -313,6 +313,7 @@ async def lifespan(app: FastAPI):
         
         print("✅ Unified JyotiFlow.ai system ready!")
         print("🎯 Ready to serve API requests with all features enabled")
+        # Force deployment refresh - indentation fix applied
         
     except Exception as e:
         print(f"❌ Backend startup failed: {str(e)}")
