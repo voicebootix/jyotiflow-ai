@@ -1,6 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Plus, Edit, Trash2, Save, X, Eye, EyeOff, DollarSign, Gift } from 'lucide-react';
-import spiritualAPI from '../../lib/api';
+import { useEffect, useState } from "react";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  Save,
+  X,
+  Eye,
+  EyeOff,
+  DollarSign,
+  Gift,
+} from "lucide-react";
+import spiritualAPI from "../../lib/api";
 
 const CreditPackages = () => {
   const [packages, setPackages] = useState([]);
@@ -8,12 +18,12 @@ const CreditPackages = () => {
   const [editingId, setEditingId] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
-    name: '',
-    credits_amount: '',
-    price_usd: '',
-    bonus_credits: '',
-    description: '',
-    enabled: true
+    name: "",
+    credits_amount: "",
+    price_usd: "",
+    bonus_credits: "",
+    description: "",
+    enabled: true,
   });
 
   useEffect(() => {
@@ -23,10 +33,11 @@ const CreditPackages = () => {
   const fetchPackages = async () => {
     try {
       setLoading(true);
-      const data = await spiritualAPI.getCreditPackages();
+      const data = await spiritualAPI.getAdminCreditPackages();
+      console.log("Credit packages data:", data); // Debug log
       setPackages(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Error fetching credit packages:', error);
+      console.error("Error fetching credit packages:", error);
     } finally {
       setLoading(false);
     }
@@ -34,9 +45,9 @@ const CreditPackages = () => {
 
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
@@ -51,7 +62,7 @@ const CreditPackages = () => {
           price_usd: Number(formData.price_usd),
           bonus_credits: Number(formData.bonus_credits),
           description: formData.description,
-          enabled: formData.enabled
+          enabled: formData.enabled,
         });
       } else {
         // Create new package
@@ -61,14 +72,14 @@ const CreditPackages = () => {
           price_usd: Number(formData.price_usd),
           bonus_credits: Number(formData.bonus_credits),
           description: formData.description,
-          enabled: formData.enabled
+          enabled: formData.enabled,
         });
       }
       fetchPackages();
       resetForm();
     } catch (error) {
-      console.error('Error saving credit package:', error);
-      alert('Error saving credit package. Please try again.');
+      console.error("Error saving credit package:", error);
+      alert("Error saving credit package. Please try again.");
     }
   };
 
@@ -79,20 +90,24 @@ const CreditPackages = () => {
       credits_amount: pkg.credits_amount || pkg.credits,
       price_usd: pkg.price_usd,
       bonus_credits: pkg.bonus_credits || 0,
-      description: pkg.description || '',
-      enabled: pkg.enabled !== false
+      description: pkg.description || "",
+      enabled: pkg.enabled !== false,
     });
     setShowForm(true);
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this credit package? This action cannot be undone.')) {
+    if (
+      window.confirm(
+        "Are you sure you want to delete this credit package? This action cannot be undone."
+      )
+    ) {
       try {
         await spiritualAPI.deleteCreditPackage(id);
         fetchPackages();
       } catch (error) {
-        console.error('Error deleting credit package:', error);
-        alert('Error deleting credit package. Please try again.');
+        console.error("Error deleting credit package:", error);
+        alert("Error deleting credit package. Please try again.");
       }
     }
   };
@@ -100,23 +115,23 @@ const CreditPackages = () => {
   const handleToggleStatus = async (id, currentStatus) => {
     try {
       await spiritualAPI.updateCreditPackage(id, {
-        enabled: !currentStatus
+        enabled: !currentStatus,
       });
       fetchPackages();
     } catch (error) {
-      console.error('Error updating package status:', error);
-      alert('Error updating package status. Please try again.');
+      console.error("Error updating package status:", error);
+      alert("Error updating package status. Please try again.");
     }
   };
 
   const resetForm = () => {
     setFormData({
-      name: '',
-      credits_amount: '',
-      price_usd: '',
-      bonus_credits: '',
-      description: '',
-      enabled: true
+      name: "",
+      credits_amount: "",
+      price_usd: "",
+      bonus_credits: "",
+      description: "",
+      enabled: true,
     });
     setEditingId(null);
     setShowForm(false);
@@ -125,22 +140,23 @@ const CreditPackages = () => {
   const createNewPackage = () => {
     setEditingId(null);
     setFormData({
-      name: '',
-      credits_amount: '',
-      price_usd: '',
-      bonus_credits: '',
-      description: '',
-      enabled: true
+      name: "",
+      credits_amount: "",
+      price_usd: "",
+      bonus_credits: "",
+      description: "",
+      enabled: true,
     });
     setShowForm(true);
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center p-8">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-      <span className="ml-2">Loading credit packages...</span>
-    </div>
-  );
+  if (loading)
+    return (
+      <div className="flex items-center justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <span className="ml-2">Loading credit packages...</span>
+      </div>
+    );
 
   return (
     <div className="space-y-6">
@@ -148,7 +164,9 @@ const CreditPackages = () => {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold text-gray-900">Credit Packages</h2>
-          <p className="text-gray-600">Manage credit packages that users can purchase</p>
+          <p className="text-gray-600">
+            Manage credit packages that users can purchase
+          </p>
         </div>
         <button
           onClick={createNewPackage}
@@ -164,7 +182,7 @@ const CreditPackages = () => {
         <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-900">
-              {editingId ? 'Edit Credit Package' : 'Create New Credit Package'}
+              {editingId ? "Edit Credit Package" : "Create New Credit Package"}
             </h3>
             <button
               onClick={resetForm}
@@ -285,7 +303,7 @@ const CreditPackages = () => {
                 type="submit"
                 className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"
               >
-                {editingId ? 'Update Package' : 'Create Package'}
+                {editingId ? "Update Package" : "Create Package"}
               </button>
             </div>
           </form>
@@ -303,7 +321,9 @@ const CreditPackages = () => {
         {packages.length === 0 ? (
           <div className="p-8 text-center">
             <Gift className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No credit packages</h3>
+            <h3 className="mt-2 text-sm font-medium text-gray-900">
+              No credit packages
+            </h3>
             <p className="mt-1 text-sm text-gray-500">
               Get started by creating your first credit package.
             </p>
@@ -374,8 +394,8 @@ const CreditPackages = () => {
                         onClick={() => handleToggleStatus(pkg.id, pkg.enabled)}
                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                           pkg.enabled
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
+                            ? "bg-green-100 text-green-800"
+                            : "bg-red-100 text-red-800"
                         }`}
                       >
                         {pkg.enabled ? (
@@ -418,4 +438,4 @@ const CreditPackages = () => {
   );
 };
 
-export default CreditPackages; 
+export default CreditPackages;
