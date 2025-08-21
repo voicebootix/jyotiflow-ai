@@ -75,6 +75,14 @@ const SubscriptionPlans = () => {
     });
   };
 
+  // Derive sanitized metrics before loading check
+  const sanitizedPrices = subscriptionPlans
+    .map((p) => Number(p.price_usd))
+    .filter((price) => isFinite(price));
+  const hasPrices = sanitizedPrices.length > 0;
+  const minPrice = hasPrices ? Math.min(...sanitizedPrices) : 0;
+  const maxPrice = hasPrices ? Math.max(...sanitizedPrices) : 0;
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -213,7 +221,10 @@ const SubscriptionPlans = () => {
                   <button className="flex-1 bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors">
                     View Details
                   </button>
-                  <button className="flex-1 bg-purple-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-purple-700 transition-colors">
+                  <button
+                    onClick={() => setEditingPlan(plan)}
+                    className="flex-1 bg-purple-600 text-white px-3 py-2 rounded-lg text-sm hover:bg-purple-700 transition-colors"
+                  >
                     Edit Plan
                   </button>
                 </div>
@@ -253,20 +264,21 @@ const SubscriptionPlans = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg p-6 shadow-sm border">
-          <div className="flex items-center space-x-3">
-            <div className="p-2 bg-purple-100 rounded-lg">
-              <DollarSign className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold text-gray-900">
-                ${Math.min(...subscriptionPlans.map((p) => p.price_usd))} - $
-                {Math.max(...subscriptionPlans.map((p) => p.price_usd))}
-              </h3>
-              <p className="text-sm text-gray-600">Price Range</p>
+        {hasPrices && (
+          <div className="bg-white rounded-lg p-6 shadow-sm border">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <DollarSign className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold text-gray-900">
+                  ${minPrice} - ${maxPrice}
+                </h3>
+                <p className="text-sm text-gray-600">Price Range</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <div className="bg-white rounded-lg p-6 shadow-sm border">
           <div className="flex items-center space-x-3">
