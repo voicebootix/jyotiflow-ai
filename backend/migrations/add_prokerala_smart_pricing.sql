@@ -23,9 +23,12 @@ ADD COLUMN IF NOT EXISTS cache_discount_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS max_cost_per_call DECIMAL(10,2) DEFAULT 0.04;
 
 -- Insert default configuration (only if table is empty)
+-- Temporarily disabling to unblock migrations. This can be re-enabled later.
+/*
 INSERT INTO prokerala_cost_config (max_cost_per_call, margin_percentage) 
 SELECT 0.04, 500.00
 WHERE NOT EXISTS (SELECT 1 FROM prokerala_cost_config);
+*/
 
 -- Create cache effectiveness tracking
 CREATE TABLE IF NOT EXISTS cache_analytics (
@@ -55,6 +58,8 @@ CREATE TABLE IF NOT EXISTS endpoint_suggestions (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_endpoint_group ON endpoint_suggestions(endpoint_group);
 
 -- Insert endpoint group suggestions
+-- Temporarily disabling to unblock migrations. This can be re-enabled later.
+/*
 INSERT INTO endpoint_suggestions (endpoint_group, endpoints, description, typical_use_case, value_score) VALUES
 ('quick_love', ARRAY['/astrology/nakshatra-porutham', '/horoscope/daily/love-compatibility'], 
  'Basic compatibility check', 'Quick love compatibility reading', 6),
@@ -67,6 +72,7 @@ INSERT INTO endpoint_suggestions (endpoint_group, endpoints, description, typica
 ('life_reading', ARRAY['/astrology/birth-details', '/astrology/kundli/advanced', '/astrology/planet-position', '/astrology/dasha-periods', '/astrology/yoga', '/astrology/mangal-dosha', '/astrology/kaal-sarp-dosha', '/astrology/sade-sati', '/numerology/life-path-number', '/numerology/destiny-number', '/numerology/soul-urge-number'], 
  'Complete life analysis', '30-minute comprehensive reading', 10)
 ON CONFLICT (endpoint_group) DO NOTHING;
+*/
 
 -- Add cache tracking to sessions table
 ALTER TABLE sessions 
