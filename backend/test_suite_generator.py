@@ -2845,9 +2845,6 @@ import uuid
 import os
 import time
 import json
-import logging
-
-logger = logging.getLogger(__name__)
 
 async def test_credit_package_service():
     try:
@@ -2872,10 +2869,10 @@ async def test_credit_package_service():
             conn = await asyncpg.connect(DATABASE_URL)
         except (asyncpg.PostgresError, asyncpg.PostgresConnectionError) as db_error:
             conn = None
-            logger.debug(f"Database connection failed for credit package service test: {db_error}")
+            print(f"Database connection failed for credit package service test: {db_error}")
         except Exception as connection_error:
             conn = None
-            logger.debug(f"Unexpected database connection error: {connection_error}")
+            print(f"Unexpected database connection error: {connection_error}")
         
         
         async with httpx.AsyncClient(timeout=30.0, headers={
@@ -2930,7 +2927,7 @@ async def test_credit_package_service():
                                 response_time_ms, None, request_body_json, None)
                         except Exception as db_error:
                             result["db_storage_error"] = str(db_error)
-                            logger.error(f"Database storage error for credit package service test: {db_error}")
+                            print(f"Database storage error for credit package service test: {db_error}")
                             raise
                     
                 except Exception as endpoint_error:
@@ -2968,7 +2965,7 @@ async def test_credit_package_service():
                         except Exception as e:
                             db_storage_error = str(e)
                             error_result["db_storage_error"] = db_storage_error
-                            logger.error(f"Database error storing credit package service test error: {db_storage_error}")
+                            print(f"Database error storing credit package service test error: {db_storage_error}")
         
         # Close database connection
         if conn:
@@ -3013,9 +3010,6 @@ import uuid
 import os
 import time
 import json
-import logging
-
-logger = logging.getLogger(__name__)
 
 async def test_payment_api_endpoints():
     try:
@@ -3041,10 +3035,10 @@ async def test_payment_api_endpoints():
             conn = await asyncpg.connect(DATABASE_URL)
         except (asyncpg.PostgresError, asyncpg.PostgresConnectionError) as db_error:
             conn = None
-            logger.debug(f"Database connection failed for payment API endpoints test: {db_error}")
+            print(f"Database connection failed for payment API endpoints test: {db_error}")
         except Exception as connection_error:
             conn = None
-            logger.debug(f"Unexpected database connection error: {connection_error}")
+            print(f"Unexpected database connection error: {connection_error}")
         
         async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)) as client:
             for endpoint in endpoints_to_test:
@@ -3093,7 +3087,7 @@ async def test_payment_api_endpoints():
                                 response_time_ms, None, request_body_json, None)
                         except Exception as db_error:
                             result["db_storage_error"] = str(db_error)
-                            logger.error(f"Database storage error for payment API endpoints test: {db_error}")
+                            print(f"Database storage error for payment API endpoints test: {db_error}")
                     
                 except Exception as endpoint_error:
                     # Calculate response time even in exception path
@@ -3129,7 +3123,7 @@ async def test_payment_api_endpoints():
                         except Exception as e:
                             db_storage_error = str(e)
                             error_result["db_storage_error"] = db_storage_error
-                            logger.error(f"Database error storing payment API endpoints test error: {db_storage_error}")
+                            print(f"Database error storing payment API endpoints test error: {db_storage_error}")
         
         # Calculate revenue continuity score
         accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
