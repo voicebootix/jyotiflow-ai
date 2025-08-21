@@ -39,15 +39,22 @@ class SpiritualCalendarService:
             return await self._get_fallback_theme()
 
     async def _generate_rag_powered_theme(self) -> Dict[str, Any]:
-        """Generate spiritual theme using RAG knowledge engine"""
+        """Generate spiritual theme using Dynamic RAG system (no hardcoded content)"""
         try:
-            # Check if RAG system is available first
+            # Try Dynamic RAG system first
             try:
-                from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
-                if rag_engine is None:
-                    raise Exception("RAG engine not initialized")
+                from dynamic_spiritual_rag import get_dynamic_spiritual_guidance
+                logger.info("🚀 Using Dynamic RAG system for theme generation")
             except ImportError as ie:
-                raise Exception("RAG system import failed") from ie
+                # Fallback to old RAG system if dynamic not available
+                try:
+                    from enhanced_rag_knowledge_engine import get_rag_enhanced_guidance, rag_engine
+                    if rag_engine is None:
+                        raise Exception("RAG engine not initialized")
+                    logger.info("📚 Falling back to database RAG system")
+                    return await self._generate_database_rag_theme()
+                except ImportError as ie2:
+                    raise Exception("No RAG system available") from ie2
             
             # Get current date context
             today = datetime.now()
@@ -55,43 +62,61 @@ class SpiritualCalendarService:
             month_name = calendar.month_name[today.month]
             season = self._get_season(today.month)
             
-            # Create contextual query for RAG
+            # Create contextual query for Dynamic RAG
             spiritual_query = f"""
             Today is {day_name}, {today.day} {month_name} {today.year}, during {season} season.
-            Please provide a daily spiritual theme for today that includes:
-            1. A meaningful spiritual theme name (2-3 words)
-            2. A beautiful description (1-2 sentences) that explains the essence of this theme
             
-            The theme should be:
-            - Appropriate for the current day and season
-            - Inspiring and uplifting for spiritual seekers
-            - Rooted in timeless wisdom traditions
-            - Practical for daily contemplation
+            Please generate a daily spiritual theme that captures the energy of this specific day.
             
-            Please provide the response in this format:
-            Theme: [Theme Name]
-            Description: [Beautiful description]
+            Requirements:
+            - A meaningful theme name (2-4 words)
+            - An inspiring description (1-2 sentences)
+            - Appropriate for {season} season and {day_name} energy
+            - Uplifting and practical for daily contemplation
+            - Rooted in universal spiritual wisdom
+            
+            Make it personal and relevant to someone seeking spiritual growth today.
             """
             
-            # Query RAG system with timeout
+            # Query Dynamic RAG system with timeout
             try:
                 rag_response = await asyncio.wait_for(
-                    get_rag_enhanced_guidance(
-                        user_query=spiritual_query,
+                    get_dynamic_spiritual_guidance(
+                        user_question=spiritual_query,
                         birth_details=None,
-                        service_type="daily_spiritual_guidance"
+                        service_type="daily_spiritual_guidance",
+                        spiritual_level="general",
+                        language="en"
                     ),
-                    timeout=10.0  # 10 second timeout
+                    timeout=15.0  # 15 second timeout for dynamic generation
                 )
             except asyncio.TimeoutError:
                 raise Exception("RAG system timeout")
             
-            if rag_response and rag_response.get("enhanced_guidance"):
-                parsed_theme = self._parse_rag_theme_response(rag_response["enhanced_guidance"])
-                logger.info(f"RAG generated spiritual theme: {parsed_theme['theme']}")
-                return parsed_theme
+            if rag_response and rag_response.get("success"):
+                # Dynamic RAG returns structured response
+                theme_name = rag_response.get("spiritual_theme", "Divine Guidance")
+                theme_description = rag_response.get("guidance", "Trust in divine timing and wisdom.")
+                
+                # Add insights to enhance the theme
+                insights = rag_response.get("key_insights", [])
+                if insights:
+                    theme_description = f"{insights[0]} {theme_description}"
+                
+                dynamic_theme = {
+                    "theme": theme_name,
+                    "description": theme_description,
+                    "source": "dynamic_rag",
+                    "insights": insights,
+                    "practices": rag_response.get("recommended_practices", []),
+                    "metadata": rag_response.get("metadata", {})
+                }
+                
+                logger.info(f"🚀 Dynamic RAG generated theme: {theme_name}")
+                return dynamic_theme
             else:
-                raise Exception("RAG response was empty or invalid")
+                error_msg = rag_response.get("error", "Unknown error") if rag_response else "No response"
+                raise Exception(f"Dynamic RAG failed: {error_msg}")
                 
         except Exception as e:
             logger.error(f"RAG theme generation error: {e}")
