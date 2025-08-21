@@ -2319,7 +2319,7 @@ class SelfHealingOrchestrator:
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from datetime import datetime
-from deps import get_admin_user
+from backend.deps import get_admin_user
 
 router = APIRouter(prefix="/api/database-health", tags=["database-health"])
 
