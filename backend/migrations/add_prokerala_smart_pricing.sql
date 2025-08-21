@@ -7,13 +7,13 @@ ADD COLUMN IF NOT EXISTS cache_effectiveness DECIMAL(5,2) DEFAULT 70.00;
 -- Create Prokerala cost configuration
 CREATE TABLE IF NOT EXISTS prokerala_cost_config (
     id SERIAL PRIMARY KEY,
-    margin_percentage DECIMAL(10,2) DEFAULT 500.00,
-    cache_discount_enabled BOOLEAN DEFAULT TRUE,
     last_updated TIMESTAMP DEFAULT NOW()
 );
 
--- Add missing columns if they don't exist
+-- Add missing columns idempotently
 ALTER TABLE prokerala_cost_config 
+ADD COLUMN IF NOT EXISTS margin_percentage DECIMAL(10,2) DEFAULT 500.00,
+ADD COLUMN IF NOT EXISTS cache_discount_enabled BOOLEAN DEFAULT TRUE,
 ADD COLUMN IF NOT EXISTS max_cost_per_call DECIMAL(10,2) DEFAULT 0.04;
 
 -- Insert default configuration (only if table is empty)
