@@ -8,7 +8,7 @@ import httpx
 
 import openai
 
-from fastapi.middleware.cors import CORSMiddleware
+
 
 from datetime import datetime, timedelta, timezone
 
@@ -84,17 +84,21 @@ def extract_user_email_from_token(request: Request) -> str | None:
 
         return JWTHandler.get_user_email_from_token(request)
 
-    except:
-
+    except Exception as e:
+        logger.warning(f"Failed to extract user email from token: {e}")
         return None
 
 
 
 # --- Prokerala Token Management ---
 
-PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID", "your-client-id")
+PROKERALA_CLIENT_ID = os.getenv("PROKERALA_CLIENT_ID")
+if not PROKERALA_CLIENT_ID:
+    raise RuntimeError("PROKERALA_CLIENT_ID environment variable is required but not set")
 
-PROKERALA_CLIENT_SECRET = os.getenv("PROKERALA_CLIENT_SECRET", "your-client-secret")
+PROKERALA_CLIENT_SECRET = os.getenv("PROKERALA_CLIENT_SECRET")
+if not PROKERALA_CLIENT_SECRET:
+    raise RuntimeError("PROKERALA_CLIENT_SECRET environment variable is required but not set")
 
 PROKERALA_TOKEN_URL = "https://api.prokerala.com/token"
 
