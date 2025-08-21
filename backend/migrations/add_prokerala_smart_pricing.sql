@@ -7,11 +7,25 @@ ADD COLUMN IF NOT EXISTS cache_effectiveness DECIMAL(5,2) DEFAULT 70.00;
 -- Create Prokerala cost configuration
 CREATE TABLE IF NOT EXISTS prokerala_cost_config (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    max_cost_per_call DECIMAL(10,4) DEFAULT 0.036, -- $0.036 (₹3 highest endpoint)
     margin_percentage DECIMAL(5,2) DEFAULT 500.00,
     cache_discount_enabled BOOLEAN DEFAULT TRUE,
     last_updated TIMESTAMP DEFAULT NOW()
 );
+
+-- Add missing columns if they don't exist
+DO $$
+BEGIN
+    -- Add max_cost_per_call column if missing
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'prokerala_cost_config' 
+        AND column_name = 'max_cost_per_call'
+    ) THEN
+        ALTER TABLE prokerala_cost_config 
+        ADD COLUMN max_cost_per_call DECIMAL(10,4) DEFAULT 0.036;
+        RAISE NOTICE 'Added max_cost_per_call column to prokerala_cost_config';
+    END IF;
+END $$;
 
 -- Insert default configuration
 INSERT INTO prokerala_cost_config (max_cost_per_call, margin_percentage) 
