@@ -16,10 +16,10 @@ CREATE TABLE IF NOT EXISTS prokerala_cost_config (
 ALTER TABLE prokerala_cost_config 
 ADD COLUMN IF NOT EXISTS max_cost_per_call DECIMAL(10,2) DEFAULT 0.04;
 
--- Insert default configuration
+-- Insert default configuration (only if table is empty)
 INSERT INTO prokerala_cost_config (max_cost_per_call, margin_percentage) 
-VALUES (0.04, 500.00) 
-ON CONFLICT DO NOTHING;
+SELECT 0.04, 500.00
+WHERE NOT EXISTS (SELECT 1 FROM prokerala_cost_config);
 
 -- Create cache effectiveness tracking
 CREATE TABLE IF NOT EXISTS cache_analytics (
