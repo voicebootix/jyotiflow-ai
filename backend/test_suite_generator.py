@@ -2838,74 +2838,106 @@ async def test_avatar_database_schema():
                     "test_type": "integration",
                     "priority": "critical",
                     "test_code": """
+import httpx
+import asyncpg
+import uuid
+
 async def test_credit_package_service():
     try:
-        # Import CreditPackageService
-        if not CREDIT_SERVICE_AVAILABLE:
-            return {"status": "failed", "error": "CreditPackageService not available"}
+        # Test credit package service endpoints (revenue critical)
+        api_base_url = os.environ.get("API_BASE_URL")
+        if not api_base_url:
+            raise ValueError("API_BASE_URL environment variable is required for API endpoint tests")
+        test_session_id = f"credit_service_{uuid.uuid4()}"
         
-        # Initialize service
-        credit_service = CreditPackageService()
+        # Test revenue-critical credit package endpoints
+        endpoints_to_test = [
+            {"url": "/api/admin/credit-packages", "method": "GET", "business_function": "Package Listing", "revenue_impact": "HIGH"},
+            {"url": "/api/services", "method": "GET", "business_function": "Service Types", "revenue_impact": "CRITICAL"},
+            {"url": "/api/user/credits", "method": "GET", "business_function": "Credit Balance", "revenue_impact": "HIGH"}
+        ]
         
-        # Test service initialization
-        assert credit_service is not None, "Credit service should initialize"
-        assert hasattr(credit_service, 'db_pool'), "Should have database pool"
-        
-        # Test basic package operations (revenue critical)
         test_results = {}
         
-        # Test 1: Package availability check
+        # Database connection for storing results
+        conn = None
         try:
-            # Mock package availability test
-            packages_available = True  # Would test actual package fetching
-            test_results["package_availability"] = {
-                "available": packages_available,
-                "business_function": "Package Listing",
-                "revenue_impact": "HIGH"
-            }
-        except Exception as pkg_error:
-            test_results["package_availability"] = {
-                "available": False,
-                "error": str(pkg_error),
-                "business_function": "Package Listing"
-            }
+            conn = await asyncpg.connect(DATABASE_URL)
+        except:
+            pass  # Continue without database if connection fails
         
-        # Test 2: Credit calculation logic
-        try:
-            # Mock credit calculation test
-            credit_calculation_working = True  # Would test actual calculations
-            test_results["credit_calculation"] = {
-                "available": credit_calculation_working,
-                "business_function": "Credit Math",
-                "revenue_impact": "CRITICAL"
-            }
-        except Exception as calc_error:
-            test_results["credit_calculation"] = {
-                "available": False,
-                "error": str(calc_error),
-                "business_function": "Credit Math"
-            }
+        async with httpx.AsyncClient(timeout=30.0, headers={
+            "Content-Type": "application/json",
+            "User-Agent": "JyotiFlow-TestRunner/1.0",
+            "X-Test-Run": "true",
+            "X-Test-Type": "credit-package-service"
+        }) as client:
+            for endpoint in endpoints_to_test:
+                # Dynamic URL construction
+                url = f"{api_base_url}{endpoint['url']}"
+                
+                try:
+                    if endpoint['method'] == 'GET':
+                        response = await client.get(url)
+                    else:
+                        response = await client.post(url, json={})
+                    
+                    # Credit package endpoints should be accessible (even if auth required)
+                    result = {
+                        "available": response.status_code in [200, 401, 403, 422],
+                        "status_code": response.status_code,
+                        "business_function": endpoint['business_function'],
+                        "revenue_impact": endpoint['revenue_impact'],
+                        "endpoint_url": url,
+                        "method": endpoint['method']
+                    }
+                    test_results[endpoint['business_function']] = result
+                    
+                    # Store in database (database-driven approach)
+                    if conn:
+                        try:
+                            await conn.execute('''
+                                INSERT INTO monitoring_api_calls 
+                                (test_session_id, endpoint_url, http_method, status_code, test_type, business_function, created_at)
+                                VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                                ON CONFLICT DO NOTHING
+                            ''', test_session_id, url, endpoint['method'], response.status_code, 
+                                "credit_package_service", endpoint['business_function'])
+                        except Exception as db_error:
+                            result["db_storage_error"] = str(db_error)
+                    
+                except Exception as endpoint_error:
+                    error_result = {
+                        "available": False,
+                        "error": str(endpoint_error),
+                        "business_function": endpoint['business_function'],
+                        "revenue_impact": endpoint['revenue_impact'],
+                        "endpoint_url": url,
+                        "method": endpoint['method']
+                    }
+                    test_results[endpoint['business_function']] = error_result
+                    
+                    # Store error in database
+                    if conn:
+                        try:
+                            await conn.execute('''
+                                INSERT INTO monitoring_api_calls 
+                                (test_session_id, endpoint_url, http_method, status_code, test_type, business_function, error_details, created_at)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+                                ON CONFLICT DO NOTHING
+                            ''', test_session_id, url, endpoint['method'], 500, 
+                                "credit_package_service", endpoint['business_function'], str(endpoint_error))
+                        except:
+                            pass
         
-        # Test 3: Service cost optimization
-        try:
-            # Mock service cost optimization test
-            cost_optimization_working = True  # Would test actual optimization
-            test_results["cost_optimization"] = {
-                "available": cost_optimization_working,
-                "business_function": "Cost Optimization",
-                "revenue_impact": "HIGH"
-            }
-        except Exception as opt_error:
-            test_results["cost_optimization"] = {
-                "available": False,
-                "error": str(opt_error),
-                "business_function": "Cost Optimization"
-            }
+        # Close database connection
+        if conn:
+            await conn.close()
         
         # Calculate revenue protection score
         working_functions = sum(1 for result in test_results.values() if result.get("available", False))
         total_functions = len(test_results)
-        revenue_protection_score = (working_functions / total_functions) * 100
+        revenue_protection_score = (working_functions / total_functions) * 100 if total_functions > 0 else 0
         
         # Check critical revenue functions
         critical_revenue_working = sum(1 for result in test_results.values() 
@@ -2914,7 +2946,7 @@ async def test_credit_package_service():
         
         return {
             "status": "passed" if revenue_protection_score > 80 else "failed",
-            "message": "Credit package service tested",
+            "message": "Credit package service endpoints tested",
             "revenue_protection_score": revenue_protection_score,
             "working_functions": working_functions,
             "total_functions": total_functions,
@@ -2951,8 +2983,8 @@ async def test_payment_api_endpoints():
             {"url": "/api/credits/purchase", "method": "POST", "business_function": "Credit Purchase", "test_data": {"package_id": 1, "payment_method": "test"}},
             {"url": "/api/user/credits", "method": "GET", "business_function": "User Credit Balance", "test_data": None},
             {"url": "/api/admin/credit-packages", "method": "GET", "business_function": "Package Management", "test_data": None},
-            {"url": "/api/admin/subscription-plans", "method": "GET", "business_function": "Subscription Management", "test_data": None},
-            {"url": "/api/services/types", "method": "GET", "business_function": "Service Types", "test_data": None}
+            {"url": "/api/admin/subscriptions", "method": "GET", "business_function": "Subscription Management", "test_data": None},
+            {"url": "/api/services", "method": "GET", "business_function": "Service Types", "test_data": None}
         ]
         
         endpoint_results = {}
