@@ -2841,6 +2841,7 @@ async def test_avatar_database_schema():
 import httpx
 import asyncpg
 import uuid
+import os
 
 async def test_credit_package_service():
     try:
@@ -2970,6 +2971,7 @@ async def test_credit_package_service():
 import httpx
 import asyncpg
 import uuid
+import os
 
 async def test_payment_api_endpoints():
     try:
