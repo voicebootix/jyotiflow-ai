@@ -181,7 +181,8 @@ async def run_auto_deployment_migrations():
             "enhance_service_types_rag.sql",
             "fix_missing_columns.sql",
             "026_add_pgvector_extension.sql",
-            "027_populate_spiritual_knowledge_base.sql"
+            "027_populate_spiritual_knowledge_base.sql",
+            "028_fix_sessions_table.sql"
         ]
         
         migrations_dir = Path(__file__).parent / "migrations"
