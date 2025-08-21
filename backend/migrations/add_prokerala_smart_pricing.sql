@@ -57,7 +57,7 @@ INSERT INTO endpoint_suggestions (endpoint_group, endpoints, description, typica
  'Complete career analysis with timing', 'Professional career consultation', 10),
 ('life_reading', ARRAY['/astrology/birth-details', '/astrology/kundli/advanced', '/astrology/planet-position', '/astrology/dasha-periods', '/astrology/yoga', '/astrology/mangal-dosha', '/astrology/kaal-sarp-dosha', '/astrology/sade-sati', '/numerology/life-path-number', '/numerology/destiny-number', '/numerology/soul-urge-number'], 
  'Complete life analysis', '30-minute comprehensive reading', 10)
-ON CONFLICT DO NOTHING;
+ON CONFLICT (endpoint_group) DO NOTHING;
 
 -- Add cache tracking to sessions table
 ALTER TABLE sessions 
