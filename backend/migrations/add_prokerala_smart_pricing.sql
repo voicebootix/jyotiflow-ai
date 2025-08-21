@@ -4,6 +4,9 @@ ADD COLUMN IF NOT EXISTS prokerala_endpoints TEXT[] DEFAULT '{}',
 ADD COLUMN IF NOT EXISTS estimated_api_calls INTEGER DEFAULT 1,
 ADD COLUMN IF NOT EXISTS cache_effectiveness DECIMAL(5,2) DEFAULT 70.00;
 
+-- Drop the table if it exists to ensure a clean slate, as it might be corrupted from previous failed migrations
+DROP TABLE IF EXISTS prokerala_cost_config CASCADE;
+
 -- Create Prokerala cost configuration
 CREATE TABLE IF NOT EXISTS prokerala_cost_config (
     id SERIAL PRIMARY KEY,
