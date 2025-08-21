@@ -1,4 +1,4 @@
-"""
+﻿"""
 JyotiFlow Database Self-Healing System
 Production-grade automated database issue detection and repair
 Built with PostgreSQL and asyncpg for Supabase
@@ -1491,7 +1491,7 @@ class DatabaseHealthMonitor:
                     
                 # Check if this table is actually being used in code
                 if table_name in query_patterns:
-                    logger.warning(f"🚨 Critical monitoring table '{table_name}' is missing but actively used!")
+                    logger.warning(f"ðŸš¨ Critical monitoring table '{table_name}' is missing but actively used!")
                     issues.append(DatabaseIssue(
                         issue_type='MISSING_TABLE',
                         severity='CRITICAL',
@@ -1505,7 +1505,7 @@ class DatabaseHealthMonitor:
         # Also check other critical business tables
         for table_name in CRITICAL_TABLES:
             if table_name not in existing_tables:
-                logger.warning(f"⚠️ Critical business table '{table_name}' is missing!")
+                logger.warning(f"âš ï¸ Critical business table '{table_name}' is missing!")
                 issues.append(DatabaseIssue(
                     issue_type='MISSING_TABLE',
                     severity='CRITICAL',
@@ -2104,25 +2104,25 @@ class DatabaseHealthMonitor:
         # Unknown table defaults to MEDIUM priority
         if table_priority is None:
             table_priority = 'MEDIUM'
-            logger.warning(f"🕉️ Unknown table {issue.table} for spiritual services, using MEDIUM priority")
+            logger.warning(f"ðŸ•‰ï¸ Unknown table {issue.table} for spiritual services, using MEDIUM priority")
         
         # Auto-fix logic based on spiritual service business requirements
         if issue.severity == 'CRITICAL':
             if table_priority == 'CRITICAL':
                 # Critical spiritual service tables - fix immediately
-                logger.info(f"🚨 CRITICAL spiritual service issue in {issue.table} - auto-fixing immediately")
+                logger.info(f"ðŸš¨ CRITICAL spiritual service issue in {issue.table} - auto-fixing immediately")
                 return self._check_fix_throttling(issue, max_attempts=1)
             elif table_priority == 'HIGH':
                 # High priority - fix with throttling
-                logger.info(f"⚠️ HIGH priority spiritual service issue in {issue.table} - auto-fixing with caution")
+                logger.info(f"âš ï¸ HIGH priority spiritual service issue in {issue.table} - auto-fixing with caution")
                 return self._check_fix_throttling(issue, max_attempts=2)
             else:
                 # Medium/Low priority - require manual approval for safety
-                logger.warning(f"🤔 Spiritual service issue in {issue.table} requires manual approval")
+                logger.warning(f"ðŸ¤” Spiritual service issue in {issue.table} requires manual approval")
                 return False
         
         # Non-critical issues require manual review for spiritual services
-        logger.info(f"💭 Non-critical issue in {issue.table} - manual review recommended")
+        logger.info(f"ðŸ’­ Non-critical issue in {issue.table} - manual review recommended")
         return False
     
     def _check_fix_throttling(self, issue: DatabaseIssue, max_attempts: int = 3) -> bool:
@@ -2131,7 +2131,7 @@ class DatabaseHealthMonitor:
         if issue_key in self.known_issues:
             last_attempt = self.known_issues[issue_key]
             if safe_utc_now() - last_attempt < timedelta(hours=1):
-                logger.warning(f"🕉️ Spiritual service fix throttled for {issue.table} - waiting for cooldown")
+                logger.warning(f"ðŸ•‰ï¸ Spiritual service fix throttled for {issue.table} - waiting for cooldown")
                 return False  # Don't retry within an hour
         
         self.known_issues[issue_key] = safe_utc_now()
@@ -2316,8 +2316,10 @@ class SelfHealingOrchestrator:
 
 
 # FastAPI Integration
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from datetime import datetime
+from deps import get_admin_user
 
 router = APIRouter(prefix="/api/database-health", tags=["database-health"])
 
@@ -2547,7 +2549,7 @@ async def _ensure_health_tables_exist():
                 )
             """)
             
-            logger.info("✅ Health monitoring tables ensured")
+            logger.info("âœ… Health monitoring tables ensured")
             
         except Exception as e:
             logger.error(f"Failed to create health monitoring tables: {e}")
@@ -2599,7 +2601,7 @@ async def manual_fix(request: ManualFixRequest):
     return result
 
 
-@router.get("/_metadata")
+@router.get("/_metadata", dependencies=[Depends(get_admin_user)])
 async def get_endpoint_metadata():
     """Auto-discovery metadata endpoint - provides complete endpoint information for dynamic UI generation"""
     return {
@@ -2721,7 +2723,8 @@ async def get_endpoint_metadata():
             "layout": "panels",
             "theme": "modern",
             "animations": True
-        }
+        },
+        "generated_at": datetime.utcnow().isoformat()
     }
 
 
@@ -2805,11 +2808,11 @@ async def startup_event():
         
         # Start monitoring
         await orchestrator.start()
-        logger.info("✅ Database Self-Healing System initialized")
+        logger.info("âœ… Database Self-Healing System initialized")
         return orchestrator
         
     except Exception as e:
-        logger.error(f"❌ Failed to initialize self-healing system: {e}")
+        logger.error(f"âŒ Failed to initialize self-healing system: {e}")
         return None
 
 
@@ -2817,7 +2820,7 @@ async def startup_event():
 admin_template = """
 <div id="universal-monitor">
     <h2>Universal System Monitor</h2>
-    <div id="discovery-log">🔍 Discovering system...</div>
+    <div id="discovery-log">ðŸ” Discovering system...</div>
     <div id="universal-interface"></div>
 </div>
 
@@ -2832,23 +2835,23 @@ class UniversalSystemUI {
 
     async discoverSystem() {
         const log = document.getElementById('discovery-log');
-        log.innerHTML = '🔍 Starting universal discovery...';
+        log.innerHTML = 'ðŸ” Starting universal discovery...';
 
         try {
             // Step 1: Discover all available API routes
             const routes = await this.discoverAllRoutes();
-            log.innerHTML += '<br>📡 Found ' + routes.length + ' potential routes';
+            log.innerHTML += '<br>ðŸ“¡ Found ' + routes.length + ' potential routes';
 
             // Step 2: Test and categorize each route
             const workingEndpoints = await this.testAndCategorizeRoutes(routes);
-            log.innerHTML += '<br>✅ Verified ' + workingEndpoints.size + ' working endpoints';
+            log.innerHTML += '<br>âœ… Verified ' + workingEndpoints.size + ' working endpoints';
 
             // Step 3: Build interface dynamically
             await this.buildUniversalInterface(workingEndpoints);
             log.style.display = 'none';
 
         } catch (error) {
-            log.innerHTML = '❌ Discovery failed: ' + error.message;
+            log.innerHTML = 'âŒ Discovery failed: ' + error.message;
             console.error('Universal discovery error:', error);
         }
     }
@@ -2894,7 +2897,7 @@ class UniversalSystemUI {
 
         // Method 3: Zero-assumption discovery - only if OpenAPI/docs failed completely
         if (routes.size === 0) {
-            console.warn('⚠️ No routes discovered via OpenAPI or documentation. System may not be compatible.');
+            console.warn('âš ï¸ No routes discovered via OpenAPI or documentation. System may not be compatible.');
             // No hardcoded patterns - if we can't discover via proper methods, we fail gracefully
         }
 
@@ -2933,7 +2936,7 @@ class UniversalSystemUI {
             // Update progress
             const progress = Math.min(100, Math.round((i + batchSize) / routes.length * 100));
             document.getElementById('discovery-log').innerHTML = 
-                `🔍 Testing routes... ${progress}% (${workingEndpoints.size} found)`;
+                `ðŸ” Testing routes... ${progress}% (${workingEndpoints.size} found)`;
         }
 
         return workingEndpoints;
@@ -3071,10 +3074,10 @@ class UniversalSystemUI {
 
     getCategoryEmoji(category) {
         const emojis = {
-            'status': '📊', 'info': 'ℹ️', 'data': '📋', 'action': '⚡',
-            'control': '🎮', 'fix': '🔧', 'unknown': '❓'
+            'status': 'ðŸ“Š', 'info': 'â„¹ï¸', 'data': 'ðŸ“‹', 'action': 'âš¡',
+            'control': 'ðŸŽ®', 'fix': 'ðŸ”§', 'unknown': 'â“'
         };
-        return emojis[category] || '🔷';
+        return emojis[category] || 'ðŸ”·';
     }
 
     async initializeDiscoveredSystem(endpoints) {
@@ -3247,35 +3250,43 @@ class DatabaseSelfHealingSystem:
         if not self.orchestrator:
             return []
             
-        # This would analyze the queries for missing tables
-        missing_tables = []
-        for query in queries:
-            # Extract table names and check if they exist
-            # This is a simplified version for testing
-            pass
-        return missing_tables
+        # Extract table names and check existence against the live DB
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            logger.warning("DB pool unavailable during analyze_missing_tables; returning unique extracted names only.")
+            names = {t for q in queries if (t := extract_table_from_query(q))}
+            return sorted(names)
+
+        async with pool.acquire() as conn:
+            existing = set()
+            rows = await conn.fetch("""
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public'
+            """)
+            for r in rows:
+                existing.add(r['table_name'])
+        names = {t for q in queries if (t := extract_table_from_query(q))}
+        return sorted([t for t in names if t not in existing])
+    
+    async def run_health_check(self) -> Dict[str, Any]:
+        """Run a health check via the orchestrator"""
+        if not self.initialized:
+            await self.initialize()
+        if self.orchestrator:
+            return await self.orchestrator.run_check()
+        return {"status": "error", "message": "System not initialized"}
+
+    async def get_system_status(self) -> Dict[str, Any]:
+        """Return minimal system status for smoke tests"""
+        return {
+            "initialized": self.initialized,
+            "orchestrator_available": self.orchestrator is not None,
+            "status": "healthy" if self.initialized else "not_initialized",
+        }
 
 
-def extract_table_from_query(query: str) -> str:
-    """Extract table name from SQL query for testing"""
-    # This is a simplified version for the tests
-    # In reality, this would use proper SQL parsing
-    query = query.lower().strip()
-    
-    # Skip system tables and keywords
-    system_patterns = ['information_schema', 'pg_', 'count', 'current_timestamp']
-    for pattern in system_patterns:
-        if pattern in query:
-            return None
-    
-    # Simple extraction - look for FROM clause
-    if 'from ' in query:
-        parts = query.split('from ')[1].split()
-        if parts:
-            table_name = parts[0].strip()
-            return table_name
-    
-    return None
+# Note: Using the comprehensive extract_table_from_query function defined at line 144
 
 
 if __name__ == "__main__":
@@ -3293,361 +3304,6 @@ if __name__ == "__main__":
             orchestrator = SelfHealingOrchestrator()
             asyncio.run(orchestrator.start())
             print("Self-healing system started")
-        elif command == "analyze":
-            analyzer = CodeAnalyzer()
-            issues = analyzer.analyze_codebase()
-            print(f"Found {len(issues)} issues")
-            for issue in issues[:10]:  # Show first 10
-                print(f"- {issue.issue_type} in {issue.table}.{issue.column}")
-        else:
-            print("Usage: python database_self_healing_system.py [check|start|analyze]")
-    else:
-        print("Database Self-Healing System ready. Use 'start' to begin monitoring.")
-            html += this.generateActionPanel(actionEndpoints);
-        }
-
-        // Auto-generate data panels
-        const dataEndpoints = Object.entries(this.endpoints).filter(([_, config]) => config.type === 'data');
-        if (dataEndpoints.length > 0) {
-            html += this.generateDataPanel(dataEndpoints);
-        }
-
-        // Auto-generate modal container for modal actions
-        const modalEndpoints = Object.entries(this.endpoints).filter(([_, config]) => config.type === 'modal');
-        if (modalEndpoints.length > 0) {
-            html += this.generateModalContainer();
-        }
-
-        // Add dynamic styling
-        html += this.generateDynamicStyles();
-
-        container.innerHTML = html;
-        container.style.display = 'block';
-        document.getElementById('loading').style.display = 'none';
-    }
-
-    generateStatusPanel(statusEndpoints) {
-        return `
-            <div class="auto-panel status-panel">
-                <h3>📊 System Status</h3>
-                ${statusEndpoints.map(([id, config]) => 
-                    `<div id="status-${id}" class="auto-content">Loading ${config.display_name}...</div>`
-                ).join('')}
-            </div>
-        `;
-    }
-
-    generateActionPanel(actionEndpoints) {
-        return `
-            <div class="auto-panel actions-panel">
-                <h3>⚡ System Controls</h3>
-                <div class="button-grid">
-                    ${actionEndpoints.map(([id, config]) => 
-                        `<button class="auto-btn" onclick="autoUI.executeAction('${id}')">${config.display_name}</button>`
-                    ).join('')}
-                </div>
-            </div>
-        `;
-    }
-
-    generateDataPanel(dataEndpoints) {
-        return `
-            <div class="auto-panel data-panel">
-                <h3>📋 Data & Information</h3>
-                ${dataEndpoints.map(([id, config]) => 
-                    `<div id="data-${id}" class="auto-content">Loading ${config.display_name}...</div>`
-                ).join('')}
-            </div>
-        `;
-    }
-
-    generateModalContainer() {
-        return `
-            <div id="auto-modal" class="auto-modal" style="display:none;">
-                <div class="auto-modal-content">
-                    <span class="auto-close" onclick="autoUI.closeModal()">&times;</span>
-                    <div id="auto-modal-body"></div>
-                </div>
-            </div>
-        `;
-    }
-
-    generateDynamicStyles() {
-        return `
-            <style>
-                .auto-panel { border: 1px solid #ddd; margin: 10px 0; padding: 15px; border-radius: 5px; }
-                .auto-btn { margin: 5px; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; background: #007bff; color: white; }
-                .auto-btn:hover { background: #0056b3; }
-                .auto-content { margin: 10px 0; padding: 10px; background: #f8f9fa; border-radius: 3px; }
-                .button-grid { display: flex; flex-wrap: wrap; gap: 10px; }
-                .auto-modal { position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); }
-                .auto-modal-content { background: white; margin: 15% auto; padding: 20px; border-radius: 5px; width: 80%; max-width: 600px; }
-                .auto-close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
-                .auto-close:hover { color: black; }
-                #auto-health-monitor { font-family: Arial, sans-serif; max-width: 1000px; margin: 0 auto; }
-            </style>
-        `;
-    }
-
-    // Initialize system - load all discovered endpoints
-    async initializeSystem() {
-        // Load status endpoints
-        for (const [id, config] of Object.entries(this.endpoints)) {
-            if (config.type === 'status') {
-                await this.loadEndpointData(id);
-            }
-        }
-
-        // Load data endpoints
-        for (const [id, config] of Object.entries(this.endpoints)) {
-            if (config.type === 'data') {
-                await this.loadEndpointData(id);
-            }
-        }
-
-        // Setup auto-refresh for status endpoints
-        this.setupAutoRefresh();
-    }
-
-    // Generic endpoint data loader
-    async loadEndpointData(endpointId) {
-        const config = this.endpoints[endpointId];
-        if (!config || config.method !== 'GET') return;
-
-        const data = await this.safeAPICall(config.url);
-        this.systemState[endpointId] = data;
-
-        // Find target element and render
-        const targetElement = document.getElementById(`${config.type}-${endpointId}`);
-        if (targetElement) {
-            targetElement.innerHTML = this.renderData(data, config.type);
-        }
-    }
-
-    // Generic data renderer
-    renderData(data, type) {
-        if (data.error) {
-            return `<div style="color: red;">Error: ${data.error}</div>`;
-        }
-
-        if (type === 'status') {
-            return Object.entries(data)
-                .map(([key, value]) => `<p><strong>${this.formatKey(key)}:</strong> ${value || 'N/A'}</p>`)
-                .join('');
-        }
-
-        if (type === 'data') {
-            // Handle issues or other structured data
-            if (data.critical_issues || data.warnings) {
-                const issues = [...(data.critical_issues || []), ...(data.warnings || [])];
-                if (issues.length === 0) {
-                    return '<p style="color: green;">✅ No issues found!</p>';
-                }
-                
-                return issues.map((issue, index) => `
-                    <div class="issue-item" data-index="${index}">
-                        <strong>${issue.issue_type || 'Issue'}</strong><br>
-                        Table: ${issue.table || 'N/A'}<br>
-                        ${issue.column ? `Column: ${issue.column}<br>` : ''}
-                        Severity: ${issue.severity || 'Unknown'}
-                    </div>
-                `).join('');
-            }
-        }
-
-        // Fallback: JSON display
-        return `<pre>${JSON.stringify(data, null, 2)}</pre>`;
-    }
-
-    // Generic action executor
-    async executeAction(actionId) {
-        const config = this.endpoints[actionId];
-        if (!config) return;
-
-        try {
-            const result = await this.safeAPICall(config.url, config.method, {});
-            
-            if (config.type === 'modal') {
-                this.showModal(config.display_name, result);
-            } else {
-                const message = result.message || result.error || `${config.display_name} completed`;
-                alert(result.error ? `❌ Error: ${message}` : `✅ Success: ${message}`);
-            }
-
-            // Auto-refresh relevant data
-            await this.refreshData();
-            
-        } catch (error) {
-            alert(`❌ Error executing ${config.display_name}: ${error.message}`);
-        }
-    }
-
-    // Refresh all data endpoints
-    async refreshData() {
-        for (const [id, config] of Object.entries(this.endpoints)) {
-            if (config.type === 'status' || config.type === 'data') {
-                await this.loadEndpointData(id);
-            }
-        }
-    }
-
-    showModal(title, data) {
-        document.getElementById('auto-modal-body').innerHTML = `
-            <h3>${title}</h3>
-            <div class="modal-content-data">
-                ${this.renderData(data, 'modal')}
-            </div>
-        `;
-        document.getElementById('auto-modal').style.display = 'block';
-    }
-
-    closeModal() {
-        document.getElementById('auto-modal').style.display = 'none';
-    }
-
-    setupAutoRefresh() {
-        // Auto-refresh status endpoints every 30 seconds
-        const statusEndpoints = Object.entries(this.endpoints).filter(([_, config]) => config.type === 'status');
-        
-        if (statusEndpoints.length > 0) {
-            const interval = setInterval(() => {
-                statusEndpoints.forEach(([id]) => this.loadEndpointData(id));
-            }, 30000);
-            
-            this.intervals.push(interval);
-        }
-    }
-
-    formatKey(key) {
-        return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-    }
-
-    // Fallback discovery when intelligent methods fail
-    async fallbackDiscovery() {
-        console.warn('🔄 Using fallback discovery...');
-        // Minimal working setup if auto-discovery completely fails
-        this.endpoints = {
-            'status': { url: '/api/database-health/status', method: 'GET', type: 'status', display_name: 'System Status' }
-        };
-        await this.buildInterface();
-        await this.initializeSystem();
-    }
-}
-
-// Global auto-UI instance
-window.autoUI = new AutoDiscoveryHealthUI();
-
-// Auto-start the discovery process
-document.addEventListener('DOMContentLoaded', () => {
-    autoUI.autoDiscover();
-});
-</script>
-"""
-
-# Global instance tracking (minimal)
-_startup_instance = None
-
-# Add the missing DatabaseSelfHealingSystem class for backward compatibility
-class DatabaseSelfHealingSystem:
-    """
-    Database Self Healing System - Backward compatibility wrapper
-    Provides the interface expected by test_execution_engine.py
-    """
-    
-    def __init__(self):
-        self.orchestrator = None
-        self.initialized = False
-        
-    async def initialize(self):
-        """Initialize the self-healing system"""
-        try:
-            self.orchestrator = SelfHealingOrchestrator()
-            self.initialized = True
-            logger.info("Database Self Healing System initialized")
-        except Exception as e:
-            logger.error(f"Failed to initialize self-healing system: {e}")
-            
-    async def run_health_check(self) -> Dict[str, Any]:
-        """Run a health check"""
-        if not self.initialized:
-            await self.initialize()
-            
-        if self.orchestrator:
-            return await self.orchestrator.run_check()
-        else:
-            return {"status": "error", "message": "System not initialized"}
-            
-    async def get_system_status(self) -> Dict[str, Any]:
-        """Get current system status"""
-        return {
-            "initialized": self.initialized,
-            "orchestrator_available": self.orchestrator is not None,
-            "status": "healthy" if self.initialized else "not_initialized"
-        }
-
-# Removed duplicate extract_table_from_query function - using the original at line 144
-
-async def initialize_unified_jyotiflow():
-    """Main entry point for compatibility with existing main.py"""
-    global _startup_instance
-    # Import the simple unified startup functions
-    try:
-        from simple_unified_startup import initialize_jyotiflow_simple
-        return await initialize_jyotiflow_simple()
-    except ImportError:
-        # Fallback to orchestrator if simple startup not available
-        orchestrator = SelfHealingOrchestrator()
-        await orchestrator.start()
-        return {"status": "initialized", "type": "self_healing_orchestrator"}
-
-async def cleanup_unified_system(db_pool=None):
-    """Cleanup entry point for compatibility with existing main.py"""  
-    try:
-        from simple_unified_startup import cleanup_jyotiflow_simple
-        await cleanup_jyotiflow_simple(db_pool)
-    except ImportError:
-        # Fallback cleanup
-        if db_pool:
-            await db_pool.close()
-        logger.info("Cleanup completed")
-
-def get_unified_system_status():
-    """Get simple system status for health checks"""
-    return {
-        "system_available": True,
-        "architecture": "clean_shared_pool",
-        "startup_type": "simplified"
-    }
-
-if __name__ == "__main__":
-    # Command-line interface
-    import sys
-    
-    if len(sys.argv) > 1:
-        command = sys.argv[1]
-        
-        if command == "check":
-            async def run_check():
-                orchestrator = SelfHealingOrchestrator()
-                await orchestrator.run_check()
-            asyncio.run(run_check())
-            
-        elif command == "start":
-            async def run_orchestrator():
-                orchestrator = SelfHealingOrchestrator()
-                try:
-                    await orchestrator.start()
-                    # Keep running in the same event loop
-                    await asyncio.sleep(float('inf'))
-                except KeyboardInterrupt:
-                    logger.info("🛑 Received shutdown signal, stopping orchestrator...")
-                    await orchestrator.stop()
-                except Exception as e:
-                    logger.error(f"❌ Orchestrator error: {e}")
-                    await orchestrator.stop()
-                    raise
-            asyncio.run(run_orchestrator())
-            
         elif command == "analyze":
             analyzer = CodePatternAnalyzer()
             issues = analyzer.analyze_codebase()
