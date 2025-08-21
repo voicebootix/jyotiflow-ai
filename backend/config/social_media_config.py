@@ -5,7 +5,7 @@ This file contains the core configuration for the Social Media Marketing Engine.
 It defines platform-specific settings, content types, and prompts.
 """
 
-from ..schemas.social_media import SocialPlatform, ContentType
+from schemas.social_media import SocialPlatform, ContentType
 
 # --- Platform-Specific Configurations ---
 # Defines how the engine should behave for each platform.
