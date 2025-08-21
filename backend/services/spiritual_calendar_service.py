@@ -173,12 +173,13 @@ class SpiritualCalendarService:
                     timeout=10.0
                 )
                 
-                if rag_response and rag_response.get("success"):
+                # Check if RAG response is successful (has enhanced_guidance or no error)
+                if rag_response and (rag_response.get("enhanced_guidance") or not rag_response.get("error")):
                     # Parse database RAG response
-                    guidance = rag_response.get("guidance", "") or rag_response.get("enhanced_guidance", "")
+                    guidance_text = rag_response.get("enhanced_guidance")
                     
-                    if guidance:
-                        parsed_theme = self._parse_rag_theme_response(guidance)
+                    if guidance_text:
+                        parsed_theme = self._parse_rag_theme_response(guidance_text)
                         
                         # Enhanced theme structure for database RAG
                         database_theme = {
@@ -189,13 +190,13 @@ class SpiritualCalendarService:
                             "season": season,
                             "day_energy": day_name,
                             "knowledge_sources": rag_response.get("knowledge_sources", []),
-                            "persona_used": rag_response.get("persona_used", "swamiji")
+                            "persona_used": rag_response.get("persona_mode", "swamiji")
                         }
                         
                         logger.info(f"✅ Database RAG generated theme: {parsed_theme['theme']}")
                         return database_theme
                     else:
-                        raise Exception("Database RAG returned empty guidance")
+                        raise Exception("Database RAG returned empty enhanced_guidance")
                 else:
                     error_msg = rag_response.get("error", "Unknown error") if rag_response else "No response"
                     raise Exception(f"Database RAG unsuccessful: {error_msg}")
