@@ -1,17 +1,17 @@
+-- This migration is designed to be fully idempotent and recoverable.
+-- It drops all related tables first to ensure a clean slate,
+-- preventing errors from partially-applied previous migration attempts.
+
+DROP TABLE IF EXISTS api_cache CASCADE;
+DROP TABLE IF EXISTS endpoint_suggestions CASCADE;
+DROP TABLE IF EXISTS cache_analytics CASCADE;
+DROP TABLE IF EXISTS prokerala_cost_config CASCADE;
+
 -- Add Prokerala configuration to service_types
 ALTER TABLE service_types 
 ADD COLUMN IF NOT EXISTS prokerala_endpoints TEXT[] DEFAULT '{}',
 ADD COLUMN IF NOT EXISTS estimated_api_calls INTEGER DEFAULT 1,
 ADD COLUMN IF NOT EXISTS cache_effectiveness DECIMAL(5,2) DEFAULT 70.00;
-
--- Drop the table if it exists to ensure a clean slate, as it might be corrupted from previous failed migrations
-DROP TABLE IF EXISTS prokerala_cost_config CASCADE;
-
--- Create Prokerala cost configuration
-CREATE TABLE IF NOT EXISTS prokerala_cost_config (
-    id SERIAL PRIMARY KEY,
-    last_updated TIMESTAMP DEFAULT NOW()
-);
 
 -- Drop the faulty column IF it exists from a previous failed migration
 ALTER TABLE prokerala_cost_config DROP COLUMN IF EXISTS service_type;
