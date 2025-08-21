@@ -6,21 +6,24 @@ ADD COLUMN IF NOT EXISTS cache_effectiveness DECIMAL(5,2) DEFAULT 70.00;
 
 -- Create Prokerala cost configuration
 CREATE TABLE IF NOT EXISTS prokerala_cost_config (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    max_cost_per_call DECIMAL(10,4) DEFAULT 0.036, -- $0.036 (₹3 highest endpoint)
-    margin_percentage DECIMAL(5,2) DEFAULT 500.00,
+    id SERIAL PRIMARY KEY,
+    margin_percentage DECIMAL(10,2) DEFAULT 500.00,
     cache_discount_enabled BOOLEAN DEFAULT TRUE,
     last_updated TIMESTAMP DEFAULT NOW()
 );
 
--- Insert default configuration
+-- Add missing columns if they don't exist
+ALTER TABLE prokerala_cost_config 
+ADD COLUMN IF NOT EXISTS max_cost_per_call DECIMAL(10,2) DEFAULT 0.04;
+
+-- Insert default configuration (only if table is empty)
 INSERT INTO prokerala_cost_config (max_cost_per_call, margin_percentage) 
-VALUES (0.036, 500.00) 
-ON CONFLICT DO NOTHING;
+SELECT 0.04, 500.00
+WHERE NOT EXISTS (SELECT 1 FROM prokerala_cost_config);
 
 -- Create cache effectiveness tracking
 CREATE TABLE IF NOT EXISTS cache_analytics (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id SERIAL PRIMARY KEY,
     service_type_id INTEGER REFERENCES service_types(id),
     date DATE DEFAULT CURRENT_DATE,
     total_requests INTEGER DEFAULT 0,
@@ -33,7 +36,7 @@ CREATE TABLE IF NOT EXISTS cache_analytics (
 
 -- Prokerala endpoint suggestions
 CREATE TABLE IF NOT EXISTS endpoint_suggestions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id SERIAL PRIMARY KEY,
     endpoint_group VARCHAR(100) NOT NULL,
     endpoints TEXT[] NOT NULL,
     description TEXT,
@@ -63,7 +66,7 @@ ADD COLUMN IF NOT EXISTS prokerala_endpoints_used TEXT[] DEFAULT '{}';
 
 -- Create API cache table if it doesn't exist
 CREATE TABLE IF NOT EXISTS api_cache (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id SERIAL PRIMARY KEY,
     cache_key VARCHAR(255) UNIQUE NOT NULL,
     data JSONB NOT NULL,
     created_at TIMESTAMP DEFAULT NOW()
