@@ -286,6 +286,7 @@ async def get_user_recommendations(request: Request, db=Depends(get_db)):
     except Exception as e:
         print(f"Error generating recommendations: {e}")
         return {"success": True, "data": []}
+
 @router.get("/cosmic-insights")
 async def get_cosmic_insights(request: Request, db=Depends(get_db)):
     """

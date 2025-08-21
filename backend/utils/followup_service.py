@@ -630,4 +630,4 @@ class FollowUpService:
                 
         except (ValueError, IndexError) as e:
             logger.error(f"Failed to parse command tag '{command_tag}': {e}")
-            return 0 
+            return 0
