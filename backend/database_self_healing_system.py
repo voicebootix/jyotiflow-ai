@@ -1,4 +1,4 @@
-"""
+﻿"""
 JyotiFlow Database Self-Healing System
 Production-grade automated database issue detection and repair
 Built with PostgreSQL and asyncpg for Supabase
@@ -1491,7 +1491,7 @@ class DatabaseHealthMonitor:
                     
                 # Check if this table is actually being used in code
                 if table_name in query_patterns:
-                    logger.warning(f"🚨 Critical monitoring table '{table_name}' is missing but actively used!")
+                    logger.warning(f"ðŸš¨ Critical monitoring table '{table_name}' is missing but actively used!")
                     issues.append(DatabaseIssue(
                         issue_type='MISSING_TABLE',
                         severity='CRITICAL',
@@ -1505,7 +1505,7 @@ class DatabaseHealthMonitor:
         # Also check other critical business tables
         for table_name in CRITICAL_TABLES:
             if table_name not in existing_tables:
-                logger.warning(f"⚠️ Critical business table '{table_name}' is missing!")
+                logger.warning(f"âš ï¸ Critical business table '{table_name}' is missing!")
                 issues.append(DatabaseIssue(
                     issue_type='MISSING_TABLE',
                     severity='CRITICAL',
@@ -2104,25 +2104,25 @@ class DatabaseHealthMonitor:
         # Unknown table defaults to MEDIUM priority
         if table_priority is None:
             table_priority = 'MEDIUM'
-            logger.warning(f"🕉️ Unknown table {issue.table} for spiritual services, using MEDIUM priority")
+            logger.warning(f"ðŸ•‰ï¸ Unknown table {issue.table} for spiritual services, using MEDIUM priority")
         
         # Auto-fix logic based on spiritual service business requirements
         if issue.severity == 'CRITICAL':
             if table_priority == 'CRITICAL':
                 # Critical spiritual service tables - fix immediately
-                logger.info(f"🚨 CRITICAL spiritual service issue in {issue.table} - auto-fixing immediately")
+                logger.info(f"ðŸš¨ CRITICAL spiritual service issue in {issue.table} - auto-fixing immediately")
                 return self._check_fix_throttling(issue, max_attempts=1)
             elif table_priority == 'HIGH':
                 # High priority - fix with throttling
-                logger.info(f"⚠️ HIGH priority spiritual service issue in {issue.table} - auto-fixing with caution")
+                logger.info(f"âš ï¸ HIGH priority spiritual service issue in {issue.table} - auto-fixing with caution")
                 return self._check_fix_throttling(issue, max_attempts=2)
             else:
                 # Medium/Low priority - require manual approval for safety
-                logger.warning(f"🤔 Spiritual service issue in {issue.table} requires manual approval")
+                logger.warning(f"ðŸ¤” Spiritual service issue in {issue.table} requires manual approval")
                 return False
         
         # Non-critical issues require manual review for spiritual services
-        logger.info(f"💭 Non-critical issue in {issue.table} - manual review recommended")
+        logger.info(f"ðŸ’­ Non-critical issue in {issue.table} - manual review recommended")
         return False
     
     def _check_fix_throttling(self, issue: DatabaseIssue, max_attempts: int = 3) -> bool:
@@ -2131,7 +2131,7 @@ class DatabaseHealthMonitor:
         if issue_key in self.known_issues:
             last_attempt = self.known_issues[issue_key]
             if safe_utc_now() - last_attempt < timedelta(hours=1):
-                logger.warning(f"🕉️ Spiritual service fix throttled for {issue.table} - waiting for cooldown")
+                logger.warning(f"ðŸ•‰ï¸ Spiritual service fix throttled for {issue.table} - waiting for cooldown")
                 return False  # Don't retry within an hour
         
         self.known_issues[issue_key] = safe_utc_now()
@@ -2316,8 +2316,10 @@ class SelfHealingOrchestrator:
 
 
 # FastAPI Integration
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
+from datetime import datetime
+from backend.deps import get_admin_user
 
 router = APIRouter(prefix="/api/database-health", tags=["database-health"])
 
@@ -2547,7 +2549,7 @@ async def _ensure_health_tables_exist():
                 )
             """)
             
-            logger.info("✅ Health monitoring tables ensured")
+            logger.info("âœ… Health monitoring tables ensured")
             
         except Exception as e:
             logger.error(f"Failed to create health monitoring tables: {e}")
@@ -2597,6 +2599,133 @@ async def manual_fix(request: ManualFixRequest):
     result = await fixer.fix_issue(issue)
     
     return result
+
+
+@router.get("/_metadata", dependencies=[Depends(get_admin_user)])
+async def get_endpoint_metadata():
+    """Auto-discovery metadata endpoint - provides complete endpoint information for dynamic UI generation"""
+    return {
+        "endpoints": {
+            "status": {
+                "url": "/api/database-health/status",
+                "method": "GET",
+                "display_name": "System Status",
+                "description": "Get current database health status and monitoring information",
+                "type": "status",
+                "refresh_interval": 30000,
+                "auto_refresh": True,
+                "response_format": "object"
+            },
+            "check": {
+                "url": "/api/database-health/check",
+                "method": "POST",
+                "display_name": "Run Health Check",
+                "description": "Manually trigger a comprehensive database health check",
+                "type": "action",
+                "button_style": "primary",
+                "confirmation": False,
+                "refresh_after": ["status", "issues"],
+                "timeout": 30000
+            },
+            "issues": {
+                "url": "/api/database-health/issues",
+                "method": "GET",
+                "display_name": "Current Issues",
+                "description": "Get list of current database issues with full details",
+                "type": "data",
+                "refresh_interval": 60000,
+                "auto_refresh": True,
+                "selectable": True,
+                "supports_actions": True,
+                "related_actions": ["preview-fix", "fix"]
+            },
+            "start": {
+                "url": "/api/database-health/start",
+                "method": "POST",
+                "display_name": "Start Monitoring",
+                "description": "Start automatic database health monitoring",
+                "type": "action",
+                "button_style": "success",
+                "condition": {
+                    "field": "status",
+                    "not_equals": "running",
+                    "source_endpoint": "status"
+                },
+                "confirmation": False,
+                "refresh_after": ["status"]
+            },
+            "stop": {
+                "url": "/api/database-health/stop",
+                "method": "POST",
+                "display_name": "Stop Monitoring",
+                "description": "Stop automatic database health monitoring",
+                "type": "action",
+                "button_style": "danger",
+                "condition": {
+                    "field": "status",
+                    "equals": "running",
+                    "source_endpoint": "status"
+                },
+                "confirmation": True,
+                "confirmation_message": "Are you sure you want to stop monitoring?",
+                "refresh_after": ["status"]
+            },
+            "preview-fix": {
+                "url": "/api/database-health/preview-fix",
+                "method": "POST",
+                "display_name": "Preview Fix",
+                "description": "Preview what a fix would do without applying it",
+                "type": "modal",
+                "button_style": "info",
+                "requires_selection": "issues",
+                "payload_from_selection": True,
+                "modal_title": "Fix Preview",
+                "related_action": "fix"
+            },
+            "fix": {
+                "url": "/api/database-health/fix",
+                "method": "POST",
+                "display_name": "Apply Fix",
+                "description": "Apply a fix to resolve a database issue",
+                "type": "modal",
+                "button_style": "danger",
+                "requires_selection": "issues",
+                "payload_from_selection": True,
+                "confirmation": True,
+                "confirmation_message": "Are you sure you want to apply this fix? This will modify your database.",
+                "refresh_after": ["status", "issues"],
+                "modal_title": "Fix Result"
+            }
+        },
+        "system_info": {
+            "name": "Database Self-Healing System",
+            "version": "1.0.0",
+            "capabilities": [
+                "automatic_monitoring",
+                "issue_detection",
+                "self_healing",
+                "manual_fixes",
+                "preview_mode",
+                "real_time_status"
+            ],
+            "refresh_intervals": {
+                "status": 30000,
+                "data": 60000,
+                "fast_refresh": 10000
+            }
+        },
+        "ui_hints": {
+            "primary_color": "#007bff",
+            "success_color": "#28a745",
+            "danger_color": "#dc3545",
+            "warning_color": "#ffc107",
+            "info_color": "#17a2b8",
+            "layout": "panels",
+            "theme": "modern",
+            "animations": True
+        },
+        "generated_at": datetime.utcnow().isoformat()
+    }
 
 
 def _explain_fix(issue: DatabaseIssue) -> str:
@@ -2679,76 +2808,419 @@ async def startup_event():
         
         # Start monitoring
         await orchestrator.start()
-        logger.info("✅ Database Self-Healing System initialized")
+        logger.info("âœ… Database Self-Healing System initialized")
         return orchestrator
         
     except Exception as e:
-        logger.error(f"❌ Failed to initialize self-healing system: {e}")
+        logger.error(f"âŒ Failed to initialize self-healing system: {e}")
         return None
 
 
-# Admin UI Integration
+# Truly Dynamic Admin UI - Zero Assumptions System
 admin_template = """
-<div class="database-health-monitor">
-    <h2>Database Health Monitor</h2>
-    
-    <div class="status-card">
-        <h3>System Status</h3>
-        <div id="health-status">Loading...</div>
-    </div>
-    
-    <div class="controls">
-        <button onclick="triggerHealthCheck()">Run Check Now</button>
-        <button onclick="toggleMonitoring()">Toggle Monitoring</button>
-    </div>
-    
-    <div class="issues-panel">
-        <h3>Current Issues</h3>
-        <div id="issues-list">Loading...</div>
-    </div>
-    
-    <div class="history-panel">
-        <h3>Fix History</h3>
-        <div id="fix-history">Loading...</div>
-    </div>
+<div id="universal-monitor">
+    <h2>Universal System Monitor</h2>
+    <div id="discovery-log">ðŸ” Discovering system...</div>
+    <div id="universal-interface"></div>
 </div>
 
 <script>
-async function loadHealthStatus() {
-    const response = await fetch('/api/database-health/status');
-    const data = await response.json();
-    document.getElementById('health-status').innerHTML = `
-        <p>Status: ${data.status}</p>
-        <p>Last Check: ${data.last_check || 'Never'}</p>
-        <p>Total Fixes: ${data.total_fixes}</p>
-        <p>Critical Issues: ${data.active_critical_issues}</p>
-        <p>Next Check: ${data.next_check || 'Not scheduled'}</p>
-    `;
+// Universal Discovery System - NO hardcoded assumptions
+class UniversalSystemUI {
+    constructor() {
+        this.discoveredAPIs = new Map();
+        this.systemState = new Map();
+        this.refreshIntervals = new Set();
+    }
+
+    async discoverSystem() {
+        const log = document.getElementById('discovery-log');
+        log.innerHTML = 'ðŸ” Starting universal discovery...';
+
+        try {
+            // Step 1: Discover all available API routes
+            const routes = await this.discoverAllRoutes();
+            log.innerHTML += '<br>ðŸ“¡ Found ' + routes.length + ' potential routes';
+
+            // Step 2: Test and categorize each route
+            const workingEndpoints = await this.testAndCategorizeRoutes(routes);
+            log.innerHTML += '<br>âœ… Verified ' + workingEndpoints.size + ' working endpoints';
+
+            // Step 3: Build interface dynamically
+            await this.buildUniversalInterface(workingEndpoints);
+            log.style.display = 'none';
+
+        } catch (error) {
+            log.innerHTML = 'âŒ Discovery failed: ' + error.message;
+            console.error('Universal discovery error:', error);
+        }
+    }
+
+    // Discover all possible API routes without assumptions
+    async discoverAllRoutes() {
+        const routes = new Set();
+        
+        // Method 1: Try OpenAPI/Swagger discovery
+        try {
+            const openapi = await this.safeCall('/openapi.json');
+            if (openapi && openapi.paths) {
+                Object.keys(openapi.paths).forEach(path => {
+                    Object.keys(openapi.paths[path]).forEach(method => {
+                        routes.add({ path, method: method.toUpperCase(), source: 'openapi' });
+                    });
+                });
+            }
+        } catch (e) {
+            console.log('OpenAPI discovery unavailable');
+        }
+
+        // Method 2: Try common API documentation endpoints
+        const docEndpoints = ['/docs', '/redoc', '/api-docs', '/swagger'];
+        for (const docPath of docEndpoints) {
+            try {
+                const response = await fetch(docPath);
+                if (response.ok) {
+                    // Parse HTML for API routes (basic implementation)
+                    const html = await response.text();
+                    const pathMatches = html.match(/\/api\/[\/\w-]+/g);
+                    if (pathMatches) {
+                        pathMatches.forEach(path => {
+                            routes.add({ path, method: 'GET', source: 'docs' });
+                            routes.add({ path, method: 'POST', source: 'docs' });
+                        });
+                    }
+                }
+            } catch (e) {
+                // Silent fail - docs endpoint not available
+            }
+        }
+
+        // Method 3: Zero-assumption discovery - only if OpenAPI/docs failed completely
+        if (routes.size === 0) {
+            console.warn('âš ï¸ No routes discovered via OpenAPI or documentation. System may not be compatible.');
+            // No hardcoded patterns - if we can't discover via proper methods, we fail gracefully
+        }
+
+        return Array.from(routes);
+    }
+
+    // Test routes and categorize by behavior
+    async testAndCategorizeRoutes(routes) {
+        const workingEndpoints = new Map();
+        const batchSize = 5; // Test in small batches to avoid overwhelming server
+
+        for (let i = 0; i < routes.length; i += batchSize) {
+            const batch = routes.slice(i, i + batchSize);
+            const promises = batch.map(async route => {
+                try {
+                    const response = await this.testRoute(route.path, route.method);
+                    if (response.accessible) {
+                        const category = this.categorizeByResponse(route, response);
+                        const endpointKey = route.path + '_' + route.method;
+                        workingEndpoints.set(endpointKey, {
+                            path: route.path,
+                            method: route.method,
+                            category: category,
+                            responseInfo: response,
+                            displayName: this.generateDisplayName(route.path, route.method),
+                            source: route.source
+                        });
+                    }
+                } catch (error) {
+                    // Route not accessible, skip silently
+                }
+            });
+            
+            await Promise.allSettled(promises);
+            
+            // Update progress
+            const progress = Math.min(100, Math.round((i + batchSize) / routes.length * 100));
+            document.getElementById('discovery-log').innerHTML = 
+                `ðŸ” Testing routes... ${progress}% (${workingEndpoints.size} found)`;
+        }
+
+        return workingEndpoints;
+    }
+
+    async testRoute(path, method) {
+        try {
+            const options = { method, headers: { 'Accept': 'application/json' } };
+            
+            if (method === 'POST') {
+                options.headers['Content-Type'] = 'application/json';
+                options.body = JSON.stringify({}); // Empty payload for testing
+            }
+
+            const response = await fetch(path, options);
+            
+            return {
+                accessible: response.status !== 404,
+                status: response.status,
+                contentType: response.headers.get('content-type') || '',
+                hasJsonResponse: response.headers.get('content-type')?.includes('application/json'),
+                responseTime: Date.now() // Simple timing
+            };
+        } catch (error) {
+            return { accessible: false, error: error.message };
+        }
+    }
+
+    categorizeByResponse(route, response) {
+        const method = route.method;
+        
+        // Pure method-based categorization - NO path assumptions
+        // Categorize based ONLY on HTTP method and response characteristics
+        
+        if (method === 'GET') {
+            // All GET endpoints are data/info endpoints
+            if (response.hasJsonResponse) {
+                return 'data'; // JSON data endpoints
+            }
+            return 'info'; // Non-JSON info endpoints
+        }
+        
+        if (method === 'POST') {
+            // All POST endpoints are action endpoints
+            return 'action';
+        }
+        
+        if (method === 'PUT' || method === 'PATCH') {
+            return 'update';
+        }
+        
+        if (method === 'DELETE') {
+            return 'delete';
+        }
+        
+        // Truly unknown method
+        return 'unknown';
+    }
+
+    generateDisplayName(path, method) {
+        // Generate human-readable names from paths
+        const segments = path.split('/').filter(s => s);
+        const lastSegment = segments[segments.length - 1] || 'root';
+        
+        // Convert kebab-case or snake_case to Title Case
+        const readable = lastSegment
+            .replace(/[-_]/g, ' ')
+            .replace(/\b\w/g, l => l.toUpperCase());
+            
+        return method === 'GET' ? `Get ${readable}` : `${readable}`;
+    }
+
+    async buildUniversalInterface(endpoints) {
+        const container = document.getElementById('universal-interface');
+        const categorized = this.categorizeEndpoints(endpoints);
+        
+        let html = '<div class="universal-panels">';
+        
+        // Generate panels based on discovered categories
+        for (const [category, categoryEndpoints] of categorized) {
+            html += this.generateCategoryPanel(category, categoryEndpoints);
+        }
+        
+        html += '</div>';
+        html += this.generateUniversalStyles();
+        
+        container.innerHTML = html;
+        
+        // Initialize discovered endpoints
+        await this.initializeDiscoveredSystem(endpoints);
+    }
+
+    categorizeEndpoints(endpoints) {
+        const categorized = new Map();
+        
+        for (const [key, endpoint] of endpoints) {
+            const category = endpoint.category;
+            if (!categorized.has(category)) {
+                categorized.set(category, []);
+            }
+            categorized.get(category).push([key, endpoint]);
+        }
+        
+        return categorized;
+    }
+
+    generateCategoryPanel(category, endpoints) {
+        const categoryTitle = category.charAt(0).toUpperCase() + category.slice(1);
+        const emoji = this.getCategoryEmoji(category);
+        
+        let html = `<div class="universal-panel ${category}-panel">
+            <h3>${emoji} ${categoryTitle}</h3>`;
+        
+        if (category === 'status' || category === 'info' || category === 'data') {
+            // Generate display areas for data endpoints
+            endpoints.forEach(([key, endpoint]) => {
+                html += `<div id="display-${key}" class="endpoint-display">
+                    Loading ${endpoint.displayName}...
+                </div>`;
+            });
+        } else {
+            // Generate buttons for action endpoints
+            html += '<div class="button-container">';
+            endpoints.forEach(([key, endpoint]) => {
+                html += `<button class="universal-btn ${category}-btn" onclick="universalUI.callEndpoint('${key}')">
+                    ${endpoint.displayName}
+                </button>`;
+            });
+            html += '</div>';
+        }
+        
+        html += '</div>';
+        return html;
+    }
+
+    getCategoryEmoji(category) {
+        const emojis = {
+            'status': 'ðŸ“Š', 'info': 'â„¹ï¸', 'data': 'ðŸ“‹', 'action': 'âš¡',
+            'control': 'ðŸŽ®', 'fix': 'ðŸ”§', 'unknown': 'â“'
+        };
+        return emojis[category] || 'ðŸ”·';
+    }
+
+    async initializeDiscoveredSystem(endpoints) {
+        // Load all GET endpoints automatically
+        for (const [key, endpoint] of endpoints) {
+            if (endpoint.method === 'GET') {
+                await this.loadEndpoint(key, endpoint);
+            }
+        }
+        
+        // Store endpoints for later use
+        this.discoveredAPIs = endpoints;
+        
+        // Setup auto-refresh for status endpoints
+        this.setupAutoRefresh();
+    }
+
+    async loadEndpoint(key, endpoint) {
+        try {
+            const data = await this.safeCall(endpoint.path);
+            const displayElement = document.getElementById(`display-${key}`);
+            
+            if (displayElement && data) {
+                displayElement.innerHTML = this.renderResponse(data, endpoint);
+            }
+        } catch (error) {
+            console.warn(`Failed to load ${endpoint.path}:`, error);
+        }
+    }
+
+    async callEndpoint(key) {
+        const endpoint = this.discoveredAPIs.get(key);
+        if (!endpoint) return;
+        
+        try {
+            const result = await this.safeCall(endpoint.path, endpoint.method, {});
+            
+            // Show result
+            const message = this.extractMessage(result);
+            alert(`${endpoint.displayName}: ${message}`);
+            
+            // Refresh all data endpoints
+            await this.refreshAllData();
+            
+        } catch (error) {
+            alert(`Error calling ${endpoint.displayName}: ${error.message}`);
+        }
+    }
+
+    renderResponse(data, endpoint) {
+        if (!data) return 'No data';
+        
+        if (typeof data === 'object') {
+            // Render object data nicely
+            return Object.entries(data)
+                .map(([key, value]) => `<div><strong>${this.formatKey(key)}:</strong> ${value}</div>`)
+                .join('');
+        }
+        
+        return String(data);
+    }
+
+    extractMessage(result) {
+        if (!result) return 'Completed';
+        if (typeof result === 'string') return result;
+        if (result.message) return result.message;
+        if (result.error) return `Error: ${result.error}`;
+        if (result.status) return `Status: ${result.status}`;
+        return 'Success';
+    }
+
+    formatKey(key) {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+    }
+
+    async refreshAllData() {
+        for (const [key, endpoint] of this.discoveredAPIs) {
+            if (endpoint.method === 'GET') {
+                await this.loadEndpoint(key, endpoint);
+            }
+        }
+    }
+
+    setupAutoRefresh() {
+        // Auto-refresh status endpoints every 30 seconds
+        const interval = setInterval(async () => {
+            for (const [key, endpoint] of this.discoveredAPIs) {
+                if (endpoint.category === 'status' && endpoint.method === 'GET') {
+                    await this.loadEndpoint(key, endpoint);
+                }
+            }
+        }, 30000);
+        
+        this.refreshIntervals.add(interval);
+    }
+
+    async safeCall(url, method = 'GET', payload = null) {
+        const options = { method, headers: { 'Accept': 'application/json' } };
+        
+        if (payload) {
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(payload);
+        }
+        
+        const response = await fetch(url, options);
+        
+        if (response.headers.get('content-type')?.includes('application/json')) {
+            return await response.json();
+        }
+        
+        return await response.text();
+    }
+
+    generateUniversalStyles() {
+        return `<style>
+            .universal-panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+            .universal-panel { border: 2px solid #e0e0e0; padding: 20px; border-radius: 8px; }
+            .universal-btn { margin: 5px; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+            .status-btn, .info-btn { background: #17a2b8; color: white; }
+            .action-btn { background: #007bff; color: white; }
+            .control-btn { background: #28a745; color: white; }
+            .fix-btn { background: #dc3545; color: white; }
+            .universal-btn:hover { opacity: 0.8; transform: translateY(-1px); }
+            .endpoint-display { margin: 10px 0; padding: 15px; background: #f8f9fa; border-radius: 4px; border-left: 4px solid #007bff; }
+            .button-container { display: flex; flex-wrap: wrap; gap: 10px; }
+            #universal-monitor { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
+        </style>`;
+    }
 }
 
-async function triggerHealthCheck() {
-    const response = await fetch('/api/database-health/check', {method: 'POST'});
-    const results = await response.json();
-    alert(`Check complete: ${results.issues_found} issues found, ${results.issues_fixed} fixed`);
-    loadHealthStatus();
-    loadIssues();
-}
+// Global instance
+window.universalUI = new UniversalSystemUI();
 
-async function loadIssues() {
-    const response = await fetch('/api/database-health/issues');
-    const data = await response.json();
-    // Render issues...
-}
-
-// Load on page load
-loadHealthStatus();
-loadIssues();
-setInterval(loadHealthStatus, 10000);  // Refresh every 10 seconds
+// Auto-start discovery
+document.addEventListener('DOMContentLoaded', () => {
+    universalUI.discoverSystem();
+});
 </script>
 """
 
 # Global instance tracking (minimal)
 _startup_instance = None
+
 
 # Add the missing DatabaseSelfHealingSystem class for backward compatibility
 class DatabaseSelfHealingSystem:
@@ -2768,89 +3240,70 @@ class DatabaseSelfHealingSystem:
             self.initialized = True
             logger.info("Database Self Healing System initialized")
         except Exception as e:
-            logger.error(f"Failed to initialize self-healing system: {e}")
+            logger.error(f"Failed to initialize DatabaseSelfHealingSystem: {e}")
             
-    async def run_health_check(self) -> Dict[str, Any]:
-        """Run a health check"""
+    async def analyze_missing_tables(self, queries):
+        """Analyze queries for missing table references"""
         if not self.initialized:
             await self.initialize()
             
+        if not self.orchestrator:
+            return []
+            
+        # Extract table names and check existence against the live DB
+        import db
+        pool = db.get_db_pool()
+        if not pool:
+            logger.warning("DB pool unavailable during analyze_missing_tables; returning unique extracted names only.")
+            names = {t for q in queries if (t := extract_table_from_query(q))}
+            return sorted(names)
+
+        async with pool.acquire() as conn:
+            existing = set()
+            rows = await conn.fetch("""
+                SELECT table_name FROM information_schema.tables
+                WHERE table_schema = 'public'
+            """)
+            for r in rows:
+                existing.add(r['table_name'])
+        names = {t for q in queries if (t := extract_table_from_query(q))}
+        return sorted([t for t in names if t not in existing])
+    
+    async def run_health_check(self) -> Dict[str, Any]:
+        """Run a health check via the orchestrator"""
+        if not self.initialized:
+            await self.initialize()
         if self.orchestrator:
             return await self.orchestrator.run_check()
-        else:
-            return {"status": "error", "message": "System not initialized"}
-            
+        return {"status": "error", "message": "System not initialized"}
+
     async def get_system_status(self) -> Dict[str, Any]:
-        """Get current system status"""
+        """Return minimal system status for smoke tests"""
         return {
             "initialized": self.initialized,
             "orchestrator_available": self.orchestrator is not None,
-            "status": "healthy" if self.initialized else "not_initialized"
+            "status": "healthy" if self.initialized else "not_initialized",
         }
 
-# Removed duplicate extract_table_from_query function - using the original at line 144
 
-async def initialize_unified_jyotiflow():
-    """Main entry point for compatibility with existing main.py"""
-    global _startup_instance
-    # Import the simple unified startup functions
-    try:
-        from simple_unified_startup import initialize_jyotiflow_simple
-        return await initialize_jyotiflow_simple()
-    except ImportError:
-        # Fallback to orchestrator if simple startup not available
-        orchestrator = SelfHealingOrchestrator()
-        await orchestrator.start()
-        return {"status": "initialized", "type": "self_healing_orchestrator"}
+# Note: Using the comprehensive extract_table_from_query function defined at line 144
 
-async def cleanup_unified_system(db_pool=None):
-    """Cleanup entry point for compatibility with existing main.py"""  
-    try:
-        from simple_unified_startup import cleanup_jyotiflow_simple
-        await cleanup_jyotiflow_simple(db_pool)
-    except ImportError:
-        # Fallback cleanup
-        if db_pool:
-            await db_pool.close()
-        logger.info("Cleanup completed")
-
-def get_unified_system_status():
-    """Get simple system status for health checks"""
-    return {
-        "system_available": True,
-        "architecture": "clean_shared_pool",
-        "startup_type": "simplified"
-    }
 
 if __name__ == "__main__":
-    # Command-line interface
+    import asyncio
     import sys
     
     if len(sys.argv) > 1:
-        command = sys.argv[1]
+        command = sys.argv[1].lower()
         
         if command == "check":
-            async def run_check():
-                orchestrator = SelfHealingOrchestrator()
-                await orchestrator.run_check()
-            asyncio.run(run_check())
-            
+            orchestrator = SelfHealingOrchestrator()
+            result = asyncio.run(orchestrator.run_check())
+            print(f"Health check completed: {result}")
         elif command == "start":
-            async def run_orchestrator():
-                orchestrator = SelfHealingOrchestrator()
-                try:
-                    await orchestrator.start()
-                    # Keep running in the same event loop
-                    await asyncio.sleep(float('inf'))
-                except KeyboardInterrupt:
-                    logger.info("🛑 Received shutdown signal, stopping orchestrator...")
-                    await orchestrator.stop()
-                except Exception as e:
-                    logger.error(f"❌ Orchestrator error: {e}")
-                    await orchestrator.stop()
-                    raise
-            asyncio.run(run_orchestrator())
-            
+            orchestrator = SelfHealingOrchestrator()
+            asyncio.run(orchestrator.start())
+            print("Self-healing system started")
         elif command == "analyze":
             analyzer = CodePatternAnalyzer()
             issues = analyzer.analyze_codebase()
