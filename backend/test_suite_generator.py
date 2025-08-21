@@ -11,6 +11,7 @@ import asyncio
 import asyncpg
 import secrets
 import string
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Union
 import logging 
@@ -2842,6 +2843,7 @@ import httpx
 import asyncpg
 import uuid
 import os
+import time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -2885,10 +2887,14 @@ async def test_credit_package_service():
                 url = f"{api_base_url}{endpoint['url']}"
                 
                 try:
+                    # Measure response time
+                    start_time = time.perf_counter()
                     if endpoint['method'] == 'GET':
                         response = await client.get(url)
                     else:
                         response = await client.post(url, json={})
+                    end_time = time.perf_counter()
+                    response_time_ms = int((end_time - start_time) * 1000)  # Convert to milliseconds
                     
                     # Credit package endpoints should be accessible (even if auth required)
                     result = {
@@ -2897,7 +2903,8 @@ async def test_credit_package_service():
                         "business_function": endpoint['business_function'],
                         "revenue_impact": endpoint['revenue_impact'],
                         "endpoint_url": url,
-                        "method": endpoint['method']
+                        "method": endpoint['method'],
+                        "response_time_ms": response_time_ms
                     }
                     test_results[endpoint['business_function']] = result
                     
@@ -2910,7 +2917,7 @@ async def test_credit_package_service():
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], response.status_code, 
-                                None, None, None, None)
+                                response_time_ms, None, None, None)
                         except Exception as db_error:
                             result["db_storage_error"] = str(db_error)
                             logger.error(f"Database storage error for credit package service test: {db_error}")
@@ -2936,7 +2943,7 @@ async def test_credit_package_service():
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], 500, 
-                                None, None, None, str(endpoint_error))
+                                None, None, f"test_session_id:{test_session_id}", str(endpoint_error))
                         except Exception as e:
                             db_storage_error = str(e)
                             error_result["db_storage_error"] = db_storage_error
@@ -2983,6 +2990,7 @@ import httpx
 import asyncpg
 import uuid
 import os
+import time
 import logging
 
 logger = logging.getLogger(__name__)
@@ -3016,16 +3024,20 @@ async def test_payment_api_endpoints():
             conn = None
             logger.debug(f"Unexpected database connection error: {connection_error}")
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)) as client:
             for endpoint in endpoints_to_test:
                 # Dynamic URL construction - moved out of try block to prevent UnboundLocalError
                 url = f"{api_base_url}{endpoint['url']}"
                 
                 try:
+                    # Measure response time
+                    start_time = time.perf_counter()
                     if endpoint['method'] == 'GET':
                         response = await client.get(url)
                     else:
                         response = await client.post(url, json=endpoint['test_data'] or {})
+                    end_time = time.perf_counter()
+                    response_time_ms = int((end_time - start_time) * 1000)  # Convert to milliseconds
                     
                     # Revenue-critical endpoints should be accessible (even if auth required)
                     result = {
@@ -3034,7 +3046,8 @@ async def test_payment_api_endpoints():
                         "business_impact": "CRITICAL" if endpoint['business_function'] in ["Credit Purchase", "User Credit Balance"] else "HIGH",
                         "revenue_critical": endpoint['business_function'] in ["Credit Purchase", "Service Types"],
                         "endpoint_url": url,
-                        "method": endpoint['method']
+                        "method": endpoint['method'],
+                        "response_time_ms": response_time_ms
                     }
                     endpoint_results[endpoint['business_function']] = result
                     
@@ -3047,11 +3060,10 @@ async def test_payment_api_endpoints():
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], response.status_code, 
-                                None, None, None, None)
+                                response_time_ms, None, f"test_session_id:{test_session_id}", None)
                         except Exception as db_error:
                             result["db_storage_error"] = str(db_error)
                             logger.error(f"Database storage error for payment API endpoints test: {db_error}")
-                            raise
                     
                 except Exception as endpoint_error:
                     error_result = {
@@ -3072,7 +3084,7 @@ async def test_payment_api_endpoints():
                                 VALUES ($1, $2, $3, $4, $5, $6, $7)
                                 ON CONFLICT DO NOTHING
                             ''', url, endpoint['method'], 500, 
-                                None, None, None, str(endpoint_error))
+                                None, None, f"test_session_id:{test_session_id}", str(endpoint_error))
                         except Exception as e:
                             db_storage_error = str(e)
                             error_result["db_storage_error"] = db_storage_error
