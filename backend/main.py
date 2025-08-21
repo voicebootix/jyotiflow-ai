@@ -283,21 +283,48 @@ async def lifespan(app: FastAPI):
         print("✅ Database connection pool initialized successfully!")
         print("📊 Pool configuration: connections ready for use")
         
-        # Initialize RAG Knowledge Engine System
-        try:
-            from enhanced_rag_knowledge_engine import initialize_rag_system
-            openai_api_key = os.getenv("OPENAI_API_KEY")
-            if openai_api_key:
-                await initialize_rag_system(db_pool, openai_api_key)
-                print("✅ RAG Knowledge Engine initialized successfully!")
-                print("🧠 Dynamic spiritual content generation enabled")
-            else:
-                print("⚠️ OpenAI API key not found - RAG system disabled")
-                print("   → Spiritual content will use fallback themes")
-        except Exception as rag_error:
-            print(f"⚠️ Failed to initialize RAG system: {rag_error}")
-            print("   → Will fallback to hardcoded spiritual themes")
-            print("   → App will continue normally with reduced functionality")
+        # Initialize RAG Systems - Try Dynamic first, fallback to database
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        rag_system_initialized = False
+        
+        if openai_api_key:
+            # Try Dynamic RAG System first
+            try:
+                from dynamic_spiritual_rag import initialize_dynamic_rag_system
+                dynamic_initialized = await initialize_dynamic_rag_system()
+                if dynamic_initialized:
+                    print("🚀 Dynamic Spiritual RAG system initialized successfully!")
+                    print("✨ Real-time spiritual content generation enabled")
+                    print("🎯 No hardcoded content - 100% dynamic wisdom")
+                    rag_system_initialized = True
+                else:
+                    print("⚠️ Dynamic RAG initialization failed, trying database RAG...")
+            except Exception as dynamic_error:
+                print(f"⚠️ Dynamic RAG system error: {dynamic_error}")
+                print("   → Trying database RAG system as fallback...")
+        
+        # Fallback to Database RAG if Dynamic failed or no API key
+        if not rag_system_initialized:
+            try:
+                from enhanced_rag_knowledge_engine import initialize_rag_system
+                if openai_api_key:
+                    await initialize_rag_system(db_pool, openai_api_key)
+                    print("✅ Database RAG Knowledge Engine initialized successfully!")
+                    print("🧠 Database-driven spiritual content generation enabled")
+                    print("📚 Using curated knowledge base for guidance")
+                    rag_system_initialized = True
+                else:
+                    print("⚠️ OpenAI API key not found - RAG systems disabled")
+                    print("   → Spiritual content will use fallback themes")
+            except Exception as db_rag_error:
+                print(f"⚠️ Database RAG system error: {db_rag_error}")
+                print("   → Will fallback to hardcoded spiritual themes")
+                print("   → App will continue normally with reduced functionality")
+        
+        if not rag_system_initialized and not openai_api_key:
+            print("📝 RAG Systems Status: DISABLED (No OpenAI API key)")
+            print("   → All spiritual guidance will use fallback content")
+            print("   → Add OPENAI_API_KEY to environment for dynamic guidance")
         
         # Initialize monitoring system if available - Enhanced error handling
         if MONITORING_AVAILABLE:
