@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS prokerala_cost_config (
     last_updated TIMESTAMP DEFAULT NOW()
 );
 
+-- Drop the faulty column IF it exists from a previous failed migration
+ALTER TABLE prokerala_cost_config DROP COLUMN IF EXISTS service_type;
+
 -- Add missing columns idempotently
 ALTER TABLE prokerala_cost_config 
 ADD COLUMN IF NOT EXISTS margin_percentage DECIMAL(10,2) DEFAULT 500.00,
