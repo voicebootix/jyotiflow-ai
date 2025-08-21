@@ -37,13 +37,16 @@ CREATE TABLE IF NOT EXISTS cache_analytics (
 -- Prokerala endpoint suggestions
 CREATE TABLE IF NOT EXISTS endpoint_suggestions (
     id SERIAL PRIMARY KEY,
-    endpoint_group VARCHAR(100) NOT NULL,
+    endpoint_group VARCHAR(100) NOT NULL UNIQUE,
     endpoints TEXT[] NOT NULL,
     description TEXT,
     typical_use_case VARCHAR(255),
     value_score INTEGER DEFAULT 5, -- 1-10 scale
     created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- Ensure unique constraint exists for idempotency (for existing installations)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_endpoint_group ON endpoint_suggestions(endpoint_group);
 
 -- Insert endpoint group suggestions
 INSERT INTO endpoint_suggestions (endpoint_group, endpoints, description, typical_use_case, value_score) VALUES
