@@ -1,6 +1,7 @@
 // Removed: import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://jyotiflow-ai.onrender.com';
+const API_BASE_URL =
+  import.meta.env.VITE_API_URL || "https://jyotiflow-ai.onrender.com";
 
 const spiritualAPI = {
   // Base request method
@@ -8,11 +9,11 @@ const spiritualAPI = {
     const url = `${API_BASE_URL}${endpoint}`;
     const config = {
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...(options.headers || {}),
         ...this.getAuthHeaders(),
       },
-      credentials: 'include',
+      credentials: "include",
       ...options,
     };
 
@@ -20,30 +21,41 @@ const spiritualAPI = {
       const response = await fetch(url, config);
       if (!response.ok) {
         console.error(`API Error: ${response.status} - ${response.statusText}`);
-        return { success: false, message: `Server error: ${response.status}`, status: response.status };
+        return {
+          success: false,
+          message: `Server error: ${response.status}`,
+          status: response.status,
+        };
       }
       const data = await response.json();
       return data;
     } catch (error) {
-      console.error('API request failed:', error);
-      return { success: false, message: 'Network connection failed', error: error.message };
+      console.error("API request failed:", error);
+      return {
+        success: false,
+        message: "Network connection failed",
+        error: error.message,
+      };
     }
   },
 
   // GET request
   async get(endpoint) {
-    return this.request(endpoint, { method: 'GET' });
+    return this.request(endpoint, { method: "GET" });
   },
 
   // POST request
   async post(endpoint, data) {
-    return this.request(endpoint, { method: 'POST', body: JSON.stringify(data) });
+    return this.request(endpoint, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   },
 
   // Platform statistics
   async loadPlatformStats() {
     try {
-      const response = await this.get('/api/services/stats');
+      const response = await this.get("/api/services/stats");
       if (response && response.success) {
         return response.data;
       }
@@ -52,15 +64,15 @@ const spiritualAPI = {
         totalUsers: 1000,
         totalSessions: 2500,
         communityMembers: 150,
-        countriesReached: 25
+        countriesReached: 25,
       };
     } catch (error) {
-      console.log('🕉️ Platform stats loading blessed with patience:', error);
+      console.log("🕉️ Platform stats loading blessed with patience:", error);
       return {
         totalUsers: 1000,
         totalSessions: 2500,
         communityMembers: 150,
-        countriesReached: 25
+        countriesReached: 25,
       };
     }
   },
@@ -72,7 +84,7 @@ const spiritualAPI = {
       // Mock tracking - replace with real analytics later
       return { success: true };
     } catch (error) {
-      console.log('🕉️ Engagement tracking blessed with patience:', error);
+      console.log("🕉️ Engagement tracking blessed with patience:", error);
       return { success: false };
     }
   },
@@ -81,43 +93,46 @@ const spiritualAPI = {
   async login(email, password) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password }),
       });
       const data = await response.json();
-      
+
       // Check for access_token to determine success
       if (data.access_token && data.user) {
         // Trust backend role data - no more hardcoded email checking
         const user = {
           ...data.user,
-          role: data.user.role || 'user'
+          role: data.user.role || "user",
         };
-        
+
         this.setAuthToken(data.access_token, user);
         return { success: true, user: user, token: data.access_token };
       } else {
-        return { success: false, message: data.detail || 'Invalid credentials' };
+        return {
+          success: false,
+          message: data.detail || "Invalid credentials",
+        };
       }
     } catch (error) {
-      console.error('Login API error:', error);
-      return { success: false, message: 'Network error' };
+      console.error("Login API error:", error);
+      return { success: false, message: "Network error" };
     }
   },
 
   // Helper method to check if email is admin
   isAdminEmail(email) {
-    const adminEmails = ['admin@jyotiflow.ai', 'admin@gmail.com'];
+    const adminEmails = ["admin@jyotiflow.ai", "admin@gmail.com"];
     return adminEmails.includes(email.toLowerCase());
   },
 
   // Helper method to check if current user is admin
   isCurrentUserAdmin() {
-    const user = JSON.parse(localStorage.getItem('jyotiflow_user') || '{}');
-    return user.role === 'admin';
+    const user = JSON.parse(localStorage.getItem("jyotiflow_user") || "{}");
+    return user.role === "admin";
   },
 
   async register(userData) {
@@ -125,64 +140,68 @@ const spiritualAPI = {
       // Map 'name' to 'full_name' for backend compatibility
       const payload = {
         ...userData,
-        full_name: userData.name || userData.full_name || '',
+        full_name: userData.name || userData.full_name || "",
       };
       delete payload.name;
       const response = await fetch(`${API_BASE_URL}/api/auth/register`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
-      
+
       const data = await response.json();
       if (data.success && data.data && data.data.token) {
         this.setAuthToken(data.data.token, data.data.user);
       }
       return data;
     } catch (error) {
-      console.error('Register API error:', error);
-      return { success: false, message: 'Network error' };
+      console.error("Register API error:", error);
+      return { success: false, message: "Network error" };
     }
   },
 
   setAuthToken(token, user) {
-    localStorage.setItem('jyotiflow_token', token);
-    localStorage.setItem('jyotiflow_user', JSON.stringify(user));
-    console.log('Divine token stored successfully');
-    
+    localStorage.setItem("jyotiflow_token", token);
+    localStorage.setItem("jyotiflow_user", JSON.stringify(user));
+    console.log("Divine token stored successfully");
+
     // Trigger auth state change event for components
-    window.dispatchEvent(new CustomEvent('auth-state-changed', { 
-      detail: { authenticated: true, user } 
-    }));
+    window.dispatchEvent(
+      new CustomEvent("auth-state-changed", {
+        detail: { authenticated: true, user },
+      })
+    );
   },
 
   isAuthenticated() {
-    const token = localStorage.getItem('jyotiflow_token');
+    const token = localStorage.getItem("jyotiflow_token");
     return !!token;
   },
 
   logout() {
-    localStorage.removeItem('jyotiflow_token');
-    localStorage.removeItem('jyotiflow_user');
-    console.log('Sacred logout completed');
-    
+    localStorage.removeItem("jyotiflow_token");
+    localStorage.removeItem("jyotiflow_user");
+    console.log("Sacred logout completed");
+
     // Trigger auth state change event
-    window.dispatchEvent(new CustomEvent('auth-state-changed', { 
-      detail: { authenticated: false, user: null } 
-    }));
+    window.dispatchEvent(
+      new CustomEvent("auth-state-changed", {
+        detail: { authenticated: false, user: null },
+      })
+    );
   },
 
   getAuthHeaders() {
-    const token = localStorage.getItem('jyotiflow_token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    const token = localStorage.getItem("jyotiflow_token");
+    return token ? { Authorization: `Bearer ${token}` } : {};
   },
 
   // Spiritual guidance methods
   async submitSpiritualQuestion(questionData) {
-    const language = localStorage.getItem('jyotiflow_language') || 'en';
-    return this.post('/api/spiritual/guidance', { ...questionData, language });
+    const language = localStorage.getItem("jyotiflow_language") || "en";
+    return this.post("/api/spiritual/guidance", { ...questionData, language });
   },
 
   async getSpiritualResponse(sessionId) {
@@ -191,52 +210,52 @@ const spiritualAPI = {
 
   // User profile methods
   async getUserProfile() {
-    return this.get('/api/user/profile');
+    return this.get("/api/user/profile");
   },
 
   async updateUserProfile(profileData) {
-    return this.post('/api/user/profile', profileData);
+    return this.post("/api/user/profile", profileData);
   },
 
   // Session history
   async getSessionHistory() {
-    return this.get('/api/user/sessions');
+    return this.get("/api/user/sessions");
   },
 
   // Credits and billing
   async getCreditBalance() {
-    return this.get('/api/user/credits');
+    return this.get("/api/user/credits");
   },
-  
-// Admin methods - Add these before getDailyWisdom()
+
+  // Admin methods - Add these before getDailyWisdom()
   async getAdminStats() {
-    return this.get('/api/admin/stats');
+    return this.get("/api/admin/stats");
   },
 
   async getMonetizationInsights() {
-    return this.get('/api/admin/monetization');
+    return this.get("/api/admin/monetization");
   },
 
   async getProductOptimization() {
-    return this.get('/api/admin/optimization');
+    return this.get("/api/admin/optimization");
   },
 
   async initiateLiveChat(sessionDetails) {
-    return this.post('/api/livechat/initiate', sessionDetails);
+    return this.post("/api/livechat/initiate", sessionDetails);
   },
 
   async endLiveChat(sessionId) {
-    return this.request(`/api/livechat/end/${sessionId}`, { method: 'DELETE' });
+    return this.request(`/api/livechat/end/${sessionId}`, { method: "DELETE" });
   },
 
   async startSession(sessionData) {
-    return this.post('/api/sessions/start', sessionData);
+    return this.post("/api/sessions/start", sessionData);
   },
 
   async generateAvatarVideo(guidanceText, birthDetails) {
-    return this.post('/api/avatar/generate', {
+    return this.post("/api/avatar/generate", {
       guidance_text: guidanceText,
-      birth_details: birthDetails
+      birth_details: birthDetails,
     });
   },
 
@@ -244,41 +263,50 @@ const spiritualAPI = {
     return this.get(`/api/avatar/status/${sessionId}`);
   },
 
-  async purchaseCredits(amount) {
-    return this.post('/api/credits/purchase', { amount });
+  async purchaseCredits(payload) {
+    // Flexible payload: number = amount, object/number = packageId or full payload
+    const body =
+      typeof payload === "number"
+        ? payload < 100
+          ? { package_id: payload }
+          : { amount: payload } // heuristic: small numbers are packageId
+        : typeof payload === "object"
+        ? payload
+        : { package_id: payload };
+    return this.post("/api/credits/purchase", body);
   },
 
   // Daily content methods
   async getDailyWisdom() {
-    return this.get('/api/content/daily-wisdom');
+    return this.get("/api/content/daily-wisdom");
   },
 
   async getSatsangSchedule() {
-    return this.get('/api/content/satsang-schedule');
+    return this.get("/api/content/satsang-schedule");
   },
 
   async getSpiritualQuote() {
-    return this.get('/api/content/spiritual-quote');
+    return this.get("/api/content/spiritual-quote");
   },
 
   // Admin: Get all users
   async getAdminUsers() {
-    return this.get('/api/admin/users');
+    return this.get("/api/admin/users");
   },
 
   // Admin: Get all content
   async getAdminContent() {
-    return this.get('/api/admin/content');
+    return this.get("/api/admin/content");
   },
 
   // Admin overview (for dashboard)
   async getAdminOverview() {
-    return this.get('/api/admin/overview');
+    return this.get("/api/admin/overview");
   },
 
   // Admin product management methods
   async createAdminProduct(productData) {
-    return this.post('/api/admin/products', productData);
+    return this.post("/api/admin/products", productData);
   },
 
   async updateAdminProduct(productId, productData) {
@@ -286,130 +314,142 @@ const spiritualAPI = {
   },
 
   async deleteAdminProduct(productId) {
-    return this.request(`/api/admin/products/${productId}`, { method: 'DELETE' });
+    return this.request(`/api/admin/products/${productId}`, {
+      method: "DELETE",
+    });
   },
 
   async getAdminProducts() {
-    return this.get('/api/admin/products');
+    return this.get("/api/admin/products");
   },
 
   async syncStripeProducts() {
-    return this.post('/api/admin/stripe/sync-products');
+    return this.post("/api/admin/stripe/sync-products");
   },
 
   // Admin: Get platform settings
   async getAdminSettings() {
-    return this.get('/api/admin/platform-settings');
+    return this.get("/api/admin/platform-settings");
   },
 
   // Admin: Get all satsang events
   async getAdminSatsangs() {
-    return this.get('/api/admin/satsang-events');
+    return this.get("/api/admin/satsang-events");
   },
 
   // Admin: Get subscription plans
   async getAdminSubscriptionPlans() {
-    return this.get('/api/admin/subscription-plans');
+    return this.get("/api/admin/subscription-plans");
   },
 
   // Admin: Get revenue analytics
   async getAdminRevenueAnalytics() {
-    return this.get('/api/admin/revenue-insights');
+    return this.get("/api/admin/revenue-insights");
   },
 
   // Admin: Get business intelligence (AI insights)
   async getAdminBI() {
-    return this.get('/api/admin/ai-insights');
+    return this.get("/api/admin/ai-insights");
   },
 
   // AI Pricing Recommendations
   async getAIPricingRecommendations() {
-    return this.get('/api/admin/ai-pricing-recommendations');
+    return this.get("/api/admin/ai-pricing-recommendations");
   },
 
   async approveAIRecommendation(recommendationId) {
-    return this.post(`/api/admin/ai-pricing-recommendations/${recommendationId}/approve`);
+    return this.post(
+      `/api/admin/ai-pricing-recommendations/${recommendationId}/approve`
+    );
   },
 
   async rejectAIRecommendation(recommendationId) {
-    return this.post(`/api/admin/ai-pricing-recommendations/${recommendationId}/reject`);
+    return this.post(
+      `/api/admin/ai-pricing-recommendations/${recommendationId}/reject`
+    );
   },
 
   async triggerDailyAnalysis() {
-    return this.post('/api/admin/trigger-daily-analysis');
+    return this.post("/api/admin/trigger-daily-analysis");
   },
 
   // Service Types Management
   async getServiceTypes() {
-    return this.get('/api/admin/products/service-types');
+    return this.get("/api/admin/products/service-types");
   },
 
   async createServiceType(serviceTypeData) {
-    return this.post('/api/admin/products/service-types', serviceTypeData);
+    return this.post("/api/admin/products/service-types", serviceTypeData);
   },
 
   async updateServiceType(serviceTypeId, serviceTypeData) {
     return this.request(`/api/admin/products/service-types/${serviceTypeId}`, {
-      method: 'PUT',
-      body: JSON.stringify(serviceTypeData)
+      method: "PUT",
+      body: JSON.stringify(serviceTypeData),
     });
   },
 
   async deleteServiceType(serviceTypeId) {
-    return this.request(`/api/admin/products/service-types/${serviceTypeId}`, { method: 'DELETE' });
+    return this.request(`/api/admin/products/service-types/${serviceTypeId}`, {
+      method: "DELETE",
+    });
   },
 
   // Pricing Configuration Management
   async getPricingConfig() {
-    return this.get('/api/admin/products/pricing-config');
+    return this.get("/api/admin/products/pricing-config");
   },
 
   async createPricingConfig(configData) {
-    return this.post('/api/admin/products/pricing-config', configData);
+    return this.post("/api/admin/products/pricing-config", configData);
   },
 
   async updatePricingConfig(configKey, configData) {
-    return this.request(`/api/admin/products/pricing-config/${configKey}`, { 
-      method: 'PUT', 
-      body: JSON.stringify(configData) 
+    return this.request(`/api/admin/products/pricing-config/${configKey}`, {
+      method: "PUT",
+      body: JSON.stringify(configData),
     });
   },
 
   // Donations Management
   async getDonations() {
-    return this.get('/api/admin/products/donations');
+    return this.get("/api/admin/products/donations");
   },
 
   async createDonation(donationData) {
-    return this.post('/api/admin/products/donations', donationData);
+    return this.post("/api/admin/products/donations", donationData);
   },
 
   async updateDonation(donationId, donationData) {
-    return this.request(`/api/admin/products/donations/${donationId}`, { 
-      method: 'PUT', 
-      body: JSON.stringify(donationData) 
+    return this.request(`/api/admin/products/donations/${donationId}`, {
+      method: "PUT",
+      body: JSON.stringify(donationData),
     });
   },
 
   async deleteDonation(donationId) {
-    return this.request(`/api/admin/products/donations/${donationId}`, { method: 'DELETE' });
+    return this.request(`/api/admin/products/donations/${donationId}`, {
+      method: "DELETE",
+    });
   },
 
   // Donation Payment Processing
   async processDonation(donationData) {
-    return this.post('/api/donations/process', donationData);
+    return this.post("/api/donations/process", donationData);
   },
 
   async confirmDonation(paymentIntentId) {
-    return this.post('/api/donations/confirm', { payment_intent_id: paymentIntentId });
+    return this.post("/api/donations/confirm", {
+      payment_intent_id: paymentIntentId,
+    });
   },
 
   async getDonationHistory() {
-    return this.get('/api/donations/history');
+    return this.get("/api/donations/history");
   },
 
   async getDonationAnalytics() {
-    return this.get('/api/donations/analytics');
+    return this.get("/api/donations/analytics");
   },
 
   async getSessionTotalDonations(sessionId) {
@@ -417,62 +457,79 @@ const spiritualAPI = {
   },
 
   async getMonthlyTopDonors() {
-    return this.get('/api/donations/top-donors/monthly');
+    return this.get("/api/donations/top-donors/monthly");
   },
 
   // Credit Packages
   async getCreditPackages() {
-    return this.get('/api/credits/packages');
+    return this.get("/api/credits/packages");
+  },
+
+  // Admin: Get credit packages
+  async getAdminCreditPackages() {
+    return this.get("/api/admin/credit-packages");
   },
 
   async createCreditPackage(packageData) {
-    return this.post('/api/admin/products/credit-packages', packageData);
+    return this.post("/api/admin/credit-packages", packageData);
   },
 
   async updateCreditPackage(packageId, packageData) {
-    return this.request(`/api/admin/products/credit-packages/${packageId}`, {
-      method: 'PUT',
-      body: JSON.stringify(packageData)
+    return this.request(`/api/admin/credit-packages/${packageId}`, {
+      method: "PUT",
+      body: JSON.stringify(packageData),
     });
   },
 
   async deleteCreditPackage(packageId) {
-    return this.request(`/api/admin/products/credit-packages/${packageId}`, { method: 'DELETE' });
-  },
-
-  async purchaseCredits(packageId) {
-    return this.post('/api/credits/purchase', { package_id: packageId });
+    return this.request(`/api/admin/credit-packages/${packageId}`, {
+      method: "DELETE",
+    });
   },
 
   // Admin: Social Content Management
   async getAdminSocialContent() {
-    return this.get('/api/admin/social-content');
+    return this.get("/api/admin/social-content");
   },
 
   async createAdminSocialContent(contentData) {
-    return this.post('/api/admin/social-content/schedule', contentData);
+    return this.post("/api/admin/social-content/schedule", contentData);
   },
 
   async updateAdminSocialContent(contentId, contentData) {
     return this.request(`/api/admin/social-content/${contentId}`, {
-      method: 'PUT',
-      body: JSON.stringify(contentData)
+      method: "PUT",
+      body: JSON.stringify(contentData),
     });
   },
 
   async deleteAdminSocialContent(contentId) {
-    return this.request(`/api/admin/social-content/${contentId}`, { method: 'DELETE' });
+    return this.request(`/api/admin/social-content/${contentId}`, {
+      method: "DELETE",
+    });
   },
 
   // Notification/Follow-up
-  async sendFollowupNotification({ channel, to, subject, message, device_token }) {
-    return this.post('/api/notify/followup', { channel, to, subject, message, device_token });
+  async sendFollowupNotification({
+    channel,
+    to,
+    subject,
+    message,
+    device_token,
+  }) {
+    return this.post("/api/notify/followup", {
+      channel,
+      to,
+      subject,
+      message,
+      device_token,
+    });
   },
 
   // ===== AVATAR GENERATION ENDPOINTS =====
-  
+
   async generateAvatarWithGuidance(data) {
-    return this.post('/api/avatar/generate-with-guidance', data);
+    return this.post("/api/avatar/generate-with-guidance", data);
   },
 
   async getAvatarGenerationStatusDetailed(sessionId) {
@@ -480,11 +537,11 @@ const spiritualAPI = {
   },
 
   async testAvatarServices() {
-    return this.get('/api/avatar/services/test');
+    return this.get("/api/avatar/services/test");
   },
 
   async createSwamjiPresenter() {
-    return this.post('/api/avatar/presenter/create', {});
+    return this.post("/api/avatar/presenter/create", {});
   },
 
   async getUserAvatarHistory(limit = 10) {
@@ -492,9 +549,9 @@ const spiritualAPI = {
   },
 
   // ===== ENHANCED SPIRITUAL GUIDANCE =====
-  
+
   async getEnhancedSpiritualGuidance(requestData) {
-    return this.post('/api/spiritual/enhanced/enhanced-guidance', requestData);
+    return this.post("/api/spiritual/enhanced/enhanced-guidance", requestData);
   },
 
   async getServiceInsights(serviceName) {
@@ -502,47 +559,55 @@ const spiritualAPI = {
   },
 
   async getKnowledgeDomains() {
-    return this.get('/api/spiritual/enhanced/knowledge-domains');
+    return this.get("/api/spiritual/enhanced/knowledge-domains");
   },
 
   async getPersonaModes() {
-    return this.get('/api/spiritual/enhanced/persona-modes');
+    return this.get("/api/spiritual/enhanced/persona-modes");
   },
 
   async getComprehensiveReading(requestData) {
-    return this.post('/api/spiritual/enhanced/comprehensive-reading', requestData);
+    return this.post(
+      "/api/spiritual/enhanced/comprehensive-reading",
+      requestData
+    );
   },
 
   async getComprehensivePricing() {
-    return this.get('/api/spiritual/enhanced/comprehensive-pricing');
+    return this.get("/api/spiritual/enhanced/comprehensive-pricing");
   },
 
   async getPricingDashboard() {
-    return this.get('/api/spiritual/enhanced/pricing-dashboard');
+    return this.get("/api/spiritual/enhanced/pricing-dashboard");
   },
 
   // ===== UNIVERSAL PRICING ENDPOINTS =====
-  
+
   async getPricingRecommendations() {
-    return this.get('/api/spiritual/enhanced/pricing-recommendations');
+    return this.get("/api/spiritual/enhanced/pricing-recommendations");
   },
 
   async applyPricingChange(pricingData) {
-    return this.post('/api/spiritual/enhanced/apply-pricing-change', pricingData);
+    return this.post(
+      "/api/spiritual/enhanced/apply-pricing-change",
+      pricingData
+    );
   },
 
   async getPricingHistory(serviceName, limit = 50) {
-    return this.get(`/api/spiritual/enhanced/pricing-history/${serviceName}?limit=${limit}`);
+    return this.get(
+      `/api/spiritual/enhanced/pricing-history/${serviceName}?limit=${limit}`
+    );
   },
 
   async getSatsangEvents(status = null) {
-    let endpoint = '/api/spiritual/enhanced/satsang-events';
+    let endpoint = "/api/spiritual/enhanced/satsang-events";
     if (status) endpoint += `?status=${status}`;
     return this.get(endpoint);
   },
 
   async createSatsangEvent(eventData) {
-    return this.post('/api/spiritual/enhanced/satsang-events', eventData);
+    return this.post("/api/spiritual/enhanced/satsang-events", eventData);
   },
 
   async getSatsangPricing(eventId) {
@@ -558,31 +623,28 @@ const spiritualAPI = {
   },
 
   async trackAPIUsage(usageData) {
-    return this.post('/api/spiritual/enhanced/track-api-usage', usageData);
+    return this.post("/api/spiritual/enhanced/track-api-usage", usageData);
   },
 
   async getSystemHealth() {
-    return this.get('/api/spiritual/enhanced/system-health');
+    return this.get("/api/spiritual/enhanced/system-health");
   },
 
   // ===== PERSONALIZED REMEDIES =====
-  
+
   async getPersonalizedRemedies(birthDetails, preferences = {}) {
-    return this.post('/api/spiritual/enhanced/personalized-remedies', {
+    return this.post("/api/spiritual/enhanced/personalized-remedies", {
       birth_details: birthDetails,
-      current_issues: preferences.current_issues || ['general_wellbeing'],
+      current_issues: preferences.current_issues || ["general_wellbeing"],
       preferences: {
         include_mantras: true,
         include_gemstones: true,
         include_charity: true,
         include_temple_worship: true,
-        ...preferences
-      }
+        ...preferences,
+      },
     });
   },
-
-
 };
 
 export default spiritualAPI;
-
