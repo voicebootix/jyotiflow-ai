@@ -300,7 +300,7 @@ const spiritualAPI = {
   },
 
   // Admin overview (for dashboard)
-  async getAdminOverview() {
+  async getAdminDashboardOverview() {
     return this.get("/api/admin/overview");
   },
 
@@ -352,8 +352,8 @@ const spiritualAPI = {
     return this.get("/api/admin/ai-insights");
   },
 
-  // Admin: Get overview analytics (connected to /overview endpoint)
-  async getAdminOverview() {
+  // Admin: Get overview analytics (connected to /analytics/overview endpoint)
+  async getAdminAnalyticsOverview() {
     return this.get("/api/admin/analytics/overview");
   },
 
