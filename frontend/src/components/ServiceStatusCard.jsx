@@ -11,6 +11,8 @@ import {
   XCircle,
   AlertTriangle,
   Clock,
+  Eye,
+  X,
 } from "lucide-react";
 
 const API_BASE_URL =
@@ -40,6 +42,7 @@ const ServiceStatusCard = ({
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [error, setError] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   /**
    * Triggers a test for the service
@@ -176,158 +179,408 @@ const ServiceStatusCard = ({
   };
 
   return (
-    <Card
-      className="h-full"
-      role="region"
-      aria-labelledby={`${testType}-title`}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg" role="img" aria-label={`${title} icon`}>
-              {icon}
-            </span>
-            <CardTitle id={`${testType}-title`} className="text-sm font-medium">
-              {title}
-            </CardTitle>
-          </div>
-          <div className="flex items-center gap-2">
-            {getStatusIcon()}
-            {getStatusBadge()}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-gray-600">{description}</p>
-
-        {lastResult && (
-          <div
-            className="text-xs space-y-1"
-            role="region"
-            aria-label="Test results"
-          >
-            <div className="flex justify-between">
-              <span>Status:</span>
-              <Badge
-                className={
-                  lastResult.status === "passed"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-800"
-                }
+    <>
+      <Card
+        className="h-full"
+        role="region"
+        aria-labelledby={`${testType}-title`}
+      >
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg" role="img" aria-label={`${title} icon`}>
+                {icon}
+              </span>
+              <CardTitle
+                id={`${testType}-title`}
+                className="text-sm font-medium"
               >
-                {lastResult.status}
-              </Badge>
+                {title}
+              </CardTitle>
             </div>
-            {lastResult.success_rate && (
-              <div className="flex justify-between">
-                <span>Success Rate:</span>
-                <span className="font-medium">
-                  {lastResult.success_rate.toFixed(1)}%
-                </span>
-              </div>
-            )}
-            {lastResult.accessible_endpoints && (
-              <div className="flex justify-between">
-                <span>Endpoints:</span>
-                <span className="font-medium">
-                  {lastResult.accessible_endpoints}/{lastResult.total_endpoints}
-                </span>
-              </div>
-            )}
-            {lastResult.avg_response_time_ms && (
-              <div className="flex justify-between">
-                <span>Avg Response:</span>
-                <span className="font-medium">
-                  {lastResult.avg_response_time_ms.toFixed(0)}ms
-                </span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {getStatusIcon()}
+              {getStatusBadge()}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-gray-600">{description}</p>
 
-            {/* Admin Services specific: Show individual endpoint results */}
-            {testType === "admin_services" && lastResult.endpoint_results && (
-              <div className="mt-2 space-y-1">
-                <div className="text-xs font-medium text-gray-700 mb-1">
-                  Endpoint Results:
+          {lastResult && (
+            <div
+              className="text-xs space-y-1"
+              role="region"
+              aria-label="Test results"
+            >
+              <div className="flex justify-between">
+                <span>Status:</span>
+                <Badge
+                  className={
+                    lastResult.status === "passed"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-800"
+                  }
+                >
+                  {lastResult.status}
+                </Badge>
+              </div>
+              {lastResult.success_rate && (
+                <div className="flex justify-between">
+                  <span>Success Rate:</span>
+                  <span className="font-medium">
+                    {lastResult.success_rate.toFixed(1)}%
+                  </span>
                 </div>
-                {Object.entries(lastResult.endpoint_results).map(
-                  ([key, result], index) => (
-                    <div
-                      key={index}
-                      className="flex justify-between items-center"
-                    >
-                      <span
-                        className="text-xs truncate"
-                        title={result.business_function || key}
+              )}
+              {lastResult.accessible_endpoints && (
+                <div className="flex justify-between">
+                  <span>Endpoints:</span>
+                  <span className="font-medium">
+                    {lastResult.accessible_endpoints}/
+                    {lastResult.total_endpoints}
+                  </span>
+                </div>
+              )}
+              {lastResult.avg_response_time_ms && (
+                <div className="flex justify-between">
+                  <span>Avg Response:</span>
+                  <span className="font-medium">
+                    {lastResult.avg_response_time_ms.toFixed(0)}ms
+                  </span>
+                </div>
+              )}
+
+              {/* Admin Services specific: Show individual endpoint results */}
+              {testType === "admin_services" && lastResult.endpoint_results && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-xs font-medium text-gray-700 mb-1">
+                    Endpoint Results:
+                  </div>
+                  {Object.entries(lastResult.endpoint_results).map(
+                    ([key, result], index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center"
                       >
-                        {result.business_function || key}:
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {result.endpoint_accessible ? (
-                          <CheckCircle className="h-3 w-3 text-green-500" />
-                        ) : (
-                          <XCircle className="h-3 w-3 text-red-500" />
-                        )}
-                        <span className="text-xs">{result.status_code}</span>
-                        {result.response_time_ms && (
-                          <span className="text-xs text-gray-500">
-                            ({result.response_time_ms}ms)
-                          </span>
-                        )}
+                        <span
+                          className="text-xs truncate"
+                          title={result.business_function || key}
+                        >
+                          {result.business_function || key}:
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {result.endpoint_accessible ? (
+                            <CheckCircle className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <XCircle className="h-3 w-3 text-red-500" />
+                          )}
+                          <span className="text-xs">{result.status_code}</span>
+                          {result.response_time_ms && (
+                            <span className="text-xs text-gray-500">
+                              ({result.response_time_ms}ms)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Show endpoints tested for Admin Services */}
+              {testType === "admin_services" && lastResult.endpoints_tested && (
+                <div className="mt-2">
+                  <div className="text-xs font-medium text-gray-700 mb-1">
+                    Tested {lastResult.endpoints_tested.length} endpoints:
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {lastResult.endpoints_tested.map((ep, i) => (
+                      <div
+                        key={i}
+                        className="truncate"
+                        title={`${ep.method} ${ep.endpoint}`}
+                      >
+                        • {ep.business_function}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <Alert className="py-2" role="alert">
+              <AlertTriangle className="h-3 w-3" />
+              <AlertDescription className="text-xs">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              onClick={triggerTest}
+              disabled={loading}
+              className="w-full text-xs"
+              aria-label={`Run test for ${title}`}
+            >
+              {loading ? (
+                <RefreshCw
+                  className="h-3 w-3 animate-spin mr-1"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Play className="h-3 w-3 mr-1" aria-hidden="true" />
+              )}
+              {loading ? "Testing..." : "Run Test"}
+            </Button>
+
+            {/* View Details Button - only show if we have test results */}
+            {(lastResult || error) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDetailModal(true)}
+                className="w-full text-xs"
+                aria-label={`View details for ${title}`}
+              >
+                <Eye className="h-3 w-3 mr-1" aria-hidden="true" />
+                View Details
+              </Button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Detailed Results Modal */}
+      {showDetailModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="detail-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowDetailModal(false);
+            }
+          }}
+        >
+          <Card className="max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle
+                id="detail-modal-title"
+                className="flex items-center gap-2"
+              >
+                {icon} {title} - Test Results
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDetailModal(false)}
+                aria-label="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Overall Status */}
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Overall Status:</span>
+                  {getStatusIcon()}
+                  <Badge
+                    variant={
+                      status === "completed" || status === "passed"
+                        ? "default"
+                        : status === "failed"
+                        ? "destructive"
+                        : status === "running"
+                        ? "secondary"
+                        : "outline"
+                    }
+                  >
+                    {status}
+                  </Badge>
+                </div>
+
+                {/* Test Summary */}
+                {lastResult && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Total Tests
+                      </div>
+                      <div className="text-lg font-semibold">
+                        {lastResult.total_tests || 0}
                       </div>
                     </div>
-                  )
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Passed
+                      </div>
+                      <div className="text-lg font-semibold text-green-600">
+                        {lastResult.passed_tests || 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Failed
+                      </div>
+                      <div className="text-lg font-semibold text-red-600">
+                        {lastResult.failed_tests || 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Success Rate
+                      </div>
+                      <div className="text-lg font-semibold">
+                        {lastResult.success_rate || 0}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin Services - Detailed Endpoint Results */}
+                {testType === "admin_services_critical" && lastResult && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">
+                      Endpoint Test Results
+                    </h3>
+
+                    {/* Show individual test results */}
+                    {lastResult.results &&
+                      Object.entries(lastResult.results).map(
+                        ([testName, result]) => (
+                          <Card
+                            key={testName}
+                            className="border-l-4 border-l-gray-300"
+                          >
+                            <CardContent className="pt-4">
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {result.status === "passed" ? (
+                                      <CheckCircle className="h-4 w-4 text-green-500" />
+                                    ) : (
+                                      <XCircle className="h-4 w-4 text-red-500" />
+                                    )}
+                                    <h4 className="font-medium">
+                                      {result.business_function || testName}
+                                    </h4>
+                                    <Badge
+                                      variant={
+                                        result.status === "passed"
+                                          ? "default"
+                                          : "destructive"
+                                      }
+                                    >
+                                      {result.status}
+                                    </Badge>
+                                  </div>
+
+                                  {/* Test Details */}
+                                  {result.details && (
+                                    <div className="space-y-2 text-sm">
+                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                        <div>
+                                          <span className="font-medium">
+                                            Method:
+                                          </span>{" "}
+                                          {result.details.method}
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">
+                                            Status Code:
+                                          </span>
+                                          <span
+                                            className={`ml-1 ${
+                                              result.details.status_code >=
+                                                200 &&
+                                              result.details.status_code < 300
+                                                ? "text-green-600"
+                                                : result.details.status_code >=
+                                                  400
+                                                ? "text-red-600"
+                                                : "text-yellow-600"
+                                            }`}
+                                          >
+                                            {result.details.status_code}
+                                          </span>
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">
+                                            Response Time:
+                                          </span>{" "}
+                                          {result.details.response_time_ms}ms
+                                        </div>
+                                        <div>
+                                          <span className="font-medium">
+                                            Endpoint:
+                                          </span>{" "}
+                                          {result.details.endpoint}
+                                        </div>
+                                      </div>
+
+                                      <div>
+                                        <span className="font-medium">
+                                          Full URL:
+                                        </span>
+                                        <code className="ml-1 text-xs bg-gray-100 px-1 py-0.5 rounded">
+                                          {result.details.url}
+                                        </code>
+                                      </div>
+
+                                      {/* Show error details for failed tests */}
+                                      {result.status === "failed" &&
+                                        result.error && (
+                                          <Alert className="mt-2">
+                                            <AlertTriangle className="h-4 w-4" />
+                                            <AlertDescription>
+                                              <strong>Error:</strong>{" "}
+                                              {result.error}
+                                            </AlertDescription>
+                                          </Alert>
+                                        )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )
+                      )}
+                  </div>
+                )}
+
+                {/* General Error Display */}
+                {error && (
+                  <Alert>
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Test Execution Error:</strong> {error}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Raw Result Data (for debugging) */}
+                {lastResult && (
+                  <details className="mt-4">
+                    <summary className="cursor-pointer text-sm font-medium text-gray-600">
+                      Raw Test Data (Debug)
+                    </summary>
+                    <pre className="mt-2 text-xs bg-gray-100 p-3 rounded overflow-x-auto">
+                      {JSON.stringify(lastResult, null, 2)}
+                    </pre>
+                  </details>
                 )}
               </div>
-            )}
-
-            {/* Show endpoints tested for Admin Services */}
-            {testType === "admin_services" && lastResult.endpoints_tested && (
-              <div className="mt-2">
-                <div className="text-xs font-medium text-gray-700 mb-1">
-                  Tested {lastResult.endpoints_tested.length} endpoints:
-                </div>
-                <div className="text-xs text-gray-600">
-                  {lastResult.endpoints_tested.map((ep, i) => (
-                    <div
-                      key={i}
-                      className="truncate"
-                      title={`${ep.method} ${ep.endpoint}`}
-                    >
-                      • {ep.business_function}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {error && (
-          <Alert className="py-2" role="alert">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-xs">{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <Button
-          size="sm"
-          onClick={triggerTest}
-          disabled={loading}
-          className="w-full text-xs"
-          aria-label={`Run test for ${title}`}
-        >
-          {loading ? (
-            <RefreshCw
-              className="h-3 w-3 animate-spin mr-1"
-              aria-hidden="true"
-            />
-          ) : (
-            <Play className="h-3 w-3 mr-1" aria-hidden="true" />
-          )}
-          {loading ? "Testing..." : "Run Test"}
-        </Button>
-      </CardContent>
-    </Card>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </>
   );
 };
 
