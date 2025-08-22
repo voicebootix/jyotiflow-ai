@@ -17,6 +17,9 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
+# Default embedding dimension for spiritual knowledge vectors
+DEFAULT_EMBED_DIM = 1536
+
 try:
     import asyncpg
     ASYNCPG_AVAILABLE = True
@@ -48,23 +51,23 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
                 parsed_embedding = json.loads(embedding)
                 if not isinstance(parsed_embedding, list):
                     logger.warning("🕉️ Spiritual knowledge embedding not in list format, creating default")
-                    return [0.0] * 1536
+                    return [0.0] * DEFAULT_EMBED_DIM
                 return parsed_embedding  # Use the list directly
             except json.JSONDecodeError:
                 # If it's not valid JSON, create a default vector for spiritual content
                 logger.warning("🕉️ Invalid spiritual knowledge embedding JSON, using default vector")
-                return [0.0] * 1536
+                return [0.0] * DEFAULT_EMBED_DIM
         elif isinstance(embedding, list):
-            # If it's already a list (like from OpenAI), validate and use it directly
+            # If it's already a list (like from OpenAI), validate and coerce to float
             if len(embedding) > 0 and all(isinstance(x, (int, float)) for x in embedding):
-                return embedding
+                return [float(x) for x in embedding]
             else:
                 logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
-                return [0.0] * 1536
+                return [0.0] * DEFAULT_EMBED_DIM
         else:
             # For other types, create default vector
             logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
-            return [0.0] * 1536
+            return [0.0] * DEFAULT_EMBED_DIM
     else:
         # For non-pgvector, use JSON string format
         if isinstance(embedding, str):
@@ -568,11 +571,11 @@ class KnowledgeSeeder:
                     logger.warning(f"OpenAI embedding failed: {embed_error}")
                     logger.warning(f"OpenAI error traceback: {traceback.format_exc()}")
                     logger.info("Using fallback zero vector")
-                    embedding = [0.0] * 1536
+                    embedding = [0.0] * DEFAULT_EMBED_DIM
             else:
                 # Fallback to zero vector if OpenAI not available
                 logger.info("Using fallback zero vector (no OpenAI client)")
-                embedding = [0.0] * 1536
+                embedding = [0.0] * DEFAULT_EMBED_DIM
             
             # Check if pgvector is available by checking column type
             vector_support = True
@@ -714,7 +717,7 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             try:
                 from . import db
             except ImportError:
-        import db
+                import db
         
         db_pool = db.get_db_pool()
         if db_pool is None:
