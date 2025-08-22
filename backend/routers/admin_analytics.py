@@ -130,7 +130,7 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     await AuthenticationHelper.verify_admin_access_strict(request, db)
     """Get session analytics for admin dashboard"""
     try:
-        # Get recent sessions
+        # Get recent sessions.
         recent_sessions = await db.fetch("""
             SELECT 
                 s.session_id,
