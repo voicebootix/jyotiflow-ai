@@ -52,7 +52,23 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
                 if not isinstance(parsed_embedding, list):
                     logger.warning("🕉️ Spiritual knowledge embedding not in list format, creating default")
                     return [0.0] * DEFAULT_EMBED_DIM
-                return parsed_embedding  # Use the list directly
+                
+                # Coerce each element to float and validate
+                try:
+                    float_embedding = [float(x) for x in parsed_embedding]
+                    # Resize to DEFAULT_EMBED_DIM (truncate if longer, pad if shorter)
+                    if len(float_embedding) > DEFAULT_EMBED_DIM:
+                        float_embedding = float_embedding[:DEFAULT_EMBED_DIM]
+                        logger.warning(f"🕉️ Spiritual knowledge embedding truncated from {len(parsed_embedding)} to {DEFAULT_EMBED_DIM}")
+                    elif len(float_embedding) < DEFAULT_EMBED_DIM:
+                        float_embedding.extend([0.0] * (DEFAULT_EMBED_DIM - len(float_embedding)))
+                        logger.warning(f"🕉️ Spiritual knowledge embedding padded from {len(parsed_embedding)} to {DEFAULT_EMBED_DIM}")
+                    
+                    return float_embedding
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding elements to float: {e}, using default")
+                    return [0.0] * DEFAULT_EMBED_DIM
+                    
             except json.JSONDecodeError:
                 # If it's not valid JSON, create a default vector for spiritual content
                 logger.warning("🕉️ Invalid spiritual knowledge embedding JSON, using default vector")
@@ -60,7 +76,20 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
         elif isinstance(embedding, list):
             # If it's already a list (like from OpenAI), validate and coerce to float
             if len(embedding) > 0 and all(isinstance(x, (int, float)) for x in embedding):
-                return [float(x) for x in embedding]
+                try:
+                    float_embedding = [float(x) for x in embedding]
+                    # Resize to DEFAULT_EMBED_DIM (truncate if longer, pad if shorter)
+                    if len(float_embedding) > DEFAULT_EMBED_DIM:
+                        float_embedding = float_embedding[:DEFAULT_EMBED_DIM]
+                        logger.warning(f"🕉️ Spiritual knowledge embedding truncated from {len(embedding)} to {DEFAULT_EMBED_DIM}")
+                    elif len(float_embedding) < DEFAULT_EMBED_DIM:
+                        float_embedding.extend([0.0] * (DEFAULT_EMBED_DIM - len(float_embedding)))
+                        logger.warning(f"🕉️ Spiritual knowledge embedding padded from {len(embedding)} to {DEFAULT_EMBED_DIM}")
+                    
+                    return float_embedding
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding list elements to float: {e}, using default")
+                    return [0.0] * DEFAULT_EMBED_DIM
             else:
                 logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
                 return [0.0] * DEFAULT_EMBED_DIM
