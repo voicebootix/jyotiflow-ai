@@ -679,122 +679,10 @@ class KnowledgeSeeder:
                             knowledge_data["authority_level"]
                         )
             else:
-                # Use shared pool instead of direct connection
-                try:
-                    from . import db
-                except ImportError:
-                    import db
-                pool = db.get_db_pool()
-                if not pool:
-                    raise RuntimeError(
-                        "Database pool initialization failed or is unavailable. "
-                        "This may indicate issues with database connection configuration, "
-                        "network connectivity, or system startup sequence. "
-                        "Check DATABASE_URL environment variable and ensure the unified startup system completed successfully."
-                    )
-                async with pool.acquire() as conn:
-                        
-                        # Check column type for this connection
-                        column_type = await conn.fetchval("""
-                            SELECT data_type FROM information_schema.columns 
-                            WHERE table_name = 'rag_knowledge_base' 
-                            AND column_name = 'embedding_vector'
-                        """)
-                        vector_support = column_type == 'USER-DEFINED'
-                        
-                        # Convert embedding to appropriate format
-                        embedding_data = format_embedding_for_storage(embedding, vector_support)
-                        
-                        # Check if content_type column exists
-                        content_type_exists = await conn.fetchval("""
-                            SELECT EXISTS (
-                                SELECT FROM information_schema.columns 
-                                WHERE table_name = 'rag_knowledge_base' 
-                                AND column_name = 'content_type'
-                            )
-                        """)
-                        
-                        # Check if cultural_context column exists
-                        cultural_context_exists = await conn.fetchval("""
-                            SELECT EXISTS (
-                                SELECT FROM information_schema.columns 
-                                WHERE table_name = 'rag_knowledge_base' 
-                                AND column_name = 'cultural_context'
-                            )
-                        """)
-                        
-                        if content_type_exists and cultural_context_exists:
-                            await conn.execute("""
-                                INSERT INTO rag_knowledge_base (
-                                    knowledge_domain, content_type, title, content, metadata,
-                                    embedding_vector, tags, source_reference, authority_level,
-                                    cultural_context, created_at, updated_at
-                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
-                                ON CONFLICT (title) DO UPDATE SET
-                                    content = EXCLUDED.content,
-                                    metadata = EXCLUDED.metadata,
-                                    embedding_vector = EXCLUDED.embedding_vector,
-                                    updated_at = NOW()
-                            """, 
-                                knowledge_data["knowledge_domain"],
-                                knowledge_data.get("content_type", "knowledge"),
-                                knowledge_data["title"],
-                                knowledge_data["content"],
-                                json.dumps(knowledge_data.get("metadata", {})),
-                                embedding_data,
-                                knowledge_data.get("tags", []),
-                                knowledge_data["source_reference"],
-                                knowledge_data["authority_level"],
-                                knowledge_data.get("cultural_context", "universal")
-                            )
-                        elif content_type_exists:
-                            # Table has content_type but no cultural_context
-                            await conn.execute("""
-                                INSERT INTO rag_knowledge_base (
-                                    knowledge_domain, content_type, title, content, metadata,
-                                    embedding_vector, tags, source_reference, authority_level,
-                                    created_at, updated_at
-                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW(), NOW())
-                                ON CONFLICT (title) DO UPDATE SET
-                                    content = EXCLUDED.content,
-                                    metadata = EXCLUDED.metadata,
-                                    embedding_vector = EXCLUDED.embedding_vector,
-                                    updated_at = NOW()
-                            """, 
-                                knowledge_data["knowledge_domain"],
-                                knowledge_data.get("content_type", "knowledge"),
-                                knowledge_data["title"],
-                                knowledge_data["content"],
-                                json.dumps(knowledge_data.get("metadata", {})),
-                                embedding_data,
-                                knowledge_data.get("tags", []),
-                                knowledge_data["source_reference"],
-                                knowledge_data["authority_level"]
-                            )
-                        else:
-                            # Fallback for tables without content_type and cultural_context columns
-                            await conn.execute("""
-                                INSERT INTO rag_knowledge_base (
-                                    knowledge_domain, title, content, metadata,
-                                    embedding_vector, tags, source_reference, authority_level,
-                                    created_at, updated_at
-                                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
-                                ON CONFLICT (title) DO UPDATE SET
-                                    content = EXCLUDED.content,
-                                    metadata = EXCLUDED.metadata,
-                                    embedding_vector = EXCLUDED.embedding_vector,
-                                    updated_at = NOW()
-                            """, 
-                                knowledge_data["knowledge_domain"],
-                                knowledge_data["title"],
-                                knowledge_data["content"],
-                                json.dumps(knowledge_data.get("metadata", {})),
-                                embedding_data,
-                                knowledge_data.get("tags", []),
-                                knowledge_data["source_reference"],
-                                knowledge_data["authority_level"]
-                            )
-                    # Connection automatically released by pool context manager
+                raise RuntimeError(
+                    "Database pool is not available in KnowledgeSeeder. "
+                    "This should be provided during initialization."
+                )
             
             logger.info(f"Added knowledge: {knowledge_data['title'][:50]}...")
             
@@ -806,20 +694,27 @@ class KnowledgeSeeder:
             pass
 
 # Initialize and run seeding
-async def run_knowledge_seeding():
-    """Run the complete knowledge seeding process"""
+async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
+    """
+    Run the complete knowledge seeding process.
+    It can accept an external db_pool to avoid dependency on a global pool.
+    """
+    db_pool = None
     try:
-        # Import database configuration from existing JyotiFlow setup
-        try:
-            from . import db
-        except ImportError:
-            import db
-        
-        # Get database pool from shared setup - no competing pool creation
-        db_pool = db.get_db_pool()
-        if db_pool is None:
-            raise Exception("Shared database pool not available - ensure main.py has initialized it")
-        
+        if db_pool_override:
+            db_pool = db_pool_override
+            logger.info("Using provided database pool override for seeding.")
+        else:
+            # Fallback to global pool if no override is provided
+            try:
+                from . import db
+            except ImportError:
+                import db
+            
+            db_pool = db.get_db_pool()
+            if db_pool is None:
+                raise Exception("Shared database pool not available - ensure main.py has initialized it")
+
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:

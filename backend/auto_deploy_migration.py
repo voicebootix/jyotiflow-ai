@@ -313,32 +313,17 @@ async def run_idempotent_knowledge_seeding(conn):
 
     logger.info("🧠 Seeding RAG knowledge base from Python source...")
     pool = None
-    original_get_db_pool = None
-    
     try:
-        # Use a package-relative import for robustness
-        try:
-            from . import knowledge_seeding_system as seeder_module
-        except ImportError:
-            import knowledge_seeding_system as seeder_module
-
-        # Ensure the function is available before proceeding
-        if not hasattr(seeder_module, 'run_knowledge_seeding'):
-            logger.error("❌ Seeder module is imported, but run_knowledge_seeding function is missing.")
-            return
-
-        # Temporarily provide a dedicated pool for the seeder
+        # Create a dedicated pool for the seeder to ensure it has a connection
         DATABASE_URL = os.getenv("DATABASE_URL")
+        if not DATABASE_URL:
+            logger.error("❌ Cannot seed knowledge base: DATABASE_URL is not set.")
+            return
+        
         pool = await asyncpg.create_pool(DATABASE_URL)
         
-        # Monkey-patch the db module's get_db_pool function
-        # This is a safe way to inject the dependency without altering the seeder's code
-        if hasattr(seeder_module, 'db'):
-            original_get_db_pool = seeder_module.db.get_db_pool
-            seeder_module.db.get_db_pool = lambda: pool
-            logger.info("Monkey-patched db.get_db_pool for seeding operation.")
-        
-        await seeder_module.run_knowledge_seeding()
+        # Call the seeder with the dedicated pool (Dependency Injection)
+        await run_knowledge_seeding(db_pool_override=pool)
         
         # Mark as completed in the migrations table
         await conn.execute("""
@@ -352,10 +337,7 @@ async def run_idempotent_knowledge_seeding(conn):
         logger.error(f"❌ RAG knowledge base seeding from Python script failed: {e}")
         raise RuntimeError(f"Failed to seed RAG knowledge base: {e}") from e
     finally:
-        # Restore original function and close the dedicated pool
-        if original_get_db_pool and hasattr(seeder_module, 'db'):
-            seeder_module.db.get_db_pool = original_get_db_pool
-            logger.info("Restored original db.get_db_pool.")
+        # Ensure the dedicated pool is closed
         if pool:
             await pool.close()
             logger.info("Dedicated seeding database pool closed.")
