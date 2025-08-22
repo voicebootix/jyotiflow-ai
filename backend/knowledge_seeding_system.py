@@ -747,10 +747,10 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
                 from . import db
             except ImportError:
                 import db
-        
-        db_pool = db.get_db_pool()
-        if db_pool is None:
-            raise Exception("Shared database pool not available - ensure main.py has initialized it")
+            
+            db_pool = db.get_db_pool()
+            if db_pool is None:
+                raise Exception("Shared database pool not available - ensure main.py has initialized it")
         
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")
