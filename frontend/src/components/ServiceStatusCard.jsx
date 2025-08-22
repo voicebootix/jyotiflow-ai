@@ -178,6 +178,29 @@ const ServiceStatusCard = ({
     );
   };
 
+  /**
+   * Helper functions for safe value display with proper null/undefined checks
+   */
+  const isDef = (value) => value !== null && value !== undefined;
+
+  const fmtPct = (value, decimals = 1) => {
+    if (!isDef(value)) return "N/A";
+    const num = Number(value);
+    return Number.isFinite(num) ? `${num.toFixed(decimals)}%` : "N/A";
+  };
+
+  const fmtMs = (value, decimals = 0) => {
+    if (!isDef(value)) return "N/A";
+    const num = Number(value);
+    return Number.isFinite(num) ? `${num.toFixed(decimals)}ms` : "N/A";
+  };
+
+  const fmtNum = (value) => {
+    if (!isDef(value)) return "N/A";
+    const num = Number(value);
+    return Number.isFinite(num) ? num.toString() : "N/A";
+  };
+
   return (
     <>
       <Card
@@ -225,28 +248,28 @@ const ServiceStatusCard = ({
                   {lastResult.status}
                 </Badge>
               </div>
-              {lastResult.success_rate && (
+              {isDef(lastResult.success_rate) && (
                 <div className="flex justify-between">
                   <span>Success Rate:</span>
                   <span className="font-medium">
-                    {lastResult.success_rate.toFixed(1)}%
+                    {fmtPct(lastResult.success_rate)}
                   </span>
                 </div>
               )}
-              {lastResult.accessible_endpoints && (
+              {isDef(lastResult.accessible_endpoints) && (
                 <div className="flex justify-between">
                   <span>Endpoints:</span>
                   <span className="font-medium">
-                    {lastResult.accessible_endpoints}/
-                    {lastResult.total_endpoints}
+                    {fmtNum(lastResult.accessible_endpoints)}/
+                    {fmtNum(lastResult.total_endpoints)}
                   </span>
                 </div>
               )}
-              {lastResult.avg_response_time_ms && (
+              {isDef(lastResult.avg_response_time_ms) && (
                 <div className="flex justify-between">
                   <span>Avg Response:</span>
                   <span className="font-medium">
-                    {lastResult.avg_response_time_ms.toFixed(0)}ms
+                    {fmtMs(lastResult.avg_response_time_ms)}
                   </span>
                 </div>
               )}
@@ -276,9 +299,9 @@ const ServiceStatusCard = ({
                             <XCircle className="h-3 w-3 text-red-500" />
                           )}
                           <span className="text-xs">{result.status_code}</span>
-                          {result.response_time_ms && (
+                          {isDef(result.response_time_ms) && (
                             <span className="text-xs text-gray-500">
-                              ({result.response_time_ms}ms)
+                              ({fmtMs(result.response_time_ms)})
                             </span>
                           )}
                         </div>
@@ -412,7 +435,9 @@ const ServiceStatusCard = ({
                         Total Tests
                       </div>
                       <div className="text-lg font-semibold">
-                        {lastResult.total_tests || 0}
+                        {isDef(lastResult.total_tests)
+                          ? fmtNum(lastResult.total_tests)
+                          : 0}
                       </div>
                     </div>
                     <div>
@@ -420,7 +445,9 @@ const ServiceStatusCard = ({
                         Passed
                       </div>
                       <div className="text-lg font-semibold text-green-600">
-                        {lastResult.passed_tests || 0}
+                        {isDef(lastResult.passed_tests)
+                          ? fmtNum(lastResult.passed_tests)
+                          : 0}
                       </div>
                     </div>
                     <div>
@@ -428,7 +455,9 @@ const ServiceStatusCard = ({
                         Failed
                       </div>
                       <div className="text-lg font-semibold text-red-600">
-                        {lastResult.failed_tests || 0}
+                        {isDef(lastResult.failed_tests)
+                          ? fmtNum(lastResult.failed_tests)
+                          : 0}
                       </div>
                     </div>
                     <div>
@@ -436,7 +465,9 @@ const ServiceStatusCard = ({
                         Success Rate
                       </div>
                       <div className="text-lg font-semibold">
-                        {lastResult.success_rate || 0}%
+                        {isDef(lastResult.success_rate)
+                          ? fmtPct(lastResult.success_rate)
+                          : "0%"}
                       </div>
                     </div>
                   </div>
@@ -513,7 +544,9 @@ const ServiceStatusCard = ({
                                           <span className="font-medium">
                                             Response Time:
                                           </span>{" "}
-                                          {result.details.response_time_ms}ms
+                                          {fmtMs(
+                                            result.details.response_time_ms
+                                          )}
                                         </div>
                                         <div>
                                           <span className="font-medium">
