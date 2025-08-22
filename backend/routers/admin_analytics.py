@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/admin/analytics", tags=["Admin Analytics"])
 @router.get("/analytics")
 async def analytics(request: Request, db=Depends(get_db)):
     try:
-        await AuthenticationHelper.verify_admin_access_strict(request, db)
+        AuthenticationHelper.verify_admin_access_strict(request)
         return {
             "users": await db.fetchval("SELECT COUNT(*) FROM users"),
             "revenue": await db.fetchval("SELECT COALESCE(SUM(amount), 0)::float FROM payments WHERE status = 'completed'"),
@@ -32,7 +32,7 @@ async def analytics(request: Request, db=Depends(get_db)):
 
 @router.get("/revenue-insights")
 async def revenue_insights(request: Request, db=Depends(get_db)):
-    await AuthenticationHelper.verify_admin_access_strict(request, db)
+    AuthenticationHelper.verify_admin_access_strict(request)
     
     total_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status = 'completed'")
     monthly_revenue_data = await db.fetch("SELECT date_trunc('month', created_at) as month, SUM(amount) as total FROM payments WHERE status = 'completed' GROUP BY month ORDER BY month DESC LIMIT 12")
@@ -73,7 +73,7 @@ async def pricing_recommendations(request: Request, db=Depends(get_db)):
 
 @router.get("/ab-test-results")
 async def ab_test_results(request: Request, db=Depends(get_db)):
-    await AuthenticationHelper.verify_admin_access_strict(request, db)
+    AuthenticationHelper.verify_admin_access_strict(request)
     rows = await db.fetch("SELECT * FROM monetization_experiments ORDER BY created_at DESC")
     return [dict(row) for row in rows]
 
@@ -81,7 +81,7 @@ async def ab_test_results(request: Request, db=Depends(get_db)):
 @router.get("/overview")
 async def get_overview(request: Request, db=Depends(get_db)):
     """Get admin dashboard overview statistics"""
-    await AuthenticationHelper.verify_admin_access_strict(request, db)
+    AuthenticationHelper.verify_admin_access_strict(request)
     total_users = await db.fetchval("SELECT COUNT(*) FROM users")
     active_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days'")
     total_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='completed'")
@@ -130,7 +130,7 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     await AuthenticationHelper.verify_admin_access_strict(request, db)
     """Get session analytics for admin dashboard"""
     try:
-        # Get recent sessions.
+        # Get recent sessions
         recent_sessions = await db.fetch("""
             SELECT 
                 s.session_id,
@@ -186,7 +186,7 @@ async def get_sessions(request: Request, db=Depends(get_db)):
 # தமிழ் - AI நுண்ணறிவு பரிந்துரைகள்
 @router.get("/ai-insights")
 async def get_ai_insights(request: Request, db=Depends(get_db)):
-    await AuthenticationHelper.verify_admin_access_strict(request, db)
+    AuthenticationHelper.verify_admin_access_strict(request)
     """Get AI insights and recommendations for admin dashboard"""
     try:
         # Get real AI recommendations from database
@@ -308,7 +308,7 @@ async def get_ai_insights(request: Request, db=Depends(get_db)):
 # தமிழ் - AI விலை பரிந்துரைகள்
 @router.get("/ai-pricing-recommendations")
 async def get_ai_pricing_recommendations(request: Request, db=Depends(get_db)):
-    await AuthenticationHelper.verify_admin_access_strict(request, db)
+    admin_user = await AuthenticationHelper.verify_admin_access_strict(request, db)
     try:
         # Get AI pricing recommendations from the new table
         recommendations = await db.fetch("""
@@ -373,7 +373,7 @@ async def update_ai_pricing_recommendation(
     request: Request,
     db=Depends(get_db)
 ):
-    await AuthenticationHelper.verify_admin_access_strict(request, db)
+    AuthenticationHelper.verify_admin_access_strict(request)
     """Update AI pricing recommendation status (approve/reject)"""
     try:
         if action not in ['approve', 'reject']:
