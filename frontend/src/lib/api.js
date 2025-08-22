@@ -352,6 +352,16 @@ const spiritualAPI = {
     return this.get("/api/admin/ai-insights");
   },
 
+  // Admin: Get overview analytics (connected to /overview endpoint)
+  async getAdminOverview() {
+    return this.get("/api/admin/analytics/overview");
+  },
+
+  // Admin: Get detailed revenue insights (already connected above)
+  async getDetailedRevenueInsights() {
+    return this.get("/api/admin/analytics/revenue-insights");
+  },
+
   // AI Pricing Recommendations
   async getAIPricingRecommendations() {
     return this.get("/api/admin/ai-pricing-recommendations");
