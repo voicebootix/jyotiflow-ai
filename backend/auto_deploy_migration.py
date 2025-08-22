@@ -177,6 +177,7 @@ async def run_auto_deployment_migrations():
         
         # 3. Critical migrations to ensure
         critical_migrations = [
+            "025_create_rag_knowledge_base.sql", # <-- MUST RUN FIRST
             "add_prokerala_smart_pricing.sql",
             "enhance_service_types_rag.sql",
             "fix_missing_columns.sql",
