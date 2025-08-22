@@ -21,6 +21,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Global variable to store JWT token for admin endpoint testing
+ADMIN_JWT_TOKEN = None
+
 # Custom Exception Classes
 class DatabaseConnectionError(Exception):
     """Raised when database connection fails"""
@@ -3415,6 +3418,11 @@ async def test_user_management_api_endpoints():
 
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
         """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - Environment-configurable base URL with direct endpoint configuration"""
+        
+        # Global variable to store JWT token between test executions
+        global ADMIN_JWT_TOKEN
+        ADMIN_JWT_TOKEN = None
+        
         return {
             "test_suite_name": "Admin Services",
             "test_category": "admin_services_critical",
@@ -3453,19 +3461,26 @@ async def test_admin_authentication_endpoint():
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
-                else:
-                    response = await client.request(method, url)
-                
+                # Special handling for login endpoint to store JWT token
+                response = await client.post(url, json=test_data)
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
                 
+                # Store JWT token for subsequent admin endpoint tests
+                global ADMIN_JWT_TOKEN
+                if status_code == 200:
+                    try:
+                        response_data = response.json()
+                        ADMIN_JWT_TOKEN = response_data.get("access_token")
+                        user_role = response_data.get("user", {}).get("role", "unknown")
+                        print(f"🔑 JWT token stored for role: {user_role}")
+                    except Exception as e:
+                        print(f"⚠️ Could not parse login response: {e}")
+                        ADMIN_JWT_TOKEN = None
+                else:
+                    ADMIN_JWT_TOKEN = None
+                    
+                test_status = 'passed' if status_code in expected_codes else 'failed'
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
         except Exception as http_error:
@@ -3517,7 +3532,7 @@ async def test_admin_overview_endpoint():
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
-        # Execute HTTP request to actual endpoint
+        # Execute HTTP request to actual endpoint with JWT authentication
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
         try:
@@ -3525,18 +3540,21 @@ async def test_admin_overview_endpoint():
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
+                # Use stored JWT token for authentication
+                global ADMIN_JWT_TOKEN
+                headers = {}
+                if ADMIN_JWT_TOKEN:
+                    headers["Authorization"] = f"Bearer {ADMIN_JWT_TOKEN}"
+                    print(f"🔒 Using JWT token for authentication")
                 else:
-                    response = await client.request(method, url)
+                    print(f"⚠️ No JWT token available - request may fail")
                 
+                response = await client.get(url, params=test_data, headers=headers)
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
+                
+                # Admin endpoints should return 200 with proper auth
+                test_status = 'passed' if status_code == 200 else 'failed'
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
@@ -3588,7 +3606,7 @@ async def test_admin_revenue_insights_endpoint():
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
-        # Execute HTTP request to actual endpoint
+        # Execute HTTP request to actual endpoint with JWT authentication
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
         try:
@@ -3596,18 +3614,21 @@ async def test_admin_revenue_insights_endpoint():
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
+                # Use stored JWT token for authentication
+                global ADMIN_JWT_TOKEN
+                headers = {}
+                if ADMIN_JWT_TOKEN:
+                    headers["Authorization"] = f"Bearer {ADMIN_JWT_TOKEN}"
+                    print(f"🔒 Using JWT token for authentication")
                 else:
-                    response = await client.request(method, url)
+                    print(f"⚠️ No JWT token available - request may fail")
                 
+                response = await client.get(url, params=test_data, headers=headers)
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
+                
+                # Admin endpoints should return 200 with proper auth
+                test_status = 'passed' if status_code == 200 else 'failed'
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
@@ -3659,7 +3680,7 @@ async def test_admin_analytics_endpoint():
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200, 401, 403, 422]
         
-        # Execute HTTP request to actual endpoint
+        # Execute HTTP request to actual endpoint with JWT authentication
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
         try:
@@ -3667,18 +3688,21 @@ async def test_admin_analytics_endpoint():
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
+                # Use stored JWT token for authentication
+                global ADMIN_JWT_TOKEN
+                headers = {}
+                if ADMIN_JWT_TOKEN:
+                    headers["Authorization"] = f"Bearer {ADMIN_JWT_TOKEN}"
+                    print(f"🔒 Using JWT token for authentication")
                 else:
-                    response = await client.request(method, url)
+                    print(f"⚠️ No JWT token available - request may fail")
                 
+                response = await client.get(url, params=test_data, headers=headers)
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
+                
+                # Admin endpoints should return 200 with proper auth
+                test_status = 'passed' if status_code == 200 else 'failed'
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
