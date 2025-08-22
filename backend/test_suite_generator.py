@@ -21,9 +21,6 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Global variable to store JWT token for admin endpoint testing
-ADMIN_JWT_TOKEN = None
-
 # Custom Exception Classes
 class DatabaseConnectionError(Exception):
     """Raised when database connection fails"""
@@ -3419,10 +3416,6 @@ async def test_user_management_api_endpoints():
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
         """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - Environment-configurable base URL with direct endpoint configuration"""
         
-        # Global variable to store JWT token between test executions
-        global ADMIN_JWT_TOKEN
-        ADMIN_JWT_TOKEN = None
-        
         return {
             "test_suite_name": "Admin Services",
             "test_category": "admin_services_critical",
@@ -3440,6 +3433,35 @@ import json
 import os
 import time
 import uuid
+
+async def get_admin_jwt_token():
+    \"\"\"On-demand admin authentication helper - gets JWT token from environment credentials\"\"\"
+    admin_email = os.getenv('ADMIN_EMAIL', 'admin@jyotiflow.ai')
+    admin_password = os.getenv('ADMIN_PASSWORD', 'Jyoti@2024!')
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    
+    login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    credentials = {"email": admin_email, "password": admin_password}
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(login_url, json=credentials)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                access_token = response_data.get("access_token")
+                user_role = response_data.get("user", {}).get("role", "unknown")
+                
+                if access_token and user_role in ["admin", "super_admin"]:
+                    print(f"🔑 Admin token obtained for role: {user_role}")
+                    return access_token
+                else:
+                    raise Exception(f"Invalid admin credentials or insufficient role: {user_role}")
+            else:
+                raise Exception(f"Login failed with status {response.status_code}")
+                
+    except Exception as e:
+        raise Exception(f"Admin authentication failed: {str(e)}")
 
 async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
@@ -3461,26 +3483,12 @@ async def test_admin_authentication_endpoint():
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                # Special handling for login endpoint to store JWT token
+                # Test login endpoint directly without storing token globally
                 response = await client.post(url, json=test_data)
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
-                
-                # Store JWT token for subsequent admin endpoint tests
-                global ADMIN_JWT_TOKEN
-                if status_code == 200:
-                    try:
-                        response_data = response.json()
-                        ADMIN_JWT_TOKEN = response_data.get("access_token")
-                        user_role = response_data.get("user", {}).get("role", "unknown")
-                        print(f"🔑 JWT token stored for role: {user_role}")
-                    except Exception as e:
-                        print(f"⚠️ Could not parse login response: {e}")
-                        ADMIN_JWT_TOKEN = None
-                else:
-                    ADMIN_JWT_TOKEN = None
-                    
                 test_status = 'passed' if status_code in expected_codes else 'failed'
+                
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
         except Exception as http_error:
@@ -3530,24 +3538,25 @@ async def test_admin_overview_endpoint():
         business_function = "Admin Optimization"
         test_data = {"timeframe": "7d", "metrics": ["users", "sessions", "revenue"]}
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
         
-        # Execute HTTP request to actual endpoint with JWT authentication
+        # Execute HTTP request to actual endpoint with on-demand JWT authentication
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
         try:
+            # Get JWT token on-demand for this test
+            try:
+                admin_token = await get_admin_jwt_token()
+            except Exception as auth_error:
+                print(f"❌ Authentication failed: {auth_error}")
+                return {"status": "failed", "error": f"Authentication failed: {str(auth_error)}", "business_function": business_function}
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                # Use stored JWT token for authentication
-                global ADMIN_JWT_TOKEN
-                headers = {}
-                if ADMIN_JWT_TOKEN:
-                    headers["Authorization"] = f"Bearer {ADMIN_JWT_TOKEN}"
-                    print(f"🔒 Using JWT token for authentication")
-                else:
-                    print(f"⚠️ No JWT token available - request may fail")
+                # Use on-demand JWT token for authentication
+                headers = {"Authorization": f"Bearer {admin_token}"}
+                print(f"🔒 Using fresh JWT token for authentication")
                 
                 response = await client.get(url, params=test_data, headers=headers)
                 response_time_ms = int((time.time() - start_time) * 1000)
@@ -3594,6 +3603,35 @@ import os
 import time
 import uuid
 
+async def get_admin_jwt_token():
+    \"\"\"On-demand admin authentication helper - gets JWT token from environment credentials\"\"\"
+    admin_email = os.getenv('ADMIN_EMAIL', 'admin@jyotiflow.ai')
+    admin_password = os.getenv('ADMIN_PASSWORD', 'Jyoti@2024!')
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    
+    login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    credentials = {"email": admin_email, "password": admin_password}
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(login_url, json=credentials)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                access_token = response_data.get("access_token")
+                user_role = response_data.get("user", {}).get("role", "unknown")
+                
+                if access_token and user_role in ["admin", "super_admin"]:
+                    print(f"🔑 Admin token obtained for role: {user_role}")
+                    return access_token
+                else:
+                    raise Exception(f"Invalid admin credentials or insufficient role: {user_role}")
+            else:
+                raise Exception(f"Login failed with status {response.status_code}")
+                
+    except Exception as e:
+        raise Exception(f"Admin authentication failed: {str(e)}")
+
 async def test_admin_revenue_insights_endpoint():
     \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import httpx, time, os
@@ -3604,24 +3642,25 @@ async def test_admin_revenue_insights_endpoint():
         business_function = "Admin Monetization"
         test_data = {"period": "30d", "breakdown": ["daily", "source"]}
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
         
-        # Execute HTTP request to actual endpoint with JWT authentication
+        # Execute HTTP request to actual endpoint with on-demand JWT authentication
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
         try:
+            # Get JWT token on-demand for this test to make it order-independent
+            try:
+                admin_token = await get_admin_jwt_token()
+            except Exception as auth_error:
+                print(f"❌ Authentication failed: {auth_error}")
+                return {"status": "failed", "error": f"Authentication failed: {str(auth_error)}", "business_function": business_function}
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                # Use stored JWT token for authentication
-                global ADMIN_JWT_TOKEN
-                headers = {}
-                if ADMIN_JWT_TOKEN:
-                    headers["Authorization"] = f"Bearer {ADMIN_JWT_TOKEN}"
-                    print(f"🔒 Using JWT token for authentication")
-                else:
-                    print(f"⚠️ No JWT token available - request may fail")
+                # Use on-demand JWT token for authentication
+                headers = {"Authorization": f"Bearer {admin_token}"}
+                print(f"🔒 Using fresh JWT token for authentication")
                 
                 response = await client.get(url, params=test_data, headers=headers)
                 response_time_ms = int((time.time() - start_time) * 1000)
@@ -3668,6 +3707,35 @@ import os
 import time
 import uuid
 
+async def get_admin_jwt_token():
+    \"\"\"On-demand admin authentication helper - gets JWT token from environment credentials\"\"\"
+    admin_email = os.getenv('ADMIN_EMAIL', 'admin@jyotiflow.ai')
+    admin_password = os.getenv('ADMIN_PASSWORD', 'Jyoti@2024!')
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    
+    login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    credentials = {"email": admin_email, "password": admin_password}
+    
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(login_url, json=credentials)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                access_token = response_data.get("access_token")
+                user_role = response_data.get("user", {}).get("role", "unknown")
+                
+                if access_token and user_role in ["admin", "super_admin"]:
+                    print(f"🔑 Admin token obtained for role: {user_role}")
+                    return access_token
+                else:
+                    raise Exception(f"Invalid admin credentials or insufficient role: {user_role}")
+            else:
+                raise Exception(f"Login failed with status {response.status_code}")
+                
+    except Exception as e:
+        raise Exception(f"Admin authentication failed: {str(e)}")
+
 async def test_admin_analytics_endpoint():
     \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
     import httpx, time, os
@@ -3678,31 +3746,55 @@ async def test_admin_analytics_endpoint():
         business_function = "Admin Stats"
         test_data = {"view": "dashboard", "filters": ["active_users", "revenue"]}
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
         
-        # Execute HTTP request to actual endpoint with JWT authentication
+        # Execute HTTP request to actual endpoint with on-demand JWT authentication and retry logic
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
         try:
+            # Get JWT token on-demand for this test
+            try:
+                admin_token = await get_admin_jwt_token()
+            except Exception as auth_error:
+                print(f"❌ Initial authentication failed: {auth_error}")
+                return {"status": "failed", "error": f"Authentication failed: {str(auth_error)}", "business_function": business_function}
+            
             async with httpx.AsyncClient(timeout=30.0) as client:
                 start_time = time.time()
                 print(f"🌐 Making HTTP request to: {url}")
                 
-                # Use stored JWT token for authentication
-                global ADMIN_JWT_TOKEN
-                headers = {}
-                if ADMIN_JWT_TOKEN:
-                    headers["Authorization"] = f"Bearer {ADMIN_JWT_TOKEN}"
-                    print(f"🔒 Using JWT token for authentication")
-                else:
-                    print(f"⚠️ No JWT token available - request may fail")
+                # Use on-demand JWT token for authentication
+                headers = {"Authorization": f"Bearer {admin_token}"}
+                print(f"🔒 Using fresh JWT token for authentication")
                 
                 response = await client.get(url, params=test_data, headers=headers)
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 
+                # If 401, attempt token refresh and retry once
+                if status_code == 401:
+                    print(f"⚠️ Got 401, attempting token refresh and retry...")
+                    try:
+                        # Get fresh token and retry
+                        fresh_token = await get_admin_jwt_token()
+                        headers = {"Authorization": f"Bearer {fresh_token}"}
+                        
+                        retry_start = time.time()
+                        response = await client.get(url, params=test_data, headers=headers)
+                        retry_time_ms = int((time.time() - retry_start) * 1000)
+                        status_code = response.status_code
+                        response_time_ms += retry_time_ms  # Include retry time
+                        
+                        print(f"🔄 Retry response: {status_code} (+{retry_time_ms}ms)")
+                        
+                    except Exception as retry_error:
+                        print(f"❌ Token refresh failed: {retry_error}")
+                        return {"status": "failed", "error": f"Authentication retry failed: {str(retry_error)}", "business_function": business_function}
+                
                 # Admin endpoints should return 200 with proper auth
                 test_status = 'passed' if status_code == 200 else 'failed'
+                
+                if status_code != 200:
+                    print(f"❌ Final authentication failure after retry: {status_code}")
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
