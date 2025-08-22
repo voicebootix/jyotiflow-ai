@@ -338,6 +338,7 @@ async def get_ai_pricing_recommendations(request: Request, db=Depends(get_db)):
                 by_type[rec_type] = []
             by_type[rec_type].append(dict(rec))
         
+        
         return {
             "recommendations": [dict(rec) for rec in recommendations],
             "summary": {
