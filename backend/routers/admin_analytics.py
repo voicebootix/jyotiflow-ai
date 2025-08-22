@@ -30,6 +30,7 @@ async def analytics(request: Request, db=Depends(get_db)):
         logger.exception("Error in /analytics endpoint")
         raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
+
 @router.get("/revenue-insights")
 async def revenue_insights(request: Request, db=Depends(get_db)):
     await AuthenticationHelper.verify_admin_access_strict(request, db)
@@ -106,7 +107,7 @@ async def get_overview(request: Request, db=Depends(get_db)):
     ai_alerts = [
         {"type": "info", "message": "All systems operational"},
         {"type": "success", "message": "Revenue up 12% this month"}
-    ] # These can be fetched from an AI_alerts table
+    ]  # These can be fetched from an AI_alerts table.
     
     return {
         "success": True,
@@ -130,7 +131,7 @@ async def get_sessions(request: Request, db=Depends(get_db)):
     await AuthenticationHelper.verify_admin_access_strict(request, db)
     """Get session analytics for admin dashboard"""
     try:
-        # Get recent sessions.
+        # Get recent sessions
         recent_sessions = await db.fetch("""
             SELECT 
                 s.session_id,
