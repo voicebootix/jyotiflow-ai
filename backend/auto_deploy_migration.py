@@ -281,9 +281,13 @@ async def run_auto_deployment_migrations():
         # Seeding must run regardless of prior migration failures,
         # as the table might exist from a partial run.
         logger.info("Finalizing deployment: ensuring knowledge seeding is attempted.")
-        if conn and run_knowledge_seeding:
+        if conn:
             try:
-                await run_idempotent_knowledge_seeding(conn)
+                # We check for the function's existence here, right before using it.
+                if run_knowledge_seeding:
+                    await run_idempotent_knowledge_seeding(conn)
+                else:
+                    logger.error("❌ Knowledge seeding function not available, cannot seed.")
             except Exception as seed_error:
                 logger.error(f"❌ Knowledge seeding in finally block failed: {seed_error}")
 
