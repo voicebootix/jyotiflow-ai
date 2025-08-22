@@ -46,7 +46,7 @@ class AuthenticationHelper:
     @staticmethod
     async def get_user_info_strict(
         request: Request,
-        db: Annotated[asyncpg.Connection, Depends(get_db)],
+        db: Annotated[Any, Depends(get_db)],
     ) -> Dict[str, Any]:
         """
         Get full user information from JWT token - STRICT MODE
@@ -67,7 +67,7 @@ class AuthenticationHelper:
     @staticmethod
     async def get_user_info_optional(
         request: Request,
-        db: Annotated[asyncpg.Connection, Depends(get_db)],
+        db: Annotated[Any, Depends(get_db)],
     ) -> Optional[Dict[str, Any]]:
         """
         Get full user information from JWT token - OPTIONAL MODE
@@ -83,7 +83,7 @@ class AuthenticationHelper:
             return None
     
     @staticmethod
-    async def verify_admin_access_strict(request: Request, db: asyncpg.Connection) -> Dict[str, Any]:
+    async def verify_admin_access_strict(request: Request, db: Any) -> Dict[str, Any]:
         """
         Verify admin access - STRICT MODE
         Throws 401/403 if token is missing, invalid, or not admin.
