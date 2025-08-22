@@ -253,6 +253,18 @@ async def run_auto_deployment_migrations():
         # 5. Ensure Prokerala configuration exists
         await ensure_prokerala_config(conn)
         
+        # 6. CRITICAL: Seed the knowledge base from Python script
+        # This was the missing step causing the RAG table to be empty.
+        logger.info("🧠 Seeding RAG knowledge base from Python source...")
+        try:
+            from knowledge_seeding_system import run_knowledge_seeding
+            await run_knowledge_seeding()
+            logger.info("✅ RAG knowledge base seeding completed successfully from Python script.")
+        except Exception as e:
+            logger.error(f"❌ RAG knowledge base seeding from Python script failed: {e}")
+            # This is critical, so we should probably raise an error
+            raise RuntimeError(f"Failed to seed RAG knowledge base: {e}") from e
+
         logger.info("🎉 Auto-deployment migrations completed!")
         return True
         
