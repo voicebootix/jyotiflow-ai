@@ -5,6 +5,9 @@ from utils.analytics_utils import calculate_revenue_metrics, generate_ai_recomme
 import uuid
 import random
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Import centralized authentication helper
 from auth.auth_helpers import AuthenticationHelper
@@ -14,16 +17,17 @@ router = APIRouter(prefix="/api/admin/analytics", tags=["Admin Analytics"])
 @router.get("/analytics")
 async def analytics(request: Request, db=Depends(get_db)):
     try:
-        admin_user = AuthenticationHelper.verify_admin_access_strict(request)
+        await AuthenticationHelper.verify_admin_access_strict(request, db)
         return {
             "users": await db.fetchval("SELECT COUNT(*) FROM users"),
-            "revenue": await db.fetchval("SELECT SUM(amount) FROM payments"),
+            "revenue": await db.fetchval("SELECT SUM(amount) FROM payments WHERE status = 'completed'"),
             "sessions": await db.fetchval("SELECT COUNT(*) FROM sessions"),
         }
     except HTTPException as e:
         raise e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
+        logger.exception(f"Error in /analytics endpoint: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
 @router.get("/revenue-insights")
 async def revenue_insights(request: Request, db=Depends(get_db)):
@@ -62,7 +66,7 @@ async def revenue_insights(request: Request, db=Depends(get_db)):
 
 @router.get("/pricing-recommendations")
 async def pricing_recommendations(request: Request, db=Depends(get_db)):
-    admin_user = AuthenticationHelper.verify_admin_access_strict(request)
+    await AuthenticationHelper.verify_admin_access_strict(request, db)
     rows = await db.fetch("SELECT * FROM ai_recommendations WHERE recommendation_type='pricing' ORDER BY created_at DESC")
     return [dict(row) for row in rows]
 
@@ -175,20 +179,8 @@ async def get_sessions(request: Request, db=Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"Sessions endpoint error: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "data": {
-                "recent_sessions": [],
-                "statistics": {
-                    "total_sessions": 0,
-                    "active_sessions": 0,
-                    "completed_sessions": 0
-                },
-                "by_service_type": []
-            }
-        }
+        logger.exception(f"Sessions endpoint error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
 # தமிழ் - AI நுண்ணறிவு பரிந்துரைகள்
 @router.get("/ai-insights")
@@ -295,8 +287,8 @@ async def get_ai_insights(request: Request, db=Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"AI insights error: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
+        logger.exception(f"AI insights error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
 # தமிழ் - AI விலை பரிந்துரைகள்
 @router.get("/ai-pricing-recommendations")
@@ -326,9 +318,12 @@ async def get_ai_pricing_recommendations(request: Request, db=Depends(get_db)):
         """)
         
         # Calculate summary statistics
-        total_impact = sum(rec['expected_impact'] for rec in recommendations) if recommendations else 0
-        high_priority_count = len([rec for rec in recommendations if rec['priority_level'] == 'high'])
-        avg_confidence = sum(rec['confidence_level'] for rec in recommendations) / max(len(recommendations), 1) if recommendations else 0.0
+        total_impact = sum(rec.get('expected_impact', 0) for rec in recommendations)
+        high_priority_count = len([rec for rec in recommendations if rec.get('priority_level') == 'high'])
+        
+        # Filter for non-None confidence levels to avoid ZeroDivisionError
+        valid_confidence_levels = [rec.get('confidence_level', 0.0) for rec in recommendations if rec.get('confidence_level') is not None]
+        avg_confidence = sum(valid_confidence_levels) / max(len(valid_confidence_levels), 1) if valid_confidence_levels else 0.0
         
         # Group by recommendation type
         by_type = {}
@@ -352,8 +347,8 @@ async def get_ai_pricing_recommendations(request: Request, db=Depends(get_db)):
         }
         
     except Exception as e:
-        print(f"AI pricing recommendations error: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {e}")
+        logger.exception(f"AI pricing recommendations error: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
 # தமிழ் - AI விலை பரிந்துரைகள் நிலை மாற்றம்
 @router.post("/ai-pricing-recommendations/{recommendation_id}/{action}")
@@ -416,8 +411,5 @@ async def update_ai_pricing_recommendation(
         }
         
     except Exception as e:
-        print(f"Failed to update recommendation: {e}")
-        return {
-            "error": "Failed to update recommendation status",
-            "details": str(e)
-        } 
+        logger.exception(f"Failed to update recommendation: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error") from e 
