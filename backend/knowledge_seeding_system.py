@@ -41,7 +41,7 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
         Properly formatted embedding for the target storage type
     """
     if vector_support:
-        # For pgvector, we need list format for spiritual knowledge vectors
+        # For pgvector/FLOAT[], we need list format for spiritual knowledge vectors
         if isinstance(embedding, str):
             try:
                 # If it's a JSON string, parse it to get the list
@@ -54,13 +54,17 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
                 # If it's not valid JSON, create a default vector for spiritual content
                 logger.warning("🕉️ Invalid spiritual knowledge embedding JSON, using default vector")
                 return [0.0] * 1536
-        else:
-            # If it's already a list, validate it for spiritual content
-            if isinstance(embedding, list) and len(embedding) > 0:
+        elif isinstance(embedding, list):
+            # If it's already a list (like from OpenAI), validate and use it directly
+            if len(embedding) > 0 and all(isinstance(x, (int, float)) for x in embedding):
                 return embedding
             else:
-                logger.warning("🕉️ Empty or invalid spiritual knowledge embedding, using default")
+                logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
                 return [0.0] * 1536
+        else:
+            # For other types, create default vector
+            logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
+            return [0.0] * 1536
     else:
         # For non-pgvector, use JSON string format
         if isinstance(embedding, str):
@@ -579,7 +583,8 @@ class KnowledgeSeeder:
                         WHERE table_name = 'rag_knowledge_base' 
                         AND column_name = 'embedding_vector'
                     """)
-                    vector_support = column_type == 'USER-DEFINED'  # VECTOR type shows as USER-DEFINED
+                    # Support both pgvector (USER-DEFINED) and FLOAT[] (ARRAY) types
+                    vector_support = column_type in ('USER-DEFINED', 'ARRAY')
             
             # Convert embedding to appropriate format
             embedding_data = format_embedding_for_storage(embedding, vector_support)
@@ -679,7 +684,7 @@ class KnowledgeSeeder:
                             knowledge_data["authority_level"]
                         )
             else:
-                raise RuntimeError(
+                    raise RuntimeError(
                     "Database pool is not available in KnowledgeSeeder. "
                     "This should be provided during initialization."
                 )
@@ -709,12 +714,12 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             try:
                 from . import db
             except ImportError:
-                import db
-            
-            db_pool = db.get_db_pool()
-            if db_pool is None:
-                raise Exception("Shared database pool not available - ensure main.py has initialized it")
-
+        import db
+        
+        db_pool = db.get_db_pool()
+        if db_pool is None:
+            raise Exception("Shared database pool not available - ensure main.py has initialized it")
+        
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")
         if not openai_api_key:
