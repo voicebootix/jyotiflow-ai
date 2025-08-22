@@ -253,6 +253,9 @@ async def run_auto_deployment_migrations():
         # 5. Ensure Prokerala configuration exists
         await ensure_prokerala_config(conn)
         
+        # 6. CRITICAL & IDEMPOTENT: Seed the knowledge base from Python script
+        await run_idempotent_knowledge_seeding(conn)
+
         logger.info("🎉 Auto-deployment migrations completed!")
         return True
         
@@ -262,6 +265,67 @@ async def run_auto_deployment_migrations():
     finally:
         if conn:
             await conn.close()
+
+async def run_idempotent_knowledge_seeding(conn):
+    """
+    Run knowledge seeding if it hasn't been done before.
+    This is idempotent and uses its own robust database pool.
+    """
+    seeding_marker = "rag_knowledge_seeded_python_v2"
+    
+    already_seeded = await conn.fetchval("""
+        SELECT EXISTS (
+            SELECT 1 FROM schema_migrations WHERE migration_name = $1
+        )
+    """, seeding_marker)
+    
+    if already_seeded:
+        logger.info(f"⏭️ RAG knowledge base seeding is already done (marker found: {seeding_marker}). Skipping.")
+        return
+
+    logger.info("🧠 Seeding RAG knowledge base from Python source...")
+    pool = None
+    original_get_db_pool = None
+    
+    try:
+        # Use a package-relative import for robustness
+        try:
+            from . import knowledge_seeding_system as seeder_module
+        except ImportError:
+            import knowledge_seeding_system as seeder_module
+
+        # Temporarily provide a dedicated pool for the seeder
+        DATABASE_URL = os.getenv("DATABASE_URL")
+        pool = await asyncpg.create_pool(DATABASE_URL)
+        
+        # Monkey-patch the db module's get_db_pool function
+        # This is a safe way to inject the dependency without altering the seeder's code
+        if hasattr(seeder_module, 'db'):
+            original_get_db_pool = seeder_module.db.get_db_pool
+            seeder_module.db.get_db_pool = lambda: pool
+            logger.info("Monkey-patched db.get_db_pool for seeding operation.")
+        
+        await seeder_module.run_knowledge_seeding()
+        
+        # Mark as completed in the migrations table
+        await conn.execute("""
+            INSERT INTO schema_migrations (migration_name) VALUES ($1)
+            ON CONFLICT (migration_name) DO NOTHING
+        """, seeding_marker)
+        
+        logger.info(f"✅ RAG knowledge base seeding completed. Marker '{seeding_marker}' set.")
+
+    except Exception as e:
+        logger.error(f"❌ RAG knowledge base seeding from Python script failed: {e}")
+        raise RuntimeError(f"Failed to seed RAG knowledge base: {e}") from e
+    finally:
+        # Restore original function and close the dedicated pool
+        if original_get_db_pool and hasattr(seeder_module, 'db'):
+            seeder_module.db.get_db_pool = original_get_db_pool
+            logger.info("Restored original db.get_db_pool.")
+        if pool:
+            await pool.close()
+            logger.info("Dedicated seeding database pool closed.")
 
 async def ensure_basic_service_types(conn):
     """Ensure basic service types exist"""
