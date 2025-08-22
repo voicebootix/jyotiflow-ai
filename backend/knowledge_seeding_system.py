@@ -680,7 +680,10 @@ class KnowledgeSeeder:
                         )
             else:
                 # Use shared pool instead of direct connection
-                import db
+                try:
+                    from . import db
+                except ImportError:
+                    import db
                 pool = db.get_db_pool()
                 if not pool:
                     raise RuntimeError(
@@ -807,7 +810,10 @@ async def run_knowledge_seeding():
     """Run the complete knowledge seeding process"""
     try:
         # Import database configuration from existing JyotiFlow setup
-        import db
+        try:
+            from . import db
+        except ImportError:
+            import db
         
         # Get database pool from shared setup - no competing pool creation
         db_pool = db.get_db_pool()

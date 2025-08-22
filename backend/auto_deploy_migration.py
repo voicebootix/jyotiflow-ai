@@ -12,6 +12,17 @@ import asyncpg
 import logging
 from pathlib import Path
 
+# Try robust import for knowledge seeding
+try:
+    from .knowledge_seeding_system import run_knowledge_seeding
+except ImportError:
+    try:
+        from knowledge_seeding_system import run_knowledge_seeding
+    except ImportError:
+        run_knowledge_seeding = None
+        logging.warning("⚠️ Could not import run_knowledge_seeding. Seeding will be skipped.")
+
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -255,7 +266,10 @@ async def run_auto_deployment_migrations():
         await ensure_prokerala_config(conn)
         
         # 6. CRITICAL & IDEMPOTENT: Seed the knowledge base from Python script
-        await run_idempotent_knowledge_seeding(conn)
+        if run_knowledge_seeding:
+            await run_idempotent_knowledge_seeding(conn)
+        else:
+            logger.error("❌ Cannot run knowledge seeding because the function was not imported.")
 
         logger.info("🎉 Auto-deployment migrations completed!")
         return True
@@ -294,6 +308,11 @@ async def run_idempotent_knowledge_seeding(conn):
             from . import knowledge_seeding_system as seeder_module
         except ImportError:
             import knowledge_seeding_system as seeder_module
+
+        # Ensure the function is available before proceeding
+        if not hasattr(seeder_module, 'run_knowledge_seeding'):
+            logger.error("❌ Seeder module is imported, but run_knowledge_seeding function is missing.")
+            return
 
         # Temporarily provide a dedicated pool for the seeder
         DATABASE_URL = os.getenv("DATABASE_URL")
