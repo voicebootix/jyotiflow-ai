@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from typing import Dict, Any
+from typing import Dict, Any, Annotated
 from auth.jwt_config import JWTHandler
 from auth.auth_helpers import AuthenticationHelper
 from db import get_db
@@ -51,13 +51,19 @@ async def get_current_user_legacy(credentials: HTTPAuthorizationCredentials = De
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-async def get_current_admin(request: Request, db=Depends(get_db)) -> Dict[str, Any]:
+async def get_current_admin(
+    request: Request, 
+    db: Annotated[Any, Depends(get_db)]
+) -> Dict[str, Any]:
     """
     Dependency to get current authenticated admin using centralized JWT handler
 """
     return await AuthenticationHelper.verify_admin_access_strict(request, db)
 
-async def get_current_admin_dependency(request: Request, db=Depends(get_db)) -> Dict[str, Any]:
+async def get_current_admin_dependency(
+    request: Request, 
+    db: Annotated[Any, Depends(get_db)]
+) -> Dict[str, Any]:
     """
     FastAPI dependency to get current authenticated admin
     """

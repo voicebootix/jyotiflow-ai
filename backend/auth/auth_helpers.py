@@ -6,7 +6,7 @@ Eliminates authentication inconsistencies without duplicating logic.
 
 from fastapi import Request, HTTPException, Depends
 from auth.jwt_config import JWTHandler
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Annotated
 import logging
 from db import get_db
 import asyncpg
@@ -44,20 +44,31 @@ class AuthenticationHelper:
             return None
     
     @staticmethod
-    async def get_user_info_strict(request: Request, db: asyncpg.Connection = Depends(get_db)) -> Dict[str, Any]:
+    async def get_user_info_strict(
+        request: Request,
+        db: Annotated[asyncpg.Connection, Depends(get_db)],
+    ) -> Dict[str, Any]:
         """
         Get full user information from JWT token - STRICT MODE
         Throws 401 if token is missing or invalid.
         Use for endpoints that require authentication.
         """
-        user_id_str = JWTHandler.get_user_id_from_token(request)
-        user_info = await db.fetchrow("SELECT id, email, name, role, credits, base_credits, phone, birth_date, birth_time, birth_location, spiritual_level, preferred_language, avatar_sessions_count, total_avatar_minutes, created_at, updated_at, last_login_at FROM users WHERE id = $1", int(user_id_str))
+        user_id_int = AuthenticationHelper.convert_user_id_to_int(JWTHandler.get_user_id_from_token(request))
+        if user_id_int is None:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+        user_info = await db.fetchrow(
+            "SELECT id, email, name, role, credits, base_credits, phone, birth_date, birth_time, birth_location, spiritual_level, preferred_language, avatar_sessions_count, total_avatar_minutes, created_at, updated_at, last_login_at FROM users WHERE id = $1",
+            user_id_int,
+        )
         if user_info is None:
             raise HTTPException(status_code=404, detail="User not found")
         return dict(user_info)
     
     @staticmethod
-    async def get_user_info_optional(request: Request, db: asyncpg.Connection = Depends(get_db)) -> Optional[Dict[str, Any]]:
+    async def get_user_info_optional(
+        request: Request,
+        db: Annotated[asyncpg.Connection, Depends(get_db)],
+    ) -> Optional[Dict[str, Any]]:
         """
         Get full user information from JWT token - OPTIONAL MODE
         Returns None if token is missing or invalid.
