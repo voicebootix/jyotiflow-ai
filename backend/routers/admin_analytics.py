@@ -6,6 +6,7 @@ import uuid
 import random
 from datetime import datetime
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,7 @@ async def pricing_recommendations(request: Request, db=Depends(get_db)):
 
 @router.get("/ab-test-results")
 async def ab_test_results(request: Request, db=Depends(get_db)):
-    admin_user = await AuthenticationHelper.verify_admin_access_strict(request, db)
+    AuthenticationHelper.verify_admin_access_strict(request)
     rows = await db.fetch("SELECT * FROM monetization_experiments ORDER BY created_at DESC")
     return [dict(row) for row in rows]
 
@@ -232,7 +233,21 @@ async def get_ai_insights(request: Request, db=Depends(get_db)):
             AND is_active = true
         """)
         
-        market_analysis = market_analysis_data['data'].get('insights', []) if market_analysis_data else []
+        market_analysis = []
+        if market_analysis_data:
+            raw_data = market_analysis_data['data']
+            if isinstance(raw_data, str):
+                try:
+                    parsed_data = json.loads(raw_data)
+                except json.JSONDecodeError:
+                    parsed_data = {}
+            elif raw_data is None:
+                parsed_data = {}
+            else:
+                parsed_data = raw_data
+
+            if isinstance(parsed_data, dict):
+                market_analysis = parsed_data.get('insights', [])
         
         # Get daily analysis summary
         daily_analysis_summary_data = await db.fetchrow("""
