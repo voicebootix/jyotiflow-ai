@@ -7,6 +7,16 @@ DROP TABLE IF EXISTS endpoint_suggestions CASCADE;
 DROP TABLE IF EXISTS cache_analytics CASCADE;
 DROP TABLE IF EXISTS prokerala_cost_config CASCADE;
 
+-- Create the prokerala_cost_config table if it doesn't exist to prevent errors
+CREATE TABLE IF NOT EXISTS prokerala_cost_config (
+    id SERIAL PRIMARY KEY,
+    max_cost_per_call DECIMAL(10, 2) DEFAULT 0.04,
+    margin_percentage DECIMAL(10, 2) DEFAULT 500.00,
+    cache_discount_enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Add Prokerala configuration to service_types
 ALTER TABLE service_types 
 ADD COLUMN IF NOT EXISTS prokerala_endpoints TEXT[] DEFAULT '{}',
