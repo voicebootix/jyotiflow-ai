@@ -81,7 +81,7 @@ async def ab_test_results(request: Request, db=Depends(get_db)):
 @router.get("/overview")
 async def get_overview(request: Request, db=Depends(get_db)):
     """Get admin dashboard overview statistics"""
-    admin_user = await AuthenticationHelper.verify_admin_access_strict(request, db)
+    AuthenticationHelper.verify_admin_access_strict(request)
     total_users = await db.fetchval("SELECT COUNT(*) FROM users")
     active_users = await db.fetchval("SELECT COUNT(*) FROM users WHERE last_login_at >= NOW() - INTERVAL '7 days'")
     total_revenue = await db.fetchval("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE status='completed'")
