@@ -30,6 +30,7 @@ async def analytics(request: Request, db=Depends(get_db)):
         logger.exception("Error in /analytics endpoint")
         raise HTTPException(status_code=500, detail="Internal Server Error") from e
 
+
 @router.get("/revenue-insights")
 async def revenue_insights(request: Request, db=Depends(get_db)):
     await AuthenticationHelper.verify_admin_access_strict(request, db)
