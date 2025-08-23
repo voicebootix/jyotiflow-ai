@@ -3688,6 +3688,8 @@ async def test_admin_services_database_driven():
             "test_cases": [
                 {
                     "test_name": "Admin Services API Endpoints Health Check (Database Driven)",
+                    "test_type": "integration",
+                    "test_category": "admin_services_critical",
                     "test_code": database_driven_test_code,
                     "expected_result": "All configured admin service API endpoints are operational and return expected status codes.",
                     "timeout_seconds": 60 # Increased timeout for multiple API calls
