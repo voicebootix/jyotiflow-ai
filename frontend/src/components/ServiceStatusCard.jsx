@@ -622,7 +622,8 @@ const ServiceStatusCard = ({
 
                                     {/* Show error details for failed tests */}
                                     {result.status === "failed" &&
-                                      result.error && (
+                                      (result.error ||
+                                        result.details?.error_message) && (
                                         <Alert
                                           variant="destructive"
                                           className="mt-2"
@@ -630,7 +631,8 @@ const ServiceStatusCard = ({
                                           <AlertTriangle className="h-4 w-4" />
                                           <AlertDescription>
                                             <strong>Failure Reason:</strong>{" "}
-                                            {result.error}
+                                            {result.error ||
+                                              result.details?.error_message}
                                           </AlertDescription>
                                         </Alert>
                                       )}
