@@ -621,21 +621,20 @@ const ServiceStatusCard = ({
                                     </div>
 
                                     {/* Show error details for failed tests */}
-                                    {result.status === "failed" &&
-                                      (result.error ||
-                                        result.details?.error_message) && (
-                                        <Alert
-                                          variant="destructive"
-                                          className="mt-2"
-                                        >
-                                          <AlertTriangle className="h-4 w-4" />
-                                          <AlertDescription>
-                                            <strong>Failure Reason:</strong>{" "}
-                                            {result.error ||
-                                              result.details?.error_message}
-                                          </AlertDescription>
-                                        </Alert>
-                                      )}
+                                    {result.status === "failed" && (
+                                      <Alert
+                                        variant="destructive"
+                                        className="mt-2"
+                                      >
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <AlertDescription>
+                                          <strong>Failure Reason:</strong>{" "}
+                                          {result.error ||
+                                            result.details?.error_message ||
+                                            `Request failed with status code ${result.details?.status_code}`}
+                                        </AlertDescription>
+                                      </Alert>
+                                    )}
                                   </div>
                                 )}
                               </div>
