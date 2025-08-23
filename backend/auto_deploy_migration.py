@@ -12,15 +12,15 @@ import asyncpg
 import logging
 from pathlib import Path
 
+# Add backend directory to Python path for robust imports
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
 # Try robust import for knowledge seeding
 try:
-    from .knowledge_seeding_system import run_knowledge_seeding
-except ImportError:
-    try:
-        from knowledge_seeding_system import run_knowledge_seeding
-    except ImportError:
-        run_knowledge_seeding = None
-        logging.warning("⚠️ Could not import run_knowledge_seeding. Seeding will be skipped.")
+    from knowledge_seeding_system import run_knowledge_seeding
+except ImportError as e:
+    logging.warning(f"⚠️ Could not import run_knowledge_seeding: {e}. Seeding will be skipped.")
+    run_knowledge_seeding = None
 
 
 logging.basicConfig(level=logging.INFO)
