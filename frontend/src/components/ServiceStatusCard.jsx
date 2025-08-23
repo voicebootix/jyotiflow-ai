@@ -629,9 +629,20 @@ const ServiceStatusCard = ({
                                         <AlertTriangle className="h-4 w-4" />
                                         <AlertDescription>
                                           <strong>Failure Reason:</strong>{" "}
-                                          {result.error ||
+                                          {result.error_message ||
+                                            result.error ||
                                             result.details?.error_message ||
-                                            `Request failed with status code ${result.details?.status_code}`}
+                                            `Request failed with status code ${
+                                              result.details?.status_code ||
+                                              result.details
+                                                ?.http_status_code ||
+                                              "unknown"
+                                            }`}
+                                          {result.details?.source && (
+                                            <div className="text-xs text-gray-500 mt-1">
+                                              Source: {result.details.source}
+                                            </div>
+                                          )}
                                         </AlertDescription>
                                       </Alert>
                                     )}
