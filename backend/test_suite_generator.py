@@ -3440,7 +3440,7 @@ def create_test_admin_headers(token: str = None):
     return headers
 
 async def test_admin_services_database_driven():
-    """Test admin services endpoints - fully database-driven configuration"""
+    '''Test admin services endpoints - fully database-driven configuration'''
     db_url = os.getenv("DATABASE_URL")
     api_base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
 
@@ -3470,74 +3470,97 @@ async def test_admin_services_database_driven():
         endpoint_results = {}
         
         # Admin login credentials for testing authenticated endpoints
-        admin_email = os.getenv("ADMIN_TEST_EMAIL", "admin@jyotiflow.ai")
-        admin_password = os.getenv("ADMIN_TEST_PASSWORD", "Jyoti@2024!")
+        admin_email = os.getenv("ADMIN_TEST_EMAIL")
+        admin_password = os.getenv("ADMIN_TEST_PASSWORD")
         admin_auth_token = None
 
         # --- Test Admin Authentication first ---
         admin_login_endpoint = next((ep for ep in endpoints_to_test if ep["path"] == "/api/auth/login" and ep["method"] == "POST"), None)
         if admin_login_endpoint:
-            logger.info("Attempting to log in as admin for subsequent tests...")
-            login_test_data = {
-                "email": admin_email,
-                "password": admin_password
-            }
-            try:
-                async with httpx.AsyncClient(base_url=api_base_url) as client:
-                    login_response = await client.post(
-                        admin_login_endpoint["path"], 
-                        json=login_test_data, 
-                        headers=create_test_admin_headers(),
-                        timeout=admin_login_endpoint.get("timeout_seconds", 30)
-                    )
-                    login_response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
-                    
-                    login_result = login_response.json()
-                    admin_auth_token = login_result.get("access_token")
-                    
-                    if admin_auth_token:
-                        logger.info("✅ Admin login successful.")
-                        endpoint_results["Admin Authentication"] = {
-                            "status": "passed",
-                            "message": "Admin login successful",
-                            "http_status_code": login_response.status_code,
-                            "response_data": login_result,
-                            "path": admin_login_endpoint["path"],
-                            "method": admin_login_endpoint["method"],
-                            "business_function": admin_login_endpoint["business_function"]
-                        }
-                        accessible_endpoints += 1
-                    else:
-                        logger.error("❌ Admin login failed: No access token received.")
-                        endpoint_results["Admin Authentication"] = {
-                            "status": "failed",
-                            "error_message": "Admin login failed: No access token received.",
-                            "http_status_code": login_response.status_code,
-                            "response_data": login_result,
-                            "path": admin_login_endpoint["path"],
-                            "method": admin_login_endpoint["method"],
-                            "business_function": admin_login_endpoint["business_function"]
-                        }
-            except httpx.HTTPStatusError as e:
-                logger.error(f"❌ Admin login HTTP error: {e.response.status_code} - {e.response.text}")
+            if not admin_email or not admin_password:
+                logger.warning("❌ ADMIN_TEST_EMAIL or ADMIN_TEST_PASSWORD environment variables not set. Skipping admin login test.")
                 endpoint_results["Admin Authentication"] = {
-                    "status": "failed",
-                    "error_message": f"HTTP error during admin login: {e.response.status_code} - {e.response.text}",
-                    "http_status_code": e.response.status_code,
-                    "response_data": e.response.json() if e.response.text else {},
-                    "path": admin_login_endpoint["path"],
-                    "method": admin_login_endpoint["method"],
-                    "business_function": admin_login_endpoint["business_function"]
+                    "status": "skipped",
+                    "message": "Admin login skipped: ADMIN_TEST_EMAIL or ADMIN_TEST_PASSWORD not set",
+                    "path": "/api/auth/login",
+                    "method": "POST",
+                    "business_function": "Admin Authentication"
                 }
-            except Exception as e:
-                logger.error(f"❌ Admin login exception: {e}")
-                endpoint_results["Admin Authentication"] = {
-                    "status": "failed",
-                    "error_message": f"Exception during admin login: {str(e)}",
-                    "path": admin_login_endpoint["path"],
-                    "method": admin_login_endpoint["method"],
-                    "business_function": admin_login_endpoint["business_function"]
+            else:
+                logger.info("Attempting to log in as admin for subsequent tests...")
+                login_test_data = {
+                    "email": admin_email,
+                    "password": admin_password
                 }
+                try:
+                    async with httpx.AsyncClient(base_url=api_base_url) as client:
+                        login_response = await client.post(
+                            admin_login_endpoint["path"], 
+                            json=login_test_data, 
+                            headers=create_test_admin_headers(),
+                            timeout=admin_login_endpoint.get("timeout_seconds", 30)
+                        )
+                        login_response.raise_for_status() # Raise an exception for HTTP errors (4xx or 5xx)
+                        
+                        login_result = login_response.json()
+                        admin_auth_token = login_result.get("access_token")
+                        
+                        if admin_auth_token:
+                            logger.info("✅ Admin login successful.")
+                            
+                            # Sanitize login_result for storage
+                            sanitized_login_result = login_result.copy()
+                            for key in ["access_token", "refresh_token", "id_token"]: # Add other sensitive keys if present
+                                if key in sanitized_login_result:
+                                    sanitized_login_result[key] = "<REDACTED>"
+
+                            endpoint_results["Admin Authentication"] = {
+                                "status": "passed",
+                                "message": "Admin login successful",
+                                "http_status_code": login_response.status_code,
+                                "response_data": sanitized_login_result,
+                                "path": admin_login_endpoint["path"],
+                                "method": admin_login_endpoint["method"],
+                                "business_function": admin_login_endpoint["business_function"]
+                            }
+                            accessible_endpoints += 1
+                        else:
+                            logger.error("❌ Admin login failed: No access token received.")
+                            endpoint_results["Admin Authentication"] = {
+                                "status": "failed",
+                                "error_message": "Admin login failed: No access token received.",
+                                "http_status_code": login_response.status_code,
+                                "response_data": login_result,
+                                "path": admin_login_endpoint["path"],
+                                "method": admin_login_endpoint["method"],
+                                "business_function": admin_login_endpoint["business_function"]
+                            }
+                except httpx.HTTPStatusError as e:
+                    logger.error(f"❌ Admin login HTTP error: {e.response.status_code} - {e.response.text}")
+                    response_data_error = {}
+                    try:
+                        response_data_error = e.response.json()
+                    except (json.JSONDecodeError, ValueError):
+                        response_data_error = {"raw_response": e.response.text}
+
+                    endpoint_results["Admin Authentication"] = {
+                        "status": "failed",
+                        "error_message": f"HTTP error during admin login: {e.response.status_code} - {e.response.text}",
+                        "http_status_code": e.response.status_code,
+                        "response_data": response_data_error,
+                        "path": admin_login_endpoint["path"],
+                        "method": admin_login_endpoint["method"],
+                        "business_function": admin_login_endpoint["business_function"]
+                    }
+                except Exception as e:
+                    logger.error(f"❌ Admin login exception: {e}")
+                    endpoint_results["Admin Authentication"] = {
+                        "status": "failed",
+                        "error_message": f"Exception during admin login: {str(e)}",
+                        "path": admin_login_endpoint["path"],
+                        "method": admin_login_endpoint["method"],
+                        "business_function": admin_login_endpoint["business_function"]
+                    }
         else:
             logger.warning("Admin login endpoint /api/auth/login not found in config, skipping login test.")
             endpoint_results["Admin Authentication"] = {
@@ -3549,69 +3572,84 @@ async def test_admin_services_database_driven():
             }
 
         # --- Test other Admin Endpoints ---
-        async with httpx.AsyncClient(base_url=api_base_url, headers=create_test_admin_headers(admin_auth_token)) as client:
+        # Only proceed with other admin tests if admin_auth_token was successfully obtained
+        if admin_auth_token:
+            async with httpx.AsyncClient(base_url=api_base_url, headers=create_test_admin_headers(admin_auth_token)) as client:
+                for endpoint in endpoints_to_test:
+                    # Skip login endpoint as it's handled above
+                    if endpoint["path"] == "/api/auth/login":
+                        continue
+
+                    business_function = endpoint.get("business_function", f"Admin {endpoint['path'].split('/')[-1].replace('-', ' ').title()}")
+                    test_status = "failed"
+                    error_message = ""
+                    http_status_code = None
+                    response_data = {}
+
+                    try:
+                        # Construct request based on method
+                        if endpoint["method"] == "GET":
+                            response = await client.get(
+                                endpoint["path"],
+                                params=endpoint.get("test_data", {}),
+                                timeout=endpoint.get("timeout_seconds", 30)
+                            )
+                        elif endpoint["method"] == "POST":
+                            response = await client.post(
+                                endpoint["path"],
+                                json=endpoint.get("test_data", {}),
+                                timeout=endpoint.get("timeout_seconds", 30)
+                            )
+                        else:
+                            error_message = f"Unsupported method: {endpoint['method']}"
+                            test_status = "skipped"
+                            response = None # No response if method is unsupported
+
+                        if response:
+                            http_status_code = response.status_code
+                            if response.status_code in endpoint.get("expected_codes", [200]):
+                                test_status = "passed"
+                                accessible_endpoints += 1
+                            else:
+                                error_message = f"Expected {endpoint.get('expected_codes', [200])}, got {response.status_code}"
+                                test_status = "failed"
+
+                            try:
+                                response_data = response.json()
+                            except (json.JSONDecodeError, ValueError):
+                                response_data = {"raw_response": response.text}
+
+                    except httpx.HTTPStatusError as e:
+                        http_status_code = e.response.status_code
+                        error_message = f"HTTP error: {http_status_code} - {e.response.text}"
+                        try:
+                            response_data = e.response.json()
+                        except (json.JSONDecodeError, ValueError):
+                            response_data = {"raw_response": e.response.text}
+                    except httpx.TimeoutException:
+                        error_message = "Request timed out"
+                        http_status_code = 408 # Request Timeout
+                    except Exception as e:
+                        error_message = f"An unexpected error occurred: {str(e)}"
+                        
+                    endpoint_results[business_function] = {
+                        "status": test_status,
+                        "error_message": error_message,
+                        "http_status_code": http_status_code,
+                        "response_data": response_data,
+                        "path": endpoint["path"],
+                        "method": endpoint["method"],
+                        "business_function": business_function
+                    }
+        else: # If admin_auth_token was not obtained, skip other admin endpoints
+            logger.warning("Skipping other admin endpoints due to failed or skipped admin login.")
             for endpoint in endpoints_to_test:
-                # Skip login endpoint as it's handled above
                 if endpoint["path"] == "/api/auth/login":
                     continue
-
                 business_function = endpoint.get("business_function", f"Admin {endpoint['path'].split('/')[-1].replace('-', ' ').title()}")
-                test_status = "failed"
-                error_message = ""
-                http_status_code = None
-                response_data = {}
-
-                try:
-                    # Construct request based on method
-                    if endpoint["method"] == "GET":
-                        response = await client.get(
-                            endpoint["path"],
-                            params=endpoint.get("test_data", {}),
-                            timeout=endpoint.get("timeout_seconds", 30)
-                        )
-                    elif endpoint["method"] == "POST":
-                        response = await client.post(
-                            endpoint["path"],
-                            json=endpoint.get("test_data", {}),
-                            timeout=endpoint.get("timeout_seconds", 30)
-                        )
-                    else:
-                        error_message = f"Unsupported method: {endpoint['method']}"
-                        test_status = "skipped"
-                        response = None # No response if method is unsupported
-
-                    if response:
-                        http_status_code = response.status_code
-                        if response.status_code in endpoint.get("expected_codes", [200]):
-                            test_status = "passed"
-                            accessible_endpoints += 1
-                        else:
-                            error_message = f"Expected {endpoint.get('expected_codes', [200])}, got {response.status_code}"
-                            test_status = "failed"
-
-                        try:
-                            response_data = response.json()
-                        except json.JSONDecodeError:
-                            response_data = {"raw_response": response.text}
-
-                except httpx.HTTPStatusError as e:
-                    http_status_code = e.response.status_code
-                    error_message = f"HTTP error: {http_status_code} - {e.response.text}"
-                    try:
-                        response_data = e.response.json()
-                    except json.JSONDecodeError:
-                        response_data = {"raw_response": e.response.text}
-                except httpx.TimeoutException:
-                    error_message = "Request timed out"
-                    http_status_code = 408 # Request Timeout
-                except Exception as e:
-                    error_message = f"An unexpected error occurred: {str(e)}"
-                    
                 endpoint_results[business_function] = {
-                    "status": test_status,
-                    "error_message": error_message,
-                    "http_status_code": http_status_code,
-                    "response_data": response_data,
+                    "status": "skipped",
+                    "message": "Admin login failed or skipped, cannot test authenticated admin endpoints.",
                     "path": endpoint["path"],
                     "method": endpoint["method"],
                     "business_function": business_function
@@ -3620,8 +3658,11 @@ async def test_admin_services_database_driven():
         # 3. Calculate overall status
         failed_tests = sum(1 for res in endpoint_results.values() if res["status"] == "failed")
         overall_status = "passed" if failed_tests == 0 and accessible_endpoints > 0 else "failed"
-        if accessible_endpoints == 0:
-            overall_status = "skipped" # No endpoints were accessible or tested meaningfully
+        if accessible_endpoints == 0 and any(res["status"] != "skipped" for res in endpoint_results.values()): # If no accessible endpoints but some weren't skipped
+            overall_status = "failed"
+        elif accessible_endpoints == 0 and all(res["status"] == "skipped" for res in endpoint_results.values()):
+            overall_status = "skipped"
+
 
         success_rate = (accessible_endpoints / total_endpoints) * 100 if total_endpoints > 0 else 0
 
