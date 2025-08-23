@@ -794,8 +794,12 @@ class KnowledgeSeeder:
 # Initialize and run seeding
 async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
     """
-    Run the complete knowledge seeding process.
+    Run the complete knowledge seeding process with environment variable control.
     It can accept an external db_pool to avoid dependency on a global pool.
+    
+    Environment Variables:
+    - ENABLE_GLOBAL_KNOWLEDGE: "true" to include real-time global knowledge collection
+    - KNOWLEDGE_SEEDING_MODE: "traditional", "global", or "complete" (default: "traditional")
     """
     db_pool = None
     try:
@@ -822,13 +826,29 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
         # Initialize seeder
         seeder = KnowledgeSeeder(db_pool, openai_api_key)
         
-        # Run seeding
-        await seeder.seed_complete_knowledge_base()
+        # Check environment variables for seeding mode
+        enable_global_knowledge = os.getenv("ENABLE_GLOBAL_KNOWLEDGE", "false").lower() == "true"
+        seeding_mode = os.getenv("KNOWLEDGE_SEEDING_MODE", "traditional").lower()
         
-        logger.info("Knowledge seeding completed successfully!")
+        logger.info(f"🌟 Knowledge seeding configuration:")
+        logger.info(f"  ENABLE_GLOBAL_KNOWLEDGE: {enable_global_knowledge}")
+        logger.info(f"  KNOWLEDGE_SEEDING_MODE: {seeding_mode}")
+        
+        # Run seeding based on configuration
+        if seeding_mode == "global":
+            logger.info("🌍 Running GLOBAL KNOWLEDGE ONLY seeding...")
+            await seeder.seed_global_real_time_knowledge()
+        elif seeding_mode == "complete" or enable_global_knowledge:
+            logger.info("🌟🌍 Running COMPLETE seeding (Traditional + Global)...")
+            await seeder.seed_complete_with_global_knowledge()
+        else:
+            logger.info("🕉️ Running TRADITIONAL SPIRITUAL seeding only...")
+            await seeder.seed_complete_knowledge_base()
+        
+        logger.info("✅ Knowledge seeding completed successfully!")
         
     except Exception as e:
-        logger.error(f"Knowledge seeding failed: {e}")
+        logger.error(f"❌ Knowledge seeding failed: {e}")
         raise
 
 if __name__ == "__main__":
