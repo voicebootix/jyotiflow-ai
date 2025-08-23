@@ -21,6 +21,174 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Helper functions for dynamic error interpretation (following existing patterns)
+def _interpret_http_status(status_code: int, server_response: str = "") -> Dict[str, Any]:
+    """
+    Dynamically interpret HTTP status codes using standard definitions.
+    Follows existing error handling patterns from services/theme_service.py
+    """
+    status_categories = {
+        # Success responses
+        range(200, 300): {
+            "category": "success",
+            "general_meaning": "Request successful",
+            "typical_action": "No action needed"
+        },
+        # Client errors
+        range(400, 500): {
+            "category": "client_error", 
+            "general_meaning": "Client request issue",
+            "typical_action": "Check request parameters"
+        },
+        # Server errors
+        range(500, 600): {
+            "category": "server_error",
+            "general_meaning": "Server processing issue", 
+            "typical_action": "Check server logs"
+        }
+    }
+    
+    # Find the appropriate category
+    interpretation = {"category": "unknown", "general_meaning": "Unknown status", "typical_action": "Review response"}
+    for status_range, info in status_categories.items():
+        if status_code in status_range:
+            interpretation = info
+            break
+    
+    # Add specific status code context using HTTP standards
+    specific_meanings = {
+        200: "OK - Request successful",
+        201: "Created - Resource created successfully",
+        401: "Unauthorized - Authentication required",
+        403: "Forbidden - Access denied", 
+        404: "Not Found - Endpoint does not exist",
+        405: "Method Not Allowed - HTTP method not supported",
+        422: "Unprocessable Entity - Validation failed",
+        500: "Internal Server Error - Server processing failed",
+        502: "Bad Gateway - Server unreachable",
+        503: "Service Unavailable - Server temporarily unavailable"
+    }
+    
+    interpretation["specific_meaning"] = specific_meanings.get(status_code, f"HTTP {status_code}")
+    interpretation["server_message"] = server_response.strip() if server_response else "No additional details"
+    
+    return interpretation
+
+def _create_universal_endpoint_test_result(endpoint_config: Dict[str, Any], response, error=None) -> Dict[str, Any]:
+    """
+    Create consistent endpoint test result format for all test suites.
+    Follows existing patterns and ensures uniform error reporting across all 16 test suites.
+    """
+    import json
+    
+    business_function = endpoint_config.get('business_function', endpoint_config.get('component', endpoint_config.get('url', 'Unknown')))
+    endpoint_url = endpoint_config.get('url', endpoint_config.get('endpoint', ''))
+    method = endpoint_config.get('method', 'GET')
+    
+    if error:
+        # Handle error cases with detailed information
+        error_type = error.__class__.__name__
+        return {
+            "endpoint_accessible": False,
+            "status": "failed",
+            "business_function": business_function,
+            "server_response": str(error),
+            "error": str(error),
+            "error_type": error_type,
+            "endpoint_url": endpoint_url,
+            "method": method,
+            "details": {
+                "endpoint": endpoint_url,
+                "method": method,
+                "error_type": error_type,
+                "error_message": str(error)
+            }
+        }
+    
+    # Handle successful response cases
+    status_code = response.status_code
+    expected_codes = [200, 201, 401, 403, 422]
+    is_accessible = status_code in expected_codes
+    test_status = "passed" if is_accessible else "failed"
+    
+    # Extract server response (following services/theme_service.py pattern)
+    server_response = ""
+    try:
+        if response.headers.get('content-type', '').startswith('application/json'):
+            response_data = response.json()
+            server_response = (
+                response_data.get("message") or 
+                response_data.get("detail") or 
+                response_data.get("error") or
+                json.dumps(response_data)
+            )
+        else:
+            server_response = response.text[:200] + "..." if len(response.text) > 200 else response.text
+    except json.JSONDecodeError:
+        server_response = response.text[:200] + "..." if len(response.text) > 200 else response.text
+    
+    # Calculate response time if available
+    response_time_ms = getattr(response, '_response_time_ms', 0)
+    
+    result = {
+        "endpoint_accessible": is_accessible,
+        "status": test_status,
+        "business_function": business_function,
+        "status_code": status_code,
+        "server_response": server_response,
+        "endpoint_url": endpoint_url,
+        "method": method,
+        "details": {
+            "endpoint": endpoint_url,
+            "method": method,
+            "status_code": status_code,
+            "url": f"https://jyotiflow-ai.onrender.com{endpoint_url}",
+            "expected_codes": expected_codes,
+            "endpoint_accessible": is_accessible
+        }
+    }
+    
+    if response_time_ms > 0:
+        result["response_time_ms"] = response_time_ms
+        result["details"]["response_time_ms"] = response_time_ms
+    
+    return result
+
+def _create_universal_test_summary(endpoint_results: Dict[str, Any], test_type: str = "endpoints") -> Dict[str, Any]:
+    """
+    Create consistent test summary format for all test suites.
+    """
+    if not endpoint_results:
+        return {
+            "status": "failed",
+            "message": f"No {test_type} were tested",
+            "success_rate": 0,
+            "accessible_endpoints": 0,
+            "total_endpoints": 0,
+            "passed_tests": 0,
+            "failed_tests": 0,
+            "total_tests": 0,
+            "endpoint_results": endpoint_results,
+            "results": endpoint_results
+        }
+    
+    accessible_count = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
+    total_count = len(endpoint_results)
+    success_rate = (accessible_count / total_count) * 100 if total_count > 0 else 0
+    
+    return {
+        "status": "passed" if success_rate > 50 else "failed",
+        "message": f"{test_type.title()} tested: {accessible_count}/{total_count} accessible",
+        "success_rate": success_rate,
+        "accessible_endpoints": accessible_count,
+        "total_endpoints": total_count,
+        "passed_tests": accessible_count,
+        "failed_tests": total_count - accessible_count,
+        "total_tests": total_count,
+        "endpoint_results": endpoint_results,
+        "results": endpoint_results  # For frontend compatibility
+    }
+
 # Custom Exception Classes
 class DatabaseConnectionError(Exception):
     """Raised when database connection fails"""
@@ -3704,6 +3872,119 @@ async def test_admin_analytics_endpoint():
 """,
                     "expected_result": "Admin analytics endpoint operational (database-driven)",
                     "timeout_seconds": 30
+                },
+                {
+                    "test_name": "test_admin_services_comprehensive",
+                    "description": "Test all admin service endpoints with detailed error reporting using existing patterns",
+                    "test_type": "integration",
+                    "priority": "critical",
+                    "test_code": """
+import httpx
+import json
+
+async def test_admin_services_comprehensive():
+    \"\"\"Test all admin service endpoints using existing error handling patterns from community_services_tests\"\"\"
+    try:
+        # Use existing pattern from community_services_tests - dynamic endpoint configuration
+        endpoints_to_test = [
+            {"url": "/api/auth/login", "method": "POST", "business_function": "Admin Authentication", 
+             "test_data": {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"}},
+            {"url": "/api/admin/analytics/overview", "method": "GET", "business_function": "Admin Optimization",
+             "test_data": {"timeframe": "7d", "metrics": ["users", "sessions"]}},
+            {"url": "/api/admin/analytics/revenue-insights", "method": "GET", "business_function": "Admin Monetization",
+             "test_data": {"period": "30d", "breakdown": "weekly"}},
+            {"url": "/api/admin/analytics/analytics", "method": "GET", "business_function": "Admin Stats",
+             "test_data": {"view": "dashboard", "filters": ["active_users"]}}
+        ]
+        
+        endpoint_results = {}
+        
+        # Use existing pattern from services/theme_service.py and community_services_tests
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for endpoint in endpoints_to_test:
+                try:
+                    api_base_url = "https://jyotiflow-ai.onrender.com"
+                    url = f"{api_base_url}{endpoint['url']}"
+                    
+                    # Make request based on method (following existing pattern)
+                    if endpoint['method'] == 'GET':
+                        response = await client.get(url, params=endpoint.get('test_data', {}))
+                    elif endpoint['method'] in ['POST', 'PUT', 'PATCH']:
+                        response = await client.request(endpoint['method'], url, json=endpoint.get('test_data', {}))
+                    else:
+                        response = await client.request(endpoint['method'], url)
+                    
+                    # Extract actual response content (following services/theme_service.py pattern)
+                    server_response = ""
+                    try:
+                        if response.headers.get('content-type', '').startswith('application/json'):
+                            response_data = response.json()
+                            server_response = response_data.get("message") or response_data.get("detail") or json.dumps(response_data)
+                        else:
+                            server_response = response.text[:200] + "..." if len(response.text) > 200 else response.text
+                    except json.JSONDecodeError:
+                        server_response = response.text[:200] + "..." if len(response.text) > 200 else response.text
+                    
+                    endpoint_results[endpoint['business_function']] = {
+                        "endpoint_accessible": response.status_code in [200, 201, 401, 403, 422],
+                        "status_code": response.status_code,
+                        "server_response": server_response,
+                        "endpoint_url": endpoint['url'],
+                        "method": endpoint['method']
+                    }
+                    
+                except (httpx.TimeoutException, httpx.ReadTimeout, httpx.WriteTimeout, httpx.ConnectTimeout) as timeout_error:
+                    # Follow existing timeout handling pattern from community_services_tests
+                    endpoint_results[endpoint['business_function']] = {
+                        "endpoint_accessible": False,
+                        "error": f"Timeout: {str(timeout_error)}",
+                        "error_type": "timeout",
+                        "endpoint_url": endpoint['url'],
+                        "method": endpoint['method'],
+                        "server_response": str(timeout_error)
+                    }
+                except Exception as endpoint_error:
+                    # Follow existing error handling pattern from community_services_tests
+                    error_type = endpoint_error.__class__.__name__
+                    endpoint_results[endpoint['business_function']] = {
+                        "endpoint_accessible": False,
+                        "error": str(endpoint_error),
+                        "error_type": error_type,
+                        "endpoint_url": endpoint['url'],
+                        "method": endpoint['method'],
+                        "server_response": str(endpoint_error)
+                    }
+        
+        # Calculate results using existing pattern
+        accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
+        total_endpoints = len(endpoints_to_test)
+        success_rate = (accessible_endpoints / total_endpoints) * 100
+        
+        return {
+            "status": "passed" if success_rate > 50 else "failed",
+            "message": f"Admin services endpoints tested: {accessible_endpoints}/{total_endpoints} accessible",
+            "success_rate": success_rate,
+            "accessible_endpoints": accessible_endpoints,
+            "total_endpoints": total_endpoints,
+            "endpoint_results": endpoint_results,
+            "results": endpoint_results,  # For frontend compatibility
+            "total_tests": total_endpoints,
+            "passed_tests": accessible_endpoints,
+            "failed_tests": total_endpoints - accessible_endpoints,
+            "endpoints_tested": [
+                {
+                    "endpoint": ep["url"],
+                    "method": ep["method"],
+                    "business_function": ep["business_function"]
+                } for ep in endpoints_to_test
+            ]
+        }
+        
+    except Exception as e:
+        return {"status": "failed", "error": f"Admin services comprehensive test failed: {str(e)}"}
+""",
+                    "expected_result": "All admin service endpoints tested with detailed error reporting",
+                    "timeout_seconds": 120
                 }
             ]
         }
@@ -3744,43 +4025,20 @@ async def test_community_api_endpoints():
                     else:
                         response = await client.post(url, json={})
                     
-                    endpoint_results[endpoint['business_function']] = {
-                        "endpoint_accessible": response.status_code in [200, 401, 403, 422],
-                        "status_code": response.status_code
-                    }
+                    # Use universal error handling function
+                    endpoint_results[endpoint['business_function']] = _create_universal_endpoint_test_result(endpoint, response)
                     
                 except (httpx.TimeoutException, httpx.ReadTimeout, httpx.WriteTimeout, httpx.ConnectTimeout) as timeout_error:
-                    # Handle timeout exceptions specifically with detailed context
-                    endpoint_results[endpoint['business_function']] = {
-                        "endpoint_accessible": False,
-                        "error": f"Timeout: {str(timeout_error)}",
-                        "error_type": "timeout",
-                        "endpoint_url": endpoint['url'],
-                        "method": endpoint['method']
-                    }
+                    # Use universal error handling for timeout errors
+                    endpoint_results[endpoint['business_function']] = _create_universal_endpoint_test_result(endpoint, None, timeout_error)
                 except Exception as endpoint_error:
-                    # Handle generic exceptions with error type information
-                    error_type = endpoint_error.__class__.__name__
-                    endpoint_results[endpoint['business_function']] = {
-                        "endpoint_accessible": False,
-                        "error": str(endpoint_error),
-                        "error_type": error_type,
-                        "endpoint_url": endpoint['url'],
-                        "method": endpoint['method']
-                    }
+                    # Use universal error handling for other errors
+                    endpoint_results[endpoint['business_function']] = _create_universal_endpoint_test_result(endpoint, None, endpoint_error)
         
-        accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
-        total_endpoints = len(endpoints_to_test)
-        success_rate = (accessible_endpoints / total_endpoints) * 100
-        
-        return {
-            "status": "passed" if success_rate > 60 else "failed",
-            "message": "Community services API endpoints tested",
-            "success_rate": success_rate,
-            "accessible_endpoints": accessible_endpoints,
-            "total_endpoints": total_endpoints,
-            "endpoint_results": endpoint_results
-        }
+        # Use universal test summary function
+        summary = _create_universal_test_summary(endpoint_results, "community endpoints")
+        summary["status"] = "passed" if summary["success_rate"] > 60 else "failed"  # Community-specific threshold
+        return summary
         
     except Exception as e:
         return {"status": "failed", "error": f"Community services API test failed: {str(e)}"}
