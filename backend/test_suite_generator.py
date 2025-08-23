@@ -3041,7 +3041,7 @@ async def test_payment_api_endpoints():
             conn = None
             print(f"Unexpected database connection error: {connection_error}")
         
-        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0, pool=5.0)) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0)) as client:
             for endpoint in endpoints_to_test:
                 # Dynamic URL construction - moved out of try block to prevent UnboundLocalError
                 url = f"{api_base_url}{endpoint['url']}"
@@ -3432,45 +3432,74 @@ import json
 import os
 import time
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
     try:
         # Direct endpoint configuration (not from database)
         endpoint = \"/api/auth/login\"
         method = \"POST\"
         business_function = \"Admin Authentication\"
-        test_data = {\"email\": \"admin@jyotiflow.ai\", \"password\": \"Jyoti@2024!\"} 
+        
+        # Pull credentials from environment; fail fast if missing
+        admin_email = os.getenv(\"ADMIN_EMAIL\")
+        admin_password = os.getenv(\"ADMIN_PASSWORD\")
+        if not admin_email or not admin_password:
+            return {\"status\": \"failed\", \"error_message\": \"Missing ADMIN_EMAIL/ADMIN_PASSWORD env vars\", \"business_function\": business_function}
+        
+        test_data = {\"email\": admin_email, \"password\": admin_password}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
-        expected_codes = [200, 401, 403, 422]
+        # Auth should succeed with valid credentials
+        expected_codes = [200, 201]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0)) as client:
                 start_time = time.time()
-                print(f\"🌐 Making HTTP request to: {url}\")
+                headers = {
+                    \"Content-Type\": \"application/json\",
+                    \"X-Test-Run\": \"true\",
+                    \"X-Test-Type\": \"admin-auth\",
+                    \"User-Agent\": \"JyotiFlow-TestRunner/1.0\"
+                }
+                logger.info(f\"🌐 Making HTTP request to: {url}\")
                 
                 if method == \'GET\':
-                    response = await client.get(url, params=test_data)
+                    response = await client.get(url, params=test_data, headers=headers)
                 elif method in [\'POST\', \'PUT\', \'PATCH\']:
-                    response = await client.request(method, url, json=test_data)
+                    response = await client.request(method, url, json=test_data, headers=headers)
                 elif method == \'DELETE\':
-                    response = await client.delete(url)
+                    response = await client.delete(url, headers=headers)
                 else:
-                    response = await client.request(method, url)
+                    response = await client.request(method, url, headers=headers)
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = \'passed\' if status_code in expected_codes else \'failed\'
                 
-                print(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
+                # Verify token presence on success
+                if test_status == \'passed\':
+                    try:
+                        data = response.json()
+                        token_present = any(k in data for k in (\"access_token\", \"token\", \"jwt\", \"idToken\"))
+                        if not token_present:
+                            test_status = \"failed\"
+                            logger.error(f\"Login successful (HTTP {status_code}), but no access token found in response for {url}\")
+                    except Exception as e:
+                        test_status = \"failed\"
+                        logger.error(f\"Failed to parse JSON response or verify token for {url}: {e}\")
+
+                # Avoid printing sensitive payloads; keep minimal telemetry
+                logger.info(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
                 
         except Exception as http_error:
-            print(f\"❌ HTTP request failed: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
+            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
         # Return test results (database storage handled by test execution engine)
         return {
@@ -3486,7 +3515,8 @@ async def test_admin_authentication_endpoint():
             }
         }
     except Exception as e:
-        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
+        logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
+        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin authentication endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3503,48 +3533,71 @@ import json
 import os
 import time
 import uuid
+import logging
 
+logger = logging.getLogger(__name__)
 
 async def test_admin_overview_endpoint():
     \"\"\"Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
+    import httpx # Import httpx here for local scope
+    import os # Import os here for local scope
+    import time # Import time here for local scope
+    import logging
+    
+    logger = logging.getLogger(__name__)
+
     try:
-        # Direct endpoint configuration (not from database)
         endpoint = \"/api/admin/analytics/overview\"
         method = \"GET\"
         business_function = \"Admin Optimization\"
         test_data = {\"timeframe\": \"7d\", \"metrics\": [\"users\", \"sessions\", \"revenue\"]}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
-        expected_codes = [200, 401, 403, 422]
+        expected_codes = [200, 401] # Expect 200 for authenticated, 401 for unauthenticated (initial check)
+
+        # Retrieve admin token from environment (or a mechanism to pass it from login test)
+        # For now, we'll assume it's set as an env var by a previous step or for isolated testing
+        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\") # Assuming token can be passed via env
+        if not admin_auth_token:
+            logger.warning(f\"ADMIN_AUTH_TOKEN not found in environment. Testing {business_function} without authentication.\")
+            # If no token, we expect a 401 or 403
+            expected_codes = [401, 403]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0)) as client:
                 start_time = time.time()
-                print(f\"🌐 Making HTTP request to: {url}\")
+                headers = {
+                    \"Content-Type\": \"application/json\",
+                    \"X-Test-Run\": \"true\",
+                    \"X-Test-Type\": \"admin-analytics-overview\",
+                    \"User-Agent\": \"JyotiFlow-TestRunner/1.0\"
+                }
+                if admin_auth_token:
+                    headers[\"Authorization\"] = f\"Bearer {admin_auth_token}\"
+
+                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {headers}\")
                 
                 if method == \'GET\':
-                    response = await client.get(url, params=test_data)
+                    response = await client.get(url, params=test_data, headers=headers)
                 elif method in [\'POST\', \'PUT\', \'PATCH\']:
-                    response = await client.request(method, url, json=test_data)
+                    response = await client.request(method, url, json=test_data, headers=headers)
                 elif method == \'DELETE\':
-                    response = await client.delete(url)
+                    response = await client.delete(url, headers=headers)
                 else:
-                    response = await client.request(method, url)
+                    response = await client.request(method, url, headers=headers)
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = \'passed\' if status_code in expected_codes else \'failed\'
                 
-                print(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
+                logger.info(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
                 
         except Exception as http_error:
-            print(f\"❌ HTTP request failed: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
+            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
-        # Return test results (database storage handled by test execution engine)
         return {
             \"status\": test_status,
             \"business_function\": business_function,
@@ -3558,7 +3611,8 @@ async def test_admin_overview_endpoint():
             }
         }
     except Exception as e:
-        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
+        logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
+        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin overview endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3575,47 +3629,70 @@ import json
 import os
 import time
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def test_admin_revenue_insights_endpoint():
     \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
+    import httpx # Import httpx here for local scope
+    import os # Import os here for local scope
+    import time # Import time here for local scope
+    import logging
+    
+    logger = logging.getLogger(__name__)
+
     try:
-        # Direct endpoint configuration (not from database)
         endpoint = \"/api/admin/analytics/revenue-insights\"
         method = \"GET\"
         business_function = \"Admin Monetization\"
         test_data = {\"period\": \"30d\", \"breakdown\": [\"daily\", \"source\"]}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
-        expected_codes = [200, 401, 403, 422]
+        expected_codes = [200, 401] # Expect 200 for authenticated, 401 for unauthenticated (initial check)
+
+        # Retrieve admin token from environment (or a mechanism to pass it from login test)
+        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\") # Assuming token can be passed via env
+        if not admin_auth_token:
+            logger.warning(f\"ADMIN_AUTH_TOKEN not found in environment. Testing {business_function} without authentication.\")
+            # If no token, we expect a 401 or 403
+            expected_codes = [401, 403]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0)) as client:
                 start_time = time.time()
-                print(f\"🌐 Making HTTP request to: {url}\")
+                headers = {
+                    \"Content-Type\": \"application/json\",
+                    \"X-Test-Run\": \"true\",
+                    \"X-Test-Type\": \"admin-revenue-insights\",
+                    \"User-Agent\": \"JyotiFlow-TestRunner/1.0\"
+                }
+                if admin_auth_token:
+                    headers[\"Authorization\"] = f\"Bearer {admin_auth_token}\"
+
+                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {headers}\")
                 
                 if method == \'GET\':
-                    response = await client.get(url, params=test_data)
+                    response = await client.get(url, params=test_data, headers=headers)
                 elif method in [\'POST\', \'PUT\', \'PATCH\']:
-                    response = await client.request(method, url, json=test_data)
+                    response = await client.request(method, url, json=test_data, headers=headers)
                 elif method == \'DELETE\':
-                    response = await client.delete(url)
+                    response = await client.delete(url, headers=headers)
                 else:
-                    response = await client.request(method, url)
+                    response = await client.request(method, url, headers=headers)
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = \'passed\' if status_code in expected_codes else \'failed\'
                 
-                print(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
+                logger.info(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
                 
         except Exception as http_error:
-            print(f\"❌ HTTP request failed: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
+            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
-        # Return test results (database storage handled by test execution engine)
         return {
             \"status\": test_status,
             \"business_function\": business_function,
@@ -3629,7 +3706,8 @@ async def test_admin_revenue_insights_endpoint():
             }
         }
     except Exception as e:
-        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
+        logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
+        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin revenue insights endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3646,47 +3724,70 @@ import json
 import os
 import time
 import uuid
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def test_admin_analytics_endpoint():
     \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
+    import httpx # Import httpx here for local scope
+    import os # Import os here for local scope
+    import time # Import time here for local scope
+    import logging
+    
+    logger = logging.getLogger(__name__)
+
     try:
-        # Direct endpoint configuration (not from database)
         endpoint = \"/api/admin/analytics/analytics\"
         method = \"GET\"
         business_function = \"Admin Stats\"
         test_data = {\"view\": \"dashboard\", \"filters\": [\"active_users\", \"revenue\"]}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
-        expected_codes = [200, 401, 403, 422]
+        expected_codes = [200, 401] # Expect 200 for authenticated, 401 for unauthenticated (initial check)
+
+        # Retrieve admin token from environment (or a mechanism to pass it from login test)
+        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\") # Assuming token can be passed via env
+        if not admin_auth_token:
+            logger.warning(f\"ADMIN_AUTH_TOKEN not found in environment. Testing {business_function} without authentication.\")
+            # If no token, we expect a 401 or 403
+            expected_codes = [401, 403]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0)) as client:
                 start_time = time.time()
-                print(f\"🌐 Making HTTP request to: {url}\")
+                headers = {
+                    \"Content-Type\": \"application/json\",
+                    \"X-Test-Run\": \"true\",
+                    \"X-Test-Type\": \"admin-analytics\",
+                    \"User-Agent\": \"JyotiFlow-TestRunner/1.0\"
+                }
+                if admin_auth_token:
+                    headers[\"Authorization\"] = f\"Bearer {admin_auth_token}\"
+
+                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {headers}\")
                 
                 if method == \'GET\':
-                    response = await client.get(url, params=test_data)
+                    response = await client.get(url, params=test_data, headers=headers)
                 elif method in [\'POST\', \'PUT\', \'PATCH\']:
-                    response = await client.request(method, url, json=test_data)
+                    response = await client.request(method, url, json=test_data, headers=headers)
                 elif method == \'DELETE\':
-                    response = await client.delete(url)
+                    response = await client.delete(url, headers=headers)
                 else:
-                    response = await client.request(method, url)
+                    response = await client.request(method, url, headers=headers)
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
                 test_status = \'passed\' if status_code in expected_codes else \'failed\'
                 
-                print(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
+                logger.info(f\"📊 Response: {status_code} ({response_time_ms}ms)\")
                 
         except Exception as http_error:
-            print(f\"❌ HTTP request failed: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
+            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
-        # Return test results (database storage handled by test execution engine)
         return {
             \"status\": test_status,
             \"business_function\": business_function,
@@ -3700,7 +3801,8 @@ async def test_admin_analytics_endpoint():
             }
         }
     except Exception as e:
-        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
+        logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
+        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin analytics endpoint operational (database-driven)",
                     "timeout_seconds": 30
