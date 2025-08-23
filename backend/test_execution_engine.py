@@ -27,7 +27,7 @@ sys.path.append(current_dir)
 sys.path.append(parent_dir)
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -131,6 +131,10 @@ class TestExecutionEngine:
                 test_result = await self._execute_single_test(test_case)
                 results[test_case['test_name']] = test_result
                 
+                # DEBUG: Log test_result to inspect its structure
+                logger.debug(f"DEBUG: Test Result for {test_case['test_name']}: {test_result}")
+                logger.debug(f"DEBUG: Type of Test Result: {type(test_result)}")
+
                 # ✅ HANDLE DATABASE-DRIVEN TESTS WITH MULTIPLE ENDPOINT RESULTS
                 if 'endpoint_results' in test_result and isinstance(test_result['endpoint_results'], dict):
                     # This is a database-driven test with multiple endpoint results
