@@ -1534,61 +1534,7 @@ async def execute_test(request: dict):
             logger.info(f"Executing individual test suite: {test_suite}")
             result = await engine.execute_test_suite(test_suite, test_type)
             
-            # ✅ FIXED: Get detailed error messages from test_case_results table for failed tests
-            detailed_results = result.get("results", {})
-            
-            # Retrieve error messages from database for failed test cases
-            if result.get("status") in ["failed", "partial"] and result.get("session_id"):
-                try:
-                    conn = await db_manager.get_connection()
-                    try:
-                        # Get detailed test case results with error messages from database
-                        test_case_results = await conn.fetch("""
-                            SELECT DISTINCT ON (test_name) test_name, status, error_message, execution_time_ms, output_data
-                            FROM test_case_results 
-                            WHERE session_id = $1 AND status = 'failed'
-                            ORDER BY test_name, created_at DESC
-                        """, result.get("session_id"))
-                        
-                        # Enhance results with database-driven error messages
-                        for test_case in test_case_results:
-                            test_name = test_case['test_name']
-                            if test_name:
-                                # Create enhanced result entry with database error message
-                                enhanced_result = {
-                                    "status": "failed",
-                                    "execution_time_ms": test_case['execution_time_ms'],
-                                    "error_message": test_case['error_message'],  # Database-driven error message
-                                    "details": {
-                                        "error_message": test_case['error_message'],
-                                        "status_code": None,
-                                        "source": "database_test_case_results"
-                                    }
-                                }
-                                
-                                # Parse output_data for additional details if available
-                                if test_case['output_data']:
-                                    try:
-                                        output_json = json.loads(test_case['output_data']) if isinstance(test_case['output_data'], str) else test_case['output_data']
-                                        if isinstance(output_json, dict):
-                                            enhanced_result["details"].update({
-                                                "url": output_json.get("details", {}).get("url") or output_json.get("url"),
-                                                "http_status_code": output_json.get("http_status_code"),
-                                                "status_code": output_json.get("http_status_code") or output_json.get("status_code"),
-                                                "business_function": output_json.get("business_function")
-                                            })
-                                    except (json.JSONDecodeError, TypeError):
-                                        pass
-                                
-                                detailed_results[test_name] = enhanced_result
-                        
-                    finally:
-                        await db_manager.release_connection(conn)
-                        
-                except Exception as db_error:
-                    logger.warning(f"Could not retrieve detailed error messages from database: {db_error}")
-            
-            # FIXED: Return specific results for individual test cards with database-driven error messages
+            # FIXED: Return specific results for individual test cards
             return StandardResponse(
                 status="success",
                 message=f"Individual test suite '{test_suite}' execution completed",
@@ -1599,7 +1545,7 @@ async def execute_test(request: dict):
                     "passed_tests": result.get("passed_tests", 0),
                     "failed_tests": result.get("failed_tests", 0),
                     "execution_time_seconds": result.get("execution_time_seconds", 0),
-                    "results": detailed_results,  # Enhanced with database error messages
+                    "results": result.get("results", {}),
                     "triggered_by": triggered_by
                 }
             )
