@@ -100,9 +100,9 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
                 logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
                 return [0.0] * DEFAULT_EMBED_DIM
             else:
-            # For other types, create default vector
-            logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
-            return [0.0] * DEFAULT_EMBED_DIM
+                # For other types, create default vector
+                logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
+                return [0.0] * DEFAULT_EMBED_DIM
     else:
         # For non-pgvector, use JSON string format
         if isinstance(embedding, str):
