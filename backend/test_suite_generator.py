@@ -3427,28 +3427,25 @@ async def test_user_management_api_endpoints():
                     "priority": "high",
                     "test_code": """
 import httpx
-import asyncpg
-import json
 import os
 import time
-import uuid
 import logging
 
 logger = logging.getLogger(__name__)
 
 async def test_admin_authentication_endpoint():
     \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+    business_function = \"Admin Authentication\" # Define business_function here
     try:
         # Direct endpoint configuration (not from database)
         endpoint = \"/api/auth/login\"
         method = \"POST\"
-        business_function = \"Admin Authentication\"
         
         # Pull credentials from environment; fail fast if missing
         admin_email = os.getenv(\"ADMIN_EMAIL\")
         admin_password = os.getenv(\"ADMIN_PASSWORD\")
         if not admin_email or not admin_password:
-            return {\"status\": \"failed\", \"error_message\": \"Missing ADMIN_EMAIL/ADMIN_PASSWORD env vars\", \"business_function\": business_function}
+            return {\"status\": \"failed\", \"error\": \"Missing ADMIN_EMAIL/ADMIN_PASSWORD env vars\", \"business_function\": business_function}
         
         test_data = {\"email\": admin_email, \"password\": admin_password}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
@@ -3456,8 +3453,7 @@ async def test_admin_authentication_endpoint():
         expected_codes = [200, 201]
         
         # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\') 
-        
+        url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
         
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0)) as client:
@@ -3468,7 +3464,9 @@ async def test_admin_authentication_endpoint():
                     \"X-Test-Type\": \"admin-auth\",
                     \"User-Agent\": \"JyotiFlow-TestRunner/1.0\"
                 }
-                logger.info(f\"🌐 Making HTTP request to: {url}\")
+                # Sanitize headers for logging
+                sanitized_headers = {k: (\'<redacted>\' if k.lower() == \'authorization\' else v) for k, v in headers.items()}
+                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {sanitized_headers}\")
                 
                 if method == \'GET\':
                     response = await client.get(url, params=test_data, headers=headers)
@@ -3500,7 +3498,7 @@ async def test_admin_authentication_endpoint():
                 
         except Exception as http_error:
             logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
         # Return test results (database storage handled by test execution engine)
         return {
@@ -3517,7 +3515,7 @@ async def test_admin_authentication_endpoint():
         }
     except Exception as e:
         logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
-        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
+        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin authentication endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3540,28 +3538,19 @@ logger = logging.getLogger(__name__)
 
 async def test_admin_overview_endpoint():
     \"\"\"Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx # Import httpx here for local scope
-    import os # Import os here for local scope
-    import time # Import time here for local scope
-    import logging
-    
-    logger = logging.getLogger(__name__)
-
+    # (imports already provided at the top of the test block)
+    business_function = \"Admin Optimization\" # Define business_function here
     try:
         endpoint = \"/api/admin/analytics/overview\"
         method = \"GET\"
-        business_function = \"Admin Optimization\"
         test_data = {\"timeframe\": \"7d\", \"metrics\": [\"users\", \"sessions\", \"revenue\"]}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
-        expected_codes = [200, 401] # Expect 200 for authenticated, 401 for unauthenticated (initial check)
+        expected_codes = [200] # Expect 200 for authenticated access
 
-        # Retrieve admin token from environment (or a mechanism to pass it from login test)
-        # For now, we'll assume it's set as an env var by a previous step or for isolated testing
-        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\") # Assuming token can be passed via env
+        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\")
         if not admin_auth_token:
-            logger.warning(f\"ADMIN_AUTH_TOKEN not found in environment. Testing {business_function} without authentication.\")
-            # If no token, we expect a 401 or 403
-            expected_codes = [401, 403]
+            logger.warning(\"ADMIN_AUTH_TOKEN not set; skipping authenticated endpoint test.\")
+            return {\"status\": \"skipped\", \"business_function\": business_function, \"message\": \"Missing ADMIN_AUTH_TOKEN; not executing protected endpoint\"}
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
@@ -3578,7 +3567,8 @@ async def test_admin_overview_endpoint():
                 if admin_auth_token:
                     headers[\"Authorization\"] = f\"Bearer {admin_auth_token}\"
 
-                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {headers}\")
+                sanitized_headers = {k: (\'<redacted>\' if k.lower() == \'authorization\' else v) for k, v in headers.items()}
+                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {sanitized_headers}\")
                 
                 if method == \'GET\':
                     response = await client.get(url, params=test_data, headers=headers)
@@ -3597,7 +3587,7 @@ async def test_admin_overview_endpoint():
                 
         except Exception as http_error:
             logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
         return {
             \"status\": test_status,
@@ -3613,7 +3603,7 @@ async def test_admin_overview_endpoint():
         }
     except Exception as e:
         logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
-        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
+        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin overview endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3636,27 +3626,19 @@ logger = logging.getLogger(__name__)
 
 async def test_admin_revenue_insights_endpoint():
     \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx # Import httpx here for local scope
-    import os # Import os here for local scope
-    import time # Import time here for local scope
-    import logging
-    
-    logger = logging.getLogger(__name__)
-
+    # (imports already provided at the top of the test block)
+    business_function = \"Admin Monetization\" # Define business_function here
     try:
         endpoint = \"/api/admin/analytics/revenue-insights\"
         method = \"GET\"
-        business_function = \"Admin Monetization\"
         test_data = {\"period\": \"30d\", \"breakdown\": [\"daily\", \"source\"]}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
-        expected_codes = [200, 401] # Expect 200 for authenticated, 401 for unauthenticated (initial check)
+        expected_codes = [200] # Expect 200 for authenticated access
 
-        # Retrieve admin token from environment (or a mechanism to pass it from login test)
-        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\") # Assuming token can be passed via env
+        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\")
         if not admin_auth_token:
-            logger.warning(f\"ADMIN_AUTH_TOKEN not found in environment. Testing {business_function} without authentication.\")
-            # If no token, we expect a 401 or 403
-            expected_codes = [401, 403]
+            logger.warning(\"ADMIN_AUTH_TOKEN not set; skipping authenticated endpoint test.\")
+            return {\"status\": \"skipped\", \"business_function\": business_function, \"message\": \"Missing ADMIN_AUTH_TOKEN; not executing protected endpoint\"}
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
@@ -3673,7 +3655,8 @@ async def test_admin_revenue_insights_endpoint():
                 if admin_auth_token:
                     headers[\"Authorization\"] = f\"Bearer {admin_auth_token}\"
 
-                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {headers}\")
+                sanitized_headers = {k: (\'<redacted>\' if k.lower() == \'authorization\' else v) for k, v in headers.items()}
+                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {sanitized_headers}\")
                 
                 if method == \'GET\':
                     response = await client.get(url, params=test_data, headers=headers)
@@ -3692,7 +3675,7 @@ async def test_admin_revenue_insights_endpoint():
                 
         except Exception as http_error:
             logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
         return {
             \"status\": test_status,
@@ -3708,7 +3691,7 @@ async def test_admin_revenue_insights_endpoint():
         }
     except Exception as e:
         logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
-        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
+        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin revenue insights endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3731,27 +3714,19 @@ logger = logging.getLogger(__name__)
 
 async def test_admin_analytics_endpoint():
     \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx # Import httpx here for local scope
-    import os # Import os here for local scope
-    import time # Import time here for local scope
-    import logging
-    
-    logger = logging.getLogger(__name__)
-
+    # (imports already provided at the top of the test block)
+    business_function = \"Admin Stats\" # Define business_function here
     try:
         endpoint = \"/api/admin/analytics/analytics\"
         method = \"GET\"
-        business_function = \"Admin Stats\"
         test_data = {\"view\": \"dashboard\", \"filters\": [\"active_users\", \"revenue\"]}
         api_base_url = os.getenv(\'API_BASE_URL\', \'https://jyotiflow-ai.onrender.com\')
-        expected_codes = [200, 401] # Expect 200 for authenticated, 401 for unauthenticated (initial check)
+        expected_codes = [200] # Expect 200 for authenticated access
 
-        # Retrieve admin token from environment (or a mechanism to pass it from login test)
-        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\") # Assuming token can be passed via env
+        admin_auth_token = os.getenv(\"ADMIN_AUTH_TOKEN\")
         if not admin_auth_token:
-            logger.warning(f\"ADMIN_AUTH_TOKEN not found in environment. Testing {business_function} without authentication.\")
-            # If no token, we expect a 401 or 403
-            expected_codes = [401, 403]
+            logger.warning(\"ADMIN_AUTH_TOKEN not set; skipping authenticated endpoint test.\")
+            return {\"status\": \"skipped\", \"business_function\": business_function, \"message\": \"Missing ADMIN_AUTH_TOKEN; not executing protected endpoint\"}
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
@@ -3768,7 +3743,8 @@ async def test_admin_analytics_endpoint():
                 if admin_auth_token:
                     headers[\"Authorization\"] = f\"Bearer {admin_auth_token}\"
 
-                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {headers}\")
+                sanitized_headers = {k: (\'<redacted>\' if k.lower() == \'authorization\' else v) for k, v in headers.items()}
+                logger.info(f\"🌐 Making HTTP request to: {url} with headers: {sanitized_headers}\")
                 
                 if method == \'GET\':
                     response = await client.get(url, params=test_data, headers=headers)
@@ -3787,7 +3763,7 @@ async def test_admin_analytics_endpoint():
                 
         except Exception as http_error:
             logger.error(f\"❌ HTTP request failed for {url}: {str(http_error)}\")
-            return {\"status\": \"failed\", \"error_message\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
+            return {\"status\": \"failed\", \"error\": f\"HTTP request failed: {str(http_error)}\", \"business_function\": business_function}
         
         return {
             \"status\": test_status,
@@ -3803,7 +3779,7 @@ async def test_admin_analytics_endpoint():
         }
     except Exception as e:
         logger.error(f\"❌ Test failed for {business_function}: {str(e)}\")
-        return {\"status\": \"failed\", \"error_message\": f\"Test failed: {str(e)}\"}
+        return {\"status\": \"failed\", \"error\": f\"Test failed: {str(e)}\"}
 """,
                     "expected_result": "Admin analytics endpoint operational (database-driven)",
                     "timeout_seconds": 30
