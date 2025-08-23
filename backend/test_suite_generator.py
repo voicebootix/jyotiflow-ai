@@ -3456,7 +3456,8 @@ async def test_admin_authentication_endpoint():
         expected_codes = [200, 201]
         
         # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\')
+        url = api_base_url.rstrip(\'/\') + \'/\' + endpoint.lstrip(\'/\') 
+        
         
         try:
             async with httpx.AsyncClient(timeout=httpx.Timeout(connect=5.0, read=10.0, write=10.0)) as client:
