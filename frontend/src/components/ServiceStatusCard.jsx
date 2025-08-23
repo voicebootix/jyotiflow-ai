@@ -90,23 +90,30 @@ const ServiceStatusCard = ({
         const data = await response.json();
 
         // FIXED: Update individual card status based on actual test results
-        if (data.status === "success") {
+        if (data.status === "success" && data.data) {
           const testResult = data.data;
-          if (testResult && testResult.status) {
-            setStatus(testResult.status); // 'passed', 'failed', 'partial'
-            setLastResult(testResult);
+
+          // Determine status based on test results
+          if (testResult.status) {
+            setStatus(testResult.status);
+          } else if (testResult.total_tests && testResult.total_tests > 0) {
+            setStatus(testResult.failed_tests > 0 ? "failed" : "completed");
           } else {
             setStatus("completed");
-            setLastResult(data.data || data);
           }
+          setLastResult(testResult);
         } else {
           setError(data.message || "Test execution failed");
           setStatus("failed");
+          setLastResult(data.data || {});
         }
       } else {
-        const errorMessage = `Test failed with status ${response.status}`;
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage =
+          errorData.message || `Test failed with status ${response.status}`;
         setError(errorMessage);
         setStatus("failed");
+        setLastResult(errorData.data || {});
       }
     } catch (err) {
       const errorMessage = `Test execution failed: ${err.message}`;
@@ -131,6 +138,7 @@ const ServiceStatusCard = ({
           />
         );
       case "completed":
+      case "passed":
         return (
           <CheckCircle
             className="h-4 w-4 text-green-500"
@@ -251,7 +259,13 @@ const ServiceStatusCard = ({
               {isDef(lastResult.success_rate) && (
                 <div className="flex justify-between">
                   <span>Success Rate:</span>
-                  <span className="font-medium">
+                  <span
+                    className={`font-medium ${
+                      lastResult.success_rate >= 99
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
                     {fmtPct(lastResult.success_rate)}
                   </span>
                 </div>
@@ -389,8 +403,8 @@ const ServiceStatusCard = ({
             }
           }}
         >
-          <Card className="max-w-4xl w-full max-h-[80vh] overflow-y-auto">
-            <CardHeader className="flex flex-row items-center justify-between">
+          <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-white z-10 border-b">
               <CardTitle
                 id="detail-modal-title"
                 className="flex items-center gap-2"
@@ -413,17 +427,15 @@ const ServiceStatusCard = ({
                   <span className="font-semibold">Overall Status:</span>
                   {getStatusIcon()}
                   <Badge
-                    variant={
+                    className={
                       status === "completed" || status === "passed"
-                        ? "default"
+                        ? "bg-green-100 text-green-800"
                         : status === "failed"
-                        ? "destructive"
-                        : status === "running"
-                        ? "secondary"
-                        : "outline"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-gray-100 text-gray-800"
                     }
                   >
-                    {status}
+                    {lastResult?.status || status}
                   </Badge>
                 </div>
 
@@ -465,131 +477,143 @@ const ServiceStatusCard = ({
                         Success Rate
                       </div>
                       <div className="text-lg font-semibold">
-                        {isDef(lastResult.success_rate)
-                          ? fmtPct(lastResult.success_rate)
-                          : "0%"}
+                        {isDef(lastResult.success_rate) ? (
+                          <span
+                            className={
+                              lastResult.success_rate >= 99
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {fmtPct(lastResult.success_rate)}
+                          </span>
+                        ) : (
+                          "0%"
+                        )}
                       </div>
                     </div>
                   </div>
                 )}
 
                 {/* Admin Services - Detailed Endpoint Results */}
-                {testType === "admin_services_critical" && lastResult && (
+                {lastResult && lastResult.results && (
                   <div className="space-y-4">
                     <h3 className="text-lg font-semibold">
                       Endpoint Test Results
                     </h3>
 
                     {/* Show individual test results */}
-                    {lastResult.results &&
-                      Object.entries(lastResult.results).map(
-                        ([testName, result]) => (
-                          <Card
-                            key={testName}
-                            className="border-l-4 border-l-gray-300"
-                          >
-                            <CardContent className="pt-4">
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center gap-2 mb-2">
-                                    {result.status === "passed" ? (
-                                      <CheckCircle className="h-4 w-4 text-green-500" />
-                                    ) : (
-                                      <XCircle className="h-4 w-4 text-red-500" />
-                                    )}
-                                    <h4 className="font-medium">
-                                      {result.business_function || testName}
-                                    </h4>
-                                    <Badge
-                                      variant={
-                                        result.status === "passed"
-                                          ? "default"
-                                          : "destructive"
-                                      }
-                                    >
-                                      {result.status}
-                                    </Badge>
-                                  </div>
+                    {Object.entries(lastResult.results).map(
+                      ([testName, result]) => (
+                        <Card
+                          key={testName}
+                          className={`border-l-4 ${
+                            result.status === "passed"
+                              ? "border-green-500"
+                              : "border-red-500"
+                          }`}
+                        >
+                          <CardContent className="pt-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {result.status === "passed" ? (
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  <h4 className="font-medium">
+                                    {result.business_function || testName}
+                                  </h4>
+                                  <Badge
+                                    variant={
+                                      result.status === "passed"
+                                        ? "default"
+                                        : "destructive"
+                                    }
+                                  >
+                                    {result.status}
+                                  </Badge>
+                                </div>
 
-                                  {/* Test Details */}
-                                  {result.details && (
-                                    <div className="space-y-2 text-sm">
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                                        <div>
-                                          <span className="font-medium">
-                                            Method:
-                                          </span>{" "}
-                                          {result.details.method}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">
-                                            Status Code:
-                                          </span>
-                                          <span
-                                            className={`ml-1 ${
-                                              result.details.status_code >=
-                                                200 &&
-                                              result.details.status_code < 300
-                                                ? "text-green-600"
-                                                : result.details.status_code >=
-                                                  400
-                                                ? "text-red-600"
-                                                : "text-yellow-600"
-                                            }`}
-                                          >
-                                            {result.details.status_code}
-                                          </span>
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">
-                                            Response Time:
-                                          </span>{" "}
-                                          {fmtMs(
-                                            result.details.response_time_ms
-                                          )}
-                                        </div>
-                                        <div>
-                                          <span className="font-medium">
-                                            Endpoint:
-                                          </span>{" "}
-                                          {result.details.endpoint}
-                                        </div>
-                                      </div>
-
+                                {/* Test Details */}
+                                {result.details && (
+                                  <div className="space-y-2 text-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
                                       <div>
                                         <span className="font-medium">
-                                          Full URL:
+                                          Method:
+                                        </span>{" "}
+                                        {result.details.method}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">
+                                          Status Code:
                                         </span>
-                                        <code className="ml-1 text-xs bg-gray-100 px-1 py-0.5 rounded">
-                                          {result.details.url}
+                                        <span
+                                          className={`ml-1 font-semibold ${
+                                            result.details.status_code >= 200 &&
+                                            result.details.status_code < 300
+                                              ? "text-green-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {result.details.status_code}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">
+                                          Response Time:
+                                        </span>{" "}
+                                        {fmtMs(result.details.response_time_ms)}
+                                      </div>
+                                      <div className="lg:col-span-1">
+                                        <span className="font-medium">
+                                          Endpoint:
+                                        </span>{" "}
+                                        <code className="text-xs">
+                                          {result.details.endpoint}
                                         </code>
                                       </div>
-
-                                      {/* Show error details for failed tests */}
-                                      {result.status === "failed" &&
-                                        result.error && (
-                                          <Alert className="mt-2">
-                                            <AlertTriangle className="h-4 w-4" />
-                                            <AlertDescription>
-                                              <strong>Error:</strong>{" "}
-                                              {result.error}
-                                            </AlertDescription>
-                                          </Alert>
-                                        )}
                                     </div>
-                                  )}
-                                </div>
+
+                                    <div>
+                                      <span className="font-medium">
+                                        Full URL:
+                                      </span>
+                                      <code className="ml-1 text-xs bg-gray-100 px-1 py-0.5 rounded">
+                                        {result.details.url}
+                                      </code>
+                                    </div>
+
+                                    {/* Show error details for failed tests */}
+                                    {result.status === "failed" &&
+                                      result.error && (
+                                        <Alert
+                                          variant="destructive"
+                                          className="mt-2"
+                                        >
+                                          <AlertTriangle className="h-4 w-4" />
+                                          <AlertDescription>
+                                            <strong>Failure Reason:</strong>{" "}
+                                            {result.error}
+                                          </AlertDescription>
+                                        </Alert>
+                                      )}
+                                  </div>
+                                )}
                               </div>
-                            </CardContent>
-                          </Card>
-                        )
-                      )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    )}
                   </div>
                 )}
 
                 {/* General Error Display */}
                 {error && (
-                  <Alert>
+                  <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>
                       <strong>Test Execution Error:</strong> {error}
