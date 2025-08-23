@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Union
 import logging 
+from create_admin_endpoints_config import create_admin_endpoints_config
 
 
 # Configure logging
@@ -3424,6 +3425,7 @@ import json
 import os
 import time
 import uuid
+from create_admin_endpoints_config import create_admin_endpoints_config
 
 async def test_admin_services_database_driven():
     \"\"\"Test admin services endpoints - fully database-driven configuration\"\"\"
@@ -3442,6 +3444,13 @@ async def test_admin_services_database_driven():
                 "SELECT value FROM platform_settings WHERE key = 'admin_endpoints_config'"
             )
             
+            if not config_row:
+                print("Admin endpoints configuration not found in database, generating it now...")
+                await create_admin_endpoints_config()
+                config_row = await conn.fetchrow(
+                    "SELECT value FROM platform_settings WHERE key = 'admin_endpoints_config'"
+                )
+
             if not config_row:
                 return {"status": "failed", "error": "Admin endpoints configuration not found in database"}
             
