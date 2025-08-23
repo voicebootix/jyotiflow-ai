@@ -131,13 +131,70 @@ class TestExecutionEngine:
                 test_result = await self._execute_single_test(test_case)
                 results[test_case['test_name']] = test_result
                 
-                if test_result['status'] == 'passed':
-                    passed_tests += 1
-                elif test_result['status'] == 'failed':
-                    failed_tests += 1
-                
-                # Store individual test result
-                await self._store_test_result(session_id, test_case, test_result)
+                # ✅ HANDLE DATABASE-DRIVEN TESTS WITH MULTIPLE ENDPOINT RESULTS
+                if 'endpoint_results' in test_result and isinstance(test_result['endpoint_results'], dict):
+                    # This is a database-driven test with multiple endpoint results
+                    endpoint_results = test_result['endpoint_results']
+                    
+                    # Store each endpoint result as a separate test case result - handle both dict and list forms
+                    for business_function, endpoint_result in endpoint_results.items():
+                        # ✅ Handle list form when multiple endpoints share same business function
+                        if isinstance(endpoint_result, list):
+                            # Multiple results for same business function
+                            for idx, single_result in enumerate(endpoint_result):
+                                endpoint_test_case = {
+                                    'test_name': f"{test_case['test_name']}_{business_function.replace(' ', '_').lower()}_{idx}",
+                                    'test_category': test_case.get('test_category', 'admin_services')
+                                }
+                                
+                                # Count individual endpoint results
+                                if single_result.get('status') == 'passed':
+                                    passed_tests += 1
+                                elif single_result.get('status') == 'failed':
+                                    failed_tests += 1
+                                
+                                # Store individual endpoint result
+                                await self._store_test_result(session_id, endpoint_test_case, single_result)
+                            
+                            # Also add to results for frontend display (use last result for backward compatibility)
+                            results[business_function] = endpoint_result[-1] if endpoint_result else {"status": "error"}
+                        else:
+                            # Single result (dict form) - original logic
+                            endpoint_test_case = {
+                                'test_name': f"{test_case['test_name']}_{business_function.replace(' ', '_').lower()}",
+                                'test_category': test_case.get('test_category', 'admin_services')
+                            }
+                            
+                            # Count individual endpoint results
+                            if endpoint_result.get('status') == 'passed':
+                                passed_tests += 1
+                            elif endpoint_result.get('status') == 'failed':
+                                failed_tests += 1
+                            
+                            # Store individual endpoint result
+                            await self._store_test_result(session_id, endpoint_test_case, endpoint_result)
+                            
+                            # Also add to results for frontend display
+                            results[business_function] = endpoint_result
+                    
+                    # Update total test count for multiple endpoints - account for list forms
+                    additional_tests = 0
+                    for endpoint_result in endpoint_results.values():
+                        if isinstance(endpoint_result, list):
+                            additional_tests += len(endpoint_result)
+                        else:
+                            additional_tests += 1
+                    total_tests += additional_tests - 1  # -1 because we already counted the main test
+                    
+                else:
+                    # Regular single test case
+                    if test_result['status'] == 'passed':
+                        passed_tests += 1
+                    elif test_result['status'] == 'failed':
+                        failed_tests += 1
+                    
+                    # Store individual test result
+                    await self._store_test_result(session_id, test_case, test_result)
             
             # Calculate overall status
             overall_status = self._calculate_overall_status(passed_tests, failed_tests, total_tests)
