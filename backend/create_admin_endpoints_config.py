@@ -49,14 +49,22 @@ class AdminEndpointDiscoverer:
         if auth_file.exists():
             content = auth_file.read_text(encoding='utf-8')
             
+            # ✅ DYNAMIC PREFIX DISCOVERY - No hardcoded "/api/auth"
+            # Derive router prefix if present (fallback to /api/auth only if no prefix found)
+            auth_prefix_match = re.search(r'APIRouter\([^)]*prefix=["\']([^"\']+)["\']', content)
+            auth_prefix = auth_prefix_match.group(1) if auth_prefix_match else "/api/auth"
+            
             # Look for login endpoint
             login_match = re.search(r'@router\.post\(["\']([^"\']*login[^"\']*)["\'].*?\ndef\s+(\w+)', content, re.DOTALL)
             if login_match:
                 path = login_match.group(1)
                 function_name = login_match.group(2)
                 
+                # ✅ PROPER PATH CONSTRUCTION - Using discovered prefix, consistent with admin router logic
+                full_path = f"{auth_prefix}{path}" if auth_prefix else path
+                
                 self.discovered_endpoints.append({
-                    "path": f"/api/auth{path}" if not path.startswith("/api") else path,
+                    "path": full_path,
                     "method": "POST",
                     "business_function": "Admin Authentication",
                     "function_name": function_name,
@@ -65,7 +73,8 @@ class AdminEndpointDiscoverer:
                     "timeout_seconds": 30,
                     "priority": "critical",
                     "description": f"Authentication endpoint - {function_name}",
-                    "source_file": "auth.py"
+                    "source_file": "auth.py",
+                    "discovered_prefix": auth_prefix
                 })
     
     def _scan_admin_router(self, router_file: Path):
@@ -77,9 +86,9 @@ class AdminEndpointDiscoverer:
             prefix_match = re.search(r'APIRouter\(prefix=["\']([^"\']+)["\']', content)
             prefix = prefix_match.group(1) if prefix_match else ""
             
-            # Find all endpoint decorators and functions
-            endpoint_pattern = r'@router\.(get|post|put|delete|patch)\(["\']([^"\']*)["\'].*?\)\s*\n\s*async def\s+(\w+)'
-            matches = re.findall(endpoint_pattern, content, re.MULTILINE)
+            # Find all endpoint decorators and functions - handles stacked decorators and optional async
+            endpoint_pattern = r'(?:@\w+(?:\.[\w_]+)?\(.*?\)\s*)*@router\.(get|post|put|delete|patch)\(["\']([^"\']*)["\'].*?\)\s*(?:@\w+(?:\.[\w_]+)?\(.*?\)\s*)*(?:async\s+)?def\s+(\w+)'
+            matches = re.findall(endpoint_pattern, content, re.MULTILINE | re.DOTALL)
             
             for method, path, function_name in matches:
                 full_path = f"{prefix}{path}" if prefix else path
@@ -105,6 +114,7 @@ class AdminEndpointDiscoverer:
                     "priority": self._determine_priority(full_path),
                     "description": f"Admin endpoint - {function_name}",
                     "source_file": router_file.name,
+                    "discovered_prefix": prefix,
                     "requires_admin_auth": requires_auth
                 })
                 
@@ -224,9 +234,13 @@ async def create_admin_endpoints_config():
         print("✅ DYNAMIC admin endpoints configuration created successfully")
         print(f"   📊 Discovered and configured {len(admin_endpoints_config['endpoints'])} endpoints from router files")
         
-        # Print discovered endpoints for verification
+        # Print discovered endpoints for verification with source details
         for endpoint in discovered_endpoints[:5]:  # Show first 5
-            print(f"   🔍 {endpoint['method']} {endpoint['path']} -> {endpoint['business_function']}")
+            source_info = f" (from {endpoint['source_file']}"
+            if 'discovered_prefix' in endpoint:
+                source_info += f", prefix: {endpoint['discovered_prefix']}"
+            source_info += ")"
+            print(f"   🔍 {endpoint['method']} {endpoint['path']} -> {endpoint['business_function']}{source_info}")
         if len(discovered_endpoints) > 5:
             print(f"   ... and {len(discovered_endpoints) - 5} more endpoints")
         
@@ -253,18 +267,22 @@ async def create_admin_endpoints_config():
         
         print("✅ DYNAMIC admin test configuration created successfully")
         
-        # Verify configuration was stored
-        verification = await conn.fetchrow("""
-            SELECT key, value FROM platform_settings 
+        # Verify configuration was stored - check both keys exist
+        verification_rows = await conn.fetch("""
+            SELECT key FROM platform_settings 
             WHERE key IN ('admin_endpoints_config', 'admin_test_config')
-            ORDER BY key
         """)
         
-        if verification:
-            print("✅ Dynamic configuration verified in database - NO hardcoded endpoints!")
+        # Collect keys into a set and verify both are present
+        stored_keys = {row['key'] for row in verification_rows}
+        expected_keys = {'admin_endpoints_config', 'admin_test_config'}
+        
+        if expected_keys.issubset(stored_keys):
+            print("✅ Dynamic configuration verified in database - both keys present, NO hardcoded endpoints!")
             return True
         else:
-            print("❌ Configuration verification failed")
+            missing_keys = expected_keys - stored_keys
+            print(f"❌ Configuration verification failed - missing keys: {missing_keys}")
             return False
             
     except Exception as e:

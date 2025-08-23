@@ -3445,7 +3445,23 @@ async def test_admin_services_database_driven():
             if not config_row:
                 return {"status": "failed", "error": "Admin endpoints configuration not found in database"}
             
-            endpoints_config = json.loads(config_row['value'])
+            # ✅ Handle both dict (JSONB) and string cases from asyncpg
+            config_value = config_row['value']
+            if config_value is None:
+                return {"status": "failed", "error": "Admin endpoints configuration is null in database"}
+            elif isinstance(config_value, dict):
+                # asyncpg returned JSONB as dict
+                endpoints_config = config_value
+            elif isinstance(config_value, (str, bytes)):
+                # asyncpg returned as string, need to parse
+                endpoints_config = json.loads(config_value)
+            else:
+                return {"status": "failed", "error": f"Invalid config data type: {type(config_value)}"}
+            
+            # Ensure endpoints_config is dict before accessing
+            if not isinstance(endpoints_config, dict):
+                return {"status": "failed", "error": "Admin endpoints configuration is not a valid dict"}
+                
             endpoints = endpoints_config.get('endpoints', [])
             api_base_url = endpoints_config.get('api_base_url', 'https://jyotiflow-ai.onrender.com')
             
@@ -3496,7 +3512,8 @@ async def test_admin_services_database_driven():
                     
                     print(f"📊 {business_function}: {status_code} ({response_time_ms}ms) - {'✅' if test_status == 'passed' else '❌'}")
                     
-                    endpoint_results[business_function] = {
+                    # ✅ Preserve all results and include provenance - handle multiple endpoints with same business function
+                    result_entry = {
                         "status": test_status,
                         "execution_time_ms": response_time_ms,
                         "business_function": business_function,
@@ -3505,15 +3522,30 @@ async def test_admin_services_database_driven():
                             "response_time_ms": response_time_ms,
                             "url": url,
                             "method": method,
-                            "endpoint": endpoint_path
+                            "endpoint": endpoint_path,
+                            "source_file": "database_discovery"  # Provenance tracking
                         }
                     }
+                    
+                    # Handle multiple endpoints with same business function using lists
+                    if business_function not in endpoint_results:
+                        endpoint_results[business_function] = result_entry
+                    elif isinstance(endpoint_results[business_function], dict):
+                        # Convert existing dict to list and add new result
+                        endpoint_results[business_function] = [endpoint_results[business_function], result_entry]
+                    elif isinstance(endpoint_results[business_function], list):
+                        # Append to existing list
+                        endpoint_results[business_function].append(result_entry)
+                    else:
+                        # Fallback - replace with new result
+                        endpoint_results[business_function] = result_entry
                     
                 except Exception as http_error:
                     error_message = f"HTTP request failed: {str(http_error)}"
                     print(f"❌ {business_function}: {error_message}")
                     
-                    endpoint_results[business_function] = {
+                    # ✅ Preserve all results and include provenance - handle multiple endpoints with same business function
+                    error_entry = {
                         "status": "failed",
                         "error": error_message,
                         "error_message": error_message,  # For database storage
@@ -3522,9 +3554,23 @@ async def test_admin_services_database_driven():
                             "url": url,
                             "method": method,
                             "endpoint": endpoint_path,
-                            "error_type": type(http_error).__name__
+                            "error_type": type(http_error).__name__,
+                            "source_file": "database_discovery"  # Provenance tracking
                         }
                     }
+                    
+                    # Handle multiple endpoints with same business function using lists
+                    if business_function not in endpoint_results:
+                        endpoint_results[business_function] = error_entry
+                    elif isinstance(endpoint_results[business_function], dict):
+                        # Convert existing dict to list and add new result
+                        endpoint_results[business_function] = [endpoint_results[business_function], error_entry]
+                    elif isinstance(endpoint_results[business_function], list):
+                        # Append to existing list
+                        endpoint_results[business_function].append(error_entry)
+                    else:
+                        # Fallback - replace with new result
+                        endpoint_results[business_function] = error_entry
         
         # Calculate overall test result
         success_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
