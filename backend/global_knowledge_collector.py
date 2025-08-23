@@ -287,3 +287,4 @@ async def test_collector():
 if __name__ == "__main__":
     # Run test
     asyncio.run(test_collector())
+
