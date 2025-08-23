@@ -1544,16 +1544,16 @@ async def execute_test(request: dict):
                     try:
                         # Get detailed test case results with error messages from database
                         test_case_results = await conn.fetch("""
-                            SELECT test_name, status, error_message, execution_time_ms, output_data
+                            SELECT DISTINCT ON (test_name) test_name, status, error_message, execution_time_ms, output_data
                             FROM test_case_results 
-                            WHERE session_id = $1 
-                            ORDER BY created_at DESC
+                            WHERE session_id = $1 AND status = 'failed'
+                            ORDER BY test_name, created_at DESC
                         """, result.get("session_id"))
                         
                         # Enhance results with database-driven error messages
                         for test_case in test_case_results:
                             test_name = test_case['test_name']
-                            if test_name and test_case['status'] == 'failed':
+                            if test_name:
                                 # Create enhanced result entry with database error message
                                 enhanced_result = {
                                     "status": "failed",
@@ -1572,9 +1572,10 @@ async def execute_test(request: dict):
                                         output_json = json.loads(test_case['output_data']) if isinstance(test_case['output_data'], str) else test_case['output_data']
                                         if isinstance(output_json, dict):
                                             enhanced_result["details"].update({
+                                                "url": output_json.get("details", {}).get("url") or output_json.get("url"),
                                                 "http_status_code": output_json.get("http_status_code"),
-                                                "business_function": output_json.get("business_function"),
-                                                "endpoint_url": output_json.get("details", {}).get("url")
+                                                "status_code": output_json.get("http_status_code") or output_json.get("status_code"),
+                                                "business_function": output_json.get("business_function")
                                             })
                                     except (json.JSONDecodeError, TypeError):
                                         pass
