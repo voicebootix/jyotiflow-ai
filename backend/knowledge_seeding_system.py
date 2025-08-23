@@ -794,8 +794,12 @@ class KnowledgeSeeder:
 # Initialize and run seeding
 async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
     """
-    Run the complete knowledge seeding process.
+    Run the complete knowledge seeding process with environment variable control.
     It can accept an external db_pool to avoid dependency on a global pool.
+    
+    Environment Variables:
+    - ENABLE_GLOBAL_KNOWLEDGE: "true" to include real-time global knowledge collection
+    - KNOWLEDGE_SEEDING_MODE: "traditional", "global", or "complete" (default: "traditional")
     """
     db_pool = None
     try:
@@ -822,13 +826,53 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
         # Initialize seeder
         seeder = KnowledgeSeeder(db_pool, openai_api_key)
         
-        # Run seeding
-        await seeder.seed_complete_knowledge_base()
+        # Check and validate environment variables for seeding mode
+        enable_global_knowledge = os.getenv("ENABLE_GLOBAL_KNOWLEDGE", "false").lower() == "true"
+        raw_seeding_mode = os.getenv("KNOWLEDGE_SEEDING_MODE", "traditional").lower()
         
-        logger.info("Knowledge seeding completed successfully!")
+        # Validate KNOWLEDGE_SEEDING_MODE against allowed values
+        allowed_modes = {"traditional", "complete", "global"}
+        if raw_seeding_mode not in allowed_modes:
+            logger.warning(f"⚠️ Invalid KNOWLEDGE_SEEDING_MODE '{raw_seeding_mode}'. Allowed values: {allowed_modes}")
+            logger.warning("⚠️ Falling back to 'traditional' mode")
+            raw_seeding_mode = "traditional"
+        
+        # Determine effective mode with explicit precedence rules
+        # Rule: Explicit KNOWLEDGE_SEEDING_MODE wins, but ENABLE_GLOBAL_KNOWLEDGE can upgrade "traditional" to "complete"
+        effective_mode = raw_seeding_mode
+        upgrade_reason = None
+        
+        if raw_seeding_mode == "traditional" and enable_global_knowledge:
+            effective_mode = "complete"
+            upgrade_reason = "ENABLE_GLOBAL_KNOWLEDGE=true upgraded 'traditional' to 'complete'"
+        
+        # Log configuration and effective decision
+        logger.info(f"🌟 Knowledge seeding configuration:")
+        logger.info(f"  ENABLE_GLOBAL_KNOWLEDGE: {enable_global_knowledge}")
+        logger.info(f"  KNOWLEDGE_SEEDING_MODE: {raw_seeding_mode}")
+        logger.info(f"  Effective mode: {effective_mode}")
+        if upgrade_reason:
+            logger.info(f"  Reason: {upgrade_reason}")
+        
+        # Run seeding based on effective mode
+        if effective_mode == "global":
+            logger.info("🌍 Running GLOBAL KNOWLEDGE ONLY seeding...")
+            await seeder.seed_global_real_time_knowledge()
+        elif effective_mode == "complete":
+            logger.info("🌟🌍 Running COMPLETE seeding (Traditional + Global)...")
+            await seeder.seed_complete_with_global_knowledge()
+        elif effective_mode == "traditional":
+            logger.info("🕉️ Running TRADITIONAL SPIRITUAL seeding only...")
+        await seeder.seed_complete_knowledge_base()
+        else:
+            # This should never happen due to validation above, but safety check
+            logger.error(f"❌ Unexpected effective mode: {effective_mode}")
+            raise ValueError(f"Invalid effective seeding mode: {effective_mode}")
+        
+        logger.info("✅ Knowledge seeding completed successfully!")
         
     except Exception as e:
-        logger.error(f"Knowledge seeding failed: {e}")
+        logger.error(f"❌ Knowledge seeding failed: {e}")
         raise
 
 if __name__ == "__main__":
