@@ -10,6 +10,12 @@ import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
+# Import global knowledge collector
+try:
+    from .global_knowledge_collector import GlobalKnowledgeCollector, collect_global_knowledge
+except ImportError:
+    from global_knowledge_collector import GlobalKnowledgeCollector, collect_global_knowledge
+
 # Try to import OpenAI, fallback gracefully
 try:
     from openai import AsyncOpenAI
@@ -90,10 +96,10 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
                 except (ValueError, TypeError) as e:
                     logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding list elements to float: {e}, using default")
                     return [0.0] * DEFAULT_EMBED_DIM
-            else:
+        else:
                 logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
                 return [0.0] * DEFAULT_EMBED_DIM
-        else:
+            else:
             # For other types, create default vector
             logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
             return [0.0] * DEFAULT_EMBED_DIM
@@ -730,6 +736,61 @@ class KnowledgeSeeder:
             # Continue with next piece rather than failing completely
             pass
 
+    async def seed_global_real_time_knowledge(self):
+        """
+        Seed with real-time global knowledge from all categories
+        News, Science, Health, Finance, Environment - ALL EQUAL PRIORITY
+        """
+        logger.info("🌍 Starting global real-time knowledge collection...")
+        
+        try:
+            # Use the global knowledge collector
+            async with GlobalKnowledgeCollector() as collector:
+                global_articles = await collector.collect_all_categories()
+            
+            if not global_articles:
+                logger.warning("⚠️ No global articles collected")
+                return
+            
+            logger.info(f"📊 Processing {len(global_articles)} global articles...")
+            
+            # Add each article to RAG with embeddings
+            success_count = 0
+            for article in global_articles:
+                try:
+                    await self._add_knowledge_with_embedding(article)
+                    success_count += 1
+                    
+                    # Prevent API rate limiting
+                    if success_count % 10 == 0:
+                        logger.info(f"  Processed {success_count}/{len(global_articles)} articles...")
+                        await asyncio.sleep(1)
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to add article: {article['title'][:50]}... - {e}")
+                    continue
+            
+            logger.info(f"✅ Global knowledge seeding completed! Added {success_count}/{len(global_articles)} articles")
+            
+        except Exception as e:
+            logger.error(f"❌ Global knowledge seeding failed: {e}")
+            raise
+
+    async def seed_complete_with_global_knowledge(self):
+        """
+        Seed BOTH traditional spiritual knowledge AND real-time global knowledge
+        This gives the most comprehensive knowledge base
+        """
+        logger.info("🌟🌍 Starting COMPLETE knowledge seeding (Traditional + Global)...")
+        
+        # First seed traditional spiritual knowledge
+        await self.seed_complete_knowledge_base()
+        
+        # Then add real-time global knowledge
+        await self.seed_global_real_time_knowledge()
+        
+        logger.info("🎉 COMPLETE knowledge base ready! Traditional wisdom + Global real-time knowledge!")
+
 # Initialize and run seeding
 async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
     """
@@ -746,11 +807,11 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             try:
                 from . import db
             except ImportError:
-                import db
-            
-            db_pool = db.get_db_pool()
-            if db_pool is None:
-                raise Exception("Shared database pool not available - ensure main.py has initialized it")
+        import db
+        
+        db_pool = db.get_db_pool()
+        if db_pool is None:
+            raise Exception("Shared database pool not available - ensure main.py has initialized it")
         
         # Get OpenAI API key
         openai_api_key = os.getenv("OPENAI_API_KEY")
