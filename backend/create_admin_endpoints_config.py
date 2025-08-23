@@ -51,11 +51,15 @@ class AdminEndpointDiscoverer:
             
             # ✅ DYNAMIC PREFIX DISCOVERY - No hardcoded "/api/auth"
             # Derive router prefix if present (fallback to /api/auth only if no prefix found)
-            auth_prefix_match = re.search(r'APIRouter\([^)]*prefix=["\']([^"\']+)["\']', content)
+            auth_prefix_match = re.search(
+                r'APIRouter\([^)]*?prefix\s*=\s*["\']([^"\']+)["\']',
+                content,
+                re.DOTALL,
+            )
             auth_prefix = auth_prefix_match.group(1) if auth_prefix_match else "/api/auth"
             
             # ✅ Discover router variable names in auth.py too (no hardcoded @router.)
-            auth_router_vars = re.findall(r'(\w+)\s*=\s*APIRouter\([^)]*\)', content)
+            auth_router_vars = re.findall(r'(\w+)\s*=\s*APIRouter\([^)]*\)', content, re.DOTALL)
             if not auth_router_vars:
                 auth_router_vars = ["router"]  # fallback
             
@@ -76,8 +80,11 @@ class AdminEndpointDiscoverer:
                 path = login_match.group(1)
                 function_name = login_match.group(2)
                 
-                # ✅ PROPER PATH CONSTRUCTION - Using discovered prefix, consistent with admin router logic
-                full_path = f"{auth_prefix}{path}" if auth_prefix else path
+                # ✅ PROPER PATH CONSTRUCTION - Normalized to prevent double/missing slashes
+                if auth_prefix:
+                    full_path = f"{auth_prefix.rstrip('/')}/{path.lstrip('/')}"
+                else:
+                    full_path = path
                 
                 self.discovered_endpoints.append({
                     "path": full_path,
@@ -99,11 +106,15 @@ class AdminEndpointDiscoverer:
             content = router_file.read_text(encoding='utf-8')
             
             # Extract router prefix
-            prefix_match = re.search(r'APIRouter\(prefix=["\']([^"\']+)["\']', content)
+            prefix_match = re.search(
+                r'APIRouter\([^)]*?prefix\s*=\s*["\']([^"\']+)["\']',
+                content,
+                re.DOTALL,
+            )
             prefix = prefix_match.group(1) if prefix_match else ""
             
             # Discover router variable names (e.g., router, admin_router, livechat_router, etc.)
-            router_vars = re.findall(r'(\w+)\s*=\s*APIRouter\([^)]*\)', content)
+            router_vars = re.findall(r'(\w+)\s*=\s*APIRouter\([^)]*\)', content, re.DOTALL)
             if not router_vars:
                 router_vars = ["router"]  # fallback
             
@@ -119,7 +130,11 @@ class AdminEndpointDiscoverer:
                 print(f"  📍 Found {len(router_matches)} endpoints for @{rvar}.")
             
             for method, path, function_name in matches:
-                full_path = f"{prefix}{path}" if prefix else path
+                # ✅ PROPER PATH CONSTRUCTION - Normalized to prevent double/missing slashes
+                if prefix:
+                    full_path = f"{prefix.rstrip('/')}/{path.lstrip('/')}"
+                else:
+                    full_path = path
                 
                 # Generate business function name from path and function
                 business_function = self._generate_business_function(full_path, function_name)
