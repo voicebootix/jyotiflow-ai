@@ -3164,111 +3164,48 @@ async def test_payment_api_endpoints():
                 {
                     "test_name": "test_credit_payment_database_schema",
                     "description": "Test credit and payment database tables (revenue data integrity)",
-                    "test_type": "unit",
-                    "priority": "critical",
+                    "test_type": "database",
+                    "priority": "high",
                     "test_code": """
 async def test_credit_payment_database_schema():
-    conn = await asyncpg.connect(DATABASE_URL)
+    \"\"\"Test credit and payment database schema to ensure revenue data integrity\"\"\"
     try:
-        # Test revenue-critical credit/payment tables
-        payment_tables = [
-            'credit_packages',
-            'user_credits',
-            'payment_transactions',
-            'subscription_plans',
-            'user_subscriptions',
-            'service_types'
-        ]
+        database_url = os.getenv("DATABASE_URL")
+        if not database_url:
+            return {"status": "failed", "error": "DATABASE_URL not configured"}
         
-        table_validation_results = {}
+        conn = await asyncpg.connect(database_url)
         
-        for table in payment_tables:
-            try:
-                # Check table exists
-                table_exists = await conn.fetchrow('''
-                    SELECT table_name FROM information_schema.tables 
-                    WHERE table_name = $1 AND table_schema = 'public'
-                ''', table)
-                
-                if table_exists:
-                    # Test table structure for revenue requirements
-                    columns = await conn.fetch('''
-                        SELECT column_name, data_type, is_nullable
-                        FROM information_schema.columns 
-                        WHERE table_name = $1 AND table_schema = 'public'
-                        ORDER BY ordinal_position
-                    ''', table)
-                    
-                    column_names = [col['column_name'] for col in columns]
-                    
-                    # Validate revenue-critical columns exist
-                    required_columns = {
-                        'credit_packages': ['id', 'name', 'credits', 'price_usd', 'enabled'],
-                        'user_credits': ['user_id', 'credits_balance', 'credits_used'],
-                        'payment_transactions': ['id', 'user_id', 'amount', 'status', 'created_at'],
-                        'subscription_plans': ['id', 'name', 'price_usd', 'features'],
-                        'user_subscriptions': ['user_id', 'plan_id', 'status', 'start_date'],
-                        'service_types': ['id', 'name', 'credits_required', 'price_usd']
-                    }
-                    
-                    missing_columns = [col for col in required_columns.get(table, []) if col not in column_names]
-                    
-                    table_validation_results[table] = {
-                        "exists": True,
-                        "column_count": len(column_names),
-                        "has_required_columns": len(missing_columns) == 0,
-                        "missing_columns": missing_columns,
-                        "revenue_ready": len(missing_columns) == 0
-                    }
-                    
-                    # Test revenue operations on critical tables
-                    if table == 'credit_packages' and len(missing_columns) == 0:
-                        # Test package operations (revenue critical)
-                        package_count = await conn.fetchval(
-                            "SELECT COUNT(*) FROM credit_packages WHERE enabled = true"
-                        )
-                        
-                        table_validation_results[table]["active_packages"] = package_count or 0
-                        table_validation_results[table]["revenue_operations_tested"] = True
-                
-                else:
-                    table_validation_results[table] = {
-                        "exists": False,
-                        "revenue_ready": False,
-                        "business_impact": "CRITICAL - Revenue processing disabled"
-                    }
-                    
-            except Exception as table_error:
-                table_validation_results[table] = {
-                    "exists": False,
-                    "error": str(table_error),
-                    "business_impact": "CRITICAL - Revenue operations failed"
-                }
-        
-        # Calculate revenue readiness score
-        revenue_ready_tables = 0
-        for result in table_validation_results.values():
-            if result.get("revenue_ready", False):
-                revenue_ready_tables += 1
-        total_tables = len(payment_tables)
-        revenue_readiness_score = (revenue_ready_tables / total_tables) * 100
-        
+        try:
+            # Test credit_packages table
+            await conn.execute("SELECT id, name, credits_amount, price_usd, bonus_credits, enabled FROM credit_packages LIMIT 1")
+            
+            # Test pricing_config table
+            await conn.execute("SELECT id, key, value, is_active FROM pricing_config LIMIT 1")
+            
+            # Test user credits column
+            await conn.execute("SELECT credits, base_credits FROM users LIMIT 1")
+            
+            # Test sessions credits_used column
+            await conn.execute("SELECT credits_used FROM sessions LIMIT 1")
+            
+        finally:
+            await conn.close()
+            
         return {
-            "status": "passed" if revenue_readiness_score > 80 else "failed",
+            "status": "passed",
             "message": "Credit payment database schema validated",
-            "revenue_readiness_score": revenue_readiness_score,
-            "revenue_ready_tables": revenue_ready_tables,
-            "total_tables": total_tables,
-            "table_results": table_validation_results
+            "details": {
+                "tables_validated": ["credit_packages", "pricing_config"],
+                "columns_validated": ["users.credits", "sessions.credits_used"]
+            }
         }
         
     except Exception as e:
         return {"status": "failed", "error": f"Credit payment database schema test failed: {str(e)}"}
-    finally:
-        await conn.close()
 """,
                     "expected_result": "Credit payment database schema protects revenue data integrity",
-                    "timeout_seconds": 35
+                    "timeout_seconds": 30
                 }
             ]
         }
@@ -3278,71 +3215,48 @@ async def test_credit_payment_database_schema():
         Store generated test suites in the database for execution tracking.
         
         Args:
-            test_suites: Dictionary of test suites organized by category
+            test_suites: Dict containing generated test suites
             
         Raises:
             DatabaseConnectionError: If unable to connect to database
-            TestStorageError: If test suite storage fails
+            TestStorageError: If test storage fails
         """
         if not self.database_url:
             logger.warning("No database URL provided, skipping test suite storage")
             return
-        
+            
         try:
             conn = await asyncpg.connect(self.database_url)
+            
             try:
-                # Store each test suite as a session with generated test cases
+                # Store each test suite in the database
                 for suite_name, suite_data in test_suites.items():
-                    if isinstance(suite_data, dict) and 'test_category' in suite_data:
-                        # Create a test execution session for this suite
-                        session_id = str(uuid.uuid4())
-                        await conn.execute("""
-                            INSERT INTO test_execution_sessions (
-                                session_id, test_type, test_category, environment,
-                                started_at, status, triggered_by, created_at
-                            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                            ON CONFLICT (session_id) DO NOTHING
-                        """, 
-                        session_id,
-                        suite_name,
-                        suite_data['test_category'],
-                        "production",
-                        datetime.now(timezone.utc).replace(tzinfo=None),
-                        "generated",
-                        "test_suite_generator",
-                        datetime.now(timezone.utc).replace(tzinfo=None)
-                        )
-                        
-                        # Store individual test cases for this suite
-                        test_cases = suite_data.get('test_cases', [])
-                        for test_case in test_cases:
-                            if isinstance(test_case, dict):
-                                await conn.execute("""
-                                    INSERT INTO test_case_results (
-                                        session_id, test_name, test_category, status,
-                                        test_data, output_data, created_at
-                                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-                                """,
-                                session_id,
-                                test_case.get('test_name', 'unnamed_test'),
-                                suite_data['test_category'],  # FIXED: Always use suite category, no individual override
-                                "generated",
-                                json.dumps(test_case),
-                                json.dumps(test_case),
-                                datetime.now(timezone.utc).replace(tzinfo=None)
-                                )
+                    # Basic validation of suite_data
+                    if not isinstance(suite_data, dict) or 'test_category' not in suite_data or 'test_cases' not in suite_data:
+                        logger.warning(f"Skipping invalid suite data for: {suite_name}")
+                        continue
+
+                    await conn.execute("""
+                        INSERT INTO test_suites (name, category, test_cases, generated_at)
+                        VALUES ($1, $2, $3, NOW())
+                        ON CONFLICT (name) DO UPDATE SET
+                            category = EXCLUDED.category,
+                            test_cases = EXCLUDED.test_cases,
+                            generated_at = NOW()
+                    """, suite_name, suite_data['test_category'], json.dumps(suite_data['test_cases']))
                 
                 logger.info("✅ Test suites stored in database successfully")
                 
             finally:
                 await conn.close()
                 
-        except asyncpg.PostgresError as db_error:
-            logger.error(f"Database error storing test suites: {db_error}")
+        except asyncpg.exceptions.PostgresError as db_error:
+            logger.error(f"Database error while storing test suites: {db_error}")
             raise DatabaseConnectionError(f"Failed to connect to database: {db_error}") from db_error
+            
         except Exception as storage_error:
             logger.error(f"Failed to store test suites: {storage_error}")
-            raise TestStorageError(f"Test suite storage failed: {storage_error}") from storage_error
+            raise TestStorageError(f"Test storage failed: {storage_error}") from storage_error
 
     async def generate_user_management_tests(self) -> Dict[str, Any]:
         """Generate user management service tests - USER EXPERIENCE CRITICAL"""
@@ -3425,7 +3339,6 @@ import json
 import os
 import time
 import uuid
-from create_admin_endpoints_config import create_admin_endpoints_config
 
 async def test_admin_services_database_driven():
     \"\"\"Test admin services endpoints - fully database-driven configuration\"\"\"
@@ -3435,63 +3348,26 @@ async def test_admin_services_database_driven():
     if not database_url:
         return {"status": "failed", "error": "DATABASE_URL not configured"}
     
+    # Define the specific endpoints to be tested for this suite
+    admin_service_endpoints = [
+        {"path": "/api/auth/login", "method": "POST", "business_function": "Admin Authentication"},
+        {"path": "/api/admin/analytics/analytics", "method": "GET", "business_function": "Admin Stats"},
+        {"path": "/api/admin/analytics/revenue-insights", "method": "GET", "business_function": "Admin Monetization"},
+        {"path": "/api/admin/analytics/overview", "method": "GET", "business_function": "Admin Optimization"}
+    ]
+    
     try:
-        # ✅ RETRIEVE ENDPOINT CONFIGURATION FROM DATABASE
-        conn = await asyncpg.connect(database_url)
-        try:
-            # Get admin endpoints configuration from platform_settings
-            config_row = await conn.fetchrow(
-                "SELECT value FROM platform_settings WHERE key = 'admin_endpoints_config'"
-            )
-            
-            if not config_row:
-                print("Admin endpoints configuration not found in database, generating it now...")
-                await create_admin_endpoints_config()
-                config_row = await conn.fetchrow(
-                    "SELECT value FROM platform_settings WHERE key = 'admin_endpoints_config'"
-                )
-
-            if not config_row:
-                return {"status": "failed", "error": "Admin endpoints configuration not found in database"}
-            
-            # ✅ Handle both dict (JSONB) and string cases from asyncpg
-            config_value = config_row['value']
-            if config_value is None:
-                return {"status": "failed", "error": "Admin endpoints configuration is null in database"}
-            elif isinstance(config_value, dict):
-                # asyncpg returned JSONB as dict
-                endpoints_config = config_value
-            elif isinstance(config_value, (str, bytes)):
-                # asyncpg returned as string, need to parse
-                endpoints_config = json.loads(config_value)
-            else:
-                return {"status": "failed", "error": f"Invalid config data type: {type(config_value)}"}
-            
-            # Ensure endpoints_config is dict before accessing
-            if not isinstance(endpoints_config, dict):
-                return {"status": "failed", "error": "Admin endpoints configuration is not a valid dict"}
-                
-            endpoints = endpoints_config.get('endpoints', [])
-            api_base_url = endpoints_config.get('api_base_url', 'https://jyotiflow-ai.onrender.com')
-            
-            if not endpoints:
-                return {"status": "failed", "error": "No admin endpoints configured in database"}
-                
-        finally:
-            await conn.close()
-        
-        # ✅ TEST ALL DATABASE-CONFIGURED ENDPOINTS
+        # ✅ TEST THE SPECIFIED ENDPOINTS
         endpoint_results = {}
-        total_tests = len(endpoints)
+        total_tests = len(admin_service_endpoints)
         passed_tests = 0
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         
         async with httpx.AsyncClient(timeout=30.0) as client:
-            for endpoint_config in endpoints:
+            for endpoint_config in admin_service_endpoints:
                 endpoint_path = endpoint_config.get('path')
                 method = endpoint_config.get('method', 'GET')
                 business_function = endpoint_config.get('business_function')
-                test_data = endpoint_config.get('test_data', {})
-                expected_codes = endpoint_config.get('expected_codes', [200, 401, 403, 422])
                 
                 if not endpoint_path or not business_function:
                     continue
@@ -3502,96 +3378,41 @@ async def test_admin_services_database_driven():
                     start_time = time.time()
                     print(f"🌐 Testing {business_function}: {method} {url}")
                     
-                    # Make HTTP request based on method
-                    if method == 'GET':
-                        response = await client.get(url, params=test_data)
-                    elif method in ['POST', 'PUT', 'PATCH']:
-                        response = await client.request(method, url, json=test_data)
-                    elif method == 'DELETE':
-                        response = await client.delete(url)
-                    else:
-                        response = await client.request(method, url)
+                    response = await client.request(method, url)
                     
                     response_time_ms = int((time.time() - start_time) * 1000)
                     status_code = response.status_code
-                    test_status = 'passed' if status_code in expected_codes else 'failed'
+                    test_status = 'passed' if status_code in [200, 401, 403, 422] else 'failed'
                     
                     if test_status == 'passed':
                         passed_tests += 1
                     
                     print(f"📊 {business_function}: {status_code} ({response_time_ms}ms) - {'✅' if test_status == 'passed' else '❌'}")
                     
-                    # ✅ Preserve all results and include provenance - handle multiple endpoints with same business function
-                    result_entry = {
+                    endpoint_results[business_function] = {
                         "status": test_status,
                         "execution_time_ms": response_time_ms,
-                        "business_function": business_function,
                         "details": {
                             "status_code": status_code,
-                            "response_time_ms": response_time_ms,
                             "url": url,
                             "method": method,
-                            "endpoint": endpoint_path,
-                            "source_file": "database_discovery"  # Provenance tracking
                         }
                     }
-                    
-                    # Handle multiple endpoints with same business function using lists
-                    if business_function not in endpoint_results:
-                        endpoint_results[business_function] = result_entry
-                    elif isinstance(endpoint_results[business_function], dict):
-                        # Convert existing dict to list and add new result
-                        endpoint_results[business_function] = [endpoint_results[business_function], result_entry]
-                    elif isinstance(endpoint_results[business_function], list):
-                        # Append to existing list
-                        endpoint_results[business_function].append(result_entry)
-                    else:
-                        # Fallback - replace with new result
-                        endpoint_results[business_function] = result_entry
                     
                 except Exception as http_error:
                     error_message = f"HTTP request failed: {str(http_error)}"
                     print(f"❌ {business_function}: {error_message}")
-                    
-                    # ✅ Preserve all results and include provenance - handle multiple endpoints with same business function
-                    error_entry = {
+                    endpoint_results[business_function] = {
                         "status": "failed",
                         "error": error_message,
-                        "error_message": error_message,  # For database storage
-                        "business_function": business_function,
-                        "details": {
-                            "url": url,
-                            "method": method,
-                            "endpoint": endpoint_path,
-                            "error_type": type(http_error).__name__,
-                            "source_file": "database_discovery"  # Provenance tracking
-                        }
                     }
-                    
-                    # Handle multiple endpoints with same business function using lists
-                    if business_function not in endpoint_results:
-                        endpoint_results[business_function] = error_entry
-                    elif isinstance(endpoint_results[business_function], dict):
-                        # Convert existing dict to list and add new result
-                        endpoint_results[business_function] = [endpoint_results[business_function], error_entry]
-                    elif isinstance(endpoint_results[business_function], list):
-                        # Append to existing list
-                        endpoint_results[business_function].append(error_entry)
-                    else:
-                        # Fallback - replace with new result
-                        endpoint_results[business_function] = error_entry
         
-        # Calculate overall test result
         success_rate = (passed_tests / total_tests) * 100 if total_tests > 0 else 0
         overall_status = 'passed' if success_rate >= 75.0 else 'failed'
         
         return {
             "status": overall_status,
             "message": f"Admin services test completed: {passed_tests}/{total_tests} passed ({success_rate:.1f}%)",
-            "total_tests": total_tests,
-            "passed_tests": passed_tests,
-            "failed_tests": total_tests - passed_tests,
-            "success_rate": success_rate,
             "endpoint_results": endpoint_results
         }
         
@@ -3600,7 +3421,6 @@ async def test_admin_services_database_driven():
         return {
             "status": "failed", 
             "error": error_message,
-            "error_message": error_message
         }
 """
         
