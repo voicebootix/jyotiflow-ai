@@ -3,6 +3,13 @@
 -- Simplified version to avoid RAISE NOTICE syntax issues
 
 -- =================================================================
+-- 0. ENSURE REQUIRED EXTENSIONS
+-- =================================================================
+
+-- Enable pgcrypto extension for gen_random_uuid() support
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- =================================================================
 -- 1. FIX SERVICE_TYPES TABLE - Add missing credits_required column
 -- =================================================================
 
@@ -39,7 +46,7 @@ BEGIN
             SELECT 1 FROM information_schema.columns 
             WHERE table_name = 'service_types' AND column_name = 'service_category'
         ) THEN
-            ALTER TABLE service_types ADD COLUMN service_category VARCHAR(100) DEFAULT 'guidance';
+            ALTER TABLE service_types ADD COLUMN service_category VARCHAR(255) DEFAULT 'guidance';
         END IF;
         
         IF NOT EXISTS (
@@ -53,7 +60,7 @@ BEGIN
             SELECT 1 FROM information_schema.columns 
             WHERE table_name = 'service_types' AND column_name = 'icon'
         ) THEN
-            ALTER TABLE service_types ADD COLUMN icon VARCHAR(50) DEFAULT '🔮';
+            ALTER TABLE service_types ADD COLUMN icon VARCHAR(255) DEFAULT '🔮';
         END IF;
         
         IF NOT EXISTS (
@@ -66,16 +73,16 @@ BEGIN
         -- Create service_types table if it doesn't exist
         CREATE TABLE service_types (
             id SERIAL PRIMARY KEY,
-            name VARCHAR(100) UNIQUE NOT NULL,
+            name VARCHAR(255) UNIQUE NOT NULL,
             display_name VARCHAR(255),
             description TEXT,
             base_credits INTEGER DEFAULT 5,
             credits_required INTEGER DEFAULT 5,
             price_usd DECIMAL(10,2) DEFAULT 0.0,
             duration_minutes INTEGER DEFAULT 15,
-            service_category VARCHAR(100) DEFAULT 'guidance',
+            service_category VARCHAR(255) DEFAULT 'guidance',
             enabled BOOLEAN DEFAULT true,
-            icon VARCHAR(50) DEFAULT '🔮',
+            icon VARCHAR(255) DEFAULT '🔮',
             video_enabled BOOLEAN DEFAULT true,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -93,14 +100,14 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'donations') THEN
         CREATE TABLE donations (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            name VARCHAR(100) NOT NULL,
+            name VARCHAR(255) NOT NULL,
             description TEXT,
             price_usd DECIMAL(10,2) NOT NULL,
-            icon VARCHAR(50) DEFAULT '🙏',
-            category VARCHAR(50) DEFAULT 'offering',
+            icon VARCHAR(255) DEFAULT '🙏',
+            category VARCHAR(255) DEFAULT 'offering',
             enabled BOOLEAN DEFAULT true,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
         INSERT INTO donations (name, description, price_usd, icon, category) VALUES
@@ -119,15 +126,15 @@ BEGIN
             user_id INTEGER,
             donation_id UUID,
             amount_usd DECIMAL(10,2) NOT NULL,
-            currency VARCHAR(3) DEFAULT 'USD',
-            payment_method VARCHAR(50) DEFAULT 'stripe',
-            status VARCHAR(20) DEFAULT 'pending',
-            transaction_type VARCHAR(50) DEFAULT 'donation',
+            currency VARCHAR(255) DEFAULT 'USD',
+            payment_method VARCHAR(255) DEFAULT 'stripe',
+            status VARCHAR(255) DEFAULT 'pending',
+            transaction_type VARCHAR(255) DEFAULT 'donation',
             session_id UUID,
             message TEXT,
             metadata JSONB DEFAULT '{}'::jsonb,
-            created_at TIMESTAMP DEFAULT NOW(),
-            updated_at TIMESTAMP DEFAULT NOW()
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
         
         CREATE INDEX idx_donation_transactions_user_id ON donation_transactions(user_id);
