@@ -49,7 +49,7 @@ class AdminEndpointDiscoverer:
         if auth_file.exists():
             content = auth_file.read_text(encoding='utf-8')
             
-            # ✅ DYNAMIC PREFIX DISCOVERY - No hardcoded "/api/auth"
+            # ✅ DYNAMIC PREFIX DISCOVERY - No hardcoded "/api/auth "
             # Derive router prefix if present (fallback to /api/auth only if no prefix found)
             auth_prefix_match = re.search(
                 r'APIRouter\([^)]*?prefix\s*=\s*["\']([^"\']+)["\']',
