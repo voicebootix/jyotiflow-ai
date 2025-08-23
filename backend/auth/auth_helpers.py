@@ -4,10 +4,12 @@ Provides consistent authentication patterns across all routers.
 Eliminates authentication inconsistencies without duplicating logic.
 """
 
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, Depends
 from auth.jwt_config import JWTHandler
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Annotated
 import logging
+from db import get_db
+import asyncpg
 
 logger = logging.getLogger(__name__)
 
@@ -42,23 +44,38 @@ class AuthenticationHelper:
             return None
     
     @staticmethod
-    def get_user_info_strict(request: Request) -> Dict[str, Any]:
+    async def get_user_info_strict(
+        request: Request,
+        db: Annotated[Any, Depends(get_db)],
+    ) -> Dict[str, Any]:
         """
         Get full user information from JWT token - STRICT MODE
         Throws 401 if token is missing or invalid.
         Use for endpoints that require authentication.
         """
-        return JWTHandler.get_full_user_info(request)
+        user_id_int = AuthenticationHelper.convert_user_id_to_int(JWTHandler.get_user_id_from_token(request))
+        if user_id_int is None:
+            raise HTTPException(status_code=401, detail="Invalid user ID in token")
+        user_info = await db.fetchrow(
+            "SELECT id, email, name, role, credits, base_credits, phone, birth_date, birth_time, birth_location, spiritual_level, preferred_language, avatar_sessions_count, total_avatar_minutes, created_at, updated_at, last_login_at FROM users WHERE id = $1",
+            user_id_int,
+        )
+        if user_info is None:
+            raise HTTPException(status_code=404, detail="User not found")
+        return dict(user_info)
     
     @staticmethod
-    def get_user_info_optional(request: Request) -> Optional[Dict[str, Any]]:
+    async def get_user_info_optional(
+        request: Request,
+        db: Annotated[Any, Depends(get_db)],
+    ) -> Optional[Dict[str, Any]]:
         """
         Get full user information from JWT token - OPTIONAL MODE
         Returns None if token is missing or invalid.
         Use for endpoints with graceful fallback.
         """
         try:
-            return JWTHandler.get_full_user_info(request)
+            return await AuthenticationHelper.get_user_info_strict(request, db)
         except HTTPException:
             return None
         except Exception as e:
@@ -66,13 +83,16 @@ class AuthenticationHelper:
             return None
     
     @staticmethod
-    def verify_admin_access_strict(request: Request) -> Dict[str, Any]:
+    async def verify_admin_access_strict(request: Request, db: Any) -> Dict[str, Any]:
         """
         Verify admin access - STRICT MODE
         Throws 401/403 if token is missing, invalid, or not admin.
         Use for admin-only endpoints.
         """
-        return JWTHandler.verify_admin_access(request)
+        user_info = await AuthenticationHelper.get_user_info_strict(request, db)
+        if user_info["role"] not in ["admin", "super_admin"]:
+            raise HTTPException(status_code=403, detail="Admin access required")
+        return user_info
     
     @staticmethod
     def convert_user_id_to_int(user_id: Optional[str]) -> Optional[int]:

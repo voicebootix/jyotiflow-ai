@@ -11,6 +11,8 @@ import {
   XCircle,
   AlertTriangle,
   Clock,
+  Eye,
+  X,
 } from "lucide-react";
 
 const API_BASE_URL =
@@ -40,6 +42,7 @@ const ServiceStatusCard = ({
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [error, setError] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
 
   /**
    * Triggers a test for the service
@@ -53,41 +56,93 @@ const ServiceStatusCard = ({
     setStatus("running");
 
     try {
-      // FIXED: Send specific test suite name for individual test execution
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          test_type: testType,
-          test_suite: testType, // FIXED: Add test_suite parameter for specific execution
-          environment: "production",
-          triggered_by: "individual_card",
-        }),
-      });
+      // Enhanced API endpoint test execution with proper configuration
+      const requestBody = {
+        test_type:
+          testType === "api" || testType === "api_endpoints"
+            ? "integration"
+            : testType,
+        test_suite:
+          testType === "api" || testType === "api_endpoints"
+            ? "api_endpoints"
+            : testType, // Map both api and api_endpoints to correct suite
+        environment: import.meta.env.VITE_APP_ENV || "production",
+        triggered_by: "frontend_button",
+      };
+
+      console.log(`🧪 Triggering test for ${title}:`, requestBody);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/monitoring/test-execute`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Test-Run": "true",
+            "X-Test-Environment": requestBody.environment,
+            "User-Agent": "JyotiFlow-Frontend/1.0",
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
 
         // FIXED: Update individual card status based on actual test results
-        if (data.status === "success") {
-          const testResult = data.data;
-          if (testResult && testResult.status) {
-            setStatus(testResult.status); // 'passed', 'failed', 'partial'
-            setLastResult(testResult);
+        if (data.status === "success" && data.data) {
+          const testResult = { ...data.data };
+
+          // Normalize status
+          if (
+            testResult.status === "success" ||
+            testResult.status === "completed"
+          ) {
+            testResult.status = "passed";
+          } else if (isDef(testResult.total_tests)) {
+            testResult.status =
+              testResult.failed_tests > 0 ? "failed" : "passed";
+          } else if (testResult.results) {
+            // Fallback for detailed results format
+            const a = Object.values(testResult.results).some(
+              (r) => r.status === "failed"
+            );
+            testResult.status = a ? "failed" : "passed";
           } else {
-            setStatus("completed");
-            setLastResult(data.data || data);
+            testResult.status = "unknown";
           }
+          setStatus(testResult.status);
+          setLastResult(testResult);
         } else {
-          setError(data.message || "Test execution failed");
-          setStatus("failed");
+          const normalizedResult = {
+            status: "failed",
+            error: data.message || "Test execution failed",
+          };
+          setError(normalizedResult.error);
+          setStatus(normalizedResult.status);
+          setLastResult(data.data || normalizedResult);
         }
       } else {
-        const errorMessage = `Test failed with status ${response.status}`;
-        setError(errorMessage);
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = {
+            message: `Test failed with status ${response.status}`,
+            error: "Received non-JSON response from server",
+          };
+        }
+        const errorMessage =
+          errorData.message || `Test failed with status ${response.status}`;
+        const finalResult = {
+          ...(errorData.data || {}),
+          status: "failed",
+          error: errorData.error || errorMessage,
+          results: errorData.results || null,
+        };
+        setError(finalResult.error);
         setStatus("failed");
+        setLastResult(finalResult);
       }
     } catch (err) {
       const errorMessage = `Test execution failed: ${err.message}`;
@@ -112,6 +167,8 @@ const ServiceStatusCard = ({
           />
         );
       case "completed":
+      case "passed":
+      case "success":
         return (
           <CheckCircle
             className="h-4 w-4 text-green-500"
@@ -122,6 +179,7 @@ const ServiceStatusCard = ({
         return (
           <XCircle className="h-4 w-4 text-red-500" aria-label="Test failed" />
         );
+      case "unknown":
       default:
         return (
           <Clock className="h-4 w-4 text-gray-400" aria-label="Test idle" />
@@ -159,94 +217,473 @@ const ServiceStatusCard = ({
     );
   };
 
+  /**
+   * Helper functions for safe value display with proper null/undefined checks
+   */
+  const isDef = (value) => value !== null && value !== undefined;
+
+  const fmtPct = (value, decimals = 1) => {
+    if (!isDef(value)) return "N/A";
+    const num = Number(value);
+    return Number.isFinite(num) ? `${num.toFixed(decimals)}%` : "N/A";
+  };
+
+  const fmtMs = (value, decimals = 0) => {
+    if (!isDef(value)) return "N/A";
+    const num = Number(value);
+    return Number.isFinite(num) ? `${num.toFixed(decimals)}ms` : "N/A";
+  };
+
+  const fmtNum = (value) => {
+    if (!isDef(value)) return "N/A";
+    const num = Number(value);
+    return Number.isFinite(num) ? num.toString() : "N/A";
+  };
+
   return (
-    <Card
-      className="h-full"
-      role="region"
-      aria-labelledby={`${testType}-title`}
-    >
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-lg" role="img" aria-label={`${title} icon`}>
-              {icon}
-            </span>
-            <CardTitle id={`${testType}-title`} className="text-sm font-medium">
-              {title}
-            </CardTitle>
-          </div>
-          <div className="flex items-center gap-2">
-            {getStatusIcon()}
-            {getStatusBadge()}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        <p className="text-xs text-gray-600">{description}</p>
-
-        {lastResult && (
-          <div
-            className="text-xs space-y-1"
-            role="region"
-            aria-label="Test results"
-          >
-            <div className="flex justify-between">
-              <span>Status:</span>
-              <Badge
-                className={
-                  lastResult.status === "passed"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-800"
-                }
+    <>
+      <Card
+        className="h-full"
+        role="region"
+        aria-labelledby={`${testType}-title`}
+      >
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-lg" role="img" aria-label={`${title} icon`}>
+                {icon}
+              </span>
+              <CardTitle
+                id={`${testType}-title`}
+                className="text-sm font-medium"
               >
-                {lastResult.status}
-              </Badge>
+                {title}
+              </CardTitle>
             </div>
-            {lastResult.success_rate && (
+            <div className="flex items-center gap-2">
+              {getStatusIcon()}
+              {getStatusBadge()}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-gray-600">{description}</p>
+
+          {lastResult && (
+            <div
+              className="text-xs space-y-1"
+              role="region"
+              aria-label="Test results"
+            >
               <div className="flex justify-between">
-                <span>Success Rate:</span>
-                <span className="font-medium">
-                  {lastResult.success_rate.toFixed(1)}%
-                </span>
+                <span>Status:</span>
+                <Badge
+                  className={
+                    lastResult.status === "passed"
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-800"
+                  }
+                >
+                  {lastResult.status}
+                </Badge>
               </div>
-            )}
-            {lastResult.accessible_endpoints && (
-              <div className="flex justify-between">
-                <span>Endpoints:</span>
-                <span className="font-medium">
-                  {lastResult.accessible_endpoints}/{lastResult.total_endpoints}
-                </span>
-              </div>
+              {isDef(lastResult.success_rate) && (
+                <div className="flex justify-between">
+                  <span>Success Rate:</span>
+                  <span
+                    className={`font-medium ${
+                      lastResult.success_rate >= 99
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }`}
+                  >
+                    {fmtPct(lastResult.success_rate)}
+                  </span>
+                </div>
+              )}
+              {isDef(lastResult.accessible_endpoints) && (
+                <div className="flex justify-between">
+                  <span>Endpoints:</span>
+                  <span className="font-medium">
+                    {fmtNum(lastResult.accessible_endpoints)}/
+                    {fmtNum(lastResult.total_endpoints)}
+                  </span>
+                </div>
+              )}
+              {isDef(lastResult.avg_response_time_ms) && (
+                <div className="flex justify-between">
+                  <span>Avg Response:</span>
+                  <span className="font-medium">
+                    {fmtMs(lastResult.avg_response_time_ms)}
+                  </span>
+                </div>
+              )}
+
+              {/* Admin Services specific: Show individual endpoint results */}
+              {testType === "admin_services" && lastResult.endpoint_results && (
+                <div className="mt-2 space-y-1">
+                  <div className="text-xs font-medium text-gray-700 mb-1">
+                    Endpoint Results:
+                  </div>
+                  {Object.entries(lastResult.endpoint_results).map(
+                    ([key, result], index) => (
+                      <div
+                        key={index}
+                        className="flex justify-between items-center"
+                      >
+                        <span
+                          className="text-xs truncate"
+                          title={result.business_function || key}
+                        >
+                          {result.business_function || key}:
+                        </span>
+                        <div className="flex items-center gap-1">
+                          {result.endpoint_accessible ? (
+                            <CheckCircle className="h-3 w-3 text-green-500" />
+                          ) : (
+                            <XCircle className="h-3 w-3 text-red-500" />
+                          )}
+                          <span className="text-xs">{result.status_code}</span>
+                          {isDef(result.response_time_ms) && (
+                            <span className="text-xs text-gray-500">
+                              ({fmtMs(result.response_time_ms)})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+
+              {/* Show endpoints tested for Admin Services */}
+              {testType === "admin_services" && lastResult.endpoints_tested && (
+                <div className="mt-2">
+                  <div className="text-xs font-medium text-gray-700 mb-1">
+                    Tested {lastResult.endpoints_tested.length} endpoints:
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    {lastResult.endpoints_tested.map((ep, i) => (
+                      <div
+                        key={i}
+                        className="truncate"
+                        title={`${ep.method} ${ep.endpoint}`}
+                      >
+                        • {ep.business_function}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {error && (
+            <Alert className="py-2" role="alert">
+              <AlertTriangle className="h-3 w-3" />
+              <AlertDescription className="text-xs">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            <Button
+              size="sm"
+              onClick={triggerTest}
+              disabled={loading}
+              className="w-full text-xs"
+              aria-label={`Run test for ${title}`}
+            >
+              {loading ? (
+                <RefreshCw
+                  className="h-3 w-3 animate-spin mr-1"
+                  aria-hidden="true"
+                />
+              ) : (
+                <Play className="h-3 w-3 mr-1" aria-hidden="true" />
+              )}
+              {loading ? "Testing..." : "Run Test"}
+            </Button>
+
+            {/* View Details Button - only show if we have test results */}
+            {(lastResult || error) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowDetailModal(true)}
+                className="w-full text-xs"
+                aria-label={`View details for ${title}`}
+              >
+                <Eye className="h-3 w-3 mr-1" aria-hidden="true" />
+                View Details
+              </Button>
             )}
           </div>
-        )}
+        </CardContent>
+      </Card>
 
-        {error && (
-          <Alert className="py-2" role="alert">
-            <AlertTriangle className="h-3 w-3" />
-            <AlertDescription className="text-xs">{error}</AlertDescription>
-          </Alert>
-        )}
-
-        <Button
-          size="sm"
-          onClick={triggerTest}
-          disabled={loading}
-          className="w-full text-xs"
-          aria-label={`Run test for ${title}`}
+      {/* Detailed Results Modal */}
+      {showDetailModal && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="detail-modal-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowDetailModal(false);
+            }
+          }}
         >
-          {loading ? (
-            <RefreshCw
-              className="h-3 w-3 animate-spin mr-1"
-              aria-hidden="true"
-            />
-          ) : (
-            <Play className="h-3 w-3 mr-1" aria-hidden="true" />
-          )}
-          {loading ? "Testing..." : "Run Test"}
-        </Button>
-      </CardContent>
-    </Card>
+          <Card className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <CardHeader className="flex flex-row items-center justify-between sticky top-0 bg-white z-10 border-b">
+              <CardTitle
+                id="detail-modal-title"
+                className="flex items-center gap-2"
+              >
+                {icon} {title} - Test Results
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDetailModal(false)}
+                aria-label="Close modal"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {/* Overall Status */}
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Overall Status:</span>
+                  {getStatusIcon()}
+                  <Badge
+                    className={
+                      status === "completed" ||
+                      status === "passed" ||
+                      status === "success"
+                        ? "bg-green-100 text-green-800"
+                        : status === "failed"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-gray-100 text-gray-800"
+                    }
+                  >
+                    {lastResult?.status || status}
+                  </Badge>
+                </div>
+
+                {/* Test Summary */}
+                {lastResult && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Total Tests
+                      </div>
+                      <div className="text-lg font-semibold">
+                        {isDef(lastResult.total_tests)
+                          ? fmtNum(lastResult.total_tests)
+                          : 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Passed
+                      </div>
+                      <div className="text-lg font-semibold text-green-600">
+                        {isDef(lastResult.passed_tests)
+                          ? fmtNum(lastResult.passed_tests)
+                          : 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Failed
+                      </div>
+                      <div className="text-lg font-semibold text-red-600">
+                        {isDef(lastResult.failed_tests)
+                          ? fmtNum(lastResult.failed_tests)
+                          : 0}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-gray-600">
+                        Success Rate
+                      </div>
+                      <div className="text-lg font-semibold">
+                        {isDef(lastResult.success_rate) ? (
+                          <span
+                            className={
+                              lastResult.success_rate >= 99
+                                ? "text-green-600"
+                                : "text-red-600"
+                            }
+                          >
+                            {fmtPct(lastResult.success_rate)}
+                          </span>
+                        ) : (
+                          "0%"
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Admin Services - Detailed Endpoint Results */}
+                {lastResult && lastResult.results && (
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">
+                      Endpoint Test Results
+                    </h3>
+
+                    {/* Show individual test results */}
+                    {Object.entries(lastResult.results).map(
+                      ([testName, result]) => (
+                        <Card
+                          key={testName}
+                          className={`border-l-4 ${
+                            result.status === "passed"
+                              ? "border-green-500"
+                              : "border-red-500"
+                          }`}
+                        >
+                          <CardContent className="pt-4">
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  {result.status === "passed" ? (
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                  ) : (
+                                    <XCircle className="h-4 w-4 text-red-500" />
+                                  )}
+                                  <h4 className="font-medium">
+                                    {result.business_function || testName}
+                                  </h4>
+                                  <Badge
+                                    variant={
+                                      result.status === "passed"
+                                        ? "default"
+                                        : "destructive"
+                                    }
+                                    className="capitalize"
+                                  >
+                                    {result.status}
+                                  </Badge>
+                                </div>
+
+                                {/* Test Details */}
+                                {result.details && (
+                                  <div className="space-y-2 text-sm">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+                                      <div>
+                                        <span className="font-medium">
+                                          Method:
+                                        </span>{" "}
+                                        {result.details.method}
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">
+                                          Status Code:
+                                        </span>
+                                        <span
+                                          className={`ml-1 font-semibold ${
+                                            result.details.status_code >= 200 &&
+                                            result.details.status_code < 300
+                                              ? "text-green-600"
+                                              : "text-red-600"
+                                          }`}
+                                        >
+                                          {result.details.status_code}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="font-medium">
+                                          Response Time:
+                                        </span>{" "}
+                                        {fmtMs(result.details.response_time_ms)}
+                                      </div>
+                                      <div className="lg:col-span-1">
+                                        <span className="font-medium">
+                                          Endpoint:
+                                        </span>{" "}
+                                        <code className="text-xs">
+                                          {result.details.endpoint}
+                                        </code>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <span className="font-medium">
+                                        Full URL:
+                                      </span>
+                                      <code className="ml-1 text-xs bg-gray-100 px-1 py-0.5 rounded">
+                                        {result.details.url}
+                                      </code>
+                                    </div>
+
+                                    {/* Show error details for failed tests */}
+                                    {result.status === "failed" && (
+                                      <Alert
+                                        variant="destructive"
+                                        className="mt-2"
+                                      >
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <AlertDescription>
+                                          <strong>Failure Reason:</strong>{" "}
+                                          {result.error_message ||
+                                            result.error ||
+                                            result.details?.error_message ||
+                                            `Request failed with status code ${
+                                              result.details?.status_code ||
+                                              result.details
+                                                ?.http_status_code ||
+                                              "unknown"
+                                            }`}
+                                          {result.details?.source && (
+                                            <div className="text-xs text-gray-500 mt-1">
+                                              Source: {result.details.source}
+                                            </div>
+                                          )}
+                                        </AlertDescription>
+                                      </Alert>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )
+                    )}
+                  </div>
+                )}
+
+                {/* General Error Display */}
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      <strong>Test Execution Error:</strong> {error}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Raw Result Data (for debugging) */}
+                {lastResult && (
+                  <details className="mt-4">
+                    <summary className="cursor-pointer text-sm font-medium text-gray-600">
+                      Raw Test Data (Debug)
+                    </summary>
+                    <pre className="mt-2 text-xs bg-gray-100 p-3 rounded overflow-x-auto">
+                      {JSON.stringify(lastResult, null, 2)}
+                    </pre>
+                  </details>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </>
   );
 };
 

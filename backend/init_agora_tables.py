@@ -59,6 +59,85 @@ def _parse_affected_rows(command_tag: str) -> int:
         logger.error(f"Failed to parse command tag '{command_tag}': {e}")
         return 0
 
+async def ensure_tables_exist():
+    """Ensure all required Agora tables exist for video chat functionality"""
+    database_url = os.getenv("DATABASE_URL")
+    
+    # Validate DATABASE_URL is set
+    if not database_url:
+        logger.error("DATABASE_URL environment variable is missing or empty")
+        return False
+    
+    try:
+        conn = await asyncpg.connect(database_url)
+        
+        # Create video_chat_sessions table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS video_chat_sessions (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) UNIQUE NOT NULL,
+                user_id INTEGER,
+                channel_name VARCHAR(255) NOT NULL,
+                user_token TEXT NOT NULL,
+                app_id VARCHAR(255) NOT NULL,
+                service_type VARCHAR(100) DEFAULT 'video_chat',
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                expires_at TIMESTAMP,
+                metadata JSONB DEFAULT '{}'::jsonb
+            )
+        """)
+        
+        # Create video_chat_recordings table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS video_chat_recordings (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                recording_sid VARCHAR(255) UNIQUE,
+                resource_id VARCHAR(255),
+                recording_url TEXT,
+                status VARCHAR(50) DEFAULT 'processing',
+                file_size INTEGER DEFAULT 0,
+                duration INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (session_id) REFERENCES video_chat_sessions(session_id)
+            )
+        """)
+        
+        # Create video_chat_analytics table
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS video_chat_analytics (
+                id SERIAL PRIMARY KEY,
+                session_id VARCHAR(255) NOT NULL,
+                user_id INTEGER,
+                join_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                leave_time TIMESTAMP,
+                duration_seconds INTEGER DEFAULT 0,
+                quality_score INTEGER DEFAULT 0,
+                network_quality VARCHAR(50) DEFAULT 'unknown',
+                platform VARCHAR(50) DEFAULT 'web',
+                metadata JSONB DEFAULT '{}'::jsonb,
+                FOREIGN KEY (session_id) REFERENCES video_chat_sessions(session_id)
+            )
+        """)
+        
+        # Create indexes for better performance
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_sessions_user_id ON video_chat_sessions(user_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_sessions_status ON video_chat_sessions(status)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_sessions_created_at ON video_chat_sessions(created_at)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_recordings_session_id ON video_chat_recordings(session_id)")
+        await conn.execute("CREATE INDEX IF NOT EXISTS idx_video_analytics_session_id ON video_chat_analytics(session_id)")
+        
+        logger.info("✅ Agora tables verified/created successfully")
+        return True
+        
+    except Exception as e:
+        logger.error(f"❌ Error ensuring Agora tables exist: {e}")
+        return False
+        
+    finally:
+        await conn.close()
+
 async def init_agora_tables():
     """Initialize all Agora-related tables in PostgreSQL"""
     database_url = os.getenv("DATABASE_URL")
@@ -161,9 +240,11 @@ async def populate_sample_data():
         )
         
         print("✅ Sample data populated successfully")
+        return True
         
     except Exception as e:
-        print(f"❌ Error populating sample data: {e}")
+        logger.error(f"❌ Error populating sample data: {e}")
+        return False
         
     finally:
         await conn.close()

@@ -20,11 +20,14 @@ from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Callable, Union
 import logging
 
-# Add current directory to Python path for imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Add current directory and parent directory to Python path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(current_dir)
+sys.path.append(parent_dir)
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -35,7 +38,7 @@ ALLOWED_GENERATOR_METHODS = {
     'generate_integration_tests',
     'generate_security_tests', 
     'generate_database_tests',
-    'generate_api_tests',
+    'generate_api_endpoint_tests',  # Fixed: Updated from generate_api_tests to match actual method name
     'generate_analytics_monitoring_tests',
     'generate_auto_healing_tests',
     'generate_performance_tests',
@@ -44,13 +47,14 @@ ALLOWED_GENERATOR_METHODS = {
     'generate_load_tests',
     'generate_admin_services_tests',
     'generate_spiritual_tests',
+    'generate_spiritual_services_tests',  # Added: Missing method that exists in TestSuiteGenerator
     'generate_credit_payment_tests',
     'generate_user_management_tests',
     'generate_avatar_generation_tests',
-    'generate_social_media_tests',
-    'generate_community_services_tests',
-    'generate_notification_services_tests',
-    'generate_live_audio_video_tests'
+    'generate_social_media_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_live_audio_video_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_community_services_tests',  # Added: Missing method that exists in TestSuiteGenerator
+    'generate_notification_services_tests'  # Added: Missing method that exists in TestSuiteGenerator
 }
 
 class TestExecutionError(Exception):
@@ -127,13 +131,74 @@ class TestExecutionEngine:
                 test_result = await self._execute_single_test(test_case)
                 results[test_case['test_name']] = test_result
                 
-                if test_result['status'] == 'passed':
-                    passed_tests += 1
-                elif test_result['status'] == 'failed':
-                    failed_tests += 1
-                
-                # Store individual test result
-                await self._store_test_result(session_id, test_case, test_result)
+                # DEBUG: Log test_result to inspect its structure
+                logger.debug(f"DEBUG: Test Result for {test_case['test_name']}: {test_result}")
+                logger.debug(f"DEBUG: Type of Test Result: {type(test_result)}")
+
+                # ✅ HANDLE DATABASE-DRIVEN TESTS WITH MULTIPLE ENDPOINT RESULTS
+                if 'endpoint_results' in test_result and isinstance(test_result['endpoint_results'], dict):
+                    # This is a database-driven test with multiple endpoint results
+                    endpoint_results = test_result['endpoint_results']
+                    
+                    # Store each endpoint result as a separate test case result - handle both dict and list forms
+                    for business_function, endpoint_result in endpoint_results.items():
+                        # ✅ Handle list form when multiple endpoints share same business function
+                        if isinstance(endpoint_result, list):
+                            # Multiple results for same business function
+                            for idx, single_result in enumerate(endpoint_result):
+                                endpoint_test_case = {
+                                    'test_name': f"{test_case['test_name']}_{business_function.replace(' ', '_').lower()}_{idx}",
+                                    'test_category': test_case.get('test_category', 'admin_services')
+                                }
+                                
+                                # Count individual endpoint results
+                                if single_result.get('status') == 'passed':
+                                    passed_tests += 1
+                                elif single_result.get('status') == 'failed':
+                                    failed_tests += 1
+                                
+                                # Store individual endpoint result
+                                await self._store_test_result(session_id, endpoint_test_case, single_result)
+                            
+                            # Also add to results for frontend display (use last result for backward compatibility)
+                            results[business_function] = endpoint_result[-1] if endpoint_result else {"status": "error"}
+                        else:
+                            # Single result (dict form) - original logic
+                            endpoint_test_case = {
+                                'test_name': f"{test_case['test_name']}_{business_function.replace(' ', '_').lower()}",
+                                'test_category': test_case.get('test_category', 'admin_services')
+                            }
+                            
+                            # Count individual endpoint results
+                            if endpoint_result.get('status') == 'passed':
+                                passed_tests += 1
+                            elif endpoint_result.get('status') == 'failed':
+                                failed_tests += 1
+                            
+                            # Store individual endpoint result
+                            await self._store_test_result(session_id, endpoint_test_case, endpoint_result)
+                            
+                            # Also add to results for frontend display
+                            results[business_function] = endpoint_result
+                    
+                    # Update total test count for multiple endpoints - account for list forms
+                    additional_tests = 0
+                    for endpoint_result in endpoint_results.values():
+                        if isinstance(endpoint_result, list):
+                            additional_tests += len(endpoint_result)
+                        else:
+                            additional_tests += 1
+                    total_tests += additional_tests - 1  # -1 because we already counted the main test
+                    
+                else:
+                    # Regular single test case
+                    if test_result['status'] == 'passed':
+                        passed_tests += 1
+                    elif test_result['status'] == 'failed':
+                        failed_tests += 1
+                    
+                    # Store individual test result
+                    await self._store_test_result(session_id, test_case, test_result)
             
             # Calculate overall status
             overall_status = self._calculate_overall_status(passed_tests, failed_tests, total_tests)
@@ -223,6 +288,10 @@ class TestExecutionEngine:
         logger.info("⚡ Executing quick health check...")
         
         session_id = await self._create_test_session("Quick Health Check", "health_check")
+        if session_id is None:
+            # Session creation failed - generate a temporary ID for this run but don't store results
+            session_id = str(uuid.uuid4())
+            logger.warning(f"Session creation failed - using temporary ID {session_id} (results won't be stored)")
         
         # Get health checks from database configuration instead of hardcoded list
          # Get health checks from database configuration instead of hardcoded list
@@ -709,6 +778,17 @@ class TestExecutionEngine:
             except ImportError as e:
                 logger.warning("Could not import database_self_healing_system: %s", str(e))
             
+            # Add test authentication helper
+            def create_test_headers():
+                """Create headers with test authentication token"""
+                return {
+                    "Content-Type": "application/json",
+                    "Authorization": "Bearer test-token-for-endpoint-testing",
+                    "X-Test-Mode": "true"
+                }
+            
+            test_globals['create_test_headers'] = create_test_headers
+            
             # Import core foundation enhanced
             try:
                 import core_foundation_enhanced
@@ -801,7 +881,8 @@ class TestExecutionEngine:
             'monitoring', 'spiritual_avatar_generation_engine', 'social_media_marketing_automation',
             'agora_service', 'test_suite_generator', 'test_execution_engine',
             'time', 'enhanced_business_logic', 'math', 'random',  # Add common modules needed for tests
-            'typing', 'collections', 'functools', 'itertools', 'operator'  # Add standard library modules
+            'typing', 'collections', 'functools', 'itertools', 'operator',  # Add standard library modules
+            'create_admin_endpoints_config' # Added to allow dynamic config generation
         }
         
         for child in ast.walk(node):
@@ -939,10 +1020,11 @@ class TestExecutionEngine:
     # If a health check method doesn't exist, the system will handle it gracefully via the whitelist
     # No need for hardcoded placeholder methods that return fake statuses
     
-    async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> str:
+    async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> Optional[str]:
         """Create a new test execution session with dynamic parameters."""
         if not self.database_url:
-            return str(uuid.uuid4())
+            logger.warning("⚠️ DATABASE_URL not set - test session will NOT be stored in database!")
+            return None
         session_id = str(uuid.uuid4())
         # ✅ SQL INJECTION PREVENTION: Whitelist of allowed column names
         # Following .cursor rules: No dynamic SQL construction from user input
@@ -990,12 +1072,15 @@ class TestExecutionEngine:
             conn = await asyncpg.connect(self.database_url)
             try:
                 await conn.execute(query, *values)
+                logger.info(f"✅ Successfully created test session: {session_id} in database")
             finally:
                 await conn.close()
         except Exception as e:
-            logger.error(f"Failed to create test session in database: {e}")
-            logger.error(f"Query: {query}")
-            logger.error(f"Values: {values}")
+            logger.error("❌ FAILED to create test session in database", exc_info=e)
+            logger.error("   Session ID: %s | Test Type: %s | Test Category: %s", 
+                        session_id, test_type, test_category)
+            logger.debug("   Query: %s", query)
+            logger.debug("   Values: <redacted> (%d values)", len(values))
             # Don't return the session_id if creation failed - return None to indicate failure
             return None
         return session_id
@@ -1036,11 +1121,11 @@ class TestExecutionEngine:
                 await conn.execute(query, *params)
             except Exception as inner_e:
                 # Handle execution errors while ensuring connection cleanup
-                logger.warning(f"Could not execute update query: {inner_e}")
+                logger.warning("Could not execute update query", exc_info=inner_e)
                 raise  # Re-raise to be caught by outer except
                 
         except Exception as e:
-            logger.warning(f"Could not update test session: {e}")
+            logger.warning("Could not update test session", exc_info=e)
         finally:
             # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
             # Following .cursor rules: Safe resource cleanup, no errors on failed connections
@@ -1051,6 +1136,7 @@ class TestExecutionEngine:
     async def _store_test_result(self, session_id: str, test_case: Dict[str, Any], result: Dict[str, Any]):
         """Store individual test result with fixed column whitelist for security."""
         if not self.database_url:
+            logger.error("❌ DATABASE_URL not set - test results will NOT be stored in database!")
             return
 
         # ✅ SECURITY FIX: Fixed whitelist of allowed columns to prevent SQL injection
@@ -1108,11 +1194,19 @@ class TestExecutionEngine:
                 await conn.execute(query, *values)
             except Exception as inner_e:
                 # Handle execution errors while ensuring connection cleanup
-                logger.warning(f"Could not execute test result insert: {inner_e}")
-                raise  # Re-raise to be caught by outer  except
+                logger.warning("Could not execute test result insert", exc_info=inner_e)
+                raise  # Re-raise to be caught by outer except
                 
         except Exception as e:
-            logger.warning(f"Could not store test result: {e}")
+            logger.error("❌ FAILED to store test result in database", exc_info=e)
+            logger.error("   Test: %s | Session ID: %s | DB Connected: %s", 
+                        test_case.get('test_name', 'unknown'), 
+                        session_id,
+                        'Yes' if self.database_url else 'No')
+            logger.debug("   Result data: <redacted> (%d bytes)", len(str(result)))
+        else:
+            # Log successful storage
+            logger.info(f"✅ Successfully stored test result: {test_case.get('test_name', 'unknown')} in database")
         finally:
             # ✅ CONNECTION LEAK FIX: Only close connection if it was successfully created
             # Following .cursor rules: Safe resource cleanup, no errors on failed connections
@@ -1460,8 +1554,14 @@ class TestExecutionEngine:
                 logger.info(f"Mapping legacy suite name '{suite_name}' to '{mapped_name}' (from database)")
                 return mapped_name
             else:
-                logger.warning(f"No mapping found for suite name '{suite_name}' in database")
-                return suite_name
+                # ✅ FALLBACK MAPPING: Handle critical suites when database mapping is missing  
+                # Following .cursor rules: Database-driven with fallbacks for known suites
+                if suite_name == 'api':
+                    logger.info(f"Using fallback mapping: 'api' -> 'api_endpoints'")
+                    return 'api_endpoints'
+                else:
+                    logger.warning(f"No mapping found for suite name '{suite_name}' in database")
+                    return suite_name
 
         except Exception as e:
             logger.error(f"Could not resolve suite name mapping from database: {e}")
@@ -1586,10 +1686,19 @@ class TestExecutionEngine:
                         # Following .cursor rules: Use direct access for known attributes
                         return await generator.generate_integration_tests()
                 else:
-                    logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
-                    # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
-                    # Following .cursor rules: Use direct access for known attributes
-                    return await generator.generate_integration_tests()
+                    # ✅ FALLBACK MAPPING: Handle critical suites when database config is missing
+                    # Following .cursor rules: Database-driven with fallbacks for known suites
+                    if suite_name == 'api_endpoints' and hasattr(generator, 'generate_api_endpoint_tests'):
+                        logger.info(f"Using fallback mapping for 'api_endpoints' -> 'generate_api_endpoint_tests'")
+                        return await generator.generate_api_endpoint_tests()
+                    elif suite_name == 'api' and hasattr(generator, 'generate_api_endpoint_tests'):
+                        logger.info(f"Using fallback mapping for 'api' -> 'generate_api_endpoint_tests'")
+                        return await generator.generate_api_endpoint_tests()
+                    else:
+                        logger.warning(f"No generator method configured for suite '{suite_name}' (original: {original_suite_name}), falling back to integration_tests")
+                        # ✅ DIRECT ATTRIBUTE ACCESS: Avoid getattr with constant string
+                        # Following .cursor rules: Use direct access for known attributes
+                        return await generator.generate_integration_tests()
 
             finally:
                 await conn.close()
