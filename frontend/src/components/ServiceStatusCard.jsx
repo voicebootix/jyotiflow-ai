@@ -91,29 +91,51 @@ const ServiceStatusCard = ({
 
         // FIXED: Update individual card status based on actual test results
         if (data.status === "success" && data.data) {
-          const testResult = data.data;
+          const testResult = { ...data.data };
 
-          // Determine status based on test results
-          if (testResult.status) {
-            setStatus(testResult.status);
-          } else if (testResult.total_tests && testResult.total_tests > 0) {
-            setStatus(testResult.failed_tests > 0 ? "failed" : "completed");
+          // Normalize status
+          if (
+            testResult.status === "success" ||
+            testResult.status === "completed"
+          ) {
+            testResult.status = "passed";
+          } else if (isDef(testResult.total_tests)) {
+            testResult.status =
+              testResult.failed_tests > 0 ? "failed" : "passed";
           } else {
-            setStatus("completed");
+            testResult.status = "unknown";
           }
+          setStatus(testResult.status);
           setLastResult(testResult);
         } else {
-          setError(data.message || "Test execution failed");
-          setStatus("failed");
-          setLastResult(data.data || {});
+          const normalizedResult = {
+            status: "failed",
+            error: data.message || "Test execution failed",
+          };
+          setError(normalizedResult.error);
+          setStatus(normalizedResult.status);
+          setLastResult(data.data || normalizedResult);
         }
       } else {
-        const errorData = await response.json().catch(() => ({}));
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e) {
+          errorData = {
+            message: `Test failed with status ${response.status}`,
+            error: "Received non-JSON response from server",
+          };
+        }
         const errorMessage =
           errorData.message || `Test failed with status ${response.status}`;
+        const finalResult = {
+          ...(errorData.data || {}),
+          status: "failed",
+          error: errorData.error || errorMessage,
+        };
         setError(errorMessage);
         setStatus("failed");
-        setLastResult(errorData.data || {});
+        setLastResult(finalResult);
       }
     } catch (err) {
       const errorMessage = `Test execution failed: ${err.message}`;
@@ -139,6 +161,7 @@ const ServiceStatusCard = ({
         );
       case "completed":
       case "passed":
+      case "success":
         return (
           <CheckCircle
             className="h-4 w-4 text-green-500"
@@ -149,6 +172,7 @@ const ServiceStatusCard = ({
         return (
           <XCircle className="h-4 w-4 text-red-500" aria-label="Test failed" />
         );
+      case "unknown":
       default:
         return (
           <Clock className="h-4 w-4 text-gray-400" aria-label="Test idle" />
@@ -428,7 +452,9 @@ const ServiceStatusCard = ({
                   {getStatusIcon()}
                   <Badge
                     className={
-                      status === "completed" || status === "passed"
+                      status === "completed" ||
+                      status === "passed" ||
+                      status === "success"
                         ? "bg-green-100 text-green-800"
                         : status === "failed"
                         ? "bg-red-100 text-red-800"
