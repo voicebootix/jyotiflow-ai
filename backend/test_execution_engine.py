@@ -877,7 +877,8 @@ class TestExecutionEngine:
             'monitoring', 'spiritual_avatar_generation_engine', 'social_media_marketing_automation',
             'agora_service', 'test_suite_generator', 'test_execution_engine',
             'time', 'enhanced_business_logic', 'math', 'random',  # Add common modules needed for tests
-            'typing', 'collections', 'functools', 'itertools', 'operator'  # Add standard library modules
+            'typing', 'collections', 'functools', 'itertools', 'operator',  # Add standard library modules
+            'create_admin_endpoints_config' # Added to allow dynamic config generation
         }
         
         for child in ast.walk(node):
