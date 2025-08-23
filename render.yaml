@@ -3,7 +3,7 @@ services:
     name: jyotiflow-backend
     env: python
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
-    buildCommand: "cd backend && pip install -r requirements.txt && python3 auto_deploy_migration.py && python3 populate_service_endpoints.py"
+    buildCommand: "cd backend && pip install -r requirements.txt && echo '🚀 Starting auto-deployment migrations...' && python3 auto_deploy_migration.py && echo '✅ Auto-deployment completed!' && python3 populate_service_endpoints.py"
     startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
     envVars:
       - key: PYTHON_VERSION
