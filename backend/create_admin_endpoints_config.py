@@ -54,8 +54,24 @@ class AdminEndpointDiscoverer:
             auth_prefix_match = re.search(r'APIRouter\([^)]*prefix=["\']([^"\']+)["\']', content)
             auth_prefix = auth_prefix_match.group(1) if auth_prefix_match else "/api/auth"
             
-            # Look for login endpoint
-            login_match = re.search(r'@router\.post\(["\']([^"\']*login[^"\']*)["\'].*?\ndef\s+(\w+)', content, re.DOTALL)
+            # ✅ Discover router variable names in auth.py too (no hardcoded @router.)
+            auth_router_vars = re.findall(r'(\w+)\s*=\s*APIRouter\([^)]*\)', content)
+            if not auth_router_vars:
+                auth_router_vars = ["router"]  # fallback
+            
+            print(f"🔍 Discovered auth router variables in auth.py: {auth_router_vars}")
+            
+            # Look for login endpoint using discovered router variables
+            login_match = None
+            for auth_rvar in auth_router_vars:
+                # ✅ Simplified but robust pattern - consistent with admin router logic
+                login_pattern = rf'@{auth_rvar}\.post\(["\']([^"\']*login[^"\']*)["\'][^)]*\).*?(?:async\s+)?def\s+(\w+)'
+                login_match = re.search(login_pattern, content, re.MULTILINE | re.DOTALL)
+                if login_match:
+                    print(f"  📍 Found login endpoint for @{auth_rvar}.: {login_match.group(1)}")
+                    break
+                else:
+                    print(f"  ❌ No login endpoint found for @{auth_rvar}.")
             if login_match:
                 path = login_match.group(1)
                 function_name = login_match.group(2)
@@ -86,9 +102,21 @@ class AdminEndpointDiscoverer:
             prefix_match = re.search(r'APIRouter\(prefix=["\']([^"\']+)["\']', content)
             prefix = prefix_match.group(1) if prefix_match else ""
             
-            # Find all endpoint decorators and functions - handles stacked decorators and optional async
-            endpoint_pattern = r'(?:@\w+(?:\.[\w_]+)?\(.*?\)\s*)*@router\.(get|post|put|delete|patch)\(["\']([^"\']*)["\'].*?\)\s*(?:@\w+(?:\.[\w_]+)?\(.*?\)\s*)*(?:async\s+)?def\s+(\w+)'
-            matches = re.findall(endpoint_pattern, content, re.MULTILINE | re.DOTALL)
+            # Discover router variable names (e.g., router, admin_router, livechat_router, etc.)
+            router_vars = re.findall(r'(\w+)\s*=\s*APIRouter\([^)]*\)', content)
+            if not router_vars:
+                router_vars = ["router"]  # fallback
+            
+            print(f"🔍 Discovered router variables in {router_file.name}: {router_vars}")
+            
+            matches = []
+            # Handle stacked decorators and optional async/sync defs for each router var
+            for rvar in router_vars:
+                # ✅ Simplified but robust pattern - handles stacked decorators and optional async
+                endpoint_pattern = rf'@{rvar}\.(get|post|put|delete|patch)\(["\']([^"\']*)["\'][^)]*\).*?(?:async\s+)?def\s+(\w+)'
+                router_matches = re.findall(endpoint_pattern, content, re.MULTILINE | re.DOTALL)
+                matches.extend(router_matches)
+                print(f"  📍 Found {len(router_matches)} endpoints for @{rvar}.")
             
             for method, path, function_name in matches:
                 full_path = f"{prefix}{path}" if prefix else path
