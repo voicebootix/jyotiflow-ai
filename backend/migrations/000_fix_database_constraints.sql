@@ -289,7 +289,7 @@ CREATE INDEX IF NOT EXISTS idx_sessions_created_at ON public.sessions(created_at
 CREATE INDEX IF NOT EXISTS idx_sessions_user_email ON public.sessions(user_email);
 CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
 CREATE INDEX IF NOT EXISTS idx_service_types_name ON public.service_types(name);
-CREATE INDEX IF NOT EXISTS idx_platform_settings_platform ON public.platform_settings(platform_name);
+CREATE INDEX IF NOT EXISTS idx_platform_settings_platform_name ON public.platform_settings(platform_name);
 
 -- ========================================
 -- 9. CREATE UPDATE TRIGGERS
