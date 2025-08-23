@@ -3324,7 +3324,7 @@ async def test_credit_payment_database_schema():
                                 """,
                                 session_id,
                                 test_case.get('test_name', 'unnamed_test'),
-                                suite_data['test_category'],  # FIXED: Always use suite category, no individual override
+                                test_case.get('test_category', suite_data['test_category']), # Use per-test category if present, else fall back to suite category
                                 "generated",
                                 json.dumps(test_case),
                                 json.dumps(test_case),
@@ -3415,7 +3415,7 @@ async def test_user_management_api_endpoints():
 
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
         """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - Database-driven endpoint configuration"""
-
+        
         # ✅ FOLLOWING .CURSOR RULES: Database-driven configuration, no hardcoded endpoints
         database_driven_test_code = """
 import httpx
@@ -3453,8 +3453,8 @@ async def test_admin_services_database_driven():
         
         # 1. Fetch admin endpoint configurations
         config_data_str = await conn.fetchval(
-            "SELECT value FROM platform_settings WHERE key = 'admin_endpoints_config'"
-        )
+                "SELECT value FROM platform_settings WHERE key = 'admin_endpoints_config'"
+            )
         if not config_data_str:
             return {"status": "error", "error_message": "Admin endpoints configuration not found in platform_settings"}
         
@@ -3578,8 +3578,8 @@ async def test_admin_services_database_driven():
                 for endpoint in endpoints_to_test:
                     # Skip login endpoint as it's handled above
                     if endpoint["path"] == "/api/auth/login":
-                        continue
-
+                    continue
+                
                     business_function = endpoint.get("business_function", f"Admin {endpoint['path'].split('/')[-1].replace('-', ' ').title()}")
                     test_status = "failed"
                     error_message = ""
@@ -3610,7 +3610,7 @@ async def test_admin_services_database_driven():
                             if response.status_code in endpoint.get("expected_codes", [200]):
                                 test_status = "passed"
                                 accessible_endpoints += 1
-                            else:
+                    else:
                                 error_message = f"Expected {endpoint.get('expected_codes', [200])}, got {response.status_code}"
                                 test_status = "failed"
 
@@ -3665,7 +3665,7 @@ async def test_admin_services_database_driven():
 
 
         success_rate = (accessible_endpoints / total_endpoints) * 100 if total_endpoints > 0 else 0
-
+        
         return {
             "status": overall_status,
             "message": f"{accessible_endpoints}/{total_endpoints} Admin service endpoints accessible",
