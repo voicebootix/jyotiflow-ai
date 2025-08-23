@@ -102,6 +102,12 @@ const ServiceStatusCard = ({
           } else if (isDef(testResult.total_tests)) {
             testResult.status =
               testResult.failed_tests > 0 ? "failed" : "passed";
+          } else if (testResult.results) {
+            // Fallback for detailed results format
+            const a = Object.values(testResult.results).some(
+              (r) => r.status === "failed"
+            );
+            testResult.status = a ? "failed" : "passed";
           } else {
             testResult.status = "unknown";
           }
@@ -132,8 +138,9 @@ const ServiceStatusCard = ({
           ...(errorData.data || {}),
           status: "failed",
           error: errorData.error || errorMessage,
+          results: errorData.results || null,
         };
-        setError(errorMessage);
+        setError(finalResult.error);
         setStatus("failed");
         setLastResult(finalResult);
       }
@@ -557,6 +564,7 @@ const ServiceStatusCard = ({
                                         ? "default"
                                         : "destructive"
                                     }
+                                    className="capitalize"
                                   >
                                     {result.status}
                                   </Badge>
