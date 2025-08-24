@@ -103,20 +103,31 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
             # For other types, create default vector
             logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
             return [0.0] * DEFAULT_EMBED_DIM
-else:
-    # For non-pgvector, use JSON string format
-    if isinstance(embedding, str):
-        try:
-            # If it's already a JSON string, parse and re-serialize to ensure consistency
-            parsed_embedding = json.loads(embedding)
-            return json.dumps(parsed_embedding)
-        except json.JSONDecodeError:
-            # If it's not valid JSON, keep as is but log for spiritual content
-            logger.warning("🕉️ Spiritual knowledge embedding not valid JSON, storing as-is")
-            return embedding
     else:
-        # If it's a list, serialize to JSON string
-        return json.dumps(embedding)
+        # For non-pgvector, use JSON string format
+        if isinstance(embedding, str):
+            try:
+                # If it's already a JSON string, parse and re-serialize to ensure consistency
+                parsed_embedding = json.loads(embedding)
+                try:
+                    return json.dumps(parsed_embedding, separators=(",", ":"))
+                except TypeError:
+                    return json.dumps(parsed_embedding, default=str, separators=(",", ":"))
+            except json.JSONDecodeError:
+                # If it's not valid JSON, keep as is but log for spiritual content
+                logger.warning("🕉️ Spiritual knowledge embedding not valid JSON, storing as-is")
+                return embedding
+        else:
+            # If it's a list or other type, serialize to JSON string with compact format
+            try:
+                return json.dumps(embedding, separators=(",", ":"))
+            except TypeError as e:
+                logger.warning(f"🕉️ Spiritual knowledge embedding serialization failed: {e}, using fallback")
+                try:
+                    return json.dumps(embedding, default=str, separators=(",", ":"))
+                except Exception as fallback_error:
+                    logger.warning(f"🕉️ Spiritual knowledge embedding fallback serialization failed: {fallback_error}, converting to string")
+                    return str(embedding)
 
 
 class KnowledgeSeeder:
