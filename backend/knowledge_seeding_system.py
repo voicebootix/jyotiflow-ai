@@ -97,12 +97,12 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
                     logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding list elements to float: {e}, using default")
                     return [0.0] * DEFAULT_EMBED_DIM
         else:
-                logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
-                return [0.0] * DEFAULT_EMBED_DIM
-            else:
-                # For other types, create default vector
-                logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
-                return [0.0] * DEFAULT_EMBED_DIM
+            logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
+            return [0.0] * DEFAULT_EMBED_DIM
+    else:
+        # For other types, create default vector
+        logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
+        return [0.0] * DEFAULT_EMBED_DIM
     else:
         # For non-pgvector, use JSON string format
         if isinstance(embedding, str):
@@ -811,7 +811,7 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             try:
                 from . import db
             except ImportError:
-                import db
+        import db
         
         db_pool = db.get_db_pool()
         if db_pool is None:
