@@ -15,7 +15,7 @@ WHERE hashtags IS NULL OR hashtags = '';
 
 -- Add index for better query performance on RAG content
 CREATE INDEX IF NOT EXISTS idx_social_content_scheduled_at ON social_content(scheduled_at);
-CREATE INDEX IF NOT EXISTS idx_social_content_platform_status ON social_content(platform, status);
+CREATE INDEX IF NOT EXISTS idx_social_content_platform_status ON social_content(platform_name, status);
 CREATE INDEX IF NOT EXISTS idx_social_content_content_type ON social_content(content_type);
 
 -- Add a comment to track RAG-generated content
