@@ -13,5 +13,5 @@ ALTER TABLE IF EXISTS public.rag_knowledge_base
 ALTER COLUMN embedding_vector TYPE vector(1536) 
 USING (embedding_vector::vector);
 
--- Create index for faster similarity search
-CREATE INDEX ON public.rag_knowledge_base USING hnsw (embedding_vector vector_l2_ops);
+-- Create index for faster similarity search with cosine distance
+CREATE INDEX IF NOT EXISTS rag_knowledge_base_embedding_vector_cosine_idx ON public.rag_knowledge_base USING hnsw (embedding_vector vector_cosine_ops);
