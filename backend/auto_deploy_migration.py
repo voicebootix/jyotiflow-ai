@@ -320,7 +320,17 @@ async def run_idempotent_knowledge_seeding(conn):
             logger.error("❌ Cannot seed knowledge base: DATABASE_URL is not set.")
             return
         
-        pool = await asyncpg.create_pool(DATABASE_URL)
+        # Define a codec for the 'vector' type
+        async def vector_codec_setup(conn):
+            await conn.set_type_codec(
+                'vector',
+                encoder=lambda v: str(list(v)),
+                decoder=lambda s: [float(x) for x in s.strip('[]').split(',')],
+                schema='public',
+                format='text'
+            )
+
+        pool = await asyncpg.create_pool(DATABASE_URL, init=vector_codec_setup)
         
         # Call the seeder with the dedicated pool (Dependency Injection)
         await run_knowledge_seeding(db_pool_override=pool)
