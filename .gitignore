@@ -49,3 +49,12 @@ venv/
 
 # Explicitly ignore frontend node_modules
 frontend/node_modules/
+
+# Ignore problematic untracked files
+sue was caused by*
+terjyotiflow-ai && python -c
+/backend/instance
+/backend/uploaded_files
+/backend/static_uploads
+/backend/error_reports
+/backend/performance_reports
