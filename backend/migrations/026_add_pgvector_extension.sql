@@ -13,28 +13,31 @@ DO $$
 BEGIN
     -- Check if the column exists as FLOAT[] and needs conversion
     IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        SELECT FROM information_schema.columns 
         WHERE table_name = 'rag_knowledge_base' 
         AND column_name = 'embedding_vector' 
-        AND data_type = 'ARRAY'
+        AND udt_name = 'float8'
     ) THEN
-        -- Convert FLOAT[] to vector type for better performance
-        ALTER TABLE rag_knowledge_base 
-        ALTER COLUMN embedding_vector TYPE vector(1536) USING embedding_vector::vector(1536);
-        
-        RAISE NOTICE 'Converted embedding_vector from FLOAT[] to vector(1536)';
-    ELSIF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns 
+        RAISE NOTICE 'rag_knowledge_base.embedding_vector is already FLOAT[], skipping conversion.';
+    ELSIF EXISTS (
+        SELECT FROM information_schema.columns 
         WHERE table_name = 'rag_knowledge_base' 
         AND column_name = 'embedding_vector'
     ) THEN
-        -- Add the column if it doesn't exist
+        -- Alter column to vector type
         ALTER TABLE rag_knowledge_base 
-        ADD COLUMN embedding_vector vector(1536);
-        
-        RAISE NOTICE 'Added embedding_vector column as vector(1536)';
+        ALTER COLUMN embedding_vector TYPE VECTOR(1536)
+        USING (embedding_vector::TEXT::VECTOR(1536));
+        RAISE NOTICE 'rag_knowledge_base.embedding_vector converted to VECTOR(1536).';
+    ELSE
+        RAISE NOTICE 'rag_knowledge_base.embedding_vector column does not exist, skipping conversion.';
     END IF;
 END $$;
+
+-- Verify column type is now vector
+SELECT column_name, data_type, udt_name 
+FROM information_schema.columns
+WHERE table_name = 'rag_knowledge_base' AND column_name = 'embedding_vector';
 
 -- Create index for faster similarity search (non-concurrent for transaction compatibility)
 CREATE INDEX IF NOT EXISTS idx_rag_knowledge_embedding 
