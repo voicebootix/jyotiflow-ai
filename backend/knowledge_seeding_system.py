@@ -822,7 +822,7 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             try:
                 from . import db
             except ImportError:
-        import db
+                import db
         
         db_pool = db.get_db_pool()
         if db_pool is None:
@@ -874,7 +874,7 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             await seeder.seed_complete_with_global_knowledge()
         elif effective_mode == "traditional":
             logger.info("🕉️ Running TRADITIONAL SPIRITUAL seeding only...")
-        await seeder.seed_complete_knowledge_base()
+            await seeder.seed_complete_knowledge_base()
         else:
             # This should never happen due to validation above, but safety check
             logger.error(f"❌ Unexpected effective mode: {effective_mode}")
