@@ -3,13 +3,12 @@ services:
     name: jyotiflow-backend
     env: python
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
-    buildCommand: "cd backend && pip install -r requirements.txt && echo '🚀 Starting auto-deployment migrations...' && python3 auto_deploy_migration.py && echo '✅ Auto-deployment completed!' && python3 populate_service_endpoints.py"
-    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt"
+    startCommand: "python backend/auto_deploy_migration.py && python backend/populate_service_endpoints.py && uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-1}"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: PORT
-        value: 8000
+
       # Database Configuration (will use your existing DATABASE_URL from dashboard)
       - key: DATABASE_URL
         fromDatabase:
