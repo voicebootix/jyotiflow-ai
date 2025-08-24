@@ -105,18 +105,18 @@ def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
             return [0.0] * DEFAULT_EMBED_DIM
 else:
     # For non-pgvector, use JSON string format
-        if isinstance(embedding, str):
-            try:
-                # If it's already a JSON string, parse and re-serialize to ensure consistency
-                parsed_embedding = json.loads(embedding)
-                return json.dumps(parsed_embedding)
-            except json.JSONDecodeError:
-                # If it's not valid JSON, keep as is but log for spiritual content
-                logger.warning("🕉️ Spiritual knowledge embedding not valid JSON, storing as-is")
-                return embedding
-        else:
-            # If it's a list, serialize to JSON string
-            return json.dumps(embedding)
+    if isinstance(embedding, str):
+        try:
+            # If it's already a JSON string, parse and re-serialize to ensure consistency
+            parsed_embedding = json.loads(embedding)
+            return json.dumps(parsed_embedding)
+        except json.JSONDecodeError:
+            # If it's not valid JSON, keep as is but log for spiritual content
+            logger.warning("🕉️ Spiritual knowledge embedding not valid JSON, storing as-is")
+            return embedding
+    else:
+        # If it's a list, serialize to JSON string
+        return json.dumps(embedding)
 
 
 class KnowledgeSeeder:
