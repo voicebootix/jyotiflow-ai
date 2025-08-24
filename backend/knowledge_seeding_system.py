@@ -35,52 +35,14 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def format_embedding_for_storage(embedding: Any, vector_support: bool = True) -> Any:
+def format_embedding_for_storage(embedding: Any, use_pgvector: bool) -> Any:
     """
-    Convert embedding to appropriate format for database storage.
-    
-    SPIRITUAL CONTENT CRITICAL: Ensures authentic spiritual wisdom embeddings
-    are stored correctly for RAG-based spiritual guidance responses.
-    
-    Args:
-        embedding: The embedding data (str, list, or other)
-        vector_support: True if pgvector is available, False for JSON storage
-        
-    Returns:
-        Properly formatted embedding for the target storage type
+    Formats an embedding vector for database storage, handling pgvector and JSON string formats.
+    It validates, cleans, and resizes the embedding to a standard dimension.
     """
-    if vector_support:
-        # For pgvector/FLOAT[], we need list format for spiritual knowledge vectors
-        if isinstance(embedding, str):
-            try:
-                # If it's a JSON string, parse it to get the list
-                parsed_embedding = json.loads(embedding)
-                if not isinstance(parsed_embedding, list):
-                    logger.warning("🕉️ Spiritual knowledge embedding not in list format, creating default")
-                    return [0.0] * DEFAULT_EMBED_DIM
-                
-                # Coerce each element to float and validate
-                try:
-                    float_embedding = [float(x) for x in parsed_embedding]
-                    # Resize to DEFAULT_EMBED_DIM (truncate if longer, pad if shorter)
-                    if len(float_embedding) > DEFAULT_EMBED_DIM:
-                        float_embedding = float_embedding[:DEFAULT_EMBED_DIM]
-                        logger.warning(f"🕉️ Spiritual knowledge embedding truncated from {len(parsed_embedding)} to {DEFAULT_EMBED_DIM}")
-                    elif len(float_embedding) < DEFAULT_EMBED_DIM:
-                        float_embedding.extend([0.0] * (DEFAULT_EMBED_DIM - len(float_embedding)))
-                        logger.warning(f"🕉️ Spiritual knowledge embedding padded from {len(parsed_embedding)} to {DEFAULT_EMBED_DIM}")
-                    
-                    return float_embedding
-                except (ValueError, TypeError) as e:
-                    logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding elements to float: {e}, using default")
-                    return [0.0] * DEFAULT_EMBED_DIM
-                    
-            except json.JSONDecodeError:
-                # If it's not valid JSON, create a default vector for spiritual content
-                logger.warning("🕉️ Invalid spiritual knowledge embedding JSON, using default vector")
-                return [0.0] * DEFAULT_EMBED_DIM
-        elif isinstance(embedding, list):
-            # If it's already a list (like from OpenAI), validate and coerce to float
+    if use_pgvector:
+        # For pgvector, ensure it is a list of floats with correct dimensions
+        if isinstance(embedding, list):
             if len(embedding) > 0 and all(isinstance(x, (int, float)) for x in embedding):
                 try:
                     float_embedding = [float(x) for x in embedding]
@@ -96,10 +58,10 @@ def format_embedding_for_storage(embedding: Any, vector_support: bool = True) ->
                 except (ValueError, TypeError) as e:
                     logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding list elements to float: {e}, using default")
                     return [0.0] * DEFAULT_EMBED_DIM
-        else:
+            else:
                 logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
                 return [0.0] * DEFAULT_EMBED_DIM
-            else:
+        else:
             # For other types, create default vector
             logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
             return [0.0] * DEFAULT_EMBED_DIM
@@ -107,27 +69,37 @@ def format_embedding_for_storage(embedding: Any, vector_support: bool = True) ->
         # For non-pgvector, use JSON string format
         if isinstance(embedding, str):
             try:
-                # If it's already a JSON string, parse and re-serialize to ensure consistency
+                # Validate if it's a valid JSON list of numbers
                 parsed_embedding = json.loads(embedding)
-                try:
-                    return json.dumps(parsed_embedding, separators=(",", ":"))
-                except TypeError:
-                    return json.dumps(parsed_embedding, default=str, separators=(",", ":"))
+                if isinstance(parsed_embedding, list) and all(isinstance(x, (int, float)) for x in parsed_embedding):
+                    # Coerce each element to float and validate
+                    try:
+                        float_embedding = [float(x) for x in parsed_embedding]
+                        # Resize to DEFAULT_EMBED_DIM (truncate if longer, pad if shorter)
+                        if len(float_embedding) > DEFAULT_EMBED_DIM:
+                            float_embedding = float_embedding[:DEFAULT_EMBED_DIM]
+                            logger.warning(f"🕉️ Spiritual knowledge embedding truncated from {len(parsed_embedding)} to {DEFAULT_EMBED_DIM}")
+                        elif len(float_embedding) < DEFAULT_EMBED_DIM:
+                            float_embedding.extend([0.0] * (DEFAULT_EMBED_DIM - len(float_embedding)))
+                            logger.warning(f"🕉️ Spiritual knowledge embedding padded from {len(parsed_embedding)} to {DEFAULT_EMBED_DIM}")
+                        
+                        # Return as JSON string
+                        return json.dumps(float_embedding, separators=(",", ":"))
+                    except (ValueError, TypeError) as e:
+                        logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding list elements to float: {e}, using default")
+                        return json.dumps([0.0] * DEFAULT_EMBED_DIM)
+                else:
+                    logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
+                    return json.dumps([0.0] * DEFAULT_EMBED_DIM)
             except json.JSONDecodeError:
-                # If it's not valid JSON, keep as is but log for spiritual content
-                logger.warning("🕉️ Spiritual knowledge embedding not valid JSON, storing as-is")
-                return embedding
+                logger.warning(f"🕉️ Invalid JSON in spiritual knowledge embedding string, using default")
+                return json.dumps([0.0] * DEFAULT_EMBED_DIM)
+        elif isinstance(embedding, list):
+            # Also handle list types for JSON mode
+            return json.dumps(embedding, separators=(",", ":"))
         else:
-            # If it's a list or other type, serialize to JSON string with compact format
-            try:
-                return json.dumps(embedding, separators=(",", ":"))
-            except TypeError as e:
-                logger.warning(f"🕉️ Spiritual knowledge embedding serialization failed: {e}, using fallback")
-                try:
-                    return json.dumps(embedding, default=str, separators=(",", ":"))
-                except Exception as fallback_error:
-                    logger.warning(f"🕉️ Spiritual knowledge embedding fallback serialization failed: {fallback_error}, converting to string")
-                    return str(embedding)
+            logger.warning("🕉️ Unknown spiritual knowledge embedding type for JSON storage, using default")
+            return json.dumps([0.0] * DEFAULT_EMBED_DIM)
 
 
 class KnowledgeSeeder:
@@ -205,7 +177,7 @@ class KnowledgeSeeder:
                                 timeout=10.0
                             )
                             if not embedding_vector_exists:
-                                logger.warning("⚠️ embedding_vector column missing, adding it...")
+                                logger.warning("⚠️ embedding_vector column missing, a-dding it...")
                                 await asyncio.wait_for(
                                     conn.execute("""
                                         ALTER TABLE rag_knowledge_base 
@@ -877,11 +849,11 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             try:
                 from . import db
             except ImportError:
-        import db
-        
-        db_pool = db.get_db_pool()
-        if db_pool is None:
-            raise Exception("Shared database pool not available - ensure main.py has initialized it")
+                import db
+            
+            db_pool = db.get_db_pool()
+            if db_pool is None:
+                raise Exception("Shared database pool not available - ensure main.py has initialized it")
         
         # Get OpenAI API Key
         openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -929,7 +901,7 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             await seeder.seed_complete_with_global_knowledge()
         elif effective_mode == "traditional":
             logger.info("🕉️ Running TRADITIONAL SPIRITUAL seeding only...")
-        await seeder.seed_complete_knowledge_base()
+            await seeder.seed_complete_knowledge_base()
         else:
             # This should never happen due to validation above, but safety check
             logger.error(f"❌ Unexpected effective mode: {effective_mode}")
