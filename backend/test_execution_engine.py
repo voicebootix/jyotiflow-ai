@@ -27,7 +27,7 @@ sys.path.append(current_dir)
 sys.path.append(parent_dir)
 
 # Configure logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -131,10 +131,6 @@ class TestExecutionEngine:
                 test_result = await self._execute_single_test(test_case)
                 results[test_case['test_name']] = test_result
                 
-                # DEBUG: Log test_result to inspect its structure
-                logger.debug(f"DEBUG: Test Result for {test_case['test_name']}: {test_result}")
-                logger.debug(f"DEBUG: Type of Test Result: {type(test_result)}")
-
                 # ✅ HANDLE DATABASE-DRIVEN TESTS WITH MULTIPLE ENDPOINT RESULTS
                 if 'endpoint_results' in test_result and isinstance(test_result['endpoint_results'], dict):
                     # This is a database-driven test with multiple endpoint results
@@ -881,8 +877,7 @@ class TestExecutionEngine:
             'monitoring', 'spiritual_avatar_generation_engine', 'social_media_marketing_automation',
             'agora_service', 'test_suite_generator', 'test_execution_engine',
             'time', 'enhanced_business_logic', 'math', 'random',  # Add common modules needed for tests
-            'typing', 'collections', 'functools', 'itertools', 'operator',  # Add standard library modules
-            'create_admin_endpoints_config' # Added to allow dynamic config generation
+            'typing', 'collections', 'functools', 'itertools', 'operator'  # Add standard library modules
         }
         
         for child in ast.walk(node):
@@ -1737,11 +1732,4 @@ async def main():
             result = await engine.execute_test_suite(suite_name)
             print(json.dumps(result, indent=2))
         else:
-            print("Usage: python test_execution_engine.py [quick|all|suite:<name>]")
-    else:
-        # Default: run quick health check
-        result = await engine.execute_quick_health_check()
-        print(json.dumps(result, indent=2))
-
-if __name__ == "__main__":
-    asyncio.run(main())
+            print("Usage: python test_execution_engine.py [q
