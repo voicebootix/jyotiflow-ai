@@ -53,8 +53,8 @@ frontend/node_modules/
 # Ignore problematic untracked files
 terjyotiflow-ai/
 *python-c*
-"sue was caused by*"
-"terjyotiflow-ai && python -c"
+sue*
+terjyotiflow-ai*
 /backend/instance
 /backend/uploaded_files
 /backend/static_uploads
