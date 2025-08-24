@@ -1,11 +1,11 @@
 -- Populate RAG knowledge base with comprehensive spiritual wisdom
 -- This provides the foundation for dynamic content generation
 
--- Clear any existing migration seeded data (preserve production data)
+-- Clean up specific previous entries to ensure idempotency and avoid duplicates
 DELETE FROM rag_knowledge_base 
-WHERE metadata->>'created_for' = 'spiritual_calendar_service' 
-OR source_reference LIKE 'https://jyotiflow.com/%'
-OR title IN ('The Path to Inner Peace', 'Meditation for Daily Life', 'Walking Meditation Wisdom');
+WHERE (metadata->>'created_for' = 'spiritual_calendar_service' 
+OR source_reference LIKE 'https://jyotiflow.com/%')
+AND title IN ('The Path to Inner Peace', 'Meditation for Daily Life', 'Walking Meditation Wisdom');
 
 -- Insert comprehensive spiritual wisdom content
 INSERT INTO rag_knowledge_base (title, content, category, tags, source_reference, metadata) VALUES

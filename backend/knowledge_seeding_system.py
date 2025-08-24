@@ -96,10 +96,10 @@ def format_embedding_for_storage(embedding: Any, vector_support: bool = True) ->
                 except (ValueError, TypeError) as e:
                     logger.warning(f"🕉️ Cannot convert spiritual knowledge embedding list elements to float: {e}, using default")
                     return [0.0] * DEFAULT_EMBED_DIM
-            else:
+        else:
                 logger.warning("🕉️ Invalid spiritual knowledge embedding list, using default")
                 return [0.0] * DEFAULT_EMBED_DIM
-        else:
+            else:
             # For other types, create default vector
             logger.warning("🕉️ Unknown spiritual knowledge embedding type, using default")
             return [0.0] * DEFAULT_EMBED_DIM
@@ -877,11 +877,11 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             try:
                 from . import db
             except ImportError:
-                import db
-            
-            db_pool = db.get_db_pool()
-            if db_pool is None:
-                raise Exception("Shared database pool not available - ensure main.py has initialized it")
+        import db
+        
+        db_pool = db.get_db_pool()
+        if db_pool is None:
+            raise Exception("Shared database pool not available - ensure main.py has initialized it")
         
         # Get OpenAI API Key
         openai_api_key = os.getenv("OPENAI_API_KEY")
@@ -929,7 +929,7 @@ async def run_knowledge_seeding(db_pool_override: Optional[Any] = None):
             await seeder.seed_complete_with_global_knowledge()
         elif effective_mode == "traditional":
             logger.info("🕉️ Running TRADITIONAL SPIRITUAL seeding only...")
-            await seeder.seed_complete_knowledge_base()
+        await seeder.seed_complete_knowledge_base()
         else:
             # This should never happen due to validation above, but safety check
             logger.error(f"❌ Unexpected effective mode: {effective_mode}")
