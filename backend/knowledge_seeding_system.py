@@ -35,7 +35,7 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def format_embedding_for_storage(embedding, vector_support: bool = True) -> any:
+def format_embedding_for_storage(embedding: Any, vector_support: bool = True) -> Any:
     """
     Convert embedding to appropriate format for database storage.
     
