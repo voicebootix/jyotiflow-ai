@@ -193,6 +193,61 @@ class KnowledgeSeeder:
                                 )
                                 logger.info("✅ content_type column added to rag_knowledge_base")
                             
+                            # Check if embedding_vector column exists and is of type vector(1536)
+                            embedding_vector_exists = await asyncio.wait_for(
+                                conn.fetchval("""
+                                    SELECT EXISTS (
+                                        SELECT FROM information_schema.columns 
+                                        WHERE table_name = 'rag_knowledge_base' 
+                                        AND column_name = 'embedding_vector'
+                                    )
+                                """),
+                                timeout=10.0
+                            )
+                            if not embedding_vector_exists:
+                                logger.warning("⚠️ embedding_vector column missing, adding it...")
+                                await asyncio.wait_for(
+                                    conn.execute("""
+                                        ALTER TABLE rag_knowledge_base 
+                                        ADD COLUMN embedding_vector vector(1536)
+                                    """),
+                                    timeout=30.0
+                                )
+                                logger.info("✅ embedding_vector column added to rag_knowledge_base")
+                            else:
+                                # Ensure it's of type vector(1536)
+                                current_type = await conn.fetchval("""
+                                    SELECT data_type FROM information_schema.columns 
+                                    WHERE table_name = 'rag_knowledge_base' 
+                                    AND column_name = 'embedding_vector'
+                                """)
+                                if current_type != 'vector(1536)':
+                                    logger.warning("⚠️ embedding_vector column type mismatch, changing to vector(1536)...")
+                                    await asyncio.wait_for(
+                                        conn.execute("""
+                                            ALTER COLUMN embedding_vector TYPE vector(1536) 
+                                            USING (embedding_vector::vector);
+                                        """),
+                                        timeout=30.0
+                                    )
+                                    logger.info("✅ embedding_vector column type changed to vector(1536)")
+
+                                # Create index for faster similarity search with cosine distance
+                                index_exists = await conn.fetchval("""
+                                    SELECT EXISTS (
+                                        SELECT FROM pg_class 
+                                        WHERE relname = 'rag_knowledge_base_embedding_vector_cosine_idx'
+                                    )
+                                """)
+                                if not index_exists:
+                                    await asyncio.wait_for(
+                                        conn.execute("""
+                                            CREATE INDEX IF NOT EXISTS rag_knowledge_base_embedding_vector_cosine_idx ON public.rag_knowledge_base USING hnsw (embedding_vector vector_cosine_ops);
+                                        """),
+                                        timeout=30.0
+                                    )
+                                    logger.info("✅ embedding_vector index created")
+                            
                             logger.info("✅ Database table validated successfully")
                 except asyncio.TimeoutError:
                     logger.warning("⚠️ Database connection timed out during validation, proceeding with fallback seeding")
