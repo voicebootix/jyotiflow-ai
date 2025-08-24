@@ -1,14 +1,14 @@
 -- Populate RAG knowledge base with comprehensive spiritual wisdom
 -- This provides the foundation for dynamic content generation
 
--- Clear any existing migration seeded data (preserve production data)
+-- Clean up specific previous entries to ensure idempotency and avoid duplicates
 DELETE FROM rag_knowledge_base 
-WHERE metadata->>'created_for' = 'spiritual_calendar_service' 
-OR source_url LIKE 'https://jyotiflow.com/%'
-OR title IN ('The Path to Inner Peace', 'Meditation for Daily Life', 'Walking Meditation Wisdom');
+WHERE (metadata->>'created_for' = 'spiritual_calendar_service' 
+OR source_reference LIKE 'https://jyotiflow.com/%')
+AND title IN ('The Path to Inner Peace', 'Meditation for Daily Life', 'Walking Meditation Wisdom');
 
 -- Insert comprehensive spiritual wisdom content
-INSERT INTO rag_knowledge_base (title, content, category, tags, source_url, metadata) VALUES
+INSERT INTO rag_knowledge_base (title, content, category, tags, source_reference, metadata) VALUES
 
 -- Inner Peace & Meditation
 ('The Path to Inner Peace', 'True inner peace is not the absence of conflict, but the presence of tranquility amidst life''s storms. When we cultivate stillness within, we become unshakeable by external circumstances. Practice daily meditation, even for just 10 minutes, and watch as your inner landscape transforms. Peace is your natural state - everything else is temporary noise.', 'meditation', ARRAY['inner_peace', 'meditation', 'tranquility', 'mindfulness'], 'https://jyotiflow.com/inner-peace', '{"difficulty": "beginner", "duration": "daily", "practice_type": "meditation", "created_for": "spiritual_calendar_service"}'),

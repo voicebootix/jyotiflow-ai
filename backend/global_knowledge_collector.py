@@ -173,13 +173,13 @@ class GlobalKnowledgeCollector:
                         "content": content,
                         "knowledge_domain": f"global_{category}",
                         "content_type": "news_article",
-                        "source_reference": f"RSS: {urlparse(rss_url).netloc}",
+                        "source_reference": entry.link,
                         "authority_level": 3,
                         "cultural_context": "global",
                         "tags": self.extract_tags_from_content(title, content, category),
                         "metadata": {
                             "published_date": getattr(entry, 'published', str(datetime.now(timezone.utc))),
-                            "source_url": getattr(entry, 'link', rss_url),
+                            "source_url": entry.link,
                             "category": category,
                             "collected_at": datetime.now(timezone.utc).isoformat(),
                             "rss_feed": rss_url
