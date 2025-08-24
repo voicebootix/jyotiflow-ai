@@ -3,16 +3,17 @@ services:
     name: jyotiflow-backend
     env: python
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
-    buildCommand: "cd backend && pip install -r requirements.txt && echo '🚀 Starting auto-deployment migrations...' && python3 auto_deploy_migration.py && echo '✅ Auto-deployment completed!' && python3 populate_service_endpoints.py"
-    startCommand: "cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT"
+    buildCommand: 'pip install --upgrade pip && pip install -r backend/requirements.txt && echo "--- Starting database migrations and seeding ---" && python backend/auto_deploy_migration.py && echo "--- Finished database migrations and seeding ---"'
+    startCommand: 'gunicorn -w 4 -k uvicorn.workers.UvicornWorker -b 0.0.0.0:$PORT backend.main:app'
+    autoDeploy: true
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
-      - key: PORT
-        value: 8000
-      # Database Configuration (will use your existing DATABASE_URL from dashboard)
+      # Use the DATABASE_URL from the managed database
       - key: DATABASE_URL
-        sync: false  # Use the one already configured in your dashboard
+        fromDatabase:
+          name: jyotiflow-db
+          property: connectionString
       # JWT Secret (should be set in Render dashboard for security)
       - key: JWT_SECRET
         sync: false
