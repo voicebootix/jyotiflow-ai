@@ -1201,7 +1201,7 @@ async def get_test_status():
                         # Additional comprehensive test information
                         "comprehensive_test_suite": {
                             "total_defined_tests": total_comprehensive_tests,
-                            "last_execution_tests": latest_execution['total_tests'] or total_comprehensive_tests,
+                            "last_execution_tests": latest_execution.get('total_tests') if latest_execution else 0, # Use actual value from latest execution or 0
                             "execution_coverage": round((latest_execution['total_tests'] or 0) / max(total_comprehensive_tests, 1) * 100, 1)
                         }
                     }
@@ -1246,10 +1246,22 @@ async def get_test_sessions(
     offset: int = 0,
     admin: dict = Depends(get_current_admin_dependency),
 ):
-    """Get a list of all test execution sessions (database-driven, public endpoint for testing)"""
+    """Get a list of all test execution sessions (admin-only, with pagination)"""
+    # Validate pagination parameters
+    if not (1 <= limit <= 1000):
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 1000")
+    if not (offset >= 0):
+        raise HTTPException(status_code=400, detail="Offset must be non-negative")
+    
     try:
         conn = await db_manager.get_connection()
         try:
+            # Get total count of sessions for pagination
+            total_sessions_count = await conn.fetchval("""
+                SELECT COUNT(*)
+                FROM test_execution_sessions
+            """) or 0
+
             sessions_from_db = await conn.fetch("""
                 SELECT
                   id, status, test_type, test_category, total_tests, passed_tests, failed_tests,
@@ -1279,16 +1291,23 @@ async def get_test_sessions(
             return StandardResponse(
                 status="success",
                 message="Test sessions retrieved",
-                data={"sessions": sessions_data, "total": len(sessions_data)}
+                data={
+                    "sessions": sessions_data,
+                    "total": total_sessions_count,
+                    "page": offset // limit + 1 if limit > 0 else 1,
+                    "per_page": limit
+                }
             )
         finally:
             await db_manager.release_connection(conn)
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
         logger.error(f"Failed to get test sessions: {e}")
         return StandardResponse(
             status="error",
             message=f"Failed to retrieve test sessions: {str(e)}",
-            data={"sessions": [], "total": 0}
+            data={"sessions": [], "total": 0, "page": offset // limit + 1 if limit > 0 else 1, "per_page": limit}
         )
 
 @router.get("/test-metrics")
@@ -1412,14 +1431,17 @@ async def get_test_metrics():
                 "total_executed_tests": 0,
                 "success_rate": 0,
                 "avg_execution_time": 0,
-                "coverage_trend": "unknown",
+                "coverage_trend": [],
                 "auto_fixes_applied": 0,
                 "latest_execution": {
                     "total_tests": 0,
                     "passed_tests": 0,
                     "failed_tests": 0,
+                    "test_coverage": 0,
+                    "execution_time": 0,
                     "status": "unknown"
-                }
+                },
+                "total_sessions": 0
             }
         )
 
