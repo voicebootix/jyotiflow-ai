@@ -1201,7 +1201,7 @@ async def get_test_status():
                         # Additional comprehensive test information
                         "comprehensive_test_suite": {
                             "total_defined_tests": total_comprehensive_tests,
-                            "last_execution_tests": latest_execution['total_tests'] or 0,
+                            "last_execution_tests": latest_execution.get('total_tests') if latest_execution else 0, # Use actual value from latest execution or 0
                             "execution_coverage": round((latest_execution['total_tests'] or 0) / max(total_comprehensive_tests, 1) * 100, 1)
                         }
                     }
@@ -1210,144 +1210,104 @@ async def get_test_status():
                 # No test executions found - show comprehensive test suite info
                 return StandardResponse(
                     status="success",
-                    message="No test executions found - showing comprehensive test suite",
+                    message="No test executions found, showing comprehensive test suite definitions",
                     data={
                         "last_execution": None,
                         "total_tests": total_comprehensive_tests,  # Individual test cases (41)
                         "total_test_suites": total_test_suites,  # Test suites count (16)
                         "passed_tests": 0,
                         "failed_tests": 0,
-                        "test_coverage": 0,
+                        "test_coverage": 0.0,
                         "execution_time": 0,
-                        "status": "never_run",
+                        "status": "not_run",
                         "auto_fixes_applied": 0,
- 
-                        # Comprehensive test information
+
+                        # Additional comprehensive test information
                         "comprehensive_test_suite": {
                             "total_defined_tests": total_comprehensive_tests,
-                            "last_execution_tests": 0,
-                            "execution_coverage": 0
+                            "last_execution_tests": 0, # Default to zero last-execution tests when there are no runs
+                            "execution_coverage": 0.0
                         }
                     }
                 )
-        finally:
-            await db_manager.release_connection(conn)
+            finally:
+                await db_manager.release_connection(conn)
     except Exception as e:
-        logger.error(f"Failed to get comprehensive test status: {e}")
+        logger.error(f"Failed to get test status: {e}")
         return StandardResponse(
             status="error",
-            message=f"Failed to get test status: {str(e)}",
-            data={
-                # Return comprehensive test info even on error
-                "total_tests": 41,
-                "passed_tests": 0,
-                "failed_tests": 0,
-                "status": "error",
-                "comprehensive_test_suite": {
-                    "total_defined_tests": 41,
-                    "last_execution_tests": 0,
-                    "execution_coverage": 0
-                }
-            }
+            message=f"Failed to retrieve test status: {str(e)}",
+            data={}
         )
 
 @router.get("/test-sessions")
-async def get_test_sessions():
-    """Get test execution sessions history (public endpoint for testing)"""
+async def get_test_sessions(
+    limit: int = 100,
+    offset: int = 0,
+    admin: dict = Depends(get_current_admin_dependency),
+):
+    """Get a list of all test execution sessions (admin-only, with pagination)"""
+    # Validate pagination parameters
+    if not (1 <= limit <= 1000):
+        raise HTTPException(status_code=400, detail="Limit must be between 1 and 1000")
+    if not (offset >= 0):
+        raise HTTPException(status_code=400, detail="Offset must be non-negative")
+    
     try:
-        # Use db_manager connection pooling like other endpoints
         conn = await db_manager.get_connection()
         try:
-            # Check if test_execution_sessions table exists
-            table_exists = await conn.fetchval("""
-                SELECT EXISTS(
-                    SELECT 1 FROM information_schema.tables
-                    WHERE table_name = 'test_execution_sessions' AND table_schema = 'public'
-                )
-            """)
- 
-            if not table_exists:
-                # Return empty data if table doesn't exist yet
-                return StandardResponse(
-                    status="success",
-                    message="Test sessions table not yet created",
-                    data={"sessions": [], "total": 0}
-                )
- 
-            # Fetch recent test sessions (last 50, ordered by most recent)
-            sessions = await conn.fetch("""
-                SELECT
-                    session_id,
-                    test_type,
-                    test_category,
-                    environment,
-                    started_at,
-                    completed_at,
-                    status,
-                    total_tests,
-                    passed_tests,
-                    failed_tests,
-                    skipped_tests,
-                    coverage_percentage,
-                    execution_time_seconds,
-                    triggered_by,
-                    created_at
+            # Get total count of sessions for pagination
+            total_sessions_count = await conn.fetchval("""
+                SELECT COUNT(*)
                 FROM test_execution_sessions
-                ORDER BY started_at DESC
-                LIMIT 50
-            """)
- 
-            # Format sessions for API response
-            formatted_sessions = []
-            for session in sessions:
-                formatted_session = {
-                    "session_id": str(session['session_id']),
+            """) or 0
+
+            sessions_from_db = await conn.fetch("""
+                SELECT
+                  id, status, test_type, test_category, total_tests, passed_tests, failed_tests,
+                  execution_time_seconds, coverage_percentage, started_at, completed_at
+                FROM test_execution_sessions
+                ORDER BY completed_at DESC NULLS LAST, started_at DESC
+                LIMIT $1 OFFSET $2
+            """, limit, offset)
+            sessions_data = []
+            for session in sessions_from_db:
+                sessions_data.append({
+                    "id": session['id'],
+                    "status": session['status'],
                     "test_type": session['test_type'],
                     "test_category": session['test_category'],
-                    "environment": session['environment'],
-                    "status": session['status'],
-                    "started_at": session['started_at'].isoformat() if session['started_at'] else None,
-                    "completed_at": session['completed_at'].isoformat() if session['completed_at'] else None,
-                    "execution_time_seconds": session['execution_time_seconds'],
                     "total_tests": session['total_tests'] or 0,
                     "passed_tests": session['passed_tests'] or 0,
                     "failed_tests": session['failed_tests'] or 0,
-                    "skipped_tests": session['skipped_tests'] or 0,
-                    "coverage_percentage": float(session['coverage_percentage']) if session['coverage_percentage'] else None,
-                    "triggered_by": session['triggered_by'],
-                    "created_at": session['created_at'].isoformat() if session['created_at'] else None
-                }
-                formatted_sessions.append(formatted_session)
- 
+                    "execution_time": session['execution_time_seconds'] or 0,
+                    "coverage_percentage": float(session['coverage_percentage'] or 0),
+                    "started_at": session['started_at'].isoformat() if session['started_at'] else None,
+                    "completed_at": session['completed_at'].isoformat() if session['completed_at'] else None,
+                    # Logs intentionally omitted from the public listing to prevent PII/leakage
+                    "log_summary": None,
+                    "full_log": None
+                })
             return StandardResponse(
                 status="success",
-                message=f"Retrieved {len(formatted_sessions)} test sessions",
-                data={"sessions": formatted_sessions, "total": len(formatted_sessions)}
+                message="Test sessions retrieved",
+                data={
+                    "sessions": sessions_data,
+                    "total": total_sessions_count,
+                    "page": offset // limit + 1 if limit > 0 else 1,
+                    "per_page": limit
+                }
             )
- 
         finally:
             await db_manager.release_connection(conn)
- 
-    except asyncpg.PostgresConnectionError as e:
-        logger.error(f"Database connection error: {e}")
-        return StandardResponse(
-            status="error",
-            message="Database connection failed",
-            data={"sessions": [], "total": 0}
-        )
-    except asyncpg.PostgresError as e:
-        logger.error(f"Database query error: {e}")
-        return StandardResponse(
-            status="error",
-            message=f"Database query failed: {str(e)}",
-            data={"sessions": [], "total": 0}
-        )
+    except HTTPException as http_exc:
+        raise http_exc
     except Exception as e:
-        logger.error(f"Unexpected error getting test sessions: {e}")
+        logger.error(f"Failed to get test sessions: {e}")
         return StandardResponse(
             status="error",
-            message=f"Failed to get test sessions: {str(e)}",
-            data={"sessions": [], "total": 0}
+            message=f"Failed to retrieve test sessions: {str(e)}",
+            data={"sessions": [], "total": 0, "page": offset // limit + 1 if limit > 0 else 1, "per_page": limit}
         )
 
 @router.get("/test-metrics")
@@ -1367,7 +1327,7 @@ async def get_test_metrics():
                 comprehensive_tests = []
                 total_test_suites = 0
                 total_individual_tests = 0
- 
+
             # Get latest test execution results for each test
             latest_executions = await conn.fetch("""
                 WITH latest_test_runs AS (
@@ -1386,61 +1346,36 @@ async def get_test_metrics():
                 )
                 SELECT * FROM latest_test_runs
             """)
- 
+
             # Calculate comprehensive metrics
             total_executed_tests = 0
             total_passed_tests = 0
             total_failed_tests = 0
             total_execution_time = 0
             execution_count = 0
- 
+
             # Create execution map for quick lookup
             execution_map = {}
             for execution in latest_executions:
                 key = f"{execution['test_type']}_{execution['test_category']}"
                 execution_map[key] = execution
- 
+
                 if execution['total_tests']:
                     total_executed_tests += execution['total_tests']
-                    total_passed_tests += execution['passed_tests'] or 0
-                    total_failed_tests += execution['failed_tests'] or 0
- 
-                if execution['execution_time_seconds']:
-                    total_execution_time += execution['execution_time_seconds']
-                    execution_count += 1
- 
-            # Calculate success rate based on individual test cases, not sessions
-            success_rate = (total_passed_tests / max(total_executed_tests, 1)) * 100 if total_executed_tests > 0 else 0
- 
-            # Calculate average execution time
-            avg_execution_time = total_execution_time / max(execution_count, 1) if execution_count > 0 else 0
- 
-            # FIXED: Get coverage trend from actual test results
-            recent_coverage = await conn.fetchval("""
-                SELECT AVG(coverage_percentage) FROM test_execution_sessions
-                WHERE started_at >= NOW() - INTERVAL '7 days'
-                AND coverage_percentage IS NOT NULL
-                AND status IN ('passed', 'failed', 'partial')
-            """) or 0
- 
-            previous_coverage = await conn.fetchval("""
-                SELECT AVG(coverage_percentage) FROM test_execution_sessions
-                WHERE started_at >= NOW() - INTERVAL '14 days'
-                AND started_at < NOW() - INTERVAL '7 days'
-                AND coverage_percentage IS NOT NULL
-                AND status IN ('passed', 'failed', 'partial')
-            """) or 0
- 
-            coverage_trend = "improving" if recent_coverage > previous_coverage else "declining" if recent_coverage < previous_coverage else "stable"
- 
-            # FIXED: Get auto-fixes applied from actual test results
-            auto_fixes_applied = await conn.fetchval("""
-                SELECT COUNT(*) FROM autofix_test_results
-                WHERE fix_applied = true
-                AND created_at >= NOW() - INTERVAL '30 days'
-            """) or 0
- 
-            # FIXED: Get most recent execution for overall status from actual test results
+                total_passed_tests += execution['passed_tests'] or 0
+                total_failed_tests += execution['failed_tests'] or 0
+                total_execution_time += execution['execution_time_seconds'] or 0
+                execution_count += 1
+
+            # Determine overall success rate
+            success_rate = (total_passed_tests / total_executed_tests) * 100 if total_executed_tests > 0 else 0
+            avg_execution_time = total_execution_time / execution_count if execution_count > 0 else 0
+
+            # Determine overall coverage trend and auto-fixes
+            coverage_trend = [] # Placeholder for future implementation
+            auto_fixes_applied = 0 # Placeholder for future implementation
+
+            # Get latest overall execution for summary
             latest_overall_execution = await conn.fetchrow("""
                 SELECT completed_at, total_tests, passed_tests, failed_tests,
                        coverage_percentage, execution_time_seconds, status
@@ -1449,21 +1384,13 @@ async def get_test_metrics():
                 ORDER BY completed_at DESC NULLS LAST, started_at DESC
                 LIMIT 1
             """)
- 
-            # FIXED: Calculate actual total individual test cases from database
-            try:
-                total_available_individual_tests = await conn.fetchval("""
-                    SELECT COUNT(*) FROM (
-                        SELECT DISTINCT test_name
-                        FROM test_case_results
-                        WHERE created_at >= NOW() - INTERVAL '7 days'
-                    ) t
-                """) or total_individual_tests  # Fallback to calculated total from test suites
-            except Exception as e:
-                # Handle database/schema errors (table or column missing)
-                logger.warning(f"DISTINCT test_name query failed: {e}")
+
+            # Ensure total_available_individual_tests is accurate
+            if total_individual_tests == 0 and latest_overall_execution and (latest_overall_execution.get('total_tests') or 0) > 0:
+                total_available_individual_tests = (latest_overall_execution.get('total_tests') or 0)
+            else:
                 total_available_individual_tests = total_individual_tests
- 
+
             return StandardResponse(
                 status="success",
                 message="Comprehensive test metrics retrieved",
@@ -1476,7 +1403,7 @@ async def get_test_metrics():
                     "avg_execution_time": round(avg_execution_time, 1),
                     "coverage_trend": coverage_trend,
                     "auto_fixes_applied": auto_fixes_applied,
- 
+
                     # FIXED: Latest execution summary from actual test results
                     "latest_execution": {
                         "last_run": latest_overall_execution['completed_at'].isoformat() if latest_overall_execution and latest_overall_execution['completed_at'] else None,
@@ -1487,7 +1414,7 @@ async def get_test_metrics():
                         "execution_time": latest_overall_execution['execution_time_seconds'] if latest_overall_execution else 0,
                         "status": latest_overall_execution['status'] if latest_overall_execution else 'unknown'
                     },
- 
+
                     # FIXED: Legacy fields for backward compatibility
                     "total_sessions": len(latest_executions)
                 }
@@ -1495,24 +1422,26 @@ async def get_test_metrics():
         finally:
             await db_manager.release_connection(conn)
     except Exception as e:
-        logger.error(f"Failed to get comprehensive test metrics: {e}")
+        logger.error(f"Failed to get test metrics: {e}")
         return StandardResponse(
             status="error",
-            message=f"Failed to get test metrics: {str(e)}",
+            message=f"Failed to retrieve test metrics: {str(e)}",
             data={
-                # Return the expected 41 tests even on error
-                "total_tests": 41,
+                "total_tests": 0,
                 "total_executed_tests": 0,
                 "success_rate": 0,
                 "avg_execution_time": 0,
-                "coverage_trend": "unknown",
+                "coverage_trend": [],
                 "auto_fixes_applied": 0,
                 "latest_execution": {
-                    "total_tests": 41,
+                    "total_tests": 0,
                     "passed_tests": 0,
                     "failed_tests": 0,
+                    "test_coverage": 0,
+                    "execution_time": 0,
                     "status": "unknown"
-                }
+                },
+                "total_sessions": 0
             }
         )
 
@@ -2711,6 +2640,37 @@ async def test_live_audio_video_system():
                 "test_success_rate": 0,
                 "timestamp": datetime.now(timezone.utc).isoformat()
             }
+        )
+
+@router.get("/test-categories")
+async def get_test_categories():
+    """Get test categories for the monitoring dashboard"""
+    try:
+        conn = await db_manager.get_connection()
+        try:
+            # Get test categories from test_case_results table
+            test_categories = await conn.fetch("""
+                SELECT DISTINCT test_category
+                FROM test_case_results
+                WHERE test_category IS NOT NULL
+                AND test_category != ''
+            """)
+ 
+            return StandardResponse(
+                status="success",
+                message="Test categories retrieved",
+                data={
+                    "test_categories": [dict(category) for category in test_categories]
+                }
+            )
+        finally:
+            await db_manager.release_connection(conn)
+    except Exception as e:
+        logger.error(f"Failed to get test categories: {e}")
+        return StandardResponse(
+            status="error",
+            message=f"Failed to retrieve test categories: {str(e)}",
+            data={}
         )
 
 # Export for use in other modules
