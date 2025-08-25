@@ -23,6 +23,7 @@ class GlobalKnowledgeCollector:
     
     def __init__(self):
         self.sources = {
+            # --- Existing Categories ---
             "world_news": {
                 "feeds": [
                     "https://rss.cnn.com/rss/edition.rss",
@@ -31,7 +32,7 @@ class GlobalKnowledgeCollector:
                     "https://www.aljazeera.com/xml/rss/all.xml"
                 ],
                 "priority": 1,
-                "articles_per_source": 5
+                "articles_per_source": 3 # Reduced for balance
             },
             "indian_news": {
                 "feeds": [
@@ -40,17 +41,38 @@ class GlobalKnowledgeCollector:
                     "https://indianexpress.com/feed/"
                 ],
                 "priority": 1,
+                "articles_per_source": 3 # Reduced for balance
+            },
+            
+            # --- NEW Categories ---
+            "astrology": {
+                "feeds": [
+                    "https://www.drikpanchang.com/rss/drikpanchang-rss.xml",
+                    "https://www.indastro.com/feeds/posts/default",
+                    "https://www.speakingtree.in/blogs/astrology/feed"
+                ],
+                "priority": 2, # Higher priority
                 "articles_per_source": 5
             },
-            "tamil_news": {
+            "tamil_knowledge": {
                 "feeds": [
-                    "https://tamil.indianexpress.com/feed/",
-                    "https://www.dinamalar.com/rss_feed/rss_news.xml",
-                    "https://www.vikatan.com/rss/news"
+                    "https://keetru.com/feed",
+                    "https://www.vikatan.com/rss/art-and-culture"
+                ],
+                "priority": 2, # Higher priority
+                "articles_per_source": 4
+            },
+            "world_religions": {
+                "feeds": [
+                    "https://www.speakingtree.in/blogs/feed",
+                    "https://www.learnreligions.com/feed",
+                    "https://www.buddhanet.net/pali_promo.xml"
                 ],
                 "priority": 1,
-                "articles_per_source": 5
+                "articles_per_source": 4
             },
+
+            # --- Existing Categories (Retained) ---
             "science_technology": {
                 "feeds": [
                     "https://www.sciencedaily.com/rss/all.xml",
@@ -59,7 +81,7 @@ class GlobalKnowledgeCollector:
                     "https://feeds.feedburner.com/oreilly/radar"
                 ],
                 "priority": 1,
-                "articles_per_source": 4
+                "articles_per_source": 3 # Reduced for balance
             },
             "health_medicine": {
                 "feeds": [
@@ -68,7 +90,7 @@ class GlobalKnowledgeCollector:
                     "https://www.webmd.com/rss/rss.aspx?RSSSource=RSS_PUBLIC"
                 ],
                 "priority": 1,
-                "articles_per_source": 4
+                "articles_per_source": 3 # Reduced for balance
             },
             "finance_economics": {
                 "feeds": [
@@ -77,7 +99,7 @@ class GlobalKnowledgeCollector:
                     "https://feeds.reuters.com/reuters/businessNews"
                 ],
                 "priority": 1,
-                "articles_per_source": 4
+                "articles_per_source": 3 # Reduced for balance
             },
             "environment_climate": {
                 "feeds": [
@@ -85,7 +107,7 @@ class GlobalKnowledgeCollector:
                     "https://www.nationalgeographic.com/environment/rss/"
                 ],
                 "priority": 1,
-                "articles_per_source": 3
+                "articles_per_source": 3 # Reduced for balance
             }
         }
         
