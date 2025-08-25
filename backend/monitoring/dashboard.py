@@ -1225,7 +1225,7 @@ async def get_test_status():
                         # Additional comprehensive test information
                         "comprehensive_test_suite": {
                             "total_defined_tests": total_comprehensive_tests,
-                            "last_execution_tests": total_comprehensive_tests, # If no execution, default to total defined
+                            "last_execution_tests": 0, # Default to zero last-execution tests when there are no runs
                             "execution_coverage": 0.0
                         }
                     }
@@ -1241,12 +1241,23 @@ async def get_test_status():
         )
 
 @router.get("/test-sessions")
-async def get_test_sessions():
+async def get_test_sessions(
+    limit: int = 100,
+    offset: int = 0,
+    admin: dict = Depends(get_current_admin_dependency),
+):
     """Get a list of all test execution sessions (database-driven, public endpoint for testing)"""
     try:
         conn = await db_manager.get_connection()
         try:
-            sessions_from_db = await conn.fetch("SELECT * FROM test_execution_sessions ORDER BY completed_at DESC")
+            sessions_from_db = await conn.fetch("""
+                SELECT
+                  id, status, test_type, test_category, total_tests, passed_tests, failed_tests,
+                  execution_time_seconds, coverage_percentage, started_at, completed_at
+                FROM test_execution_sessions
+                ORDER BY completed_at DESC NULLS LAST, started_at DESC
+                LIMIT $1 OFFSET $2
+            """, limit, offset)
             sessions_data = []
             for session in sessions_from_db:
                 sessions_data.append({
@@ -1261,8 +1272,9 @@ async def get_test_sessions():
                     "coverage_percentage": float(session['coverage_percentage'] or 0),
                     "started_at": session['started_at'].isoformat() if session['started_at'] else None,
                     "completed_at": session['completed_at'].isoformat() if session['completed_at'] else None,
-                    "log_summary": session['log_summary'],
-                    "full_log": session['full_log']
+                    # Logs intentionally omitted from the public listing to prevent PII/leakage
+                    "log_summary": None,
+                    "full_log": None
                 })
             return StandardResponse(
                 status="success",
@@ -1355,8 +1367,8 @@ async def get_test_metrics():
             """)
 
             # Ensure total_available_individual_tests is accurate
-            if total_individual_tests == 0 and latest_overall_execution and latest_overall_execution['total_tests'] > 0:
-                total_available_individual_tests = latest_overall_execution['total_tests']
+            if total_individual_tests == 0 and latest_overall_execution and (latest_overall_execution.get('total_tests') or 0) > 0:
+                total_available_individual_tests = (latest_overall_execution.get('total_tests') or 0)
             else:
                 total_available_individual_tests = total_individual_tests
 
