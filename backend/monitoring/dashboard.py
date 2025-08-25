@@ -1172,7 +1172,7 @@ async def get_test_status():
                 comprehensive_tests = []
                 total_test_suites = 0
                 total_comprehensive_tests = 0
- 
+
             # Get the latest completed test execution
             latest_execution = await conn.fetchrow("""
                 SELECT completed_at, total_tests, passed_tests, failed_tests,
@@ -1182,7 +1182,7 @@ async def get_test_status():
                 ORDER BY completed_at DESC NULLS LAST, started_at DESC
                 LIMIT 1
             """)
- 
+
             if latest_execution:
                 return StandardResponse(
                     status="success",
@@ -1197,7 +1197,7 @@ async def get_test_status():
                         "execution_time": latest_execution['execution_time_seconds'] or 0,
                         "status": latest_execution['status'] or 'unknown',
                         "auto_fixes_applied": 0,  # Set to 0 for now as requested
- 
+
                         # Additional comprehensive test information
                         "comprehensive_test_suite": {
                             "total_defined_tests": total_comprehensive_tests,
@@ -1230,8 +1230,8 @@ async def get_test_status():
                         }
                     }
                 )
-            finally:
-                await db_manager.release_connection(conn)
+        finally:
+            await db_manager.release_connection(conn)
     except Exception as e:
         logger.error(f"Failed to get test status: {e}")
         return StandardResponse(
