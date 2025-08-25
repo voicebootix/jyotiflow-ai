@@ -627,7 +627,7 @@ async def send_whatsapp_followup_endpoint(
 # UTILITY ENDPOINTS
 # =============================================================================
 
-@router.get("/health")
+@router.get("/health/followup")
 async def followup_health_check(
     followup_service: FollowUpService = Depends(get_followup_service)
 ):

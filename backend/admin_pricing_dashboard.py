@@ -587,7 +587,7 @@ async def apply_admin_approved_pricing_endpoint(
             "message": f"Failed to apply pricing: {str(e)}"
         }
 
-@admin_pricing_router.get("/health")
+@admin_pricing_router.get("/health/pricing")
 async def get_pricing_system_health():
     """Get pricing system health status"""
     try:

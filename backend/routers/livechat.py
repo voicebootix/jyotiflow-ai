@@ -588,7 +588,7 @@ async def get_user_sessions(
         }
 
 # Health check endpoint
-@router.get("/health")
+@router.get("/health/livechat")
 async def livechat_health():
     """Health check for live chat service"""
     try:
