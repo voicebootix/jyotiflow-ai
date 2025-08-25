@@ -4,7 +4,7 @@ services:
     env: python
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
     buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt"
-    startCommand: "python backend/auto_deploy_migration.py && python backend/populate_service_endpoints.py && uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-1}"
+    startCommand: "python backend/auto_deploy_migration.py && uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-1}"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -61,6 +61,26 @@ services:
         value: "production"
     healthCheckPath: /health
 
+  - type: worker
+    name: knowledge-seeder
+    env: python
+    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt"
+    startCommand: "python backend/knowledge_seeding_system.py"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: DATABASE_URL
+        fromDatabase:
+          name: jyotiflow-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ENABLE_GLOBAL_KNOWLEDGE
+        value: "true"
+      - key: KNOWLEDGE_SEEDING_MODE
+        value: "complete"
+    autoDeploy: false # Run this worker manually from the Render dashboard
+    
   - type: web
     name: jyotiflow-ai-frontend
     env: static
