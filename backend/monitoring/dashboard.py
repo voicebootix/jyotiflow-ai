@@ -1184,17 +1184,25 @@ async def get_test_status():
             await db_manager.release_connection(conn)
     except Exception as e:
         logger.error(f"Failed to get comprehensive test status: {e}")
+        
+        # Try to get fallback test count even in error case
+        try:
+            comprehensive_tests = await monitoring_dashboard.get_comprehensive_test_definitions()
+            fallback_test_count = sum(test.get("test_case_count", 0) for test in comprehensive_tests)
+        except:
+            fallback_test_count = 0  # Complete fallback if everything fails
+            
         return StandardResponse(
             status="error",
             message=f"Failed to get test status: {str(e)}",
             data={
                 # Return comprehensive test info even on error
-                "total_tests": 41,
+                "total_tests": fallback_test_count,
                 "passed_tests": 0,
                 "failed_tests": 0,
                 "status": "error",
                 "comprehensive_test_suite": {
-                    "total_defined_tests": 41,
+                    "total_defined_tests": fallback_test_count,
                     "last_execution_tests": 0,
                     "execution_coverage": 0
                 }
@@ -1400,19 +1408,10 @@ async def get_test_metrics():
                 LIMIT 1
             """)
 
-            # FIXED: Calculate actual total individual test cases from database
-            try:
-                total_available_individual_tests = await conn.fetchval("""
-                    SELECT COUNT(*) FROM (
-                        SELECT DISTINCT test_name
-                        FROM test_case_results
-                        WHERE created_at >= NOW() - INTERVAL '7 days'
-                    ) t
-                """) or total_individual_tests  # Fallback to calculated total from test suites
-            except Exception as e:
-                # Handle database/schema errors (table or column missing)
-                logger.warning(f"DISTINCT test_name query failed: {e}")
-                total_available_individual_tests = total_individual_tests
+            # FIXED: Use calculated total from test suite definitions, not execution records
+            # The test_case_results table contains execution records (potentially thousands),
+            # not test definitions. We need the count of actual test cases from suites.
+            total_available_individual_tests = total_individual_tests
 
             return StandardResponse(
                 status="success",
@@ -1446,19 +1445,26 @@ async def get_test_metrics():
             await db_manager.release_connection(conn)
     except Exception as e:
         logger.error(f"Failed to get comprehensive test metrics: {e}")
+        # Try to get fallback test count even in error case
+        try:
+            comprehensive_tests = await monitoring_dashboard.get_comprehensive_test_definitions()
+            fallback_test_count = sum(test.get("test_case_count", 0) for test in comprehensive_tests)
+        except:
+            fallback_test_count = 0  # Complete fallback if everything fails
+        
         return StandardResponse(
             status="error",
             message=f"Failed to get test metrics: {str(e)}",
             data={
-                # Return the expected 41 tests even on error
-                "total_tests": 41,
+                # Return calculated test count even on error
+                "total_tests": fallback_test_count,
                 "total_executed_tests": 0,
                 "success_rate": 0,
                 "avg_execution_time": 0,
                 "coverage_trend": "unknown",
                 "auto_fixes_applied": 0,
                 "latest_execution": {
-                    "total_tests": 41,
+                    "total_tests": fallback_test_count,
                     "passed_tests": 0,
                     "failed_tests": 0,
                     "status": "unknown"
@@ -2664,4 +2670,4 @@ async def test_live_audio_video_system():
         )
 
 # Export for use in other modules
-__all__ = ["monitoring_dashboard", "router", "connection_manager"]
+__all__ = ["monitoring_dashboard", "router", "connection_manager"] 
