@@ -270,7 +270,7 @@ async def run_auto_deployment_migrations():
             await run_idempotent_knowledge_seeding(conn)
         else:
             logger.error("❌ Cannot run knowledge seeding because the function was not imported.")
-
+        
         logger.info("🎉 Auto-deployment migrations completed!")
         return True
         
