@@ -265,6 +265,9 @@ async def run_auto_deployment_migrations():
         # 5. Ensure Prokerala configuration exists
         await ensure_prokerala_config(conn)
         
+        # 5.5. Run source_reference backfill if needed (from migration 026)
+        await run_source_reference_backfill(conn)
+        
         # 6. CRITICAL & IDEMPOTENT: Seed the knowledge base from Python script
         if run_knowledge_seeding:
             await run_idempotent_knowledge_seeding(conn)
@@ -293,6 +296,64 @@ async def run_auto_deployment_migrations():
 
         if conn:
             await conn.close()
+
+async def run_source_reference_backfill(conn):
+    """
+    Backfill source_reference column from source_url column if it exists.
+    This is run as part of migration 026 to ensure robustness across environments.
+    """
+    backfill_marker = "source_reference_backfilled_v1"
+    
+    try:
+        # Check if backfill was already done
+        already_backfilled = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT 1 FROM schema_migrations WHERE migration_name = $1
+            )
+        """, backfill_marker)
+        
+        if already_backfilled:
+            logger.info(f"⏭️ Source reference backfill already completed (marker: {backfill_marker})")
+            return
+        
+        # Check if source_url column exists
+        source_url_exists = await conn.fetchval("""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'rag_knowledge_base' 
+                AND column_name = 'source_url' 
+                AND table_schema = 'public'
+            )
+        """)
+        
+        if source_url_exists:
+            # Perform the backfill with truncation
+            rows_updated = await conn.fetchval("""
+                UPDATE public.rag_knowledge_base 
+                SET source_reference = LEFT(source_url, 255) 
+                WHERE source_reference IS NULL AND source_url IS NOT NULL
+                RETURNING (SELECT COUNT(*) FROM public.rag_knowledge_base 
+                           WHERE source_reference IS NOT NULL AND source_url IS NOT NULL)
+            """)
+            
+            logger.info(f"✅ Source reference backfill completed. Updated rows from source_url.")
+            
+            if rows_updated and rows_updated > 0:
+                logger.info(f"   → Backfilled {rows_updated} rows (URLs truncated to 255 chars if needed)")
+        else:
+            logger.info("⏭️ No source_url column found, skipping source_reference backfill")
+        
+        # Mark backfill as completed
+        await conn.execute("""
+            INSERT INTO schema_migrations (migration_name) VALUES ($1)
+            ON CONFLICT (migration_name) DO NOTHING
+        """, backfill_marker)
+        
+        logger.info(f"✅ Source reference backfill process completed (marker: {backfill_marker})")
+        
+    except Exception as e:
+        logger.error(f"❌ Source reference backfill failed: {e}")
+        # Don't raise - this shouldn't stop deployment
 
 async def run_idempotent_knowledge_seeding(conn):
     """

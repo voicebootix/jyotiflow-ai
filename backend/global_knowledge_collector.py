@@ -156,30 +156,36 @@ class GlobalKnowledgeCollector:
             # Process entries
             for entry in feed.entries[:max_articles]:
                 try:
-                    # Clean and prepare content
-                    title = self.clean_content(entry.title)
+                    # Clean and prepare content - using getattr for safety
+                    title = getattr(entry, "title", "")
+                    link = getattr(entry, "link", None) or rss_url  # fallback to feed URL
+                    
+                    title_cleaned = self.clean_content(title)
                     content = self.clean_content(
                         getattr(entry, 'summary', '') or 
                         getattr(entry, 'description', '') or 
-                        title
+                        title_cleaned
                     )
                     
-                    if not title or len(content) < 50:
+                    if not title_cleaned or len(content) < 50:
                         continue
+                    
+                    # Create consistent link_var for both source_reference and metadata.source_url
+                    link_var = link or rss_url
                     
                     # Create knowledge entry
                     article = {
-                        "title": title,
+                        "title": title_cleaned,
                         "content": content,
                         "knowledge_domain": f"global_{category}",
                         "content_type": "news_article",
-                        "source_reference": entry.link,
+                        "source_reference": link_var[:255],  # Safely truncate to 255 chars
                         "authority_level": 3,
                         "cultural_context": "global",
-                        "tags": self.extract_tags_from_content(title, content, category),
+                        "tags": self.extract_tags_from_content(title_cleaned, content, category),
                         "metadata": {
                             "published_date": getattr(entry, 'published', str(datetime.now(timezone.utc))),
-                            "source_url": entry.link,
+                            "source_url": link_var[:255],  # Consistent truncation
                             "category": category,
                             "collected_at": datetime.now(timezone.utc).isoformat(),
                             "rss_feed": rss_url
@@ -264,15 +270,17 @@ class GlobalKnowledgeCollector:
 
     async def fetch_and_parse_feed(self, url: str, max_articles: int) -> List[Dict[str, Any]]:
         """
-        Fetches and parses a single RSS feed.
+        Fetches and parses a single RSS feed asynchronously.
         Made public to allow for testing.
+        FIX: Runs synchronous feedparser.parse in a separate thread to avoid blocking asyncio event loop.
+             Safely truncates source_reference to 255 chars.
         """
         articles = []
         try:
             logger.info(f"📡 Collecting from {urlparse(url).netloc}...")
             
-            # Parse RSS feed
-            feed = feedparser.parse(url)
+            # Run the synchronous feedparser.parse in a separate thread
+            feed = await asyncio.to_thread(feedparser.parse, url)
             
             if not feed.entries:
                 logger.warning(f"⚠️ No entries found in {url}")
@@ -298,13 +306,13 @@ class GlobalKnowledgeCollector:
                         "content": content,
                         "knowledge_domain": "global_test", # Placeholder for category
                         "content_type": "news_article",
-                        "source_reference": entry.link,
+                        "source_reference": (getattr(entry, "link", "") or "")[:255], # Safely truncate to 255 chars
                         "authority_level": 3,
                         "cultural_context": "global",
                         "tags": self.extract_tags_from_content(title, content, "test"), # Placeholder for category
                         "metadata": {
                             "published_date": getattr(entry, 'published', str(datetime.now(timezone.utc))),
-                            "source_url": entry.link,
+                            "source_url": (getattr(entry, "link", "") or url)[:255],  # Consistent truncation
                             "category": "test", # Placeholder for category
                             "collected_at": datetime.now(timezone.utc).isoformat(),
                             "rss_feed": url
