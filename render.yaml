@@ -2,9 +2,12 @@ services:
   - type: web
     name: jyotiflow-backend
     env: python
+    region: oregon
+    plan: free
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
-    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt"
-    startCommand: "python backend/auto_deploy_migration.py && uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers ${WEB_CONCURRENCY:-1}"
+    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt --prefer-binary"
+    startCommand: "gunicorn -w 4 -k uvicorn.workers.UvicornWorker backend.main:app"
+    healthCheckPath: "/health"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -59,12 +62,11 @@ services:
       # Environment Configuration
       - key: APP_ENV
         value: "production"
-    healthCheckPath: /health
 
   - type: worker
     name: knowledge-seeder
     env: python
-    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt"
+    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt --prefer-binary"
     startCommand: "python backend/knowledge_seeding_system.py"
     envVars:
       - key: PYTHON_VERSION
