@@ -262,6 +262,68 @@ class GlobalKnowledgeCollector:
         
         return all_articles
 
+    async def fetch_and_parse_feed(self, url: str, max_articles: int) -> List[Dict[str, Any]]:
+        """
+        Fetches and parses a single RSS feed.
+        Made public to allow for testing.
+        """
+        articles = []
+        try:
+            logger.info(f"📡 Collecting from {urlparse(url).netloc}...")
+            
+            # Parse RSS feed
+            feed = feedparser.parse(url)
+            
+            if not feed.entries:
+                logger.warning(f"⚠️ No entries found in {url}")
+                return articles
+            
+            # Process entries
+            for entry in feed.entries[:max_articles]:
+                try:
+                    # Clean and prepare content
+                    title = self.clean_content(entry.title)
+                    content = self.clean_content(
+                        getattr(entry, 'summary', '') or 
+                        getattr(entry, 'description', '') or 
+                        title
+                    )
+                    
+                    if not title or len(content) < 50:
+                        continue
+                    
+                    # Create knowledge entry
+                    article = {
+                        "title": title,
+                        "content": content,
+                        "knowledge_domain": "global_test", # Placeholder for category
+                        "content_type": "news_article",
+                        "source_reference": entry.link,
+                        "authority_level": 3,
+                        "cultural_context": "global",
+                        "tags": self.extract_tags_from_content(title, content, "test"), # Placeholder for category
+                        "metadata": {
+                            "published_date": getattr(entry, 'published', str(datetime.now(timezone.utc))),
+                            "source_url": entry.link,
+                            "category": "test", # Placeholder for category
+                            "collected_at": datetime.now(timezone.utc).isoformat(),
+                            "rss_feed": url
+                        }
+                    }
+                    
+                    articles.append(article)
+                    
+                except Exception as e:
+                    logger.warning(f"⚠️ Error processing entry from {url}: {e}")
+                    continue
+            
+            logger.info(f"✅ Collected {len(articles)} articles from {urlparse(url).netloc}")
+            
+        except Exception as e:
+            logger.error(f"❌ Error collecting from {url}: {e}")
+        
+        return articles
+
 # Convenience function for easy usage
 async def collect_global_knowledge() -> List[Dict[str, Any]]:
     """
