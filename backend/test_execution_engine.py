@@ -20,11 +20,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Any, Optional, Callable, Union
 import logging
 
-# Add current directory and parent directory to Python path for imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-sys.path.append(current_dir)
-sys.path.append(parent_dir)
+# Add current directory to Python path for imports
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -131,70 +128,13 @@ class TestExecutionEngine:
                 test_result = await self._execute_single_test(test_case)
                 results[test_case['test_name']] = test_result
  
-                # ✅ HANDLE DATABASE-DRIVEN TESTS WITH MULTIPLE ENDPOINT RESULTS
-                if 'endpoint_results' in test_result and isinstance(test_result['endpoint_results'], dict):
-                    # This is a database-driven test with multiple endpoint results
-                    endpoint_results = test_result['endpoint_results']
+                if test_result['status'] == 'passed':
+                    passed_tests += 1
+                elif test_result['status'] == 'failed':
+                    failed_tests += 1
  
-                    # Store each endpoint result as a separate test case result - handle both dict and list forms
-                    for business_function, endpoint_result in endpoint_results.items():
-                        # ✅ Handle list form when multiple endpoints share same business function
-                        if isinstance(endpoint_result, list):
-                            # Multiple results for same business function
-                            for idx, single_result in enumerate(endpoint_result):
-                                endpoint_test_case = {
-                                    'test_name': f"{test_case['test_name']}_{business_function.replace(' ', '_').lower()}_{idx}",
-                                    'test_category': test_case.get('test_category', 'admin_services')
-                                }
- 
-                                # Count individual endpoint results
-                                if single_result.get('status') == 'passed':
-                                    passed_tests += 1
-                                elif single_result.get('status') == 'failed':
-                                    failed_tests += 1
- 
-                                # Store individual endpoint result
-                                await self._store_test_result(session_id, endpoint_test_case, single_result)
- 
-                            # Also add to results for frontend display (use last result for backward compatibility)
-                            results[business_function] = endpoint_result[-1] if endpoint_result else {"status": "error"}
-                        else:
-                            # Single result (dict form) - original logic
-                            endpoint_test_case = {
-                                'test_name': f"{test_case['test_name']}_{business_function.replace(' ', '_').lower()}",
-                                'test_category': test_case.get('test_category', 'admin_services')
-                            }
- 
-                            # Count individual endpoint results
-                            if endpoint_result.get('status') == 'passed':
-                                passed_tests += 1
-                            elif endpoint_result.get('status') == 'failed':
-                                failed_tests += 1
- 
-                            # Store individual endpoint result
-                            await self._store_test_result(session_id, endpoint_test_case, endpoint_result)
- 
-                            # Also add to results for frontend display
-                            results[business_function] = endpoint_result
- 
-                    # Update total test count for multiple endpoints - account for list forms
-                    additional_tests = 0
-                    for endpoint_result in endpoint_results.values():
-                        if isinstance(endpoint_result, list):
-                            additional_tests += len(endpoint_result)
-                        else:
-                            additional_tests += 1
-                    total_tests += additional_tests - 1  # -1 because we already counted the main test
- 
-                else:
-                    # Regular single test case
-                    if test_result['status'] == 'passed':
-                        passed_tests += 1
-                    elif test_result['status'] == 'failed':
-                        failed_tests += 1
- 
-                    # Store individual test result
-                    await self._store_test_result(session_id, test_case, test_result)
+                # Store individual test result
+                await self._store_test_result(session_id, test_case, test_result)
  
             # Calculate overall status
             overall_status = self._calculate_overall_status(passed_tests, failed_tests, total_tests)
@@ -284,10 +224,6 @@ class TestExecutionEngine:
         logger.info("⚡ Executing quick health check...")
  
         session_id = await self._create_test_session("Quick Health Check", "health_check")
-        if session_id is None:
-            # Session creation failed - generate a temporary ID for this run but don't store results
-            session_id = str(uuid.uuid4())
-            logger.warning(f"Session creation failed - using temporary ID {session_id} (results won't be stored)")
  
         # Get health checks from database configuration instead of hardcoded list
          # Get health checks from database configuration instead of hardcoded list
@@ -774,17 +710,6 @@ class TestExecutionEngine:
             except ImportError as e:
                 logger.warning("Could not import database_self_healing_system: %s", str(e))
  
-            # Add test authentication helper
-            def create_test_headers():
-                """Create headers with test authentication token"""
-                return {
-                    "Content-Type": "application/json",
-                    "Authorization": "Bearer test-token-for-endpoint-testing",
-                    "X-Test-Mode": "true"
-                }
- 
-            test_globals['create_test_headers'] = create_test_headers
- 
             # Import core foundation enhanced
             try:
                 import core_foundation_enhanced
@@ -1015,11 +940,12 @@ class TestExecutionEngine:
     # If a health check method doesn't exist, the system will handle it gracefully via the whitelist
     # No need for hardcoded placeholder methods that return fake statuses
  
-    async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> Optional[str]:
+    async def _create_test_session(self, test_type: str, test_category: str, **kwargs) -> str:
         """Create a new test execution session with dynamic parameters."""
         if not self.database_url:
-            logger.warning("⚠️ DATABASE_URL not set - test session will NOT be stored in database!")
-            return None
+            session_id = str(uuid.uuid4())
+            logger.error(f"❌ DATABASE_URL not set - session {session_id} will NOT be stored in database!")
+            return session_id
         session_id = str(uuid.uuid4())
         # ✅ SQL INJECTION PREVENTION: Whitelist of allowed column names
         # Following .cursor rules: No dynamic SQL construction from user input
