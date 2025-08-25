@@ -972,7 +972,7 @@ class MonitoringDashboard:
                     test_suites_data = await conn.fetch("""
                         SELECT
                             test_category,
-                            COUNT(DISTINCT test_name) as test_case_count,
+                            COUNT(*) as test_case_count,
                             CASE
                                 WHEN test_category IN ('auth', 'api', 'database') THEN 'critical'
                                 WHEN test_category IN ('integration', 'performance') THEN 'high'
@@ -1727,26 +1727,17 @@ async def get_available_test_suites():
             try:
                 # Get test categories from test_case_results table as fallback
                 test_categories = await conn.fetch("""
-                    WITH latest_test_status AS (
-                        SELECT DISTINCT ON (test_category, test_name)
-                            test_category,
-                            test_name,
-                            status,
-                            created_at
-                        FROM test_case_results
-                        WHERE test_category IS NOT NULL
-                        AND test_category != ''
-                        ORDER BY test_category, test_name, created_at DESC
-                    ),
-                    ranked_categories AS (
+                    WITH ranked_categories AS (
                         SELECT
                             test_category,
-                            COUNT(DISTINCT test_name) as total_tests,
+                            COUNT(*) as total_tests,
                             COUNT(*) FILTER (WHERE status = 'passed') as passed_tests,
                             COUNT(*) FILTER (WHERE status = 'failed') as failed_tests,
                             MAX(created_at) as last_execution,
-                            ROW_NUMBER() OVER (ORDER BY MAX(created_at) DESC, COUNT(DISTINCT test_name) DESC) as rn
-                        FROM latest_test_status
+                            ROW_NUMBER() OVER (ORDER BY MAX(created_at) DESC, COUNT(*) DESC) as rn
+                        FROM test_case_results
+                        WHERE test_category IS NOT NULL
+                        AND test_category != ''
                         GROUP BY test_category
                     )
                     SELECT
