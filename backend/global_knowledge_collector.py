@@ -64,9 +64,10 @@ class GlobalKnowledgeCollector:
             },
             "world_religions": {
                 "feeds": [
-                    "https://www.speakingtree.in/blogs/feed",
-                    "https://www.learnreligions.com/feed",
-                    "https://www.buddhanet.net/pali_promo.xml"
+                    "https://tricycle.org/feed/",
+                    "https://www.hinduismtoday.com/feed/",
+                    "https://www.christianitytoday.com/ct/rss.xml",
+                    "https://aeon.co/philosophy/feed.rss"
                 ],
                 "priority": 1,
                 "articles_per_source": 4
@@ -147,11 +148,25 @@ class GlobalKnowledgeCollector:
         """Extract relevant tags from content"""
         base_tags = [category, "current_events", "global_knowledge"]
         
-        # Add category-specific tags
-        if "news" in category:
-            base_tags.extend(["breaking_news", "world_events"])
+        # Add category-specific tags for better filtering
+        if "astrology" in category:
+            base_tags.extend(["astrology", "jyotish", "horoscope"])
+        elif "tamil" in category:
+            base_tags.extend(["tamil", "sangam", "thirukkural", "dravidian"])
+        elif "religions" in category:
+            base_tags.extend(["religion", "philosophy", "spirituality", "faith"])
+            # Keyword-based sub-tagging for religions
+            lower_content = (title + " " + content).lower()
+            if "buddha" in lower_content or "dharma" in lower_content:
+                base_tags.append("buddhism")
+            if "hindu" in lower_content or "vedic" in lower_content or "gita" in lower_content:
+                base_tags.append("hinduism")
+            if "christ" in lower_content or "bible" in lower_content or "church" in lower_content:
+                base_tags.append("christianity")
+            if "islam" in lower_content or "quran" in lower_content or "muslim" in lower_content:
+                base_tags.append("islam")
         elif "science" in category:
-            base_tags.extend(["research", "innovation", "discovery"])
+            base_tags.extend(["science", "technology", "research", "space"])
         elif "health" in category:
             base_tags.extend(["wellness", "medical", "health_news"])
         elif "finance" in category:
@@ -162,7 +177,7 @@ class GlobalKnowledgeCollector:
         return base_tags
     
     async def collect_rss_feed(self, rss_url: str, category: str, max_articles: int = 5) -> List[Dict[str, Any]]:
-        """Collect articles from a single RSS feed"""
+        """Collect articles from a single RSS feed with improved error handling"""
         articles = []
         
         try:
@@ -170,6 +185,10 @@ class GlobalKnowledgeCollector:
             
             # Parse RSS feed
             feed = feedparser.parse(rss_url)
+            
+            if feed.bozo:
+                logger.warning(f"⚠️ Feed at {rss_url} is ill-formed (bozo=True). Reason: {feed.bozo_exception}")
+                return articles # Skip this feed entirely if it's broken
             
             if not feed.entries:
                 logger.warning(f"⚠️ No entries found in {rss_url}")
@@ -223,7 +242,9 @@ class GlobalKnowledgeCollector:
             logger.info(f"✅ Collected {len(articles)} articles from {urlparse(rss_url).netloc}")
             
         except Exception as e:
-            logger.error(f"❌ Error collecting from {rss_url}: {e}")
+            logger.error(f"❌ Critical error fetching or parsing feed {rss_url}: {e}")
+            # Return empty list to ensure the collector continues with other feeds
+            return []
         
         return articles
     
