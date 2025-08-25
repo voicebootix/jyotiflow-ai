@@ -51,6 +51,11 @@ services:
         sync: false  # Set this in Render dashboard for security
       - key: PROKERALA_CLIENT_SECRET
         sync: false  # Set this in Render dashboard for security
+      # 🌍 Global Knowledge Collection Configuration  
+      - key: ENABLE_GLOBAL_KNOWLEDGE
+        value: "true"  # Enable real-time global knowledge collection
+      - key: KNOWLEDGE_SEEDING_MODE
+        value: "complete"  # traditional + global combined (traditional/global/complete)
       # Environment Configuration
       - key: APP_ENV
         value: "production"
