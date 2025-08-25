@@ -6,11 +6,13 @@ services:
     plan: free
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
     buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt --prefer-binary"
-    startCommand: "gunicorn -w 4 -k uvicorn.workers.UvicornWorker backend.main:app"
+    startCommand: "gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:$PORT"
     healthCheckPath: "/health"
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: WEB_CONCURRENCY
+        value: "1"
 
       # Database Configuration (will use your existing DATABASE_URL from dashboard)
       - key: DATABASE_URL
