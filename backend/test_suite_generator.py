@@ -13,7 +13,7 @@ import secrets
 import string
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Union
+from typing import Dict, Any, Union, Optional
 import logging 
 
 
@@ -3415,6 +3415,22 @@ async def test_user_management_api_endpoints():
 
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
         """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - Environment-configurable base URL with direct endpoint configuration"""
+        
+        # --- Authentication Setup ---
+        auth_test_result = await test_admin_authentication_endpoint()
+        auth_token = auth_test_result.get("auth_token")
+
+        if auth_test_result["status"] == "failed" or not auth_token:
+            return {
+                "test_suite_name": "Admin Services",
+                "test_category": "admin_services_critical",
+                "description": "Critical tests for admin dashboard, analytics, settings, and management functions - Authentication Failed",
+                "status": "failed",
+                "error": auth_test_result.get("error", "Admin authentication failed during setup."),
+                "test_cases": [auth_test_result] # Include auth result for details
+            }
+        # --- End Authentication Setup ---
+
         return {
             "test_suite_name": "Admin Services",
             "test_category": "admin_services_critical",
@@ -3425,6 +3441,7 @@ async def test_user_management_api_endpoints():
                     "description": "Test admin authentication endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
+                    "setup_args": {"auth_token": auth_token},
                     "test_code": """
 import httpx
 import asyncpg
@@ -3432,71 +3449,106 @@ import json
 import os
 import time
 import uuid
+from typing import Dict, Any, Optional
 
 async def test_admin_authentication_endpoint():
-    \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
+    # IMPORTANT: This test is designed to obtain and return an authentication token
+    # for use by subsequent authenticated admin tests.
+    
     try:
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/auth/login"
-        method = "POST"
-        business_function = "Admin Authentication"
-        test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"} 
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+        business_function = "Admin Authentication"
         expected_codes = [200]
-        
-        # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                start_time = time.time()
-                print(f"🌐 Making HTTP request to: {url}")
-                
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
-                else:
-                    response = await client.request(method, url)
-                
-                response_time_ms = int((time.time() - start_time) * 1000)
-                status_code = response.status_code
+        auth_token = None
+        error_message = None
 
-                error_message = None
-                if status_code not in expected_codes:
-                    try:
-                        error_data = response.json()
-                        error_message = error_data.get("message", str(error_data))
-                    except Exception:
-                        error_message = response.text
-                
-                test_status = 'passed' if status_code in expected_codes else 'failed'
-                
-                print(f"📊 Response: {status_code} ({response_time_ms}ms)")
-                
-        except Exception as http_error:
-            print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function, "details": {"url": url, "method": method}}
-        
-        # Return test results (database storage handled by test execution engine)
-        return {
-            "status": test_status,
-            "business_function": business_function,
-            "execution_time_ms": response_time_ms,
-            "error": error_message, # Include the detailed error message here
-            "details": {
-                "status_code": status_code,
-                "response_time_ms": response_time_ms,
-                "url": url,
-                "method": method,
-                "endpoint": endpoint
+        admin_bearer_token = os.getenv("ADMIN_BEARER_TOKEN")
+        admin_email = os.getenv("ADMIN_EMAIL")
+        admin_password = os.getenv("ADMIN_PASSWORD")
+
+        headers = {}
+        if admin_bearer_token:
+            auth_token = admin_bearer_token
+            headers["Authorization"] = f"Bearer {auth_token}"
+            print("✅ Using ADMIN_BEARER_TOKEN for authentication.")
+        elif admin_email and admin_password:
+            print("Attempting to log in with ADMIN_EMAIL and ADMIN_PASSWORD...")
+            login_endpoint = "/api/auth/login"
+            login_url = api_base_url.rstrip('/') + '/' + login_endpoint.lstrip('/')
+            login_data = {"email": admin_email, "password": admin_password}
+
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                login_start_time = time.time()
+                try:
+                    login_response = await client.post(login_url, json=login_data)
+                    login_response_time_ms = int((time.time() - login_start_time) * 1000)
+                    if login_response.status_code == 200:
+                        login_data = login_response.json()
+                        auth_token = login_data.get("access_token")
+                        if auth_token:
+                            headers["Authorization"] = f"Bearer {auth_token}"
+                            print(f"✅ Successfully logged in. Token obtained. ({login_response_time_ms}ms)")
+                        else:
+                            error_message = "Login successful but no access_token found in response."
+                            print(f"❌ {error_message}")
+                    else:
+                        try:
+                            error_data = login_response.json()
+                            error_message = error_data.get("message", str(error_data))
+                        except Exception:
+                            error_message = login_response.text
+                        print(f"❌ Login failed with status {login_response.status_code}: {error_message} ({login_response_time_ms}ms)")
+                except Exception as login_error:
+                    error_message = f"Login HTTP request failed: {str(login_error)}"
+                    print(f"❌ {error_message}")
+        else:
+            error_message = "ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD environment variables not set. Cannot run authenticated tests."
+            print(f"❌ {error_message}")
+
+        if not auth_token:
+            return {"status": "failed", "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
+
+        # Proceed with a dummy authenticated request to verify the token (if not already verified by login)
+        # Or if ADMIN_BEARER_TOKEN was provided, verify it directly
+        endpoint = "/api/auth/verify-token" # A common endpoint to verify a token
+        method = "GET"
+        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            start_time = time.time()
+            response = await client.get(url, headers=headers)
+            response_time_ms = int((time.time() - start_time) * 1000)
+            status_code = response.status_code
+
+            if status_code not in expected_codes:
+                try:
+                    error_data = response.json()
+                    error_message = error_data.get("message", str(error_data))
+                except Exception:
+                    error_message = response.text
+            else:
+                error_message = None # Clear error message if passed
+
+            test_status = 'passed' if status_code in expected_codes else 'failed'
+            print(f"📊 Token verification response: {status_code} ({response_time_ms}ms)")
+
+            return {
+                "status": test_status,
+                "business_function": business_function,
+                "execution_time_ms": response_time_ms,
+                "error": error_message,
+                "details": {
+                    "status_code": status_code,
+                    "response_time_ms": response_time_ms,
+                    "url": url,
+                    "method": method,
+                    "endpoint": endpoint
+                },
+                "auth_token": auth_token # Pass the token for subsequent tests
             }
-        }
+
     except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Test failed: {str(e)}", "business_function": business_function, "details": {"url": api_base_url, "method": "N/A"}}
 """,
                     "expected_result": "Admin authentication endpoint operational (database-driven)",
                     "timeout_seconds": 30
@@ -3506,6 +3558,7 @@ async def test_admin_authentication_endpoint():
                     "description": "Test admin overview endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
+                    "setup_args": {"auth_token": auth_token},
                     "test_code": """
 import httpx
 import asyncpg
@@ -3513,10 +3566,10 @@ import json
 import os
 import time
 import uuid
+from typing import Optional # Import Optional
 
-
-async def test_admin_overview_endpoint():
-    \"\"\"Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
+    """Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration"""
     import httpx, time, os
     try:
         # Direct endpoint configuration (not from database)
@@ -3527,6 +3580,10 @@ async def test_admin_overview_endpoint():
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200]
         
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
@@ -3536,13 +3593,13 @@ async def test_admin_overview_endpoint():
                 print(f"🌐 Making HTTP request to: {url}")
                 
                 if method == 'GET':
-                    response = await client.get(url, params=test_data)
+                    response = await client.get(url, params=test_data, headers=headers)
                 elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
+                    response = await client.request(method, url, json=test_data, headers=headers)
                 elif method == 'DELETE':
-                    response = await client.delete(url)
+                    response = await client.delete(url, headers=headers)
                 else:
-                    response = await client.request(method, url)
+                    response = await client.request(method, url, headers=headers)
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
@@ -3588,6 +3645,7 @@ async def test_admin_overview_endpoint():
                     "description": "Test admin revenue insights endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
+                    "setup_args": {"auth_token": auth_token},
                     "test_code": """
 import httpx
 import asyncpg
@@ -3595,9 +3653,10 @@ import json
 import os
 import time
 import uuid
+from typing import Optional # Import Optional
 
-async def test_admin_revenue_insights_endpoint():
-    \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None):
+    """Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration"""
     import httpx, time, os
     try:
         # Direct endpoint configuration (not from database)
@@ -3608,6 +3667,10 @@ async def test_admin_revenue_insights_endpoint():
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200]
         
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
@@ -3617,13 +3680,13 @@ async def test_admin_revenue_insights_endpoint():
                 print(f"🌐 Making HTTP request to: {url}")
                 
                 if method == 'GET':
-                    response = await client.get(url, params=test_data)
+                    response = await client.get(url, params=test_data, headers=headers)
                 elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
+                    response = await client.request(method, url, json=test_data, headers=headers)
                 elif method == 'DELETE':
-                    response = await client.delete(url)
+                    response = await client.delete(url, headers=headers)
                 else:
-                    response = await client.request(method, url)
+                    response = await client.request(method, url, headers=headers)
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
@@ -3669,6 +3732,7 @@ async def test_admin_revenue_insights_endpoint():
                     "description": "Test admin analytics endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
+                    "setup_args": {"auth_token": auth_token}, # Pass token here
                     "test_code": """
 import httpx
 import asyncpg
@@ -3676,9 +3740,10 @@ import json
 import os
 import time
 import uuid
+from typing import Optional # Import Optional
 
-async def test_admin_analytics_endpoint():
-    \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
+async def test_admin_analytics_endpoint(auth_token: Optional[str] = None):
+    """Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration"""
     import httpx, time, os
     try:
         # Direct endpoint configuration (not from database)
@@ -3689,6 +3754,10 @@ async def test_admin_analytics_endpoint():
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         expected_codes = [200]
         
+        headers = {}
+        if auth_token:
+            headers["Authorization"] = f"Bearer {auth_token}"
+
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
         
@@ -3698,13 +3767,13 @@ async def test_admin_analytics_endpoint():
                 print(f"🌐 Making HTTP request to: {url}")
                 
                 if method == 'GET':
-                    response = await client.get(url, params=test_data)
+                    response = await client.get(url, params=test_data, headers=headers)
                 elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
+                    response = await client.request(method, url, json=test_data, headers=headers)
                 elif method == 'DELETE':
-                    response = await client.delete(url)
+                    response = await client.delete(url, headers=headers)
                 else:
-                    response = await client.request(method, url)
+                    response = await client.request(method, url, headers=headers)
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
