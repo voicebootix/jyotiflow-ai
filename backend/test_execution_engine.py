@@ -380,7 +380,7 @@ class TestExecutionEngine:
             error_details = e.args[0] if e.args and isinstance(e.args[0], dict) else {"error": str(e)}
             execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
             error_details['execution_time_ms'] = execution_time
-            # Ensure status is 'failed' if not explicitly set in the error details
+            # Ensure status is 'failed' if not explicitly set in the error details.
             if 'status' not in error_details:
                 error_details['status'] = 'failed'
             return error_details
