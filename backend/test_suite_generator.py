@@ -3361,10 +3361,10 @@ import httpx
 async def test_user_management_api_endpoints():
     try:
         endpoints_to_test = [
-            {"url": "/api/auth/login", "method": "POST", "business_function": "Authentication"},
-            {"url": "/register", "method": "POST", "business_function": "Registration"},
-            {"url": "/api/user/profile", "method": "GET", "business_function": "Profile Management"},
-            {"url": "/api/sessions/user", "method": "GET", "business_function": "Session History"}
+            {"url": "/api/auth/login", "method": "POST", "business_function": "Authentication", "expected_status": 200},
+            {"url": "/register", "method": "POST", "business_function": "Registration", "expected_status": 200},
+            {"url": "/api/user/profile", "method": "GET", "business_function": "Profile Management", "expected_status": 401}, # Expect 401 without auth
+            {"url": "/api/sessions/user", "method": "GET", "business_function": "Session History", "expected_status": 401} # Expect 401 without auth
         ]
         
         endpoint_results = {}
@@ -3379,27 +3379,42 @@ async def test_user_management_api_endpoints():
                     else:
                         response = await client.post(url, json={})
                     
+                    status_code = response.status_code
+                    expected_status = endpoint.get("expected_status")
+                    
+                    test_status = 'passed'
+                    failure_reason = None
+
+                    if expected_status and status_code != expected_status:
+                        test_status = 'failed'
+                        failure_reason = f"Expected {expected_status}, got {status_code}"
+                    elif status_code >= 400 and status_code not in [401, 403, 422]: # Allow 401, 403, 422 for unauthenticated/validation, but fail other 4xx/5xx
+                        test_status = 'failed'
+                        failure_reason = f"Unexpected error status code: {status_code}"
+
                     endpoint_results[endpoint['business_function']] = {
-                        "endpoint_accessible": response.status_code in [200, 401, 403, 422],
-                        "status_code": response.status_code
+                        "status": test_status,
+                        "status_code": status_code,
+                        "failure_reason": failure_reason,
+                        "response_content": response.text
                     }
                     
                 except Exception as endpoint_error:
                     endpoint_results[endpoint['business_function']] = {
-                        "endpoint_accessible": False,
+                        "status": "failed",
                         "error": str(endpoint_error)
                     }
         
-        accessible_endpoints = sum(1 for result in endpoint_results.values() if result.get("endpoint_accessible", False))
-        total_endpoints = len(endpoints_to_test)
-        success_rate = (accessible_endpoints / total_endpoints) * 100
-        
+        # Calculate overall status based on all individual endpoint tests
+        overall_test_status = "passed"
+        for result in endpoint_results.values():
+            if result.get("status") == "failed":
+                overall_test_status = "failed"
+                break
+
         return {
-            "status": "passed" if success_rate > 75 else "failed",
+            "status": overall_test_status,
             "message": "User management API endpoints tested",
-            "success_rate": success_rate,
-            "accessible_endpoints": accessible_endpoints,
-            "total_endpoints": total_endpoints,
             "endpoint_results": endpoint_results
         }
         
@@ -3427,283 +3442,111 @@ async def test_user_management_api_endpoints():
                     "priority": "high",
                     "test_code": """
 import httpx
-import asyncpg
-import json
 import os
-import time
-import uuid
 
 async def test_admin_authentication_endpoint():
-    \"\"\"Test admin authentication endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
-    try:
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/auth/login"
-        method = "POST"
-        business_function = "Admin Authentication"
-        test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"} 
-        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
-        
-        # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                start_time = time.time()
-                print(f"🌐 Making HTTP request to: {url}")
-                
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
-                else:
-                    response = await client.request(method, url)
-                
-                response_time_ms = int((time.time() - start_time) * 1000)
-                status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
-                
-                print(f"📊 Response: {status_code} ({response_time_ms}ms)")
-                
-        except Exception as http_error:
-            print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
-        
-        # Return test results (database storage handled by test execution engine)
-        return {
-            "status": test_status,
-            "business_function": business_function,
-            "execution_time_ms": response_time_ms,
-            "details": {
-                "status_code": status_code,
-                "response_time_ms": response_time_ms,
-                "url": url,
-                "method": method,
-                "endpoint": endpoint
-            }
-        }
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
-""",
-                    "expected_result": "Admin authentication endpoint operational (database-driven)",
-                    "timeout_seconds": 30
-                },
-                {
-                    "test_name": "test_admin_overview_endpoint",
-                    "description": "Test admin overview endpoint with environment-configurable base URL and direct endpoint configuration",
-                    "test_type": "integration",
-                    "priority": "high",
-                    "test_code": """
-import httpx
-import asyncpg
-import json
-import os
-import time
-import uuid
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    admin_credentials = {
+        "email": "admin@jyotiflow.ai", 
+        "password": "Jyoti@2024!"
+    }
+    
+    test_results = {}
 
-
-async def test_admin_overview_endpoint():
-    \"\"\"Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
+    # Test Admin Login (should pass with 200)
     try:
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/admin/analytics/overview"
-        method = "GET"
-        business_function = "Admin Optimization"
-        test_data = {"timeframe": "7d", "metrics": ["users", "sessions", "revenue"]}
-        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
-        
-        # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                start_time = time.time()
-                print(f"🌐 Making HTTP request to: {url}")
-                
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
-                else:
-                    response = await client.request(method, url)
-                
-                response_time_ms = int((time.time() - start_time) * 1000)
-                status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
-                
-                print(f"📊 Response: {status_code} ({response_time_ms}ms)")
-                
-        except Exception as http_error:
-            print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
-        
-        # Return test results (database storage handled by test execution engine)
-        return {
-            "status": test_status,
-            "business_function": business_function,
-            "execution_time_ms": response_time_ms,
-            "details": {
-                "status_code": status_code,
-                "response_time_ms": response_time_ms,
-                "url": url,
-                "method": method,
-                "endpoint": endpoint
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            login_response = await client.post(login_url, json=admin_credentials)
+            login_status_code = login_response.status_code
+            
+            test_results["Admin Authentication"] = {
+                "status": "passed" if login_status_code == 200 else "failed",
+                "status_code": login_status_code,
+                "failure_reason": None if login_status_code == 200 else f"Expected 200, got {login_status_code}",
+                "response_content": login_response.text
             }
-        }
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
-""",
-                    "expected_result": "Admin overview endpoint operational (database-driven)",
-                    "timeout_seconds": 30
-                },
-                {
-                    "test_name": "test_admin_revenue_insights_endpoint",
-                    "description": "Test admin revenue insights endpoint with environment-configurable base URL and direct endpoint configuration",
-                    "test_type": "integration",
-                    "priority": "high",
-                    "test_code": """
-import httpx
-import asyncpg
-import json
-import os
-import time
-import uuid
+            
+            if login_status_code != 200:
+                return {"status": "failed", "message": "Admin login failed", "endpoint_results": test_results}
+            
+            admin_token = login_response.json().get("access_token")
+            if not admin_token:
+                test_results["Admin Authentication"]["status"] = "failed"
+                test_results["Admin Authentication"]["failure_reason"] = "No access token received"
+                return {"status": "failed", "message": "No admin token", "endpoint_results": test_results}
+            
+            headers = {"Authorization": f"Bearer {admin_token}"}
 
-async def test_admin_revenue_insights_endpoint():
-    \"\"\"Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
-    try:
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/admin/analytics/revenue-insights"
-        method = "GET"
-        business_function = "Admin Monetization"
-        test_data = {"period": "30d", "breakdown": ["daily", "source"]}
-        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
-        
-        # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                start_time = time.time()
-                print(f"🌐 Making HTTP request to: {url}")
-                
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
-                else:
-                    response = await client.request(method, url)
-                
-                response_time_ms = int((time.time() - start_time) * 1000)
-                status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
-                
-                print(f"📊 Response: {status_code} ({response_time_ms}ms)")
-                
-        except Exception as http_error:
-            print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
-        
-        # Return test results (database storage handled by test execution engine)
-        return {
-            "status": test_status,
-            "business_function": business_function,
-            "execution_time_ms": response_time_ms,
-            "details": {
-                "status_code": status_code,
-                "response_time_ms": response_time_ms,
-                "url": url,
-                "method": method,
-                "endpoint": endpoint
-            }
-        }
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
-""",
-                    "expected_result": "Admin revenue insights endpoint operational (database-driven)",
-                    "timeout_seconds": 30
-                },
-                {
-                    "test_name": "test_admin_analytics_endpoint",
-                    "description": "Test admin analytics endpoint with environment-configurable base URL and direct endpoint configuration",
-                    "test_type": "integration",
-                    "priority": "high",
-                    "test_code": """
-import httpx
-import asyncpg
-import json
-import os
-import time
-import uuid
+            admin_endpoints = [
+                {"url": "/api/admin/analytics/overview", "method": "GET", "business_function": "Admin Optimization"},
+                {"url": "/api/admin/analytics/revenue-insights", "method": "GET", "business_function": "Admin Monetization"},
+                {"url": "/api/admin/analytics/analytics", "method": "GET", "business_function": "Admin Stats"},
+            ]
 
-async def test_admin_analytics_endpoint():
-    \"\"\"Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration\"\"\"
-    import httpx, time, os
-    try:
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/admin/analytics/analytics"
-        method = "GET"
-        business_function = "Admin Stats"
-        test_data = {"view": "dashboard", "filters": ["active_users", "revenue"]}
-        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
-        
-        # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
-        
-        try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                start_time = time.time()
-                print(f"🌐 Making HTTP request to: {url}")
+            for endpoint_info in admin_endpoints:
+                full_url = f"{api_base_url.rstrip('/')}{endpoint_info['url']}"
+                status_code = None
+                failure_reason = None
+                response_content = None
                 
-                if method == 'GET':
-                    response = await client.get(url, params=test_data)
-                elif method in ['POST', 'PUT', 'PATCH']:
-                    response = await client.request(method, url, json=test_data)
-                elif method == 'DELETE':
-                    response = await client.delete(url)
-                else:
-                    response = await client.request(method, url)
+                try:
+                    if endpoint_info['method'] == 'GET':
+                        response = await client.get(full_url, headers=headers)
+                    else:
+                        response = await client.post(full_url, headers=headers, json={}) # Assuming POST for other methods if any
+                    
+                    status_code = response.status_code
+                    response_content = response.text
+
+                    if status_code == 200:
+                        test_status = "passed"
+                    elif status_code in [401, 403]:
+                        test_status = "failed"
+                        failure_reason = f"Authentication/Authorization Failure: Status Code {status_code}"
+                    else:
+                        test_status = "failed"
+                        failure_reason = f"Unexpected Status Code: {status_code}"
+
+                except httpx.HTTPStatusError as e:
+                    test_status = "failed"
+                    status_code = e.response.status_code if e.response else None
+                    failure_reason = f"HTTP Status Error: {e.response.status_code} - {e.response.text}"
+                    response_content = e.response.text if e.response else str(e)
+                except httpx.RequestError as e:
+                    test_status = "failed"
+                    failure_reason = f"Request Error: {str(e)}"
+                    response_content = str(e)
+                except Exception as e:
+                    test_status = "failed"
+                    failure_reason = f"An unexpected error occurred: {str(e)}"
+                    response_content = str(e)
                 
-                response_time_ms = int((time.time() - start_time) * 1000)
-                status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
-                
-                print(f"📊 Response: {status_code} ({response_time_ms}ms)")
-                
-        except Exception as http_error:
-            print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
-        
-        # Return test results (database storage handled by test execution engine)
-        return {
-            "status": test_status,
-            "business_function": business_function,
-            "execution_time_ms": response_time_ms,
-            "details": {
-                "status_code": status_code,
-                "response_time_ms": response_time_ms,
-                "url": url,
-                "method": method,
-                "endpoint": endpoint
-            }
-        }
+                test_results[endpoint_info['business_function']] = {
+                    "status": test_status,
+                    "status_code": status_code,
+                    "failure_reason": failure_reason,
+                    "response_content": response_content
+                }
+
     except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Admin Services Test Failed: {str(e)}", "endpoint_results": test_results}
+    
+    # Determine overall status
+    overall_status = "passed"
+    for result in test_results.values():
+        if result.get("status") == "failed":
+            overall_status = "failed"
+            break
+
+    return {
+        "status": overall_status,
+        "message": "Admin services endpoints tested",
+        "endpoint_results": test_results
+    }
 """,
-                    "expected_result": "Admin analytics endpoint operational (database-driven)",
-                    "timeout_seconds": 30
+                    "expected_result": "Admin services endpoints operational and secured",
+                    "timeout_seconds": 45
                 }
             ]
         }
