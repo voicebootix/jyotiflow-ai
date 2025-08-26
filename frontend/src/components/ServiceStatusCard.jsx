@@ -657,6 +657,18 @@ const ServiceStatusCard = ({
                   </div>
                 )}
 
+                {/* Test Details and Proof */}
+                {lastResult && (
+                  <details className="mt-4">
+                    <summary className="cursor-pointer text-sm font-medium text-gray-600">
+                      Test Details and Proof
+                    </summary>
+                    <pre className="mt-2 text-xs bg-gray-100 p-3 rounded overflow-x-auto">
+                      {JSON.stringify(lastResult, null, 2)}
+                    </pre>
+                  </details>
+                )}
+
                 {/* General Error Display */}
                 {error && (
                   <Alert variant="destructive">
@@ -665,18 +677,6 @@ const ServiceStatusCard = ({
                       <strong>Test Execution Error:</strong> {error}
                     </AlertDescription>
                   </Alert>
-                )}
-
-                {/* Raw Result Data (for debugging) */}
-                {lastResult && (
-                  <details className="mt-4">
-                    <summary className="cursor-pointer text-sm font-medium text-gray-600">
-                      Raw Test Data (Debug)
-                    </summary>
-                    <pre className="mt-2 text-xs bg-gray-100 p-3 rounded overflow-x-auto">
-                      {JSON.stringify(lastResult, null, 2)}
-                    </pre>
-                  </details>
                 )}
               </div>
             </CardContent>

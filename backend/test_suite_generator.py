@@ -3515,7 +3515,7 @@ async def test_admin_overview_endpoint():
         business_function = "Admin Optimization"
         test_data = {"timeframe": "7d", "metrics": ["users", "sessions", "revenue"]}
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
+        expected_codes = [200]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
@@ -3586,7 +3586,7 @@ async def test_admin_revenue_insights_endpoint():
         business_function = "Admin Monetization"
         test_data = {"period": "30d", "breakdown": ["daily", "source"]}
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
+        expected_codes = [200]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
@@ -3657,7 +3657,7 @@ async def test_admin_analytics_endpoint():
         business_function = "Admin Stats"
         test_data = {"view": "dashboard", "filters": ["active_users", "revenue"]}
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
+        expected_codes = [200]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
