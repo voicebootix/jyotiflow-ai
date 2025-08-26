@@ -3452,17 +3452,34 @@ async def _get_admin_token():
     admin_password = os.getenv('ADMIN_PASSWORD')
 
     if not admin_email or not admin_password:
-        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests. Please check your Render environment configuration.")
 
     admin_credentials = {
         "email": admin_email, 
         "password": admin_password
     }
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        login_response = await client.post(login_url, json=admin_credentials)
-        login_response.raise_for_status() # Raise for 4xx/5xx responses
-        return login_response.json().get("access_token")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            login_response = await client.post(login_url, json=admin_credentials)
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
+    except httpx.HTTPStatusError as e:
+        raw_response_text = e.response.text if e.response and e.response.text else ""
+        truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+        raise ValueError(f"Admin login failed with status {e.response.status_code}: {truncated_response}") from e
+    except httpx.RequestError as e:
+        raise ValueError(f"Admin login request failed: {str(e)}") from e
 
 async def test_admin_authentication_endpoint():
     test_results = {}
@@ -3503,17 +3520,34 @@ async def _get_admin_token():
     admin_password = os.getenv('ADMIN_PASSWORD')
 
     if not admin_email or not admin_password:
-        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests. Please check your Render environment configuration.")
 
     admin_credentials = {
         "email": admin_email, 
         "password": admin_password
     }
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        login_response = await client.post(login_url, json=admin_credentials)
-        login_response.raise_for_status() 
-        return login_response.json().get("access_token")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            login_response = await client.post(login_url, json=admin_credentials)
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
+    except httpx.HTTPStatusError as e:
+        raw_response_text = e.response.text if e.response and e.response.text else ""
+        truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+        raise ValueError(f"Admin login failed with status {e.response.status_code}: {truncated_response}") from e
+    except httpx.RequestError as e:
+        raise ValueError(f"Admin login request failed: {str(e)}") from e
 
 async def test_admin_optimization_endpoint():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
@@ -3593,17 +3627,34 @@ async def _get_admin_token():
     admin_password = os.getenv('ADMIN_PASSWORD')
 
     if not admin_email or not admin_password:
-        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests. Please check your Render environment configuration.")
 
     admin_credentials = {
         "email": admin_email, 
         "password": admin_password
     }
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        login_response = await client.post(login_url, json=admin_credentials)
-        login_response.raise_for_status() 
-        return login_response.json().get("access_token")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            login_response = await client.post(login_url, json=admin_credentials)
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
+    except httpx.HTTPStatusError as e:
+        raw_response_text = e.response.text if e.response and e.response.text else ""
+        truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+        raise ValueError(f"Admin login failed with status {e.response.status_code}: {truncated_response}") from e
+    except httpx.RequestError as e:
+        raise ValueError(f"Admin login request failed: {str(e)}") from e
 
 async def test_admin_monetization_endpoint():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
@@ -3683,17 +3734,34 @@ async def _get_admin_token():
     admin_password = os.getenv('ADMIN_PASSWORD')
 
     if not admin_email or not admin_password:
-        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests. Please check your Render environment configuration.")
 
     admin_credentials = {
         "email": admin_email, 
         "password": admin_password
     }
     
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        login_response = await client.post(login_url, json=admin_credentials)
-        login_response.raise_for_status() 
-        return login_response.json().get("access_token")
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            login_response = await client.post(login_url, json=admin_credentials)
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
+    except httpx.HTTPStatusError as e:
+        raw_response_text = e.response.text if e.response and e.response.text else ""
+        truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+        raise ValueError(f"Admin login failed with status {e.response.status_code}: {truncated_response}") from e
+    except httpx.RequestError as e:
+        raise ValueError(f"Admin login request failed: {str(e)}") from e
 
 async def test_admin_stats_endpoint():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
