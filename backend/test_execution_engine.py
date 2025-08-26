@@ -756,7 +756,7 @@ class TestExecutionEngine:
                 else:
                     return_value = test_function()
                 
-                # If the test function returns a dict with 'status' and 'http_status_code',
+                # If the test function returns a dict with 'status' and 'http_status_code'.,
                 # it's likely an API test. Enhance its result with a fix suggestion.
                 if isinstance(return_value, dict) and 'status' in return_value and 'http_status_code' in return_value:
                     return_value['fix_suggestion'] = self._generate_fix_suggestion(
