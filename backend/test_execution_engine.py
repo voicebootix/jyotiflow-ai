@@ -752,23 +752,71 @@ class TestExecutionEngine:
             if test_function_name in test_globals:
                 test_function = test_globals[test_function_name]
                 if asyncio.iscoroutinefunction(test_function):
-                    return await test_function()
+                    return_value = await test_function()
                 else:
-                    return test_function()
+                    return_value = test_function()
+                
+                # If the test function returns a dict with 'status' and 'http_status_code',
+                # it's likely an API test. Enhance its result with a fix suggestion.
+                if isinstance(return_value, dict) and 'status' in return_value and 'http_status_code' in return_value:
+                    return_value['fix_suggestion'] = self._generate_fix_suggestion(
+                        return_value.get('http_status_code'),
+                        return_value.get('error', ''),
+                        test_case.get('endpoint') # Pass endpoint if available
+                    )
+                return return_value
             else:
                 # Look for any async function in the globals
                 for name, obj in test_globals.items():
                     if name.startswith('test_') and asyncio.iscoroutinefunction(obj):
-                        return await obj()
+                        return_value = await obj()
+                        if isinstance(return_value, dict) and 'status' in return_value and 'http_status_code' in return_value:
+                            return_value['fix_suggestion'] = self._generate_fix_suggestion(
+                                return_value.get('http_status_code'),
+                                return_value.get('error', ''),
+                                test_case.get('endpoint')
+                            )
+                        return return_value
                 
                 raise TestExecutionError(f"No test function found: {test_function_name}")
                 
         except (SyntaxError, NameError, TypeError) as e:
             logger.error("Test code execution failed: %s", str(e))
-            raise TestExecutionError(f"Test failed: {e}") from e
+            fix_suggestion = self._generate_fix_suggestion(None, str(e))
+            raise TestExecutionError({
+                "status": "failed",
+                "error": str(e),
+                "fix_suggestion": fix_suggestion
+            }) from e
+        except httpx.HTTPStatusError as e:
+            status_code = e.response.status_code if e.response else None
+            error_message = f"HTTP Error: {status_code} - {e.response.text}" if e.response else str(e)
+            fix_suggestion = self._generate_fix_suggestion(status_code, error_message, test_case.get('endpoint'))
+            logger.error("HTTPStatusError in test execution: %s", error_message)
+            raise TestExecutionError({
+                "status": "failed",
+                "http_status_code": status_code,
+                "error": error_message,
+                "response_body": e.response.text if e.response else None,
+                "fix_suggestion": fix_suggestion
+            }) from e
+        except httpx.RequestError as e:
+            error_message = f"Request Error: {str(e)}"
+            fix_suggestion = self._generate_fix_suggestion(None, error_message, test_case.get('endpoint'))
+            logger.error("Httpx Request Error in test execution: %s", error_message)
+            raise TestExecutionError({
+                "status": "failed",
+                "error": error_message,
+                "fix_suggestion": fix_suggestion
+            }) from e
         except Exception as e:
             logger.error("Unexpected error in test execution: %s", str(e))
-            raise
+            fix_suggestion = self._generate_fix_suggestion(None, str(e))
+            raise TestExecutionError({
+                "status": "failed",
+                "error": str(e),
+                "fix_suggestion": fix_suggestion
+            }) from e
     
     def _validate_test_input(self, test_case: Dict[str, Any]) -> None:
         """Validate test case input for required fields and types."""
@@ -1078,8 +1126,8 @@ class TestExecutionEngine:
             "test_category",
             "status",
             "execution_time_ms",
-            "error_message",
-            "output_data"
+            "error_message",    # Will store the combined error and fix suggestion
+            "output_data"       # Will store the full JSON result, including HTTP status code and response body
         )
 
         # Define the values to be inserted (matching the fixed column order)
@@ -1089,8 +1137,14 @@ class TestExecutionEngine:
             test_case.get('test_category'),
             result.get('status'),
             result.get('execution_time_ms', 0),
-            result.get('error'),
-            json.dumps(result)
+            # Combine error message and fix suggestion for error_message column
+            (result.get('error', '') + "\nFix Suggestion: " + result.get('fix_suggestion', '')).strip() if result.get('status') == 'failed' else None,
+            json.dumps({
+                "full_result": result,
+                "http_status_code": result.get('http_status_code'),
+                "response_body": result.get('response_body'),
+                "fix_suggestion": result.get('fix_suggestion')
+            })
         ]
 
         # ✅ SECURITY: Use fixed column names instead of dynamic generation
@@ -1643,7 +1697,42 @@ class TestExecutionEngine:
             raise ValueError(f"Database-driven configuration required for suite '{suite_name}': {e}") from e
 
 
-       
+    def _generate_fix_suggestion(self, http_status_code: Optional[int], error_message: str, endpoint: Optional[str] = None) -> str:
+        """
+        Generates a fix suggestion based on the error encountered.
+        
+        Args:
+            http_status_code: The HTTP status code if applicable (e.g., 404, 500)
+            error_message: The error message from the test execution
+            endpoint: The endpoint that was being tested (if applicable)
+            
+        Returns:
+            A string suggesting how to fix the issue.
+        """
+        if http_status_code is not None:
+            if 200 <= http_status_code < 300:
+                return f"HTTP Status {http_status_code} is OK. No immediate fix needed."
+            elif 300 <= http_status_code < 400:
+                return f"HTTP Status {http_status_code} indicates a redirection. Check the endpoint: {endpoint}"
+            elif 400 <= http_status_code < 500:
+                return f"HTTP Status {http_status_code} indicates a client error. Check the endpoint: {endpoint}"
+            elif 500 <= http_status_code < 600:
+                return f"HTTP Status {http_status_code} indicates a server error. Check the endpoint: {endpoint}"
+            else:
+                return f"HTTP Status {http_status_code} is unexpected. Check the endpoint: {endpoint}"
+        else:
+            if "timed out" in error_message:
+                return "Test execution timed out. Please check the test code and its dependencies."
+            elif "Invalid file path" in error_message:
+                return "Invalid file path provided. Ensure the file exists and is accessible."
+            elif "Security violation" in error_message:
+                return "Security violation detected in test code. Review the test file for potential malicious code."
+            elif "HTTP Error" in error_message:
+                return f"HTTP Error encountered. Check the endpoint: {endpoint} for details."
+            elif "Request Error" in error_message:
+                return f"Request Error encountered. Check the endpoint: {endpoint} for details."
+            else:
+                return f"An unexpected error occurred: {error_message}. Please review the test execution logs."
 
 
 # CLI interface
