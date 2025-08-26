@@ -3462,8 +3462,18 @@ async def _get_admin_token():
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             login_response = await client.post(login_url, json=admin_credentials)
-            login_response.raise_for_status() 
-            return login_response.json().get("access_token")
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
     except httpx.HTTPStatusError as e:
         raw_response_text = e.response.text if e.response and e.response.text else ""
         truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
@@ -3520,8 +3530,18 @@ async def _get_admin_token():
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             login_response = await client.post(login_url, json=admin_credentials)
-            login_response.raise_for_status() 
-            return login_response.json().get("access_token")
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
     except httpx.HTTPStatusError as e:
         raw_response_text = e.response.text if e.response and e.response.text else ""
         truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
@@ -3617,8 +3637,18 @@ async def _get_admin_token():
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             login_response = await client.post(login_url, json=admin_credentials)
-            login_response.raise_for_status() 
-            return login_response.json().get("access_token")
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
     except httpx.HTTPStatusError as e:
         raw_response_text = e.response.text if e.response and e.response.text else ""
         truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
@@ -3714,8 +3744,18 @@ async def _get_admin_token():
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             login_response = await client.post(login_url, json=admin_credentials)
-            login_response.raise_for_status() 
-            return login_response.json().get("access_token")
+            login_response.raise_for_status()
+            data = login_response.json()
+            token = (
+                (data or {}).get("access_token")
+                or (data or {}).get("token")
+                or ((data or {}).get("data") or {}).get("access_token")
+            )
+            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                raw_response_text = login_response.text if login_response.text else ""
+                truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+                raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
+            return token
     except httpx.HTTPStatusError as e:
         raw_response_text = e.response.text if e.response and e.response.text else ""
         truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
