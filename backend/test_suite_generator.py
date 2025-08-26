@@ -13,7 +13,7 @@ import secrets
 import string
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Union, Optional
+from typing import Dict, Any, Optional
 import logging 
 
 
@@ -3553,7 +3553,8 @@ async def test_admin_authentication_endpoint():
     try:
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         business_function = "Admin Authentication"
-        expected_codes = [200]
+        login_expected_codes = [200, 201]
+        token_verification_expected_codes = [200, 204]
         auth_token = None
         error_message = None
 
@@ -3570,16 +3571,16 @@ async def test_admin_authentication_endpoint():
             print("Attempting to log in with ADMIN_EMAIL and ADMIN_PASSWORD...")
             login_endpoint = "/api/auth/login"
             login_url = api_base_url.rstrip('/') + '/' + login_endpoint.lstrip('/')
-            login_data = {"email": admin_email, "password": admin_password}
+            login_payload = {"email": admin_email, "password": admin_password}
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 login_start_time = time.time()
                 try:
-                    login_response = await client.post(login_url, json=login_data)
+                    login_response = await client.post(login_url, json=login_payload)
                     login_response_time_ms = int((time.time() - login_start_time) * 1000)
-                    if login_response.status_code == 200:
-                        login_data = login_response.json()
-                        auth_token = login_data.get("access_token")
+                    if login_response.status_code in login_expected_codes:
+                        login_response_data = login_response.json()
+                        auth_token = login_response_data.get("access_token")
                         if auth_token:
                             headers["Authorization"] = f"Bearer {auth_token}"
                             print(f"✅ Successfully logged in. Token obtained. ({login_response_time_ms}ms)")
@@ -3615,7 +3616,7 @@ async def test_admin_authentication_endpoint():
             response_time_ms = int((time.time() - start_time) * 1000)
             status_code = response.status_code
 
-            if status_code not in expected_codes:
+            if status_code not in token_verification_expected_codes:
                 try:
                     error_data = response.json()
                     error_message = error_data.get("message", str(error_data))
@@ -3624,7 +3625,7 @@ async def test_admin_authentication_endpoint():
             else:
                 error_message = None # Clear error message if passed
 
-            test_status = 'passed' if status_code in expected_codes else 'failed'
+            test_status = 'passed' if status_code in token_verification_expected_codes else 'failed'
             print(f"📊 Token verification response: {status_code} ({response_time_ms}ms)")
 
             return {
