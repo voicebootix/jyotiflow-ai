@@ -3653,7 +3653,7 @@ async def test_admin_authentication_endpoint():
                     "description": "Test admin overview endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-
+                    "setup_args": {"auth_token": auth_token},
                     "test_code": """
 import httpx
 import asyncpg
@@ -3740,7 +3740,7 @@ async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
                     "description": "Test admin revenue insights endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-
+                    "setup_args": {"auth_token": auth_token},
                     "test_code": """
 import httpx
 import asyncpg
@@ -3827,7 +3827,7 @@ async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None)
                     "description": "Test admin analytics endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
- # Pass token here
+                    "setup_args": {"auth_token": auth_token},
                     "test_code": """
 import httpx
 import asyncpg
