@@ -842,7 +842,7 @@ class TestExecutionEngine:
                             raise TestExecutionError(f"Unsafe operation: {child.value.id}.{child.attr}")
                     
                     # Allow specific safe built-in functions
-                    if child.value.id == 'builtins' and child.attr in {'isinstance', 'len', 'type', 'dir', 'hasattr', 'getattr', 'setattr', 'delattr'}:
+                    if child.value.id == 'builtins' and child.attr in {'isinstance', 'len', 'type'}:
                         pass # Allowed safe builtins
                     elif child.value.id == 'builtins':
                         raise TestExecutionError(f"Unsafe builtins access: builtins.{child.attr}")
