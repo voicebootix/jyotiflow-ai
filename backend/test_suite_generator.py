@@ -3507,7 +3507,10 @@ async def test_admin_authentication_endpoint():
                         response = await client.post(full_url, headers=headers, json={}) # Assuming POST for other methods if any
                     
                     status_code = response.status_code
-                    response_content = response.text
+                    
+                    # Redact/truncate response content before storing
+                    raw_response_text = response.text if response.text else ""
+                    response_content = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
 
                     if status_code == 200:
                         test_status = "passed"
@@ -3518,19 +3521,16 @@ async def test_admin_authentication_endpoint():
                         test_status = "failed"
                         failure_reason = f"Unexpected Status Code: {status_code}"
 
-                except httpx.HTTPStatusError as e:
-                    test_status = "failed"
-                    status_code = e.response.status_code if e.response else None
-                    failure_reason = f"HTTP Status Error: {e.response.status_code} - {e.response.text}"
-                    response_content = e.response.text if e.response else str(e)
                 except httpx.RequestError as e:
                     test_status = "failed"
                     failure_reason = f"Request Error: {str(e)}"
                     response_content = str(e)
+                    status_code = None # No status code if request failed before response
                 except Exception as e:
                     test_status = "failed"
                     failure_reason = f"An unexpected error occurred: {str(e)}"
                     response_content = str(e)
+                    status_code = None # No status code if general exception
                 
                 test_results[endpoint_info['business_function']] = {
                     "status": test_status,
