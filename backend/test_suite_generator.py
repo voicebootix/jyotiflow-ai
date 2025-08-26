@@ -3604,17 +3604,62 @@ async def test_admin_authentication_endpoint():
         if not auth_token:
             return {"status": "failed", "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
         else:
+            # Re-implement robust token validation
+            verify_endpoint = os.getenv("AUTH_VERIFY_ENDPOINT", "/api/auth/verify-token")
+            verify_url = api_base_url.rstrip('/') + '/' + verify_endpoint.lstrip('/')
+            
+            # Check environment flag for FAIL_ON_VERIFY
+            fail_on_verify = os.getenv("FAIL_ON_VERIFY", "true").lower() == "true"
+            
+            verification_status_code = None
+            verification_response_time_ms = 0
+            verification_error_message = None
+            verification_test_status = "failed" # Default to failed until verified
+
+            try:
+                verify_start_time = time.time()
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    verify_response = await client.get(verify_url, headers=headers)
+                    verification_response_time_ms = int((time.time() - verify_start_time) * 1000)
+                    verification_status_code = verify_response.status_code
+
+                    if verification_status_code in token_verification_expected_codes:
+                        verification_test_status = "passed"
+                        print(f"✅ Token verification successful: {verification_status_code} ({verification_response_time_ms}ms)")
+                    else:
+                        try:
+                            error_data = verify_response.json()
+                            verification_error_message = error_data.get("message", str(error_data))
+                        except Exception:
+                            verification_error_message = verify_response.text
+                        
+                        if fail_on_verify:
+                            verification_test_status = "failed"
+                            print(f"❌ Token verification failed with status {verification_status_code}: {verification_error_message} ({verification_response_time_ms}ms)")
+                        else:
+                            verification_test_status = "passed" # Proceed with warning
+                            print(f"⚠️ Token verification warning: {verification_status_code}: {verification_error_message} (Proceeding as FAIL_ON_VERIFY is false) ({verification_response_time_ms}ms)")
+
+            except Exception as verify_error:
+                verification_error_message = f"Token verification HTTP request failed: {str(verify_error)}"
+                if fail_on_verify:
+                    verification_test_status = "failed"
+                    print(f"❌ {verification_error_message}")
+                else:
+                    verification_test_status = "passed" # Proceed with warning
+                    print(f"⚠️ {verification_error_message} (Proceeding as FAIL_ON_VERIFY is false)")
+
             return {
-                "status": "passed",
+                "status": verification_test_status,
                 "business_function": business_function,
-                "execution_time_ms": 0, # Placeholder, as token verification is skipped
-                "error": None,
+                "execution_time_ms": verification_response_time_ms,
+                "error": verification_error_message,
                 "details": {
-                    "status_code": 200, # Assuming success if token obtained
-                    "response_time_ms": 0, # Placeholder
-                    "url": api_base_url + "/api/auth/login",
-                    "method": "POST",
-                    "endpoint": "/api/auth/login"
+                    "status_code": verification_status_code,
+                    "response_time_ms": verification_response_time_ms,
+                    "url": verify_url,
+                    "method": "GET",
+                    "endpoint": verify_endpoint
                 },
                 "auth_token": auth_token # Pass the token for subsequent tests
             }
