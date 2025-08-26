@@ -3430,7 +3430,7 @@ async def test_user_management_api_endpoints():
             # Optional verification of bearer token
             try:
                 api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-                verify_url = f"{api_base_url.rstrip('/')}/api/auth/verify-token"
+                verify_url = f"{api_base_url.rstrip('/')}/api/auth/login"
                 
                 headers = {"Authorization": f"Bearer {admin_bearer_token}"}
                 
@@ -3605,7 +3605,7 @@ async def test_admin_authentication_endpoint():
             return {"status": "failed", "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
         else:
             # Re-implement robust token validation
-            verify_endpoint = os.getenv("AUTH_VERIFY_ENDPOINT", "/api/auth/verify-token")
+            verify_endpoint = os.getenv("AUTH_VERIFY_ENDPOINT", "/api/auth/login")
             verify_url = api_base_url.rstrip('/') + '/' + verify_endpoint.lstrip('/')
             
             # Check environment flag for FAIL_ON_VERIFY
