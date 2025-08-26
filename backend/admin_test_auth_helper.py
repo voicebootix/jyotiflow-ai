@@ -9,6 +9,7 @@ import os
 import time
 from typing import Optional, Dict, Any, Tuple
 import logging
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -18,9 +19,16 @@ class AdminTestAuthHelper:
     def __init__(self, api_base_url: Optional[str] = None):
         self.api_base_url = api_base_url or os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
         self.admin_token: Optional[str] = None
+        
+        admin_email = os.getenv('ADMIN_TEST_EMAIL')
+        admin_password = os.getenv('ADMIN_TEST_PASSWORD')
+
+        if not admin_email or not admin_password:
+            raise ValueError("ADMIN_TEST_EMAIL and ADMIN_TEST_PASSWORD environment variables must be set for admin tests.")
+
         self.admin_credentials = {
-            "email": "admin@jyotiflow.ai", 
-            "password": "Jyoti@2024!"
+            "email": admin_email, 
+            "password": admin_password
         }
     
     async def get_admin_token(self) -> Tuple[bool, str, Optional[str]]:
@@ -134,8 +142,10 @@ class AdminTestAuthHelper:
                 # Try to get response content
                 try:
                     response_content = response.json()
-                except:
-                    response_content = {"raw_content": response.text[:200] + "..." if len(response.text) > 200 else response.text}
+                except json.JSONDecodeError:
+                    # Safely handle non-JSON responses or decoding errors
+                    raw_content = response.text if response.text else ""
+                    response_content = {"raw_content": raw_content[:200] + "..." if len(raw_content) > 200 else raw_content}
                 
                 return {
                     "status": test_status,

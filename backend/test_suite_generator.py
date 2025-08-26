@@ -3361,8 +3361,8 @@ import httpx
 async def test_user_management_api_endpoints():
     try:
         endpoints_to_test = [
-            {"url": "/api/auth/login", "method": "POST", "business_function": "Authentication", "expected_status": 200},
-            {"url": "/register", "method": "POST", "business_function": "Registration", "expected_status": 200},
+            {"url": "/api/auth/login", "method": "POST", "business_function": "Authentication", "expected_status": 422, "data": {}}, # Expect 422 for empty payload
+            {"url": "/api/auth/register", "method": "POST", "business_function": "Registration", "expected_status": 422, "data": {}}, # Expect 422 for empty payload, normalized path
             {"url": "/api/user/profile", "method": "GET", "business_function": "Profile Management", "expected_status": 401}, # Expect 401 without auth
             {"url": "/api/sessions/user", "method": "GET", "business_function": "Session History", "expected_status": 401} # Expect 401 without auth
         ]
@@ -3377,7 +3377,7 @@ async def test_user_management_api_endpoints():
                     if endpoint['method'] == 'GET':
                         response = await client.get(url)
                     else:
-                        response = await client.post(url, json={})
+                        response = await client.post(url, json=endpoint.get("data", {}))
                     
                     status_code = response.status_code
                     expected_status = endpoint.get("expected_status")
@@ -3447,9 +3447,16 @@ import os
 async def test_admin_authentication_endpoint():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
     login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    
+    admin_email = os.getenv('ADMIN_EMAIL')
+    admin_password = os.getenv('ADMIN_PASSWORD')
+
+    if not admin_email or not admin_password:
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+
     admin_credentials = {
-        "email": "admin@jyotiflow.ai", 
-        "password": "Jyoti@2024!"
+        "email": admin_email, 
+        "password": admin_password
     }
     
     test_results = {}
@@ -3460,11 +3467,14 @@ async def test_admin_authentication_endpoint():
             login_response = await client.post(login_url, json=admin_credentials)
             login_status_code = login_response.status_code
             
+            safe_login_body = "[REDACTED]" if login_status_code == 200 else (
+                login_response.text[:200] + ("..." if len(login_response.text) > 200 else "")
+            )
             test_results["Admin Authentication"] = {
                 "status": "passed" if login_status_code == 200 else "failed",
                 "status_code": login_status_code,
                 "failure_reason": None if login_status_code == 200 else f"Expected 200, got {login_status_code}",
-                "response_content": login_response.text
+                "response_content": safe_login_body
             }
             
             if login_status_code != 200:
