@@ -3437,14 +3437,14 @@ async def test_user_management_api_endpoints():
             "test_cases": [
                 {
                     "test_name": "test_admin_authentication_endpoint",
-                    "description": "Test admin authentication endpoint with environment-configurable base URL and direct endpoint configuration",
+                    "description": "Test admin authentication endpoint (login and token acquisition)",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
 import httpx
 import os
 
-async def test_admin_authentication_endpoint():
+async def _get_admin_token():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
     login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
     
@@ -3459,103 +3459,301 @@ async def test_admin_authentication_endpoint():
         "password": admin_password
     }
     
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        login_response = await client.post(login_url, json=admin_credentials)
+        login_response.raise_for_status() # Raise for 4xx/5xx responses
+        return login_response.json().get("access_token")
+
+async def test_admin_authentication_endpoint():
     test_results = {}
-
-    # Test Admin Login (should pass with 200)
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            login_response = await client.post(login_url, json=admin_credentials)
-            login_status_code = login_response.status_code
-            
-            safe_login_body = "[REDACTED]" if login_status_code == 200 else (
-                login_response.text[:200] + ("..." if len(login_response.text) > 200 else "")
-            )
-            test_results["Admin Authentication"] = {
-                "status": "passed" if login_status_code == 200 else "failed",
-                "status_code": login_status_code,
-                "failure_reason": None if login_status_code == 200 else f"Expected 200, got {login_status_code}",
-                "response_content": safe_login_body
-            }
-            
-            if login_status_code != 200:
-                return {"status": "failed", "message": "Admin login failed", "endpoint_results": test_results}
-            
-            admin_token = login_response.json().get("access_token")
-            if not admin_token:
-                test_results["Admin Authentication"]["status"] = "failed"
-                test_results["Admin Authentication"]["failure_reason"] = "No access token received"
-                return {"status": "failed", "message": "No admin token", "endpoint_results": test_results}
-            
-            headers = {"Authorization": f"Bearer {admin_token}"}
-
-            admin_endpoints = [
-                {"url": "/api/admin/analytics/overview", "method": "GET", "business_function": "Admin Optimization"},
-                {"url": "/api/admin/analytics/revenue-insights", "method": "GET", "business_function": "Admin Monetization"},
-                {"url": "/api/admin/analytics/analytics", "method": "GET", "business_function": "Admin Stats"},
-            ]
-
-            for endpoint_info in admin_endpoints:
-                full_url = f"{api_base_url.rstrip('/')}{endpoint_info['url']}"
-                status_code = None
-                failure_reason = None
-                response_content = None
-                
-                try:
-                    if endpoint_info['method'] == 'GET':
-                        response = await client.get(full_url, headers=headers)
-                    else:
-                        response = await client.post(full_url, headers=headers, json={}) # Assuming POST for other methods if any
-                    
-                    status_code = response.status_code
-                    
-                    # Redact/truncate response content before storing
-                    raw_response_text = response.text if response.text else ""
-                    response_content = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
-
-                    if status_code == 200:
-                        test_status = "passed"
-                    elif status_code in [401, 403]:
-                        test_status = "failed"
-                        failure_reason = f"Authentication/Authorization Failure: Status Code {status_code}"
-                    else:
-                        test_status = "failed"
-                        failure_reason = f"Unexpected Status Code: {status_code}"
-
-                except httpx.RequestError as e:
-                    test_status = "failed"
-                    failure_reason = f"Request Error: {str(e)}"
-                    response_content = str(e)
-                    status_code = None # No status code if request failed before response
-                except Exception as e:
-                    test_status = "failed"
-                    failure_reason = f"An unexpected error occurred: {str(e)}"
-                    response_content = str(e)
-                    status_code = None # No status code if general exception
-                
-                test_results[endpoint_info['business_function']] = {
-                    "status": test_status,
-                    "status_code": status_code,
-                    "failure_reason": failure_reason,
-                    "response_content": response_content
-                }
-
+        admin_token = await _get_admin_token()
+        test_results["Admin Authentication"] = {
+            "status": "passed" if admin_token else "failed",
+            "message": "Admin token retrieved successfully" if admin_token else "Failed to retrieve admin token"
+        }
     except Exception as e:
-        return {"status": "failed", "error": f"Admin Services Test Failed: {str(e)}", "endpoint_results": test_results}
-    
-    # Determine overall status
-    overall_status = "passed"
-    for result in test_results.values():
-        if result.get("status") == "failed":
-            overall_status = "failed"
-            break
+        test_results["Admin Authentication"] = {"status": "failed", "error": str(e)}
+
+    overall_status = "passed" if test_results["Admin Authentication"]["status"] == "passed" else "failed"
 
     return {
         "status": overall_status,
-        "message": "Admin services endpoints tested",
+        "message": "Admin authentication endpoint tested",
         "endpoint_results": test_results
     }
 """,
-                    "expected_result": "Admin services endpoints operational and secured",
+                    "expected_result": "Admin authentication endpoint operational and secured",
+                    "timeout_seconds": 45
+                },
+                {
+                    "test_name": "test_admin_optimization_endpoint",
+                    "description": "Test admin optimization endpoint (analytics/overview)",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+import os
+
+async def _get_admin_token():
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    
+    admin_email = os.getenv('ADMIN_EMAIL')
+    admin_password = os.getenv('ADMIN_PASSWORD')
+
+    if not admin_email or not admin_password:
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+
+    admin_credentials = {
+        "email": admin_email, 
+        "password": admin_password
+    }
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        login_response = await client.post(login_url, json=admin_credentials)
+        login_response.raise_for_status() 
+        return login_response.json().get("access_token")
+
+async def test_admin_optimization_endpoint():
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    endpoint_path = "/api/admin/analytics/overview"
+    full_url = f"{api_base_url.rstrip('/')}{endpoint_path}"
+    
+    test_results = {}
+    status_code = None
+    failure_reason = None
+    response_content = None
+
+    try:
+        admin_token = await _get_admin_token()
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(full_url, headers=headers)
+            status_code = response.status_code
+
+            raw_response_text = response.text if response.text else ""
+            response_content = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+
+            if status_code == 200:
+                test_status = "passed"
+            elif status_code in [401, 403]:
+                test_status = "failed"
+                failure_reason = f"Authentication/Authorization Failure: Status Code {status_code}"
+            else:
+                test_status = "failed"
+                failure_reason = f"Unexpected Status Code: {status_code}"
+
+    except httpx.RequestError as e:
+        test_status = "failed"
+        failure_reason = f"Request Error: {str(e)}"
+        response_content = str(e)
+    except ValueError as e:
+        test_status = "failed"
+        failure_reason = str(e)
+        response_content = "Environment variables not set."
+    except Exception as e:
+        test_status = "failed"
+        failure_reason = f"An unexpected error occurred: {str(e)}"
+        response_content = str(e)
+    
+    test_results["Admin Optimization"] = {
+        "status": test_status,
+        "status_code": status_code,
+        "failure_reason": failure_reason,
+        "response_content": response_content
+    }
+
+    overall_status = "passed" if test_results["Admin Optimization"]["status"] == "passed" else "failed"
+
+    return {
+        "status": overall_status,
+        "message": "Admin optimization endpoint tested",
+        "endpoint_results": test_results
+    }
+""",
+                    "expected_result": "Admin optimization endpoint operational and secured",
+                    "timeout_seconds": 45
+                },
+                {
+                    "test_name": "test_admin_monetization_endpoint",
+                    "description": "Test admin monetization endpoint (analytics/revenue-insights)",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+import os
+
+async def _get_admin_token():
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    
+    admin_email = os.getenv('ADMIN_EMAIL')
+    admin_password = os.getenv('ADMIN_PASSWORD')
+
+    if not admin_email or not admin_password:
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+
+    admin_credentials = {
+        "email": admin_email, 
+        "password": admin_password
+    }
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        login_response = await client.post(login_url, json=admin_credentials)
+        login_response.raise_for_status() 
+        return login_response.json().get("access_token")
+
+async def test_admin_monetization_endpoint():
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    endpoint_path = "/api/admin/analytics/revenue-insights"
+    full_url = f"{api_base_url.rstrip('/')}{endpoint_path}"
+    
+    test_results = {}
+    status_code = None
+    failure_reason = None
+    response_content = None
+
+    try:
+        admin_token = await _get_admin_token()
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(full_url, headers=headers)
+            status_code = response.status_code
+
+            raw_response_text = response.text if response.text else ""
+            response_content = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+
+            if status_code == 200:
+                test_status = "passed"
+            elif status_code in [401, 403]:
+                test_status = "failed"
+                failure_reason = f"Authentication/Authorization Failure: Status Code {status_code}"
+            else:
+                test_status = "failed"
+                failure_reason = f"Unexpected Status Code: {status_code}"
+
+    except httpx.RequestError as e:
+        test_status = "failed"
+        failure_reason = f"Request Error: {str(e)}"
+        response_content = str(e)
+    except ValueError as e:
+        test_status = "failed"
+        failure_reason = str(e)
+        response_content = "Environment variables not set."
+    except Exception as e:
+        test_status = "failed"
+        failure_reason = f"An unexpected error occurred: {str(e)}"
+        response_content = str(e)
+    
+    test_results["Admin Monetization"] = {
+        "status": test_status,
+        "status_code": status_code,
+        "failure_reason": failure_reason,
+        "response_content": response_content
+    }
+
+    overall_status = "passed" if test_results["Admin Monetization"]["status"] == "passed" else "failed"
+
+    return {
+        "status": overall_status,
+        "message": "Admin monetization endpoint tested",
+        "endpoint_results": test_results
+    }
+""",
+                    "expected_result": "Admin monetization endpoint operational and secured",
+                    "timeout_seconds": 45
+                },
+                {
+                    "test_name": "test_admin_stats_endpoint",
+                    "description": "Test admin stats endpoint (analytics/analytics)",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+import os
+
+async def _get_admin_token():
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+    
+    admin_email = os.getenv('ADMIN_EMAIL')
+    admin_password = os.getenv('ADMIN_PASSWORD')
+
+    if not admin_email or not admin_password:
+        raise ValueError("ADMIN_EMAIL and ADMIN_PASSWORD environment variables must be set for admin authentication tests.")
+
+    admin_credentials = {
+        "email": admin_email, 
+        "password": admin_password
+    }
+    
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        login_response = await client.post(login_url, json=admin_credentials)
+        login_response.raise_for_status() 
+        return login_response.json().get("access_token")
+
+async def test_admin_stats_endpoint():
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    endpoint_path = "/api/admin/analytics/analytics"
+    full_url = f"{api_base_url.rstrip('/')}{endpoint_path}"
+    
+    test_results = {}
+    status_code = None
+    failure_reason = None
+    response_content = None
+
+    try:
+        admin_token = await _get_admin_token()
+        headers = {"Authorization": f"Bearer {admin_token}"}
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(full_url, headers=headers)
+            status_code = response.status_code
+
+            raw_response_text = response.text if response.text else ""
+            response_content = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
+
+            if status_code == 200:
+                test_status = "passed"
+            elif status_code in [401, 403]:
+                test_status = "failed"
+                failure_reason = f"Authentication/Authorization Failure: Status Code {status_code}"
+            else:
+                test_status = "failed"
+                failure_reason = f"Unexpected Status Code: {status_code}"
+
+    except httpx.RequestError as e:
+        test_status = "failed"
+        failure_reason = f"Request Error: {str(e)}"
+        response_content = str(e)
+    except ValueError as e:
+        test_status = "failed"
+        failure_reason = str(e)
+        response_content = "Environment variables not set."
+    except Exception as e:
+        test_status = "failed"
+        failure_reason = f"An unexpected error occurred: {str(e)}"
+        response_content = str(e)
+    
+    test_results["Admin Stats"] = {
+        "status": test_status,
+        "status_code": status_code,
+        "failure_reason": failure_reason,
+        "response_content": response_content
+    }
+
+    overall_status = "passed" if test_results["Admin Stats"]["status"] == "passed" else "failed"
+
+    return {
+        "status": overall_status,
+        "message": "Admin stats endpoint tested",
+        "endpoint_results": test_results
+    }
+""",
+                    "expected_result": "Admin analytics endpoint operational and secured",
                     "timeout_seconds": 45
                 }
             ]
