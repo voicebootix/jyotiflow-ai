@@ -16,6 +16,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Union
 import logging 
 import httpx
+import builtins  # Import builtins specifically for isinstance
 
 
 # Configure logging
@@ -3433,6 +3434,7 @@ import json
 import os
 import time
 import uuid
+import builtins  # Added for isinstance
 
 async def test_admin_authentication_endpoint():
     
@@ -3465,7 +3467,7 @@ async def test_admin_authentication_endpoint():
                     or (data or {}).get("token")
                     or ((data or {}).get("data") or {}).get("access_token")
                 )
-                if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+                if not token or not builtins.isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
                     raw_response_text = login_response.text if login_response.text else ""
                     truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
                     print(f"WARNING: Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
@@ -3516,6 +3518,7 @@ async def test_admin_authentication_endpoint():
 import httpx
 import os
 import json
+import builtins  # Added for isinstance
 
 async def _get_admin_token():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
@@ -3542,7 +3545,7 @@ async def _get_admin_token():
                 or (data or {}).get("token")
                 or ((data or {}).get("data") or {}).get("access_token")
             )
-            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+            if not token or not builtins.isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
                 raw_response_text = login_response.text if login_response.text else ""
                 truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
                 raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
@@ -3556,7 +3559,7 @@ async def _get_admin_token():
 
 async def test_admin_overview_endpoint():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-    endpoint_path = "/api/admin/analytics/overview"
+    endpoint_path = "/api/admin/analytics/overview"  # Corrected endpoint
     full_url = f"{api_base_url.rstrip('/')}{endpoint_path}"
     
     test_results = {}
@@ -3635,6 +3638,7 @@ async def test_admin_overview_endpoint():
 import httpx
 import os
 import json
+import builtins  # Added for isinstance
 
 async def _get_admin_token():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
@@ -3661,7 +3665,7 @@ async def _get_admin_token():
                 or (data or {}).get("token")
                 or ((data or {}).get("data") or {}).get("access_token")
             )
-            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+            if not token or not builtins.isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
                 raw_response_text = login_response.text if login_response.text else ""
                 truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
                 raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
@@ -3675,7 +3679,7 @@ async def _get_admin_token():
 
 async def test_admin_monetization_endpoint():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-    endpoint_path = "/api/admin/analytics/revenue-insights"
+    endpoint_path = "/api/admin/analytics/revenue-insights"  # Corrected endpoint
     full_url = f"{api_base_url.rstrip('/')}{endpoint_path}"
     
     test_results = {}
@@ -3753,6 +3757,7 @@ async def test_admin_monetization_endpoint():
 import httpx
 import os
 import json
+import builtins  # Added for isinstance
 
 async def _get_admin_token():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
@@ -3779,7 +3784,7 @@ async def _get_admin_token():
                 or (data or {}).get("token")
                 or ((data or {}).get("data") or {}).get("access_token")
             )
-            if not token or not isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
+            if not token or not builtins.isinstance(token, str) or '.' not in token or len(token.split('.')) != 3:
                 raw_response_text = login_response.text if login_response.text else ""
                 truncated_response = raw_response_text[:200] + ("... (truncated)" if len(raw_response_text) > 200 else "")
                 raise ValueError(f"Admin login succeeded but no valid access token found in response (status: {login_response.status_code}, response: {truncated_response})")
@@ -3793,7 +3798,7 @@ async def _get_admin_token():
 
 async def test_admin_analytics_endpoint():
     api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-    endpoint_path = "/api/admin/analytics/analytics"
+    endpoint_path = "/api/admin/analytics/analytics"  # Corrected endpoint
     full_url = f"{api_base_url.rstrip('/')}{endpoint_path}"
     
     test_results = {}
