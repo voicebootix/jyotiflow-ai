@@ -801,7 +801,7 @@ class TestExecutionEngine:
         
         safe_modules = {
             'asyncio', 'asyncpg', 'uuid', 'json', 'datetime', 'httpx',
-            'secrets', 'string', 'sys', 'os', 'importlib',  # Added necessary modules for testing
+            'secrets', 'string', 'sys', 'os', 'importlib', 'builtins',  # Added necessary modules for testing, including builtins
             'core_foundation_enhanced', 'database_self_healing_system',
             'monitoring', 'spiritual_avatar_generation_engine', 'social_media_marketing_automation',
             'agora_service', 'test_suite_generator', 'test_execution_engine',
@@ -840,6 +840,12 @@ class TestExecutionEngine:
                     if child.value.id in dangerous_attrs:
                         if child.attr in dangerous_attrs[child.value.id]:
                             raise TestExecutionError(f"Unsafe operation: {child.value.id}.{child.attr}")
+                    
+                    # Allow specific safe built-in functions
+                    if child.value.id == 'builtins' and child.attr in {'isinstance', 'len', 'type'}:
+                        pass # Allowed safe builtins
+                    elif child.value.id == 'builtins':
+                        raise TestExecutionError(f"Unsafe builtins access: builtins.{child.attr}")
     
     def _is_safe_test_module(self, module_name: str) -> bool:
         """
