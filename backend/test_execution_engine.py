@@ -372,15 +372,27 @@ class TestExecutionEngine:
             return {
                 "status": "failed",
                 "error": f"Test timed out after {test_case.get('timeout_seconds', 30)}s",
-                "execution_time_ms": execution_time
+                "execution_time_ms": execution_time,
+                "fix_suggestion": self._generate_fix_suggestion(None, "Test timed out") # Generate suggestion for timeout
             }
+        except TestExecutionError as e:
+            # If _execute_test_code raised a TestExecutionError, it already contains detailed info
+            error_details = e.args[0] if e.args and isinstance(e.args[0], dict) else {"error": str(e)}
+            execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            error_details['execution_time_ms'] = execution_time
+            # Ensure status is 'failed' if not explicitly set in the error details
+            if 'status' not in error_details:
+                error_details['status'] = 'failed'
+            return error_details
         except Exception as e:
             execution_time = (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
+            fix_suggestion = self._generate_fix_suggestion(None, str(e))
             return {
                 "status": "failed",
                 "error": str(e),
                 "traceback": traceback.format_exc(),
-                "execution_time_ms": execution_time
+                "execution_time_ms": execution_time,
+                "fix_suggestion": fix_suggestion # Add fix suggestion for general exceptions
             }
     
     async def _execute_file_based_test(self, file_path: str, test_case: Dict[str, Any]) -> Dict[str, Any]:
