@@ -3413,11 +3413,106 @@ async def test_user_management_api_endpoints():
         } 
         
 
+    async def _obtain_admin_auth_token(self) -> Dict[str, Any]:
+        """
+        Safely obtains admin authentication token using either ADMIN_BEARER_TOKEN 
+        or ADMIN_EMAIL/ADMIN_PASSWORD with optional token verification.
+        
+        Returns:
+            Dict with keys: "status", "auth_token", and optional "warning" or "error"
+        """
+        import os
+        import httpx
+        
+        # Try ADMIN_BEARER_TOKEN first
+        admin_bearer_token = os.getenv("ADMIN_BEARER_TOKEN")
+        if admin_bearer_token:
+            # Optional verification of bearer token
+            try:
+                api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+                verify_url = f"{api_base_url.rstrip('/')}/api/auth/verify-token"
+                
+                headers = {"Authorization": f"Bearer {admin_bearer_token}"}
+                
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(verify_url, headers=headers)
+                    
+                    if response.status_code == 200:
+                        return {
+                            "status": "success",
+                            "auth_token": admin_bearer_token
+                        }
+                    else:
+                        return {
+                            "status": "success", 
+                            "auth_token": admin_bearer_token,
+                            "warning": f"Token verification returned {response.status_code} but proceeding"
+                        }
+            except Exception as e:
+                return {
+                    "status": "success",
+                    "auth_token": admin_bearer_token,
+                    "warning": f"Token verification failed but proceeding: {str(e)}"
+                }
+        
+        # Try ADMIN_EMAIL/ADMIN_PASSWORD authentication
+        admin_email = os.getenv("ADMIN_EMAIL")
+        admin_password = os.getenv("ADMIN_PASSWORD")
+        
+        if admin_email and admin_password:
+            try:
+                api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+                login_url = f"{api_base_url.rstrip('/')}/api/auth/login"
+                
+                payload = {
+                    "email": admin_email,
+                    "password": admin_password
+                }
+                
+                async with httpx.AsyncClient(timeout=15.0) as client:
+                    response = await client.post(login_url, json=payload)
+                    
+                    if response.status_code in [200, 201]:
+                        try:
+                            data = response.json()
+                            auth_token = data.get("access_token") or data.get("token")
+                            if auth_token:
+                                return {
+                                    "status": "success",
+                                    "auth_token": auth_token
+                                }
+                            else:
+                                return {
+                                    "status": "failed",
+                                    "error": "Login succeeded but no token in response"
+                                }
+                        except Exception as e:
+                            return {
+                                "status": "failed", 
+                                "error": f"Login response parsing failed: {str(e)}"
+                            }
+                    else:
+                        return {
+                            "status": "failed",
+                            "error": f"Admin login failed with status {response.status_code}"
+                        }
+            except Exception as e:
+                return {
+                    "status": "failed",
+                    "error": f"Admin authentication attempt failed: {str(e)}"
+                }
+        
+        # No admin credentials available
+        return {
+            "status": "failed",
+            "error": "No admin authentication credentials found (ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD)"
+        }
+
     async def generate_admin_services_tests(self) -> Dict[str, Any]:
         """Generate admin services tests - BUSINESS MANAGEMENT CRITICAL - Environment-configurable base URL with direct endpoint configuration"""
         
         # --- Authentication Setup ---
-        auth_test_result = await test_admin_authentication_endpoint()
+        auth_test_result = await self._obtain_admin_auth_token()
         auth_token = auth_test_result.get("auth_token")
 
         if auth_test_result["status"] == "failed" or not auth_token:
@@ -3441,7 +3536,7 @@ async def test_user_management_api_endpoints():
                     "description": "Test admin authentication endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-                    "setup_args": {"auth_token": auth_token},
+
                     "test_code": """
 import httpx
 import asyncpg
@@ -3558,7 +3653,7 @@ async def test_admin_authentication_endpoint():
                     "description": "Test admin overview endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-                    "setup_args": {"auth_token": auth_token},
+
                     "test_code": """
 import httpx
 import asyncpg
@@ -3569,7 +3664,7 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
-    """Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration"""
+    '''Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
         # Direct endpoint configuration (not from database)
@@ -3645,7 +3740,7 @@ async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
                     "description": "Test admin revenue insights endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-                    "setup_args": {"auth_token": auth_token},
+
                     "test_code": """
 import httpx
 import asyncpg
@@ -3656,7 +3751,7 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None):
-    """Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration"""
+    '''Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
         # Direct endpoint configuration (not from database)
@@ -3732,7 +3827,7 @@ async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None)
                     "description": "Test admin analytics endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-                    "setup_args": {"auth_token": auth_token}, # Pass token here
+ # Pass token here
                     "test_code": """
 import httpx
 import asyncpg
@@ -3743,7 +3838,7 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_analytics_endpoint(auth_token: Optional[str] = None):
-    """Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration"""
+    '''Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
         # Direct endpoint configuration (not from database)
