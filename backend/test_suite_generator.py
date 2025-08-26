@@ -3443,7 +3443,7 @@ async def test_admin_authentication_endpoint():
         business_function = "Admin Authentication"
         test_data = {"email": "admin@jyotiflow.ai", "password": "Jyoti@2024!"} 
         api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        expected_codes = [200, 401, 403, 422]
+        expected_codes = [200]
         
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
@@ -3464,19 +3464,29 @@ async def test_admin_authentication_endpoint():
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
+
+                error_message = None
+                if status_code not in expected_codes:
+                    try:
+                        error_data = response.json()
+                        error_message = error_data.get("message", str(error_data))
+                    except Exception:
+                        error_message = response.text
+                
                 test_status = 'passed' if status_code in expected_codes else 'failed'
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
         except Exception as http_error:
             print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
+            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function, "details": {"url": url, "method": method}}
         
         # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
             "execution_time_ms": response_time_ms,
+            "error": error_message, # Include the detailed error message here
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
@@ -3536,19 +3546,29 @@ async def test_admin_overview_endpoint():
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
+
+                error_message = None
+                if status_code not in expected_codes:
+                    try:
+                        error_data = response.json()
+                        error_message = error_data.get("message", str(error_data))
+                    except Exception:
+                        error_message = response.text
+                
                 test_status = 'passed' if status_code in expected_codes else 'failed'
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
         except Exception as http_error:
             print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
+            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function, "details": {"url": url, "method": method}}
         
         # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
             "execution_time_ms": response_time_ms,
+            "error": error_message, # Include the detailed error message here
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
@@ -3607,19 +3627,29 @@ async def test_admin_revenue_insights_endpoint():
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
+
+                error_message = None
+                if status_code not in expected_codes:
+                    try:
+                        error_data = response.json()
+                        error_message = error_data.get("message", str(error_data))
+                    except Exception:
+                        error_message = response.text
+                
                 test_status = 'passed' if status_code in expected_codes else 'failed'
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
         except Exception as http_error:
             print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
+            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function, "details": {"url": url, "method": method}}
         
         # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
             "execution_time_ms": response_time_ms,
+            "error": error_message, # Include the detailed error message here
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
@@ -3678,19 +3708,29 @@ async def test_admin_analytics_endpoint():
                 
                 response_time_ms = int((time.time() - start_time) * 1000)
                 status_code = response.status_code
+
+                error_message = None
+                if status_code not in expected_codes:
+                    try:
+                        error_data = response.json()
+                        error_message = error_data.get("message", str(error_data))
+                    except Exception:
+                        error_message = response.text
+                
                 test_status = 'passed' if status_code in expected_codes else 'failed'
                 
                 print(f"📊 Response: {status_code} ({response_time_ms}ms)")
                 
         except Exception as http_error:
             print(f"❌ HTTP request failed: {str(http_error)}")
-            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function}
+            return {"status": "failed", "error": f"HTTP request failed: {str(http_error)}", "business_function": business_function, "details": {"url": url, "method": method}}
         
         # Return test results (database storage handled by test execution engine)
         return {
             "status": test_status,
             "business_function": business_function,
             "execution_time_ms": response_time_ms,
+            "error": error_message, # Include the detailed error message here
             "details": {
                 "status_code": status_code,
                 "response_time_ms": response_time_ms,
