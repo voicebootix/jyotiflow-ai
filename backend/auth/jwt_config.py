@@ -65,9 +65,16 @@ class JWTHandler:
     def extract_token_from_request(request: Request) -> str:
         """Extract JWT token from Authorization header"""
         auth_header = request.headers.get("Authorization")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
-        return auth_header.split(" ")[1]
+        if not auth_header:
+            raise HTTPException(status_code=401, detail="Missing authorization header")
+        
+        # Strip leading/trailing whitespace and split into parts
+        parts = auth_header.strip().split(None, 1) 
+        
+        if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1]:
+            raise HTTPException(status_code=401, detail="Invalid authorization header format. Must be 'Bearer <token>'")
+        
+        return parts[1]
     
     @staticmethod
     def decode_token(token: str) -> dict:
