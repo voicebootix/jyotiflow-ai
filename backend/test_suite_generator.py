@@ -3614,7 +3614,7 @@ async def test_admin_authentication_endpoint():
                 "execution_time_ms": login_response_time_ms, # Use login time
                 "error": None,
                 "details": {
-                    "status_code": login_response.status_code if login_response else 200, # Use actual login status if available
+                    "status_code": login_response.status_code if login_response else None, # Use actual login status if available, or None if response missing
                     "response_time_ms": login_response_time_ms, # Use login time
                     "url": login_url,
                     "method": "POST",
