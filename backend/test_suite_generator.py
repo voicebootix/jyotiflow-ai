@@ -3557,6 +3557,7 @@ async def test_admin_authentication_endpoint():
         token_verification_expected_codes = [200, 204]
         auth_token = None
         error_message = None
+        test_status = 'pending' # Initialize test_status
 
         admin_bearer_token = os.getenv("ADMIN_BEARER_TOKEN")
         admin_email = os.getenv("ADMIN_EMAIL")
@@ -3596,6 +3597,10 @@ async def test_admin_authentication_endpoint():
                 except Exception as login_error:
                     error_message = f"Login HTTP request failed: {str(login_error)}"
                     test_status = 'failed'
+                finally:
+                    if login_response is None: # Handle case where request itself failed
+                        error_message = error_message if error_message else "Login request failed or timed out."
+                        test_status = 'failed'
         else:
             error_message = "ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD environment variables not set. Cannot run authenticated tests."
             test_status = 'failed' # Set test_status to failed if auth vars are not set
