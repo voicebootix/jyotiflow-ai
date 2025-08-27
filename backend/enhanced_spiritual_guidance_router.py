@@ -690,7 +690,7 @@ async def generate_reading_preview(birth_date: str, birth_time: str, birth_locat
         }
 
 # Health check endpoint
-@enhanced_router.get("/health")
+@enhanced_router.get("/health/spiritual")
 async def health_check():
     """
     Health check for enhanced spiritual guidance system

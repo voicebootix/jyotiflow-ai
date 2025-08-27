@@ -1050,7 +1050,7 @@ class MonitoringDashboard:
 monitoring_dashboard = MonitoringDashboard()
 
 # API Endpoints
-@router.get("/health")
+@router.get("/health/monitoring")
 async def get_monitoring_health():
     """Public endpoint to get basic monitoring system health (no auth required)"""
     try:

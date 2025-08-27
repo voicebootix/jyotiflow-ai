@@ -469,10 +469,15 @@ async def root():
         }
     }
 
-# --- Health Check Endpoint ---
+# --- Health Check Endpoints ---
 @app.get("/health")
 async def health_check():
-    """Check application health and database connectivity"""
+    """Lightweight health check for Render platform - no external dependencies"""
+    return {"status": "ok"}
+
+@app.get("/health/detailed")
+async def detailed_health_check():
+    """Detailed health check with database connectivity and system status"""
     try:
         # Test database connection
         from db import get_db_pool
@@ -480,8 +485,9 @@ async def health_check():
         if db_pool is not None:
             async with db_pool.acquire() as conn:
                 await conn.fetchval("SELECT 1")
+            db_status = "connected"
         else:
-            raise Exception("Database pool is not initialized.")
+            db_status = "unavailable"
         
         # Get unified system status
         unified_status = {}
@@ -493,7 +499,7 @@ async def health_check():
         
         return {
             "status": "healthy",
-            "database": "connected",
+            "database": db_status,
             "timestamp": datetime.now().isoformat(),
             "unified_system": unified_status
         }
