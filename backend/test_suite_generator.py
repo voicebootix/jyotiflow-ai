@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 import logging 
+# import jwt # Removed top-level jwt import
 
 
 # Configure logging
@@ -3545,8 +3546,14 @@ import os
 import time
 import uuid
 from typing import Dict, Any, Optional
+# import jwt # Removed top-level jwt import
 
 async def test_admin_authentication_endpoint():
+    try:
+        import jwt # Moved jwt import inside function
+    except ImportError:
+        jwt = None # Handle case where jwt is not installed
+    
     # IMPORTANT: This test is designed to obtain and return an authentication token
     # for use by subsequent authenticated admin tests.
     
@@ -3563,6 +3570,7 @@ async def test_admin_authentication_endpoint():
     admin_bearer_token = os.getenv("ADMIN_BEARER_TOKEN")
     admin_email = os.getenv("ADMIN_EMAIL")
     admin_password = os.getenv("ADMIN_PASSWORD")
+    jwt_secret = os.getenv("JWT_SECRET") # Retrieve JWT_SECRET
 
     headers = {}
     if admin_bearer_token:
@@ -3595,6 +3603,27 @@ async def test_admin_authentication_endpoint():
     else:
         error_message = "ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD environment variables not set. Cannot run authenticated tests."
         test_status = 'failed' # Set test_status to failed if auth vars are not set
+
+    # --- Debugging: Decode and print JWT payload if token and secret are available ---
+    if os.getenv("JWT_DEBUG") == "true" and auth_token and jwt: # Conditionally execute debug block
+        try:
+            decoded_payload = {} # Initialize empty payload
+            if jwt_secret: # Attempt decode with secret if available
+                decoded_payload = jwt.decode(auth_token, jwt_secret, algorithms=["HS256"])
+            else:
+                # Fallback to decode without signature verification if secret is missing (for inspection only)
+                print("DEBUG: JWT_SECRET not found, attempting decode without signature verification.")
+                decoded_payload = jwt.decode(auth_token, options={"verify_signature": False})
+
+            # Redact payload for printing
+            safe_payload = {
+                k: v for k, v in decoded_payload.items()
+                if k in ["sub", "iat", "exp", "iss", "role", "user_id"]
+            }
+            print(f"DEBUG: Decoded JWT Payload (redacted): {safe_payload}")
+        except Exception as decode_error:
+            print(f"DEBUG: Failed to decode JWT for debugging: {type(decode_error).__name__} - {decode_error}")
+    # --- End Debugging ---
 
     if not auth_token:
         return {"status": test_status, "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
