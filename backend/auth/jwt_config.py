@@ -80,11 +80,17 @@ class JWTHandler:
     def decode_token(token: str) -> dict:
         """Decode and validate JWT token"""
         try:
+            # DEBUG: Log token and secret (redacted)
+            logger.debug(f"DEBUG: Decoding token: {token[:10]}...{token[-10:]}")
+            logger.debug(f"DEBUG: Using JWT_SECRET (redacted length): {len(JWT_SECRET) if JWT_SECRET else 0}")
+            logger.debug(f"DEBUG: Using JWT_ALGORITHM: {JWT_ALGORITHM}")
             payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
             return payload
         except jwt.ExpiredSignatureError:
+            logger.warning("Token has expired")
             raise HTTPException(status_code=401, detail="Token has expired")
-        except jwt.InvalidTokenError:
+        except jwt.InvalidTokenError as e:
+            logger.warning(f"Invalid token error: {e}")
             raise HTTPException(status_code=401, detail="Invalid token")
     
     @staticmethod
