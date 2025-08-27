@@ -3573,6 +3573,9 @@ async def test_admin_authentication_endpoint():
             login_url = api_base_url.rstrip('/') + '/' + login_endpoint.lstrip('/')
             login_payload = {"email": admin_email, "password": admin_password}
 
+            login_response = None # Initialize login_response
+            login_response_time_ms = 0 # Initialize login_response_time_ms
+
             async with httpx.AsyncClient(timeout=30.0) as client:
                 login_start_time = time.time()
                 try:
@@ -3611,7 +3614,7 @@ async def test_admin_authentication_endpoint():
                 "execution_time_ms": login_response_time_ms, # Use login time
                 "error": None,
                 "details": {
-                    "status_code": login_response.status_code if 'login_response' in locals() else 200, # Use actual login status
+                    "status_code": login_response.status_code if login_response else None, # Use actual login status if available, or None if response missing
                     "response_time_ms": login_response_time_ms, # Use login time
                     "url": login_url,
                     "method": "POST",
