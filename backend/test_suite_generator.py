@@ -3659,6 +3659,8 @@ async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
         headers = {}
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
+            print(f"DEBUG: Auth Token used: {auth_token[:10]}...{auth_token[-10:]}")
+            print(f"DEBUG: Request Headers: {headers}")
 
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
@@ -3746,6 +3748,8 @@ async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None)
         headers = {}
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
+            print(f"DEBUG: Auth Token used: {auth_token[:10]}...{auth_token[-10:]}")
+            print(f"DEBUG: Request Headers: {headers}")
 
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
@@ -3833,6 +3837,8 @@ async def test_admin_analytics_endpoint(auth_token: Optional[str] = None):
         headers = {}
         if auth_token:
             headers["Authorization"] = f"Bearer {auth_token}"
+            print(f"DEBUG: Auth Token used: {auth_token[:10]}...{auth_token[-10:]}")
+            print(f"DEBUG: Request Headers: {headers}")
 
         # Execute HTTP request to actual endpoint
         url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
