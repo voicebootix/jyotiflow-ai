@@ -757,6 +757,14 @@ class TestExecutionEngine:
             
             # Find and execute the test function
             test_function_name = test_case.get('test_name', 'test_function')
+            
+            # Extract setup_args for function parameters
+            setup_args = test_case.get('setup_args', {})
+
+            # Add auth_token to setup_args if available from previous test and current test accepts it
+            if auth_token and 'auth_token' in inspect.signature(test_globals[test_function_name]).parameters:
+                setup_args['auth_token'] = auth_token
+            
             if test_function_name in test_globals:
                 test_function = test_globals[test_function_name]
                 if asyncio.iscoroutinefunction(test_function):
@@ -764,7 +772,7 @@ class TestExecutionEngine:
                 else:
                     return test_function()
             else:
-                # Look for any async function in the globals
+                # Look for any async function in the globals.
                 for name, obj in test_globals.items():
                     if name.startswith('test_') and asyncio.iscoroutinefunction(obj):
                         return await obj()
