@@ -68,11 +68,13 @@ class JWTHandler:
         if not auth_header:
             raise HTTPException(status_code=401, detail="Missing authorization header")
         
-        auth_header = auth_header.strip() # Strip whitespace
+        # Strip leading/trailing whitespace and split into parts
+        parts = auth_header.strip().split(None, 1) 
         
-        if not auth_header.startswith("Bearer "):
+        if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1]:
             raise HTTPException(status_code=401, detail="Invalid authorization header format. Must be 'Bearer <token>'")
-        return auth_header.split(" ")[1]
+        
+        return parts[1]
     
     @staticmethod
     def decode_token(token: str) -> dict:
