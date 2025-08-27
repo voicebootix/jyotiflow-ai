@@ -799,7 +799,7 @@ class TestExecutionEngine:
                 # Look for any async function in the globals.
                 for name, obj in test_globals.items():
                     if name.startswith('test_') and asyncio.iscoroutinefunction(obj):
-                        # Apply same signature-based filtering for fallback loop
+                        # Apply same signature-based filtering for fallback loop.
                         try:
                             func_signature = inspect.signature(obj)
                             kwargs_to_pass_fallback = {
