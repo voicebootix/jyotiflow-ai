@@ -3482,27 +3482,32 @@ async def test_user_management_api_endpoints():
                                     "auth_token": auth_token
                                 }
                             else:
+                                logger.debug("DEBUG: _obtain_admin_auth_token returning failed - no token in response.")
                                 return {
                                     "status": "failed",
                                     "error": "Login succeeded but no token in response"
                                 }
                         except Exception as e:
+                            logger.debug(f"DEBUG: _obtain_admin_auth_token returning failed - response parsing error: {e}")
                             return {
                                 "status": "failed", 
                                 "error": f"Login response parsing failed: {str(e)}"
                             }
                     else:
+                        logger.debug(f"DEBUG: _obtain_admin_auth_token returning failed - login status: {response.status_code}")
                         return {
                             "status": "failed",
                             "error": f"Admin login failed with status {response.status_code}"
                         }
             except Exception as e:
+                logger.debug(f"DEBUG: _obtain_admin_auth_token returning failed - auth attempt error: {e}")
                 return {
                     "status": "failed",
                     "error": f"Admin authentication attempt failed: {str(e)}"
                 }
         
         # No admin credentials available
+        logger.debug("DEBUG: _obtain_admin_auth_token returning failed - no credentials found.")
         return {
             "status": "failed",
             "error": "No admin authentication credentials found (ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD)"
@@ -3514,6 +3519,7 @@ async def test_user_management_api_endpoints():
         # --- Authentication Setup ---
         auth_test_result = await self._obtain_admin_auth_token()
         auth_token = auth_test_result.get("auth_token")
+        logger.debug(f"DEBUG: Auth token obtained in generate_admin_services_tests: {'Present' if auth_token else 'Missing'}")
 
         if auth_test_result["status"] == "failed" or not auth_token:
             return {
@@ -3645,6 +3651,10 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
+    # Obtain logger safely within the generated test code
+    import logging
+    test_logger = logging.getLogger(__name__)
+    test_logger.debug(f"DEBUG: test_admin_overview_endpoint received auth_token present: {'True' if auth_token else 'False'}")
     '''Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
@@ -3736,6 +3746,10 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None):
+    # Obtain logger safely within the generated test code
+    import logging
+    test_logger = logging.getLogger(__name__)
+    test_logger.debug(f"DEBUG: test_admin_revenue_insights_endpoint received auth_token present: {'True' if auth_token else 'False'}")
     '''Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
@@ -3827,6 +3841,10 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_analytics_endpoint(auth_token: Optional[str] = None):
+    # Obtain logger safely within the generated test code
+    import logging
+    test_logger = logging.getLogger(__name__)
+    test_logger.debug(f"DEBUG: test_admin_analytics_endpoint received auth_token present: {'True' if auth_token else 'False'}")
     '''Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
