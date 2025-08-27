@@ -348,9 +348,13 @@ class TestExecutionEngine:
                     "execution_time_ms": 0
                 }
             
-            # Execute test code with timeout
+            # Retrieve auth_token from previous test results if available
+            # This ensures subsequent authenticated tests can use the token
+            auth_token = self.results.get(test_case.get('depends_on_test', ''), {}).get('auth_token')
+            
+            # Execute test code with timeout, passing auth_token if available
             result = await asyncio.wait_for(
-                self._execute_test_code(test_code, test_case),
+                self._execute_test_code(test_code, test_case, auth_token=auth_token),
                 timeout=timeout
             )
             
@@ -654,7 +658,7 @@ class TestExecutionEngine:
         }
 
     
-    async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any]) -> Union[Dict[str, Any], Any]:
+    async def _execute_test_code(self, test_code: str, test_case: Dict[str, Any], auth_token: str = None) -> Union[Dict[str, Any], Any]:
         """
         Safely execute test code with proper validation and security measures.
         
@@ -699,6 +703,10 @@ class TestExecutionEngine:
         
         # Add test case data to globals
         test_globals.update(test_case)
+
+        # Add auth_token to globals if provided
+        if auth_token:
+            test_globals['auth_token'] = auth_token
         
         try:
             # Import additional modules if needed (with validation)
