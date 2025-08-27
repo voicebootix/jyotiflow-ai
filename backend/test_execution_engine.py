@@ -772,7 +772,7 @@ class TestExecutionEngine:
                 else:
                     return test_function()
             else:
-                # Look for any async function in the globals
+                # Look for any async function in the globals.
                 for name, obj in test_globals.items():
                     if name.startswith('test_') and asyncio.iscoroutinefunction(obj):
                         return await obj()
