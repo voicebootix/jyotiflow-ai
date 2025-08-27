@@ -761,22 +761,58 @@ class TestExecutionEngine:
             # Extract setup_args for function parameters
             setup_args = test_case.get('setup_args', {})
 
-            # Add auth_token to setup_args if available from previous test and current test accepts it
-            if auth_token and 'auth_token' in inspect.signature(test_globals[test_function_name]).parameters:
-                setup_args['auth_token'] = auth_token
-            logger.info(f"DEBUG: setup_args before test function call: {setup_args}") # Debug print
+            # Create a local copy to avoid mutating the original test_case dict
+            local_setup_args = dict(setup_args)
+
+            # Add auth_token to local_setup_args if available from previous test
+            if auth_token:
+                local_setup_args['auth_token'] = auth_token
             
             if test_function_name in test_globals:
                 test_function = test_globals[test_function_name]
+                
+                # Compute kwargs_to_pass by inspecting the test_function signature
+                # and selecting only keys from local_setup_args that match parameters.
+                # This prevents TypeError due to unexpected keyword arguments.
+                try:
+                    func_signature = inspect.signature(test_function)
+                    kwargs_to_pass = {
+                        k: v for k, v in local_setup_args.items()
+                        if k in func_signature.parameters
+                    }
+                except ValueError: # Handle cases where inspect.signature might fail (e.g., built-in functions)
+                    kwargs_to_pass = local_setup_args # Fallback to pass all if signature can't be inspected
+
                 if asyncio.iscoroutinefunction(test_function):
-                    return await test_function(**setup_args)
+                    try:
+                        return await test_function(**kwargs_to_pass)
+                    except TypeError:
+                        # Fallback for async functions that might not accept any args
+                        return await test_function()
                 else:
-                    return test_function()
+                    try:
+                        return test_function(**kwargs_to_pass)
+                    except TypeError:
+                        # Fallback for sync functions that might not accept any args
+                        return test_function()
             else:
                 # Look for any async function in the globals.
                 for name, obj in test_globals.items():
                     if name.startswith('test_') and asyncio.iscoroutinefunction(obj):
-                        return await obj()
+                        # Apply same signature-based filtering for fallback loop.
+                        try:
+                            func_signature = inspect.signature(obj)
+                            kwargs_to_pass_fallback = {
+                                k: v for k, v in local_setup_args.items()
+                                if k in func_signature.parameters
+                            }
+                        except ValueError:
+                            kwargs_to_pass_fallback = local_setup_args
+
+                        try:
+                            return await obj(**kwargs_to_pass_fallback)
+                        except TypeError:
+                            return await obj()
                 
                 raise TestExecutionError(f"No test function found: {test_function_name}")
                 
