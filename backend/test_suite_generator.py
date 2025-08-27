@@ -3582,21 +3582,17 @@ async def test_admin_authentication_endpoint():
                     login_response = await client.post(login_url, json=login_payload)
                     login_response_time_ms = int((time.time() - login_start_time) * 1000)
                     if login_response.status_code in login_expected_codes:
-                        login_response_data = login_response.json()
-                        auth_token = login_response_data.get("access_token")
-                        if auth_token:
-                            headers["Authorization"] = f"Bearer {auth_token}"
-                            print(f"✅ Successfully logged in. Token obtained. ({login_response_time_ms}ms)")
-                        else:
-                            error_message = "Login successful but no access_token found in response."
-                            print(f"❌ {error_message}")
+                        print(f"✅ Successfully logged in. Token obtained. ({login_response_time_ms}ms)")
+                        auth_token = login_response.json().get("access_token")
+                        test_result["auth_token"] = auth_token # Make token available for subsequent tests
                     else:
-                        try:
-                            error_data = login_response.json()
-                            error_message = error_data.get("message", str(error_data))
-                        except Exception:
-                            error_message = login_response.text
-                        print(f"❌ Login failed with status {login_response.status_code}: {error_message} ({login_response_time_ms}ms)")
+                        error_message = login_response.text
+                        test_status = 'failed'
+                    
+                    finally:
+                        if login_response is None: # Handle case where request itself failed
+                            error_message = error_message if error_message else "Login request failed or timed out."
+                            test_status = 'failed'
                 except Exception as login_error:
                     error_message = f"Login HTTP request failed: {str(login_error)}"
                     print(f"❌ {error_message}")
@@ -3634,7 +3630,7 @@ async def test_admin_authentication_endpoint():
                     "description": "Test admin overview endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-                    "setup_args": {"auth_token": auth_token},
+                    "depends_on_test": "test_admin_authentication_endpoint", # Dependency to get auth token
                     "test_code": """
 import httpx
 import asyncpg
@@ -3642,7 +3638,7 @@ import json
 import os
 import time
 import uuid
-from typing import Optional # Import Optional
+from typing import Dict, Any, Optional
 
 async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
     '''Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration'''
@@ -3723,7 +3719,7 @@ async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
                     "description": "Test admin revenue insights endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-                    "setup_args": {"auth_token": auth_token},
+                    "depends_on_test": "test_admin_authentication_endpoint", # Dependency to get auth token
                     "test_code": """
 import httpx
 import asyncpg
@@ -3731,7 +3727,7 @@ import json
 import os
 import time
 import uuid
-from typing import Optional # Import Optional
+from typing import Dict, Any, Optional
 
 async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None):
     '''Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration'''
@@ -3812,7 +3808,7 @@ async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None)
                     "description": "Test admin analytics endpoint with environment-configurable base URL and direct endpoint configuration",
                     "test_type": "integration",
                     "priority": "high",
-                    "setup_args": {"auth_token": auth_token},
+                    "depends_on_test": "test_admin_authentication_endpoint", # Dependency to get auth token
                     "test_code": """
 import httpx
 import asyncpg
@@ -3820,7 +3816,7 @@ import json
 import os
 import time
 import uuid
-from typing import Optional # Import Optional
+from typing import Dict, Any, Optional
 
 async def test_admin_analytics_endpoint(auth_token: Optional[str] = None):
     '''Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration'''
