@@ -3550,82 +3550,70 @@ async def test_admin_authentication_endpoint():
     # IMPORTANT: This test is designed to obtain and return an authentication token
     # for use by subsequent authenticated admin tests.
     
-    try:
-        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        business_function = "Admin Authentication"
-        login_expected_codes = [200, 201]
-        token_verification_expected_codes = [200, 204]
-        auth_token = None
-        error_message = None
-        test_status = 'pending' # Initialize test_status
+    api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+    business_function = "Admin Authentication"
+    login_expected_codes = [200, 201]
+    token_verification_expected_codes = [200, 204]
+    auth_token = None
+    error_message = None
+    test_status = 'pending' # Initialize test_status
+    login_response = None # Ensure login_response is initialized
+    login_response_time_ms = 0 # Ensure login_response_time_ms is initialized
 
-        admin_bearer_token = os.getenv("ADMIN_BEARER_TOKEN")
-        admin_email = os.getenv("ADMIN_EMAIL")
-        admin_password = os.getenv("ADMIN_PASSWORD")
+    admin_bearer_token = os.getenv("ADMIN_BEARER_TOKEN")
+    admin_email = os.getenv("ADMIN_EMAIL")
+    admin_password = os.getenv("ADMIN_PASSWORD")
 
-        headers = {}
-        if admin_bearer_token:
-            auth_token = admin_bearer_token
-            headers["Authorization"] = f"Bearer {auth_token}"
-            print("✅ Using ADMIN_BEARER_TOKEN for authentication.")
-        elif admin_email and admin_password:
-            print("Attempting to log in with ADMIN_EMAIL and ADMIN_PASSWORD...")
-            login_endpoint = "/api/auth/login"
-            login_url = api_base_url.rstrip('/') + '/' + login_endpoint.lstrip('/')
-            login_payload = {"email": admin_email, "password": admin_password}
+    headers = {}
+    if admin_bearer_token:
+        auth_token = admin_bearer_token
+        headers["Authorization"] = f"Bearer {auth_token}"
+        print("✅ Using ADMIN_BEARER_TOKEN for authentication.")
+        test_status = 'passed' # Assume passed if using bearer token
+    elif admin_email and admin_password:
+        print("Attempting to log in with ADMIN_EMAIL and ADMIN_PASSWORD...")
+        login_endpoint = "/api/auth/login"
+        login_url = api_base_url.rstrip('/') + '/' + login_endpoint.lstrip('/')
+        login_payload = {"email": admin_email, "password": admin_password}
 
-            login_response = None # Initialize login_response
-            login_response_time_ms = 0 # Initialize login_response_time_ms
-
+        try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 login_start_time = time.time()
-                try:
-                    login_response = await client.post(login_url, json=login_payload)
-                    login_response_time_ms = int((time.time() - login_start_time) * 1000)
-                    if login_response.status_code in login_expected_codes:
-                        print(f"✅ Successfully logged in. Token obtained. ({login_response_time_ms}ms)")
-                        auth_token = login_response.json().get("access_token")
-                        test_result["auth_token"] = auth_token # Make token available for subsequent tests
-                    else:
-                        error_message = login_response.text
-                        test_status = 'failed'
-                    
-                    finally:
-                        if login_response is None: # Handle case where request itself failed
-                            error_message = error_message if error_message else "Login request failed or timed out."
-                            test_status = 'failed'
-                except Exception as login_error:
-                    error_message = f"Login HTTP request failed: {str(login_error)}"
+                login_response = await client.post(login_url, json=login_payload)
+                login_response_time_ms = int((time.time() - login_start_time) * 1000)
+                if login_response.status_code in login_expected_codes:
+                    print(f"✅ Successfully logged in. Token obtained. ({login_response_time_ms}ms)")
+                    auth_token = login_response.json().get("access_token")
+                    test_result["auth_token"] = auth_token # Make token available for subsequent tests
+                    test_status = 'passed' # Set test status to passed
+                else:
+                    error_message = login_response.text
                     test_status = 'failed'
-                finally:
-                    if login_response is None: # Handle case where request itself failed
-                        error_message = error_message if error_message else "Login request failed or timed out."
-                        test_status = 'failed'
-        else:
-            error_message = "ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD environment variables not set. Cannot run authenticated tests."
-            test_status = 'failed' # Set test_status to failed if auth vars are not set
+        except Exception as login_error:
+            error_message = f"Login HTTP request failed: {str(login_error)}"
+            test_status = 'failed'
+    else:
+        error_message = "ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD environment variables not set. Cannot run authenticated tests."
+        test_status = 'failed' # Set test_status to failed if auth vars are not set
 
-        if not auth_token:
-            return {"status": test_status, "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
-        else:
-            # If we reached here, auth_token was successfully obtained from login
-            return {
-                "status": "passed",
-                "business_function": business_function,
-                "execution_time_ms": login_response_time_ms, # Use login time
-                "error": None,
-                "details": {
-                    "status_code": login_response.status_code if login_response else None, # Use actual login status if available, or None if response missing
-                    "response_time_ms": login_response_time_ms, # Use login time
-                    "url": login_url,
-                    "method": "POST",
-                    "endpoint": login_endpoint
-                },
-                "auth_token": auth_token # Pass the token for subsequent tests
-            }
-
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}", "business_function": business_function, "details": {"url": api_base_url, "method": "N/A"}}
+    if not auth_token:
+        return {"status": test_status, "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
+    else:
+        # If we reached here, auth_token was successfully obtained from login
+        return {
+            "status": "passed",
+            "business_function": business_function,
+            "execution_time_ms": login_response_time_ms, # Use login time
+            "error": None,
+            "details": {
+                "status_code": login_response.status_code if login_response else None, # Use actual login status if available, or None if response missing
+                "response_time_ms": login_response_time_ms, # Use login time
+                "url": login_url,
+                "method": "POST",
+                "endpoint": login_endpoint
+            },
+            "auth_token": auth_token # Pass the token for subsequent tests
+        }
 """,
                     "expected_result": "Admin authentication endpoint operational (database-driven)",
                     "timeout_seconds": 30
