@@ -24,8 +24,8 @@ redis==5.0.6
 Pillow==10.4.0
 reportlab==4.2.0
 openpyxl==3.1.4
-pandas==2.2.2
-numpy==1.26.4
+pandas==2.1.4
+numpy==1.24.4
 pytz==2024.1
 yarl==1.9.4
 orjson==3.10.3

@@ -69,7 +69,7 @@ services:
     name: knowledge-seeder
     env: python
     runtime: python-3.11.0
-    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt --prefer-binary"
+    buildCommand: "python3.11 -m pip install --upgrade pip && python3.11 -m pip install -r backend/requirements.txt --prefer-binary --no-cache-dir"
     startCommand: "python backend/knowledge_seeding_system.py"
     envVars:
       - key: PYTHON_VERSION
