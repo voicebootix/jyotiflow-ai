@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional
 import logging 
+import jwt # Added jwt import
 
 
 # Configure logging
@@ -3545,6 +3546,7 @@ import os
 import time
 import uuid
 from typing import Dict, Any, Optional
+import jwt # Added jwt import
 
 async def test_admin_authentication_endpoint():
     # IMPORTANT: This test is designed to obtain and return an authentication token
@@ -3563,6 +3565,7 @@ async def test_admin_authentication_endpoint():
     admin_bearer_token = os.getenv("ADMIN_BEARER_TOKEN")
     admin_email = os.getenv("ADMIN_EMAIL")
     admin_password = os.getenv("ADMIN_PASSWORD")
+    jwt_secret = os.getenv("JWT_SECRET") # Retrieve JWT_SECRET
 
     headers = {}
     if admin_bearer_token:
@@ -3595,6 +3598,15 @@ async def test_admin_authentication_endpoint():
     else:
         error_message = "ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD environment variables not set. Cannot run authenticated tests."
         test_status = 'failed' # Set test_status to failed if auth vars are not set
+
+    # --- Debugging: Decode and print JWT payload if token and secret are available ---
+    if auth_token and jwt_secret:
+        try:
+            decoded_payload = jwt.decode(auth_token, jwt_secret, algorithms=["HS256"])
+            print(f"DEBUG: Decoded JWT Payload: {decoded_payload}")
+        except Exception as decode_error:
+            print(f"DEBUG: Failed to decode JWT: {decode_error}")
+    # --- End Debugging ---
 
     if not auth_token:
         return {"status": test_status, "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
