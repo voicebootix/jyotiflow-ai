@@ -3519,7 +3519,7 @@ async def test_user_management_api_endpoints():
         # --- Authentication Setup ---
         auth_test_result = await self._obtain_admin_auth_token()
         auth_token = auth_test_result.get("auth_token")
-        logger.debug(f"DEBUG: Auth token obtained in generate_admin_services_tests: {auth_token[:10]}...{auth_token[-10:] if auth_token else 'None'}")
+        logger.debug(f"DEBUG: Auth token obtained in generate_admin_services_tests: {'Present' if auth_token else 'Missing'}")
 
         if auth_test_result["status"] == "failed" or not auth_token:
             return {
@@ -3651,7 +3651,10 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_overview_endpoint(auth_token: Optional[str] = None):
-    logger.debug(f"DEBUG: test_admin_overview_endpoint received auth_token: {auth_token[:10]}...{auth_token[-10:] if auth_token else 'None'}")
+    # Obtain logger safely within the generated test code
+    import logging
+    test_logger = logging.getLogger(__name__)
+    test_logger.debug(f"DEBUG: test_admin_overview_endpoint received auth_token present: {'True' if auth_token else 'False'}")
     '''Test admin overview endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
@@ -3743,7 +3746,10 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_revenue_insights_endpoint(auth_token: Optional[str] = None):
-    logger.debug(f"DEBUG: test_admin_revenue_insights_endpoint received auth_token: {auth_token[:10]}...{auth_token[-10:] if auth_token else 'None'}")
+    # Obtain logger safely within the generated test code
+    import logging
+    test_logger = logging.getLogger(__name__)
+    test_logger.debug(f"DEBUG: test_admin_revenue_insights_endpoint received auth_token present: {'True' if auth_token else 'False'}")
     '''Test admin revenue insights endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
@@ -3835,7 +3841,10 @@ import uuid
 from typing import Optional # Import Optional
 
 async def test_admin_analytics_endpoint(auth_token: Optional[str] = None):
-    logger.debug(f"DEBUG: test_admin_analytics_endpoint received auth_token: {auth_token[:10]}...{auth_token[-10:] if auth_token else 'None'}")
+    # Obtain logger safely within the generated test code
+    import logging
+    test_logger = logging.getLogger(__name__)
+    test_logger.debug(f"DEBUG: test_admin_analytics_endpoint received auth_token present: {'True' if auth_token else 'False'}")
     '''Test admin analytics endpoint - environment-configurable base URL, direct endpoint configuration'''
     import httpx, time, os
     try:
