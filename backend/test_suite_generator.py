@@ -3524,7 +3524,7 @@ async def test_user_management_api_endpoints():
                 "error": auth_test_result.get("error", "Admin authentication failed during setup."),
                 "test_cases": [auth_test_result] # Include auth result for details
             }
-        # --- End Authentication Setup ---
+        # --- End Authentication Setup ----
 
         return {
             "test_suite_name": "Admin Services",
@@ -3595,13 +3595,13 @@ async def test_admin_authentication_endpoint():
                             test_status = 'failed'
                 except Exception as login_error:
                     error_message = f"Login HTTP request failed: {str(login_error)}"
-                    print(f"❌ {error_message}")
+                    test_status = 'failed'
         else:
             error_message = "ADMIN_BEARER_TOKEN or ADMIN_EMAIL/ADMIN_PASSWORD environment variables not set. Cannot run authenticated tests."
-            print(f"❌ {error_message}")
+            test_status = 'failed' # Set test_status to failed if auth vars are not set
 
         if not auth_token:
-            return {"status": "failed", "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
+            return {"status": test_status, "error": error_message, "business_function": business_function, "details": {"url": api_base_url, "method": "AUTH_CONFIG"}}
         else:
             # If we reached here, auth_token was successfully obtained from login
             return {
