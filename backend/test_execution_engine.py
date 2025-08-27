@@ -764,11 +764,12 @@ class TestExecutionEngine:
             # Add auth_token to setup_args if available from previous test and current test accepts it
             if auth_token and 'auth_token' in inspect.signature(test_globals[test_function_name]).parameters:
                 setup_args['auth_token'] = auth_token
+            logger.info(f"DEBUG: setup_args before test function call: {setup_args}") # Debug print
             
             if test_function_name in test_globals:
                 test_function = test_globals[test_function_name]
                 if asyncio.iscoroutinefunction(test_function):
-                    return await test_function()
+                    return await test_function(**setup_args)
                 else:
                     return test_function()
             else:
