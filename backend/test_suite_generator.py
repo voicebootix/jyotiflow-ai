@@ -3549,6 +3549,11 @@ from typing import Dict, Any, Optional
 import jwt # Added jwt import
 
 async def test_admin_authentication_endpoint():
+    try:
+        import jwt # Moved jwt import inside function
+    except ImportError:
+        jwt = None # Handle case where jwt is not installed
+    
     # IMPORTANT: This test is designed to obtain and return an authentication token
     # for use by subsequent authenticated admin tests.
     
@@ -3600,7 +3605,7 @@ async def test_admin_authentication_endpoint():
         test_status = 'failed' # Set test_status to failed if auth vars are not set
 
     # --- Debugging: Decode and print JWT payload if token and secret are available ---
-    if auth_token and jwt_secret:
+    if auth_token and jwt_secret and jwt:
         try:
             decoded_payload = jwt.decode(auth_token, jwt_secret, algorithms=["HS256"])
             print(f"DEBUG: Decoded JWT Payload: {decoded_payload}")
