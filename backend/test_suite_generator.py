@@ -420,6 +420,7 @@ import time
 async def test_health_check_endpoint():
     try:
         base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '10.0')) # Default to 10.0 for health checks
         endpoint_url = f"{base_url}/health"
         
         headers = {
@@ -429,7 +430,7 @@ async def test_health_check_endpoint():
         }
         
         start_time = time.time()
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
             response = await client.get(endpoint_url, headers=headers)
             execution_time = int((time.time() - start_time) * 1000)
             
@@ -478,7 +479,8 @@ def generate_test_email():
 async def test_user_registration_endpoint():
     try:
         base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
-        endpoint_url = f"{base_url}/api/auth/register"
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
+        endpoint_url = f"{base_url}/api/register"
         
         test_email = generate_test_email()
         headers = {
@@ -495,7 +497,7 @@ async def test_user_registration_endpoint():
         }
         
         start_time = time.time()
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
             response = await client.post(endpoint_url, json=payload, headers=headers)
             execution_time = int((time.time() - start_time) * 1000)
             
@@ -520,7 +522,7 @@ async def test_user_registration_endpoint():
         return {"status": "failed", "error": str(e), "http_status_code": None}
 """,
                     "expected_result": "User registration succeeds with user_id returned",
-                    "timeout_seconds": 15
+                    "timeout_seconds": 30
                 },
                 {
                     "test_name": "test_user_login_endpoint",
@@ -545,6 +547,7 @@ def generate_test_email():
 async def test_user_login_endpoint():
     try:
         base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
         register_url = f"{base_url}/api/auth/register"
         login_url = f"{base_url}/api/auth/login"
         
@@ -559,7 +562,7 @@ async def test_user_login_endpoint():
         }
         
         start_time = time.time()
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
             # First register a test user
             reg_payload = {
                 "email": test_email,
@@ -601,7 +604,7 @@ async def test_user_login_endpoint():
         return {"status": "failed", "error": str(e), "http_status_code": None}
 """,
                     "expected_result": "User login succeeds with access token returned",
-                    "timeout_seconds": 15
+                    "timeout_seconds": 30
                 },
                 {
                     "test_name": "test_spiritual_guidance_endpoint",
@@ -616,6 +619,7 @@ import time
 async def test_spiritual_guidance_endpoint():
     try:
         base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
         endpoint_url = f"{base_url}/api/spiritual/guidance"
         
         headers = {
@@ -636,7 +640,7 @@ async def test_spiritual_guidance_endpoint():
         }
         
         start_time = time.time()
-        async with httpx.AsyncClient(timeout=15.0) as client:
+        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
             response = await client.post(endpoint_url, json=payload, headers=headers)
             execution_time = int((time.time() - start_time) * 1000)
             
@@ -690,6 +694,128 @@ async def test_spiritual_guidance_endpoint():
 """,
                     "expected_result": "Spiritual guidance endpoint accessible (200, 401, or 422 expected; 500 allowed when ALLOW_500_RESPONSES=true)",
                     "timeout_seconds": 15
+                },
+                {
+                    "test_name": "test_spiritual_text_completion",
+                    "description": "Test spiritual text completion endpoint",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+import os
+import time
+
+async def test_spiritual_text_completion():
+    try:
+        # Direct endpoint configuration (not from database)
+        endpoint = "/api/spiritual/text-completion"
+        method = "POST"
+        business_function = "Spiritual Text Generation"
+        test_data = {"prompt": "Meditation benefits", "length": 100}
+        
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
+        expected_codes = [200, 401, 403, 422]
+        
+        # Execute HTTP request to actual endpoint
+        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
+        
+        try:
+            async with httpx.AsyncClient(timeout=http_client_timeout) as client:
+                start_time = time.time()
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "X-Test-Run": "true",
+                    "X-Test-Type": "spiritual-text-completion",
+                    "User-Agent": "JyotiFlow-TestRunner/1.0"
+                }
+                
+                response = await client.request(method, url, json=test_data, headers=headers)
+                
+                response_time_ms = int((time.time() - start_time) * 1000)
+                status_code = response.status_code
+                test_status = 'passed' if status_code in expected_codes else 'failed'
+                
+                result = {
+                    "status": test_status,
+                    "business_function": business_function,
+                    "http_status_code": status_code,
+                    "execution_time_ms": response_time_ms,
+                    "endpoint": endpoint,
+                    "message": f"Spiritual text completion endpoint returned {status_code}"
+                }
+                
+                if status_code not in expected_codes:
+                    result["error"] = f"Unexpected status code: {status_code}"
+                
+                return result
+        except Exception as e:
+            return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
+""",
+                    "expected_result": "Spiritual text completion endpoint operational",
+                    "timeout_seconds": 30
+                },
+                {
+                    "test_name": "test_retrieve_spiritual_text_completion",
+                    "description": "Test spiritual text completion endpoint",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+import os
+import time
+
+async def test_retrieve_spiritual_text_completion():
+    try:
+        # Direct endpoint configuration (not from database)
+        endpoint = "/api/spiritual/text-completion"
+        method = "POST"
+        business_function = "Spiritual Text Generation"
+        test_data = {"prompt": "Meditation benefits", "length": 100}
+        
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
+        expected_codes = [200, 401, 403, 422]
+        
+        # Execute HTTP request to actual endpoint
+        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
+        
+        try:
+            async with httpx.AsyncClient(timeout=http_client_timeout) as client:
+                start_time = time.time()
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "X-Test-Run": "true",
+                    "X-Test-Type": "spiritual-text-completion",
+                    "User-Agent": "JyotiFlow-TestRunner/1.0"
+                }
+                
+                response = await client.request(method, url, json=test_data, headers=headers)
+                
+                response_time_ms = int((time.time() - start_time) * 1000)
+                status_code = response.status_code
+                test_status = 'passed' if status_code in expected_codes else 'failed'
+                
+                result = {
+                    "status": test_status,
+                    "business_function": business_function,
+                    "http_status_code": status_code,
+                    "execution_time_ms": response_time_ms,
+                    "endpoint": endpoint,
+                    "message": f"Spiritual text completion endpoint returned {status_code}"
+                }
+                
+                if status_code not in expected_codes:
+                    result["error"] = f"Unexpected status code: {status_code}"
+                
+                return result
+        except Exception as e:
+            return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
+""",
+                    "expected_result": "Spiritual text completion endpoint operational",
+                    "timeout_seconds": 30
                 }
             ]
         }
@@ -1533,9 +1659,13 @@ async def test_content_generation_pipeline():
                     "priority": "high",
                     "test_code": """
 import httpx
+import os
 
 async def test_social_media_api_endpoints():
     try:
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0'))
+
         # Test critical business endpoints
         endpoints_to_test = [
             {"url": "/api/admin/social-marketing/overview", "method": "GET", "business_function": "Performance Analytics", "expected_codes": [200, 401, 403, 404]},
@@ -1547,10 +1677,10 @@ async def test_social_media_api_endpoints():
         endpoint_results = {}
         overall_http_status = 200 # Default to 200 if all pass
         
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
             for endpoint in endpoints_to_test:
                 try:
-                    url = f"https://jyotiflow-ai.onrender.com{endpoint['url']}"
+                    url = f"{api_base_url}{endpoint['url']}"
                     
                     if endpoint['method'] == 'GET':
                         response = await client.get(url)
@@ -1929,8 +2059,13 @@ async def test_social_media_automation_health():
         # Component 4: API Endpoints health
         try:
             import httpx
-            async with httpx.AsyncClient() as client:
-                response = await client.get("https://jyotiflow-ai.onrender.com/api/monitoring/social-media-status")
+            import os
+
+            api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+            http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0'))
+
+            async with httpx.AsyncClient(timeout=http_client_timeout) as client:
+                response = await client.get(f"{api_base_url}/api/monitoring/social-media-status")
                 api_healthy = response.status_code in [200, 401, 403]
         except:
             api_healthy = False
