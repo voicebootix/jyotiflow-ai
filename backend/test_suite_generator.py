@@ -1333,11 +1333,15 @@ async def test_false_positive_filtering():
                     "test_type": "integration",
                     "priority": "critical",
                     "test_code": """
+import httpx
+import os
+import time
+
 async def test_social_media_marketing_engine_core():
     try:
         # Import SocialMediaMarketingEngine
         if not SOCIAL_MEDIA_ENGINE_AVAILABLE:
-            return {"status": "failed", "error": "SocialMediaMarketingEngine not available"}
+            return {"status": "failed", "error": "SocialMediaMarketingEngine not available", "http_status_code": 501}
         
         # Initialize engine
         engine = SocialMediaMarketingEngine()
@@ -1364,6 +1368,7 @@ async def test_social_media_marketing_engine_core():
         return {
             "status": "passed",
             "message": "Social media marketing engine core functions working",
+            "http_status_code": 200,
             "platform_coverage": platform_coverage,
             "expected_platforms": len(expected_platforms),
             "daily_plan_generated": bool(daily_plan),
@@ -1371,7 +1376,7 @@ async def test_social_media_marketing_engine_core():
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Social media engine core test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Social media engine core test failed: {str(e)}", "http_status_code": 500}
 """,
                     "expected_result": "SocialMediaMarketingEngine core business functions operational",
                     "timeout_seconds": 45
@@ -1419,6 +1424,7 @@ async def test_platform_services_integration():
         return {
             "status": "passed" if available_services > 0 else "failed",
             "message": f"Platform services integration tested",
+            "http_status_code": 200 if available_services > 0 else 500,
             "service_coverage_percent": service_coverage,
             "available_services": available_services,
             "total_services": total_services,
@@ -1426,7 +1432,7 @@ async def test_platform_services_integration():
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Platform services integration test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Platform services integration test failed: {str(e)}", "http_status_code": 500}
 """,
                     "expected_result": "All social media platform services integrate correctly",
                     "timeout_seconds": 30
@@ -1510,11 +1516,12 @@ async def test_content_generation_pipeline():
             "successful_generations": successful_generations,
             "total_attempts": total_attempts,
             "avatar_generation_available": avatar_generation_available,
-            "platform_results": generation_results
+            "platform_results": generation_results,
+            "http_status_code": 200 if generation_success_rate > 50 else 500
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Content generation pipeline test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Content generation pipeline test failed: {str(e)}", "http_status_code": 500}
 """,
                     "expected_result": "AI content generation and avatar video pipeline functional",
                     "timeout_seconds": 60
@@ -1531,13 +1538,14 @@ async def test_social_media_api_endpoints():
     try:
         # Test critical business endpoints
         endpoints_to_test = [
-            {"url": "/api/admin/social-marketing/overview", "method": "GET", "business_function": "Performance Analytics"},
-            {"url": "/api/monitoring/social-media-status", "method": "GET", "business_function": "System Health"},
-            {"url": "/api/monitoring/social-media-campaigns", "method": "GET", "business_function": "Campaign Management"},
-            {"url": "/api/monitoring/social-media-test", "method": "POST", "business_function": "Automation Testing"}
+            {"url": "/api/admin/social-marketing/overview", "method": "GET", "business_function": "Performance Analytics", "expected_codes": [200, 401, 403, 404]},
+            {"url": "/api/monitoring/social-media-status", "method": "GET", "business_function": "System Health", "expected_codes": [200, 401, 403, 404]},
+            {"url": "/api/monitoring/social-media-campaigns", "method": "GET", "business_function": "Campaign Management", "expected_codes": [200, 401, 403, 404]},
+            {"url": "/api/monitoring/social-media-test", "method": "POST", "business_function": "Automation Testing", "expected_codes": [200, 401, 403, 404]}
         ]
         
         endpoint_results = {}
+        overall_http_status = 200 # Default to 200 if all pass
         
         async with httpx.AsyncClient() as client:
             for endpoint in endpoints_to_test:
@@ -1549,16 +1557,24 @@ async def test_social_media_api_endpoints():
                     else:
                         response = await client.post(url, json={})
                     
-                    # Business-critical endpoints should be accessible (even if auth required)
+                    status_code = response.status_code
+                    # Prioritize the "worst" status code for overall result
+                    if status_code not in endpoint['expected_codes']:
+                        if overall_http_status == 200 or status_code > overall_http_status:
+                            overall_http_status = status_code
+                    
                     endpoint_results[endpoint['business_function']] = {
-                        "endpoint_accessible": response.status_code in [200, 401, 403, 422],
-                        "status_code": response.status_code,
+                        "endpoint_accessible": status_code in endpoint['expected_codes'],
+                        "status_code": status_code,
                         "business_impact": "HIGH" if endpoint['business_function'] in ["Performance Analytics", "Campaign Management"] else "MEDIUM"
                     }
                     
                 except Exception as endpoint_error:
+                    # If any endpoint fails, set overall status to 500
+                    overall_http_status = 500
                     endpoint_results[endpoint['business_function']] = {
                         "endpoint_accessible": False,
+                        "status_code": 500, # Indicate a server-side error for unreachable endpoints
                         "error": str(endpoint_error),
                         "business_impact": "HIGH"
                     }
@@ -1569,8 +1585,9 @@ async def test_social_media_api_endpoints():
         business_continuity_score = (accessible_endpoints / total_endpoints) * 100
         
         return {
-            "status": "passed" if business_continuity_score > 75 else "failed",
+            "status": "passed" if business_continuity_score > 75 and overall_http_status == 200 else "failed",
             "message": "Social media API endpoints tested",
+            "http_status_code": overall_http_status,
             "business_continuity_score": business_continuity_score,
             "accessible_endpoints": accessible_endpoints,
             "total_endpoints": total_endpoints,
@@ -1578,7 +1595,7 @@ async def test_social_media_api_endpoints():
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Social media API endpoints test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Social media API endpoints test failed: {str(e)}", "http_status_code": 500}
 """,
                     "expected_result": "Social media marketing API endpoints operational for business functions",
                     "timeout_seconds": 25
@@ -1681,6 +1698,7 @@ async def test_social_media_database_schema():
         return {
             "status": "passed" if business_readiness_score > 80 else "failed",
             "message": "Social media database schema validated",
+            "http_status_code": 200 if business_readiness_score > 80 else 500,
             "business_readiness_score": business_readiness_score,
             "business_ready_tables": business_ready_tables,
             "total_tables": total_tables,
@@ -1688,7 +1706,7 @@ async def test_social_media_database_schema():
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Social media database schema test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Social media database schema test failed: {str(e)}", "http_status_code": 500}
     finally:
         await conn.close()
 """,
@@ -1790,6 +1808,7 @@ async def test_social_media_validator_business_logic():
         return {
             "status": "passed" if business_protection_score > 70 else "failed",
             "message": "Social media validator business logic tested",
+            "http_status_code": 200 if business_protection_score > 70 else 500,
             "business_protection_score": business_protection_score,
             "successful_validations": successful_validations,
             "total_scenarios": total_scenarios,
@@ -1797,7 +1816,7 @@ async def test_social_media_validator_business_logic():
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Social media validator business logic test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Social media validator business logic test failed: {str(e)}", "http_status_code": 500}
 """,
                     "expected_result": "SocialMediaValidator protects business operations and ensures content quality",
                     "timeout_seconds": 35
@@ -1918,6 +1937,7 @@ async def test_social_media_automation_health():
         
         health_components["api_endpoints"] = {
             "available": api_healthy,
+            "status_code": response.status_code if api_healthy else 500,
             "business_function": "Dashboard & Campaign Management",
             "criticality": "HIGH"
         }
@@ -1933,6 +1953,12 @@ async def test_social_media_automation_health():
         total_critical = len(critical_components)
         total_high = len(high_components)
         
+        overall_http_status_code = 200 # Default to 200
+        if not api_healthy:
+            overall_http_status_code = health_components["api_endpoints"]["status_code"]
+        elif business_continuity_score < 60:
+            overall_http_status_code = 500 # Internal server error if overall health is poor
+            
         if total_critical > 0 and total_high > 0:
             business_continuity_score = (
                 (critical_available / total_critical) * 0.7 + 
@@ -1952,8 +1978,9 @@ async def test_social_media_automation_health():
             business_status = "CRITICAL"
         
         return {
-            "status": "passed" if business_continuity_score > 60 else "failed",
+            "status": "passed" if business_continuity_score > 60 and overall_http_status_code in [200, 401, 403] else "failed",
             "message": "Social media automation system health checked",
+            "http_status_code": overall_http_status_code,
             "business_continuity_score": business_continuity_score,
             "business_status": business_status,
             "critical_components_available": critical_available,
@@ -1964,7 +1991,7 @@ async def test_social_media_automation_health():
         }
         
     except Exception as e:
-        return {"status": "failed", "error": f"Social media automation health test failed: {str(e)}"}
+        return {"status": "failed", "error": f"Social media automation health test failed: {str(e)}", "http_status_code": 500}
 """,
                     "expected_result": "Social media automation system maintains business continuity",
                     "timeout_seconds": 40
@@ -4293,8 +4320,8 @@ async def test_complete_user_workflow():
                     "test_type": "load",
                     "priority": "medium",
                     "test_code": """
-import httpx
 import asyncio
+import time
 
 async def test_system_load_capacity():
     try:
