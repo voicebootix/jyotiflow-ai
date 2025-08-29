@@ -13,7 +13,7 @@ import secrets
 import string
 import time
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import logging 
 
 
@@ -607,136 +607,59 @@ async def test_user_login_endpoint():
                     "timeout_seconds": 30
                 },
                 {
-                    "test_name": "test_spiritual_guidance_endpoint",
-                    "description": "Test spiritual guidance API endpoint",
+                    "test_name": "test_spiritual_guidance_endpoint_refactored",
+                    "description": "Test spiritual guidance API endpoint using refactored helper",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
-import httpx
-import os
-import time
+import asyncio
+from backend.test_suite_generator import _run_api_test
 
-async def test_spiritual_guidance_endpoint():
-    try:
-        base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
-        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
-        endpoint_url = f"{base_url}/api/spiritual/guidance"
-        
-        headers = {
-            "X-Test-Run": "true",
-            "X-Test-Type": "spiritual-guidance",
-            "User-Agent": "JyotiFlow-TestRunner/1.0",
-            "Content-Type": "application/json"
-        }
-        
-        payload = {
-            "question": "What is my spiritual purpose in life?",
-            "birth_details": {
-                "date": "1990-01-01",
-                "time": "12:00",
-                "location": "Test City"
-            },
-            "language": "en"
-        }
-        
-        start_time = time.time()
-        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
-            response = await client.post(endpoint_url, json=payload, headers=headers)
-            execution_time = int((time.time() - start_time) * 1000)
-            
-            # Accept only legitimate statuses by default: 200 (success), 401 (auth required), 422 (validation)
-            # Only allow 500 responses when explicitly enabled via environment flag
-            valid_statuses = [200, 401, 422]
-            allow_500_responses = os.getenv("ALLOW_500_RESPONSES", "false").lower() == "true"
-            if allow_500_responses:
-                valid_statuses.append(500)
-            
-            result = {
-                "status": "passed" if response.status_code in valid_statuses else "failed",
-                "http_status_code": response.status_code,
-                "execution_time_ms": execution_time,
-                "endpoint_url": endpoint_url,
-                "message": f"Spiritual guidance endpoint returned {response.status_code}"
-            }
-            
-            if response.status_code == 200:
-                result["message"] = "Spiritual guidance endpoint accessible and working"
-            elif response.status_code == 401:
-                result["message"] = "Spiritual guidance endpoint accessible (authentication required as expected)"
-            elif response.status_code == 422:
-                result["message"] = "Spiritual guidance endpoint accessible (validation error as expected)"
-            elif response.status_code == 500:
-                # Mark 500 responses as failed unless explicitly allowed via environment flag
-                if not allow_500_responses:
-                    result["status"] = "failed"
-                    result["message"] = f"Spiritual guidance endpoint returned {response.status_code} (500 responses not allowed)"
-                else:
-                    result["message"] = f"Spiritual guidance endpoint accessible (500 response allowed)"
-            
-            return result
-    except Exception as e:
-        return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
+async def test_spiritual_guidance_endpoint_refactored():
+    payload = {
+        "question": "What is my spiritual purpose in life?",
+        "birth_details": {
+            "date": "1990-01-01",
+            "time": "12:00",
+            "location": "Test City"
+        },
+        "language": "en"
+    }
+    
+    result = await _run_api_test(
+        endpoint="/api/spiritual/guidance",
+        method="POST",
+        test_type="spiritual-guidance",
+        business_function="Spiritual Guidance",
+        payload=payload,
+        allow_500_responses=True
+    )
+    return result
 """,
                     "expected_result": "Spiritual guidance endpoint accessible (200, 401, or 422 expected; 500 allowed when ALLOW_500_RESPONSES=true)",
                     "timeout_seconds": 15
                 },
                 {
-                    "test_name": "test_spiritual_text_completion",
-                    "description": "Test spiritual text completion endpoint",
+                    "test_name": "test_spiritual_text_completion_refactored",
+                    "description": "Test spiritual text completion endpoint using refactored helper",
                     "test_type": "integration",
                     "priority": "high",
                     "test_code": """
-import httpx
-import os
-import time
+import asyncio
+from backend.test_suite_generator import _run_api_test
 
-async def test_spiritual_text_completion():
-    try:
-        # Direct endpoint configuration (not from database)
-        endpoint = "/api/spiritual/text-completion"
-        method = "POST"
-        business_function = "Spiritual Text Generation"
-        test_data = {"prompt": "Meditation benefits", "length": 100}
-        
-        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
-        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
-        expected_codes = [200, 401, 403, 422]
-        
-        # Execute HTTP request to actual endpoint
-        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
-        
-        try:
-            async with httpx.AsyncClient(timeout=http_client_timeout) as client:
-                start_time = time.time()
-                
-                headers = {
-                    "Content-Type": "application/json",
-                    "X-Test-Run": "true",
-                    "X-Test-Type": "spiritual-text-completion",
-                    "User-Agent": "JyotiFlow-TestRunner/1.0"
-                }
-                
-                response = await client.request(method, url, json=test_data, headers=headers)
-                
-                response_time_ms = int((time.time() - start_time) * 1000)
-                status_code = response.status_code
-                test_status = 'passed' if status_code in expected_codes else 'failed'
-                
-                result = {
-                    "status": test_status,
-                    "business_function": business_function,
-                    "http_status_code": status_code,
-                    "execution_time_ms": response_time_ms,
-                    "endpoint": endpoint,
-                    "message": f"Spiritual text completion endpoint returned {status_code}"
-                }
-                
-                if status_code not in expected_codes:
-                    result["error"] = f"Unexpected status code: {status_code}"
-                
-                return result
-        except Exception as e:
-            return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
+async def test_spiritual_text_completion_refactored():
+    test_data = {"prompt": "Meditation benefits", "length": 100}
+    
+    result = await _run_api_test(
+        endpoint="/api/spiritual/text-completion",
+        method="POST",
+        test_type="spiritual-text-completion",
+        business_function="Spiritual Text Generation",
+        payload=test_data,
+        expected_codes=[200, 401, 403, 422]
+    )
+    return result
 """,
                     "expected_result": "Spiritual text completion endpoint operational",
                     "timeout_seconds": 30
