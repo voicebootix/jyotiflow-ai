@@ -548,7 +548,7 @@ async def test_user_login_endpoint():
     try:
         base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
         http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
-        register_url = f"{base_url}/api/auth/register"
+        register_url = f"{base_url}/api/register"
         login_url = f"{base_url}/api/auth/login"
         
         test_email = generate_test_email()
@@ -669,28 +669,13 @@ async def test_spiritual_guidance_endpoint():
                 # Mark 500 responses as failed unless explicitly allowed via environment flag
                 if not allow_500_responses:
                     result["status"] = "failed"
-                    result["message"] = "Spiritual guidance endpoint returned 500 Server Error"
-                    # Include response details for debugging
-                    try:
-                        error_body = response.json()
-                        result["details"] = {
-                            "status_code": response.status_code,
-                            "response_body": error_body
-                        }
-                    except:
-                        result["details"] = {
-                            "status_code": response.status_code,
-                            "response_text": response.text if hasattr(response, 'text') else "Unable to parse response"
-                        }
+                    result["message"] = f"Spiritual guidance endpoint returned {response.status_code} (500 responses not allowed)"
                 else:
-                    result["message"] = "Spiritual guidance endpoint returned 500 (allowed when ALLOW_500_RESPONSES=true)"
-                    result["details"] = {"status_code": response.status_code, "note": "500 responses explicitly allowed"}
-            else:
-                result["error"] = f"Unexpected status code: {response.status_code}"
-                
+                    result["message"] = f"Spiritual guidance endpoint accessible (500 response allowed)"
+            
             return result
     except Exception as e:
-        return {"status": "failed", "error": str(e), "http_status_code": None}
+        return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
 """,
                     "expected_result": "Spiritual guidance endpoint accessible (200, 401, or 422 expected; 500 allowed when ALLOW_500_RESPONSES=true)",
                     "timeout_seconds": 15
@@ -828,7 +813,141 @@ async def test_retrieve_spiritual_text_completion():
             "description": "Critical tests for spiritual endpoints, avatar generation, pricing, knowledge domains, and birth chart caching - Database Driven",
             "test_cases": [
                 {
-                    
+                    "test_name": "test_spiritual_guidance_endpoint",
+                    "description": "Test spiritual guidance API endpoint",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+import os
+import time
+
+async def test_spiritual_guidance_endpoint():
+    try:
+        base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
+        endpoint_url = f"{base_url}/api/spiritual/guidance"
+        
+        headers = {
+            "X-Test-Run": "true",
+            "X-Test-Type": "spiritual-guidance",
+            "User-Agent": "JyotiFlow-TestRunner/1.0",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "question": "What is my spiritual purpose in life?",
+            "birth_details": {
+                "date": "1990-01-01",
+                "time": "12:00",
+                "location": "Test City"
+            },
+            "language": "en"
+        }
+        
+        start_time = time.time()
+        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
+            response = await client.post(endpoint_url, json=payload, headers=headers)
+            execution_time = int((time.time() - start_time) * 1000)
+            
+            # Accept only legitimate statuses by default: 200 (success), 401 (auth required), 422 (validation)
+            # Only allow 500 responses when explicitly enabled via environment flag
+            valid_statuses = [200, 401, 422]
+            allow_500_responses = os.getenv("ALLOW_500_RESPONSES", "false").lower() == "true"
+            if allow_500_responses:
+                valid_statuses.append(500)
+            
+            result = {
+                "status": "passed" if response.status_code in valid_statuses else "failed",
+                "http_status_code": response.status_code,
+                "execution_time_ms": execution_time,
+                "endpoint_url": endpoint_url,
+                "message": f"Spiritual guidance endpoint returned {response.status_code}"
+            }
+            
+            if response.status_code == 200:
+                result["message"] = "Spiritual guidance endpoint accessible and working"
+            elif response.status_code == 401:
+                result["message"] = "Spiritual guidance endpoint accessible (authentication required as expected)"
+            elif response.status_code == 422:
+                result["message"] = "Spiritual guidance endpoint accessible (validation error as expected)"
+            elif response.status_code == 500:
+                # Mark 500 responses as failed unless explicitly allowed via environment flag
+                if not allow_500_responses:
+                    result["status"] = "failed"
+                    result["message"] = f"Spiritual guidance endpoint returned {response.status_code} (500 responses not allowed)"
+                else:
+                    result["message"] = f"Spiritual guidance endpoint accessible (500 response allowed)"
+            
+            return result
+    except Exception as e:
+        return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
+""",
+                    "expected_result": "Spiritual guidance endpoint accessible (200, 401, or 422 expected; 500 allowed when ALLOW_500_RESPONSES=true)",
+                    "timeout_seconds": 15
+                },
+                {
+                    "test_name": "test_spiritual_text_completion",
+                    "description": "Test spiritual text completion endpoint",
+                    "test_type": "integration",
+                    "priority": "high",
+                    "test_code": """
+import httpx
+import os
+import time
+
+async def test_spiritual_text_completion():
+    try:
+        # Direct endpoint configuration (not from database)
+        endpoint = "/api/spiritual/text-completion"
+        method = "POST"
+        business_function = "Spiritual Text Generation"
+        test_data = {"prompt": "Meditation benefits", "length": 100}
+        
+        api_base_url = os.getenv('API_BASE_URL', 'https://jyotiflow-ai.onrender.com')
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0')) # Default to 30.0 for general APIs
+        expected_codes = [200, 401, 403, 422]
+        
+        # Execute HTTP request to actual endpoint
+        url = api_base_url.rstrip('/') + '/' + endpoint.lstrip('/')
+        
+        try:
+            async with httpx.AsyncClient(timeout=http_client_timeout) as client:
+                start_time = time.time()
+                
+                headers = {
+                    "Content-Type": "application/json",
+                    "X-Test-Run": "true",
+                    "X-Test-Type": "spiritual-text-completion",
+                    "User-Agent": "JyotiFlow-TestRunner/1.0"
+                }
+                
+                response = await client.request(method, url, json=test_data, headers=headers)
+                
+                response_time_ms = int((time.time() - start_time) * 1000)
+                status_code = response.status_code
+                test_status = 'passed' if status_code in expected_codes else 'failed'
+                
+                result = {
+                    "status": test_status,
+                    "business_function": business_function,
+                    "http_status_code": status_code,
+                    "execution_time_ms": response_time_ms,
+                    "endpoint": endpoint,
+                    "message": f"Spiritual text completion endpoint returned {status_code}"
+                }
+                
+                if status_code not in expected_codes:
+                    result["error"] = f"Unexpected status code: {status_code}"
+                
+                return result
+        except Exception as e:
+            return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
+""",
+                    "expected_result": "Spiritual text completion endpoint operational",
+                    "timeout_seconds": 30
+                },
+                {
                     "test_name": "test_business_logic_validator",
                     "description": "Test business logic validation endpoint with environment-configurable base URL",
                     "test_type": "integration",
