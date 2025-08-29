@@ -1953,11 +1953,8 @@ async def test_social_media_automation_health():
         total_critical = len(critical_components)
         total_high = len(high_components)
         
-        overall_http_status_code = 200 # Default to 200
-        if not api_healthy:
-            overall_http_status_code = health_components["api_endpoints"]["status_code"]
-        elif business_continuity_score < 60:
-            overall_http_status_code = 500 # Internal server error if overall health is poor
+        # Initialize business_continuity_score with a default value
+        business_continuity_score = 0
             
         if total_critical > 0 and total_high > 0:
             business_continuity_score = (
@@ -1966,6 +1963,12 @@ async def test_social_media_automation_health():
             ) * 100
         else:
             business_continuity_score = 0
+
+        overall_http_status_code = 200 # Default to 200
+        if not api_healthy:
+            overall_http_status_code = health_components["api_endpoints"]["status_code"]
+        elif business_continuity_score < 60:
+            overall_http_status_code = 500 # Internal server error if overall health is poor
         
         # Determine business status
         if business_continuity_score >= 90:
@@ -4322,6 +4325,7 @@ async def test_complete_user_workflow():
                     "test_code": """
 import asyncio
 import time
+import httpx
 
 async def test_system_load_capacity():
     try:
