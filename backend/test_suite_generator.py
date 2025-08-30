@@ -15,6 +15,7 @@ import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, Optional, List
 import logging 
+import httpx
 
 
 # Configure logging
@@ -98,6 +99,74 @@ def generate_test_email() -> str:
         A unique test email address
     """
     return f"test_{uuid.uuid4()}@example.com"
+
+# Helper function to run API tests
+async def _run_api_test(
+    endpoint: str,
+    method: str = "GET",
+    test_type: str = "",
+    business_function: str = "",
+    payload: Optional[Dict[str, Any]] = None,
+    expected_codes: Optional[List[int]] = None,
+    dynamic_headers: Optional[Dict[str, str]] = None,
+    allow_500_responses: bool = False
+) -> Dict[str, Any]:
+    try:
+        base_url = os.getenv("API_BASE_URL", "https://jyotiflow-ai.onrender.com")
+        http_client_timeout = float(os.getenv('HTTP_CLIENT_TIMEOUT', '30.0'))
+
+        url = f"{base_url.rstrip('/')}/{endpoint.lstrip('/')}"
+        
+        headers = {
+            "Content-Type": "application/json",
+            "X-Test-Run": "true",
+            "X-Test-Type": test_type,
+            "User-Agent": "JyotiFlow-TestRunner/1.0"
+        }
+        if dynamic_headers:
+            headers.update(dynamic_headers)
+
+        start_time = time.time()
+        async with httpx.AsyncClient(timeout=http_client_timeout) as client:
+            response = await client.request(method, url, json=payload, headers=headers)
+            execution_time = int((time.time() - start_time) * 1000)
+            status_code = response.status_code
+
+            valid_statuses = expected_codes if expected_codes else [200, 401, 403, 422]
+            if allow_500_responses:
+                valid_statuses.append(500)
+
+            test_status = "passed" if status_code in valid_statuses else "failed"
+
+            result = {
+                "status": test_status,
+                "business_function": business_function,
+                "http_status_code": status_code,
+                "execution_time_ms": execution_time,
+                "endpoint_url": url,
+                "message": f"{business_function} endpoint returned {status_code}"
+            }
+
+            if status_code == 200:
+                result["message"] = f"{business_function} endpoint accessible and working"
+            elif status_code == 401:
+                result["message"] = f"{business_function} endpoint accessible (authentication required as expected)"
+            elif status_code == 403:
+                result["message"] = f"{business_function} endpoint accessible (permission denied as expected)"
+            elif status_code == 422:
+                result["message"] = f"{business_function} endpoint accessible (validation error as expected)"
+            elif status_code == 500:
+                if not allow_500_responses:
+                    result["status"] = "failed"
+                    result["message"] = f"{business_function} endpoint returned {status_code} (500 responses not allowed)"
+                else:
+                    result["message"] = f"{business_function} endpoint accessible (500 response allowed)"
+            elif status_code not in valid_statuses:
+                result["error"] = f"Unexpected status code: {status_code}"
+
+            return result
+    except Exception as e:
+        return {"status": "failed", "error": f"Test failed: {str(e)}", "http_status_code": 500}
 
 class TestSuiteGenerator:
     """
@@ -1619,14 +1688,17 @@ async def test_social_media_database_schema():
     if not DATABASE_URL:
         return {"status": "failed", "error": "DATABASE_URL not set"}
 
+    conn = None  # Initialize conn to None
     try:
         conn = await asyncpg.connect(DATABASE_URL)
         # Check for the existence of a key table related to social media, e.g., 'social_posts'
         await conn.execute("SELECT id, platform, content FROM social_posts LIMIT 1")
-        await conn.close()
         return {"status": "passed", "message": "Social media database schema check passed"}
     except Exception as e:
         return {"status": "failed", "error": f"Database schema test failed: {str(e)}", "http_status_code": 500}
+    finally:
+        if conn:
+            await conn.close()
 """,
                     "expected_result": "Social media database schema is correctly defined and accessible",
                     "timeout_seconds": 15
@@ -1679,6 +1751,62 @@ async def test_social_media_validator_business_logic():
         return {"status": "failed", "message": f"Validation failed. Valid: {result_valid['status']}, Invalid: {result_invalid['status']}"}
 """,
                     "expected_result": "Social media business logic validators function correctly",
+                    "timeout_seconds": 20
+                },
+                {
+                    "test_name": "test_social_media_validator_business_logic_valid",
+                    "description": "Social media business logic - content validation (valid input)",
+                    "test_type": "unit",
+                    "priority": "high",
+                    "test_code": """
+import asyncio
+from backend.test_suite_generator import _run_api_test
+
+async def test_social_media_validator_business_logic_valid():
+    payload_valid = {
+        "content": "This is a valid post for social media.",
+        "platform": "twitter"
+    }
+
+    result_valid = await _run_api_test(
+        endpoint="/api/social-media/validate-content",
+        method="POST",
+        test_type="business-logic-validation-valid",
+        business_function="Social Media Content Validation (Valid)",
+        payload=payload_valid,
+        expected_codes=[200]  # Expect 200 for valid content
+    )
+    return result_valid
+""",
+                    "expected_result": "Social media business logic validator correctly handles valid content",
+                    "timeout_seconds": 20
+                },
+                {
+                    "test_name": "test_social_media_validator_business_logic_invalid",
+                    "description": "Social media business logic - content validation (invalid input)",
+                    "test_type": "unit",
+                    "priority": "high",
+                    "test_code": """
+import asyncio
+from backend.test_suite_generator import _run_api_test
+
+async def test_social_media_validator_business_logic_invalid():
+    payload_invalid = {
+        "content": "This content is too long for twitter and contains #bad_word",
+        "platform": "twitter"
+    }
+
+    result_invalid = await _run_api_test(
+        endpoint="/api/social-media/validate-content",
+        method="POST",
+        test_type="business-logic-validation-invalid",
+        business_function="Social Media Content Validation (Invalid)",
+        payload=payload_invalid,
+        expected_codes=[422]  # Expect 422 for invalid content
+    )
+    return result_invalid
+""",
+                    "expected_result": "Social media business logic validator correctly identifies invalid content",
                     "timeout_seconds": 20
                 },
                 {
