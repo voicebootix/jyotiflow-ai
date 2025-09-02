@@ -27,14 +27,61 @@ except ImportError:
 DEFAULT_EMBED_DIM = 1536
 
 try:
-    import psycopg2
-    import psycopg2.extras
-    PSYCOPG2_AVAILABLE = True
+    import psycopg
+    from psycopg import AsyncConnection
+    from psycopg.rows import dict_row
+    PSYCOPG_AVAILABLE = True
 except ImportError:
-    PSYCOPG2_AVAILABLE = False
+    PSYCOPG_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class AsyncPGCompatPool:
+    """Adapter to provide asyncpg-like API using psycopg v3"""
+    
+    def __init__(self, connection_string: str):
+        self.connection_string = connection_string
+        self._connection = None
+    
+    async def acquire(self):
+        """Return an async connection compatible with asyncpg API"""
+        if PSYCOPG_AVAILABLE:
+            conn = await AsyncConnection.connect(self.connection_string, row_factory=dict_row)
+            return AsyncPGCompatConnection(conn)
+        else:
+            raise ImportError("psycopg not available")
+    
+    def __aenter__(self):
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self._connection:
+            await self._connection.close()
+
+class AsyncPGCompatConnection:
+    """Adapter to provide asyncpg-like connection API using psycopg v3"""
+    
+    def __init__(self, psycopg_conn):
+        self._conn = psycopg_conn
+    
+    async def fetchval(self, query: str, *args):
+        """Execute query and return single value (asyncpg-compatible)"""
+        async with self._conn.cursor() as cur:
+            await cur.execute(query, args)
+            result = await cur.fetchone()
+            return result[0] if result else None
+    
+    async def execute(self, query: str, *args):
+        """Execute query (asyncpg-compatible)"""
+        async with self._conn.cursor() as cur:
+            await cur.execute(query, args)
+    
+    async def __aenter__(self):
+        return self
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self._conn.close()
 
 def format_embedding_for_storage(embedding: Any, use_pgvector: bool) -> Any:
     """
