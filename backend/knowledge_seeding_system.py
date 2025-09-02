@@ -77,6 +77,13 @@ class AsyncPGCompatConnection:
             result = await cur.fetchone()
             return result[0] if result else None
     
+    async def fetchrow(self, query: str, *args):
+        """Execute query and return single row (asyncpg-compatible)"""
+        async with self._conn.cursor() as cur:
+            await cur.execute(query, args)
+            result = await cur.fetchone()
+            return result
+    
     async def execute(self, query: str, *args):
         """Execute query (asyncpg-compatible)"""
         async with self._conn.cursor() as cur:
