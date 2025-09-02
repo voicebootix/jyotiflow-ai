@@ -27,10 +27,11 @@ except ImportError:
 DEFAULT_EMBED_DIM = 1536
 
 try:
-    import asyncpg
-    ASYNCPG_AVAILABLE = True
+    import psycopg2
+    import psycopg2.extras
+    PSYCOPG2_AVAILABLE = True
 except ImportError:
-    ASYNCPG_AVAILABLE = False
+    PSYCOPG2_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
