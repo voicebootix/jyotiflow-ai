@@ -7,6 +7,7 @@ import os
 import json
 import asyncio
 import logging
+import re
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 
@@ -29,8 +30,7 @@ DEFAULT_EMBED_DIM = 1536
 try:
     import psycopg
     from psycopg import AsyncConnection
-    from psycopg.rows import dict_row
-    import re
+    from psycopg.rows import dict_row, tuple_row
     PSYCOPG_AVAILABLE = True
 except ImportError:
     PSYCOPG_AVAILABLE = False
