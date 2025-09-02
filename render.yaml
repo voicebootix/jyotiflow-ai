@@ -4,6 +4,7 @@ services:
     env: python
     region: oregon
     plan: free
+    runtime: python-3.12.0
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
     buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt --prefer-binary"
     startCommand: "gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:$PORT"
