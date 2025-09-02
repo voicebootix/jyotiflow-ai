@@ -68,17 +68,30 @@ class _AcquireContext:
                 autocommit=True
             )
             
-            # Try to register pgvector extension
+            # Register pgvector type adapters for Python list <-> vector mapping
             try:
-                await self._raw_conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+                await self._register_pgvector_adapters(self._raw_conn)
             except Exception as e:
-                logger.warning(f"Could not register pgvector: {e}")
+                logger.warning(f"Could not register pgvector type adapters (extension may not be installed): {e}")
             
             # Wrap in compatibility adapter
             self._compat_conn = AsyncPGCompatConnection(self._raw_conn)
             return self._compat_conn
         else:
             raise ImportError("psycopg not available")
+    
+    async def _register_pgvector_adapters(self, conn):
+        """Register pgvector type adapters for Python list <-> vector conversion"""
+        try:
+            # Import pgvector adapter registration
+            import pgvector.psycopg
+            # Register adapters on this connection
+            await pgvector.psycopg.register_vector_async(conn)
+            logger.debug("pgvector type adapters registered successfully")
+        except ImportError:
+            logger.warning("pgvector package not available - vector operations may not work")
+        except Exception as e:
+            logger.warning(f"Failed to register pgvector adapters: {e}")
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Close the raw connection"""
