@@ -14,7 +14,7 @@ except ImportError:
     PSYCOPG_AVAILABLE = False
     
 # Import our compatibility adapter
-from knowledge_seeding_system import AsyncPGCompatPool
+from .knowledge_seeding_system import AsyncPGCompatPool
 import logging
 import time
 
@@ -113,7 +113,7 @@ async def initialize_jyotiflow_simple():
             db_pool = AsyncPGCompatPool(database_url)
             logger.info("✅ Using psycopg v3 with asyncpg compatibility adapter")
         else:
-            raise ImportError("psycopg not available - please install psycopg[binary]")
+            raise ModuleNotFoundError("psycopg not available - install psycopg[binary]")
         
         # Step 2: Ensure base tables exist first (required for migrations)
         logger.info("🗄️ Ensuring base monitoring tables exist...")

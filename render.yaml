@@ -12,8 +12,6 @@ services:
     envVars:
       - key: WEB_CONCURRENCY
         value: "1"
-      - key: PORT
-        value: "10000"
 
       # Database Configuration (will use your existing DATABASE_URL from dashboard)
       - key: DATABASE_URL

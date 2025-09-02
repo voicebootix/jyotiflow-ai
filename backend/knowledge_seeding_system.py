@@ -52,12 +52,17 @@ class AsyncPGCompatPool:
         else:
             raise ImportError("psycopg not available")
     
+    async def close(self):
+        """Close the pool (no-op for compatibility)"""
+        if self._connection:
+            await self._connection.close()
+            self._connection = None
+    
     def __aenter__(self):
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self._connection:
-            await self._connection.close()
+        await self.close()
 
 class AsyncPGCompatConnection:
     """Adapter to provide asyncpg-like connection API using psycopg v3"""
