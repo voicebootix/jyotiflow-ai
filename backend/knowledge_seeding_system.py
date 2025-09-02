@@ -30,12 +30,62 @@ try:
     import psycopg
     from psycopg import AsyncConnection
     from psycopg.rows import dict_row
+    import re
     PSYCOPG_AVAILABLE = True
 except ImportError:
     PSYCOPG_AVAILABLE = False
 
+# Parameter translation helper for asyncpg-style $n to psycopg %s
+_DOLLAR_PARAM_RE = re.compile(r'\$(\d+)')
+
+def _translate_params(query: str, args: tuple):
+    """Convert asyncpg-style $n placeholders to psycopg %s format"""
+    if not args:
+        return query, args
+    
+    # Replace $1, $2, etc. with %s
+    translated_query = _DOLLAR_PARAM_RE.sub('%s', query)
+    return translated_query, args
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+class _AcquireContext:
+    """Async context manager for acquiring database connections"""
+    
+    def __init__(self, connection_string: str):
+        self.connection_string = connection_string
+        self._raw_conn = None
+        self._compat_conn = None
+    
+    async def __aenter__(self):
+        """Open connection and return AsyncPGCompatConnection"""
+        if PSYCOPG_AVAILABLE:
+            # Open raw connection with dict row factory
+            self._raw_conn = await AsyncConnection.connect(
+                self.connection_string, 
+                row_factory=dict_row,
+                autocommit=True
+            )
+            
+            # Try to register pgvector extension
+            try:
+                await self._raw_conn.execute("CREATE EXTENSION IF NOT EXISTS vector")
+            except Exception as e:
+                logger.warning(f"Could not register pgvector: {e}")
+            
+            # Wrap in compatibility adapter
+            self._compat_conn = AsyncPGCompatConnection(self._raw_conn)
+            return self._compat_conn
+        else:
+            raise ImportError("psycopg not available")
+    
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Close the raw connection"""
+        if self._raw_conn:
+            await self._raw_conn.close()
+            self._raw_conn = None
+            self._compat_conn = None
 
 class AsyncPGCompatPool:
     """Adapter to provide asyncpg-like API using psycopg v3"""
@@ -44,13 +94,9 @@ class AsyncPGCompatPool:
         self.connection_string = connection_string
         self._connection = None
     
-    async def acquire(self):
-        """Return an async connection compatible with asyncpg API"""
-        if PSYCOPG_AVAILABLE:
-            conn = await AsyncConnection.connect(self.connection_string, row_factory=dict_row)
-            return AsyncPGCompatConnection(conn)
-        else:
-            raise ImportError("psycopg not available")
+    def acquire(self):
+        """Return an async context manager for database connections"""
+        return _AcquireContext(self.connection_string)
     
     async def close(self):
         """Close the pool (no-op for compatibility)"""
@@ -72,22 +118,26 @@ class AsyncPGCompatConnection:
     
     async def fetchval(self, query: str, *args):
         """Execute query and return single value (asyncpg-compatible)"""
-        async with self._conn.cursor() as cur:
-            await cur.execute(query, args)
+        translated_query, translated_args = _translate_params(query, args)
+        # Use tuple row factory for fetchval to access by index
+        async with self._conn.cursor(row_factory=None) as cur:
+            await cur.execute(translated_query, translated_args)
             result = await cur.fetchone()
             return result[0] if result else None
     
     async def fetchrow(self, query: str, *args):
         """Execute query and return single row (asyncpg-compatible)"""
+        translated_query, translated_args = _translate_params(query, args)
         async with self._conn.cursor() as cur:
-            await cur.execute(query, args)
+            await cur.execute(translated_query, translated_args)
             result = await cur.fetchone()
             return result
     
     async def execute(self, query: str, *args):
         """Execute query (asyncpg-compatible)"""
+        translated_query, translated_args = _translate_params(query, args)
         async with self._conn.cursor() as cur:
-            await cur.execute(query, args)
+            await cur.execute(translated_query, translated_args)
     
     async def __aenter__(self):
         return self
