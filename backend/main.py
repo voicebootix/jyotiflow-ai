@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.exceptions import RequestValidationError # REFRESH.MD: Import RequestValidationError for custom handling
 from contextlib import asynccontextmanager
-import asyncpg
+# import asyncpg  # Optional - only needed for Sentry integration
 from datetime import datetime
 import os
 import asyncio

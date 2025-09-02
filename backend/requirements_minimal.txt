@@ -5,9 +5,8 @@
 fastapi==0.111.0
 uvicorn[standard]==0.24.0
 
-# Database - asyncpg for async PostgreSQL operations
-asyncpg==0.29.0
-pgvector==0.2.5
+# Database - psycopg2-binary for stable PostgreSQL operations
+psycopg2-binary==2.9.9
 
 # HTTP requests for RSS feeds
 aiohttp==3.9.5
