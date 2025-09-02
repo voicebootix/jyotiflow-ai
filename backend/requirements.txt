@@ -1,8 +1,8 @@
 fastapi==0.111.0
 uvicorn[standard]==0.24.0
-psycopg2-binary==2.9.9  # Stable wheels for all Python versions
-# asyncpg==0.29.0  # Python 3.13 compatibility issues, using psycopg2-binary instead
-# pgvector==0.2.5  # Not needed with psycopg2-binary approach
+psycopg[binary]>=3.2.9  # Native async support with Python 3.13 compatibility
+pgvector==0.2.5  # PostgreSQL vector extension support
+# asyncpg==0.29.0  # Replaced with psycopg v3 for better Python 3.13 support
 PyJWT==2.8.0
 bcrypt==4.1.2
 python-multipart==0.0.9

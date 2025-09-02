@@ -5,7 +5,16 @@ Now includes proper migration support following .cursor rules
 """
 
 import os
-import asyncpg
+try:
+    import psycopg
+    from psycopg import AsyncConnection
+    from psycopg.rows import dict_row
+    PSYCOPG_AVAILABLE = True
+except ImportError:
+    PSYCOPG_AVAILABLE = False
+    
+# Import our compatibility adapter
+from .knowledge_seeding_system import AsyncPGCompatPool
 import logging
 import time
 
@@ -100,16 +109,11 @@ async def initialize_jyotiflow_simple():
     try:
         # Step 1: Create single shared database pool first
         logger.info("🗄️ Creating shared database pool...")
-        db_pool = await asyncpg.create_pool(
-            database_url,
-            min_size=2,
-            max_size=10,
-            timeout=15,  # Connection timeout in seconds
-            command_timeout=60,
-            server_settings={
-                'application_name': 'jyotiflow_clean_system'
-            }
-        )
+        if PSYCOPG_AVAILABLE:
+            db_pool = AsyncPGCompatPool(database_url)
+            logger.info("✅ Using psycopg v3 with asyncpg compatibility adapter")
+        else:
+            raise ModuleNotFoundError("psycopg not available - install psycopg[binary]")
         
         # Step 2: Ensure base tables exist first (required for migrations)
         logger.info("🗄️ Ensuring base monitoring tables exist...")

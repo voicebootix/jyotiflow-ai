@@ -5,8 +5,9 @@
 fastapi==0.111.0
 uvicorn[standard]==0.24.0
 
-# Database - psycopg2-binary for stable PostgreSQL operations
-psycopg2-binary==2.9.9
+# Database - psycopg v3 with async support and Python 3.13 compatibility
+psycopg[binary]>=3.2.9
+pgvector==0.2.5
 
 # HTTP requests for RSS feeds
 aiohttp==3.9.5

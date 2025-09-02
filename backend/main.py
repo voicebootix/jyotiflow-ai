@@ -61,11 +61,12 @@ if sentry_dsn:
     except ImportError:
         print("⚠️ SQLAlchemy integration not available")
     
-    try:
-        from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
-        integrations.append(AsyncPGIntegration())
-    except ImportError:
-        print("⚠️ AsyncPG integration not available")
+    # AsyncPG integration removed - using psycopg v3 instead
+    # try:
+    #     from sentry_sdk.integrations.asyncpg import AsyncPGIntegration  # type: ignore
+    #     integrations.append(AsyncPGIntegration())
+    # except ImportError:
+    #     print("⚠️ AsyncPG integration not available")
 
     # Parse traces_sample_rate with error handling
     sample_rate_env = os.getenv("SENTRY_TRACES_SAMPLE_RATE", "0.1")
