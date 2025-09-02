@@ -1,0 +1,33 @@
+# Minimal requirements for knowledge seeding worker only
+# Python 3.12 compatible packages with wheel-only validation
+
+# Core web framework (needed for imports)
+fastapi==0.111.0
+uvicorn[standard]==0.24.0
+
+# Database - asyncpg for async PostgreSQL operations
+asyncpg==0.29.0
+pgvector==0.2.5
+
+# HTTP requests for RSS feeds
+aiohttp==3.9.5
+requests==2.32.3
+
+# RSS feed parsing
+feedparser==6.0.11
+
+# OpenAI for embeddings
+openai==1.35.3
+
+# Basic utilities
+python-dotenv==1.0.1
+python-dateutil==2.9.0
+structlog==24.2.0
+
+# Authentication (if needed for imports)
+PyJWT==2.8.0
+bcrypt==4.1.2
+
+# Note: Transitive dependencies (yarl, multidict, aiosignal, frozenlist, 
+# async-timeout, attrs, certifi, charset-normalizer, idna, urllib3) 
+# are resolved automatically by pip

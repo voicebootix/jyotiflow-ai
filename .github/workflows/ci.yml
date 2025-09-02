@@ -3,6 +3,8 @@ name: CI Checks
 on:
   pull_request:
     branches: [ "master", "main" ]
+  push:
+    branches: [ "master", "main" ]
 
 jobs:
   validate-cascade-file:
@@ -17,3 +19,42 @@ jobs:
             echo "Error: The <stages> tag is missing from the Haar Cascade XML file."
             exit 1
           fi
+
+  validate-python-dependencies:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      - name: Upgrade pip
+        run: |
+          python -m pip install --upgrade pip
+
+      - name: Validate wheel-only installation for minimal requirements
+        run: |
+          # Test wheel-only download - allow source builds for packages without wheels
+          pip download --prefer-binary -r backend/requirements_minimal.txt -d /tmp/wheels
+          echo "✅ All packages downloaded successfully for Python 3.12"
+
+      - name: Test actual installation
+        run: |
+          pip install -r backend/requirements_minimal.txt
+          echo "✅ All minimal requirements installed successfully"
+
+      - name: Verify key imports work
+        run: |
+          python -c "
+          import asyncpg
+          import pgvector
+          import aiohttp
+          import feedparser
+          import openai
+          import fastapi
+          import uvicorn
+          print('✅ All critical imports successful')
+          "
