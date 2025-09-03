@@ -10,7 +10,7 @@ import logging
 
 # Import the enhanced birth chart logic from spiritual.py to avoid duplication
 from .spiritual import get_prokerala_birth_chart_data, create_south_indian_chart_structure
-from db import db_manager
+from ..db import db_manager
 try:
     from monitoring.integration_hooks import MonitoringHooks
 except ImportError:
