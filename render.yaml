@@ -10,10 +10,7 @@ services:
     startCommand: "python -m gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:${PORT}"
     healthCheckPath: "/health"
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.12.10"
       - key: WEB_CONCURRENCY
-        value: "1"
 
       # Database Configuration (will use your existing DATABASE_URL from dashboard)
       - key: DATABASE_URL
@@ -73,8 +70,6 @@ services:
     buildCommand: "python -m pip install --upgrade pip && python -m pip install -r backend/requirements_minimal.txt --prefer-binary --no-cache-dir"
     startCommand: "python -m backend.knowledge_seeding_system"
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.12.10"
       - key: DATABASE_URL
         fromDatabase:
           name: jyotiflow-db
