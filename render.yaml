@@ -7,7 +7,7 @@ services:
     runtime: python
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
     buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt --prefer-binary"
-    startCommand: "PYTHONPATH=$PYTHONPATH:./backend gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:${PORT}"
+    startCommand: "gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:${PORT}"
     healthCheckPath: "/health"
     envVars:
       - key: WEB_CONCURRENCY
@@ -69,7 +69,7 @@ services:
     env: python
     runtime: python
     buildCommand: "pip install --upgrade pip && pip install -r backend/requirements_minimal.txt --prefer-binary --no-cache-dir"
-    startCommand: "PYTHONPATH=$PYTHONPATH:./backend python backend/knowledge_seeding_system.py"
+    startCommand: "python -m backend.knowledge_seeding_system"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
