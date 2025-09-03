@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 import asyncpg
 
 from auth.auth_helpers import AuthenticationHelper
-from db import get_db
+from ..db import get_db
 from schemas.response import StandardResponse
 from schemas.social_media import (
     Campaign, ContentCalendarItem, GenerateAllAvatarPreviewsRequest, MarketingAsset,

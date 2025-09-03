@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from typing import List, Dict, Any
-from db import get_db
+from ..db import get_db
 from utils.analytics_utils import calculate_revenue_metrics, generate_ai_recommendations
 import uuid
 import random

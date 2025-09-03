@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from schemas.content import SocialContentCreate, SocialContentOut, SatsangEventCreate, SatsangEventOut
-from db import get_db
+from ..db import get_db
 import uuid
 from deps import get_admin_user
 

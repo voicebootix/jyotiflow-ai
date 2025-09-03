@@ -20,7 +20,7 @@ from universal_pricing_engine import (
     ServiceConfiguration,
     PricingResult
 )
-from db import get_db
+from ..db import get_db
 
 router = APIRouter(prefix="/api/spiritual/enhanced", tags=["Universal Pricing"])
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from db import get_db
+from ..db import get_db
 import os
 import time
 from datetime import datetime, timezone

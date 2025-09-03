@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from db import get_db
+from ..db import get_db
 from typing import List, Dict, Any
 import json
 import logging

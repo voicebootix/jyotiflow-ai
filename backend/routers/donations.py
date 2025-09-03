@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 import os
 import uuid
 
-from db import get_db
+from ..db import get_db
 from deps import get_current_user
 
 router = APIRouter(prefix="/api/donations", tags=["donations"])
