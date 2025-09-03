@@ -6,10 +6,12 @@ services:
     plan: free
     runtime: python
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
-    buildCommand: "python3.12 -m pip install --upgrade pip && python3.12 -m pip install -r backend/requirements.txt --prefer-binary"
-    startCommand: "python3.12 -m gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:${PORT}"
+    buildCommand: "python -m pip install --upgrade pip && python -m pip install -r backend/requirements.txt --prefer-binary"
+    startCommand: "python -m gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:${PORT}"
     healthCheckPath: "/health"
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.10"
       - key: WEB_CONCURRENCY
         value: "1"
 
@@ -68,9 +70,11 @@ services:
     name: knowledge-seeder
     env: python
     runtime: python
-    buildCommand: "python3.12 -m pip install --upgrade pip && python3.12 -m pip install -r backend/requirements_minimal.txt --prefer-binary --no-cache-dir"
-    startCommand: "python3.12 -m backend.knowledge_seeding_system"
+    buildCommand: "python -m pip install --upgrade pip && python -m pip install -r backend/requirements_minimal.txt --prefer-binary --no-cache-dir"
+    startCommand: "python -m backend.knowledge_seeding_system"
     envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.10"
       - key: DATABASE_URL
         fromDatabase:
           name: jyotiflow-db
