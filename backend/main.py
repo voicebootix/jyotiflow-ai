@@ -95,19 +95,19 @@ if sentry_dsn:
 else:
     print("⚠️ Sentry DSN not configured - skipping Sentry initialization")
 
-# Import routers
-from routers import auth, user, spiritual, sessions, followup, donations, credits, services
-from routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
-from routers import admin_overview, admin_integrations
-from routers import content, ai, community, session_analytics
-from routers.social_media_marketing_router import social_marketing_router
-import db
+# Import routers - using relative imports to match router files
+from .routers import auth, user, spiritual, sessions, followup, donations, credits, services
+from .routers import admin_products, admin_subscriptions, admin_credits, admin_analytics, admin_content, admin_settings
+from .routers import admin_overview, admin_integrations
+from .routers import content, ai, community, session_analytics
+from .routers.social_media_marketing_router import social_marketing_router
+from . import db
 
 # Import the migration runner
-from run_migrations import MigrationRunner
+from .run_migrations import MigrationRunner
 
 # Import unified startup system
-from simple_unified_startup import initialize_unified_jyotiflow, cleanup_unified_system
+from .simple_unified_startup import initialize_unified_jyotiflow, cleanup_unified_system
 
 # Import enhanced spiritual guidance router
 try:
@@ -206,7 +206,7 @@ except ImportError:
     print("⚠️ Integration monitoring router not available")
 
 # Import database initialization
-from init_database import initialize_jyotiflow_database
+from .init_database import initialize_jyotiflow_database
 
 # Enhanced startup integration and fixes are now consolidated in simple_unified_startup.py
 
