@@ -49,7 +49,7 @@ jobs:
       - name: Verify key imports work
         run: |
           python -c "
-          import asyncpg
+          import psycopg
           import pgvector
           import aiohttp
           import feedparser

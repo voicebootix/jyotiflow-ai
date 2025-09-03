@@ -11,7 +11,7 @@ except ImportError:
     PSYCOPG_AVAILABLE = False
     print("⚠️ psycopg not available - please install psycopg[binary]")
 
-from backend.knowledge_seeding_system import AsyncPGCompatPool, AsyncPGCompatConnection
+from .knowledge_seeding_system import AsyncPGCompatPool, AsyncPGCompatConnection
 
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/yourdb")
 
