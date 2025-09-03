@@ -6,8 +6,8 @@ services:
     plan: free
     runtime: python
     # CORE.MD: Removed OpenCV dependencies - using PIL-only image processing for compatibility
-    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements.txt --prefer-binary"
-    startCommand: "gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:${PORT}"
+    buildCommand: "python3.12 -m pip install --upgrade pip && python3.12 -m pip install -r backend/requirements.txt --prefer-binary"
+    startCommand: "python3.12 -m gunicorn -w ${WEB_CONCURRENCY:-1} -k uvicorn.workers.UvicornWorker backend.main:app --bind 0.0.0.0:${PORT}"
     healthCheckPath: "/health"
     envVars:
       - key: WEB_CONCURRENCY
@@ -68,8 +68,8 @@ services:
     name: knowledge-seeder
     env: python
     runtime: python
-    buildCommand: "pip install --upgrade pip && pip install -r backend/requirements_minimal.txt --prefer-binary --no-cache-dir"
-    startCommand: "python -m backend.knowledge_seeding_system"
+    buildCommand: "python3.12 -m pip install --upgrade pip && python3.12 -m pip install -r backend/requirements_minimal.txt --prefer-binary --no-cache-dir"
+    startCommand: "python3.12 -m backend.knowledge_seeding_system"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
