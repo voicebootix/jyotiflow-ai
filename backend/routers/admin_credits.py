@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from typing import List
 from schemas.credit import CreditPackageCreate, CreditPackageUpdate, CreditPackageOut
-from db import get_db
+from ..db import get_db
 from utils.stripe_utils import create_stripe_credit_package
 import uuid
 

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Body
-from db import get_db, get_db_pool  # get_db_pool() returns current pool state
+from ..db import get_db, get_db_pool  # get_db_pool() returns current pool state
 import uuid
 import logging
 import json

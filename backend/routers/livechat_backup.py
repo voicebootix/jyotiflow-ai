@@ -8,7 +8,7 @@ import json
 
 # Import dependencies
 from deps import get_current_user
-from db import get_db
+from ..db import get_db
 from agora_service import get_agora_service, AgoraServiceManager
 
 logger = logging.getLogger(__name__)

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 from pydantic import BaseModel, EmailStr
-from db import get_db
+from ..db import get_db
 import bcrypt
 import jwt
 import os

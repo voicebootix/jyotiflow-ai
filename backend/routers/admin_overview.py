@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from db import get_db
+from ..db import get_db
 
 router = APIRouter(prefix="/api/admin", tags=["Admin Overview"])
 
