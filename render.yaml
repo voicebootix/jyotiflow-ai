@@ -69,7 +69,7 @@ services:
     env: python
     runtime: python
     buildCommand: "pip install --upgrade pip && pip install -r backend/requirements_minimal.txt --prefer-binary --no-cache-dir"
-    startCommand: "python backend/knowledge_seeding_system.py"
+    startCommand: "python -m backend.knowledge_seeding_system"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
